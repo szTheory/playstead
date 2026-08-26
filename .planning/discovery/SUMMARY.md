@@ -132,6 +132,10 @@ Start with the fewest repositories consistent with honest boundaries:
 - no protocol package until the first Mac integration stabilizes the contract;
 - later publish a small schema/SDK package and spin out supporting libraries only when at least two consumers prove reuse.
 
+The server/web application should be API-first Phoenix: conventional durable application services and `/api/v1` resources form the client boundary, while LiveView supplies the excellent built-in setup, administration, import, pairing, library, and progress experience. Native clients never depend on LiveView events, sockets, assigns, or HTML. They recover through idempotent commands, durable jobs, a cursor-based change journal, immutable blobs, and save revisions.
+
+For the first Mac proof, SwiftUI with targeted AppKit escape hatches best matches the risks being tested: filesystem and process integration, Game Controller, Keychain, offline cache, accessibility, signing, notarization, sleep/reconnect behavior, and emulator adapters. Browser emulation is a later API client with a narrow supported matrix; it is not a universal Play button or a LiveView feature.
+
 This follows the user's successful strangler-fig pattern: own unstable or janky dependencies only when a measured boundary justifies it, and replace them incrementally behind a stable adapter.
 
 ## Required De-Risking Spikes
@@ -147,7 +151,7 @@ This follows the user's successful strangler-fig pattern: own unstable or janky 
 ## Remaining Decisions That Change the First Spike
 
 - First system and emulator adapter. A no-proprietary-BIOS, simple persistent-save platform such as Game Boy Advance with a controlled RetroArch/mGBA path is the lowest-risk proof; this is a recommendation, not yet a decision.
-- Mac delivery shape. A native shell likely offers the best controller, filesystem, process, keychain, updater, accessibility, and platform-feel integration, but SwiftUI/AppKit versus a cross-platform shell should be decided by a short experiential spike.
+- Mac distribution and sandbox shape. SwiftUI/AppKit is the recommended client technology; the spike must still establish direct notarized versus App Store constraints and prove external-emulator coordination.
 - Initial account boundary. Single-user is simplest; retaining an explicit tenant/user key in the domain model avoids unsafe global dedupe assumptions.
 - First remote-storage milestone. Local disk should prove custody and recovery first; direct S3/R2 transfers are not necessary for the earliest end-to-end demo.
 
@@ -163,4 +167,6 @@ Naming and repository-family design should wait until the protocol and product b
 - User feedback and 18-source ledger: [`USER-FEEDBACK.md`](USER-FEEDBACK.md)
 - Technical/legal research and 24-source ledger: [`TECHNICAL-RISKS.md`](TECHNICAL-RISKS.md)
 - Experience principles and design sources: [`EXPERIENCE-ETHOS.md`](EXPERIENCE-ETHOS.md)
+- Web/client architecture and 17-source ledger: [`WEB-AND-CLIENT-ARCHITECTURE.md`](WEB-AND-CLIENT-ARCHITECTURE.md)
+- Naming research and collision checks: [`NAMING.md`](NAMING.md)
 - Original project intent: [`../../original-deep-research-prompt.txt`](../../original-deep-research-prompt.txt)

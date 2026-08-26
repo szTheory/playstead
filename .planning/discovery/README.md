@@ -6,6 +6,8 @@ This directory preserves pre-project research gathered before `PROJECT.md` is ap
 
 - [`SUMMARY.md`](SUMMARY.md) — decision-oriented synthesis, proposed wedge, first proof, spikes, and research boundary
 - [`EXPERIENCE-ETHOS.md`](EXPERIENCE-ETHOS.md) — product experience constitution and design influences
+- [`WEB-AND-CLIENT-ARCHITECTURE.md`](WEB-AND-CLIENT-ARCHITECTURE.md) — Phoenix/LiveView, API, native Mac, and optional browser-play boundaries
+- [`NAMING.md`](NAMING.md) — preliminary family-name screening; no candidate is approved until the correction pass and live checks are complete
 
 ## Evidence Files
 
@@ -20,4 +22,3 @@ This directory preserves pre-project research gathered before `PROJECT.md` is ap
 ## Provenance Standard
 
 Each evidence file separates direct observations from inference and ends with a source ledger. Current claims were checked on 2026-08-26. Mutable facts such as versions, licenses, terms, activity, and platform support must be revalidated when a phase relies on them.
-

@@ -27,6 +27,8 @@ A locally available game and its progress remain effortless to play, safe, under
 
 - [ ] A user can deploy a private server through one opinionated, documented container path with persistent data, health, backup, restore, and upgrade guidance.
 - [ ] A Mac client can securely pair with the server and declare its protocol and emulator capabilities.
+- [ ] The Phoenix application exposes a polished LiveView setup, administration, import, library, pairing, and job-status console without making LiveView the native-client protocol.
+- [ ] Native and future constrained clients use a durable, versioned HTTPS API with capability negotiation, idempotent mutations, resumable state, and no requirement for a persistent WebSocket.
 - [ ] A user can drop a supported ROM into the Mac client and see, before confirmation, that the product will copy it into managed storage while leaving the source untouched.
 - [ ] Import streams, hashes, stores, and records provenance for the exact original bytes without destructive normalization.
 - [ ] Exact duplicates, aliases, variants, unknown files, patched files, malformed files, and incomplete multi-file sets receive explicit, recoverable outcomes.
@@ -36,6 +38,7 @@ A locally available game and its progress remain effortless to play, safe, under
 - [ ] A newly paired computer can browse the complete server library without downloading it, then fetch only selected games or collections on demand.
 - [ ] The client distinguishes server-only, queued, partially downloaded, verified locally, pinned offline, and safe-to-evict content with storage-aware controls.
 - [ ] A user can shape a focused personal library through favorites, collections, recent play, queue, filters, and system preferences instead of being confronted by an undifferentiated archive.
+- [ ] Web and native navigation hide empty or unconfigured systems by default, expose counts and readiness when useful, and reveal system, core, controller, and advanced settings progressively in context.
 - [ ] A verified local game can launch without a healthy server, metadata provider, achievement service, storefront, or internet connection.
 - [ ] The product preflights game assets, emulator support, BIOS, controller, local cache, and save readiness before launch.
 - [ ] The client captures a proven persistent save type, appends immutable revisions, restores history, queues safely offline, and exposes conflicts without silent last-write-wins.
@@ -55,6 +58,7 @@ A locally available game and its progress remain effortless to play, safe, under
 - Supporting every platform, emulator, controller, and system in v1 — portability must be proven with a narrow adapter and then a second independent client/adapter.
 - Cross-core, cross-version, or cross-platform save-state guarantees — save states are implementation-bound; v1 concerns explicitly proven persistent saves.
 - Streaming, cloud execution, netplay, recommendations, social features, and achievements in the critical path — enrichment cannot compromise launch, saves, offline use, or simplicity.
+- General browser emulation in v1 — browser play is a valuable later client, but each core, system, browser, controller, and save combination needs an explicit capability, performance, storage, isolation, and licensing matrix.
 - General reference-in-place libraries, managed moves, automatic patching, destructive cleanup, or file rewriting in v1 — their failure and portability semantics are not yet safe enough for the happy path.
 - A custom operating-system/appliance distribution — interoperate with Batocera/RetroDECK-style environments later instead of owning their maintenance burden.
 
@@ -87,6 +91,7 @@ The central migration story is “new computer, same library”: install the cli
 
 - Platform-neutral library and synchronization protocol with capability negotiation.
 - High-quality clients for desktop, handheld, living-room, arcade, and homebrew environments.
+- A built-in Phoenix LiveView web console for the self-hosted happy path and, later, narrowly supported browser play using the same API and save-revision contracts as every other client.
 - Multiple storage backends, including local disk and S3-compatible object stores such as R2, without backend-specific client protocols.
 - Selective synchronization: the server retains the canonical personal repository while each client downloads only chosen games, collections, or recently used content and manages a bounded local cache.
 - Verified replication and backup to another local disk, NAS, or object store without requiring every client to mirror the full collection.
@@ -119,6 +124,8 @@ Pre-project research found mature local frontends, ROM managers, appliance bundl
 - [Open-source landscape](discovery/LANDSCAPE.md)
 - [Cross-project user feedback](discovery/USER-FEEDBACK.md)
 - [Technical, protocol, BIOS, storage, security, and legal risks](discovery/TECHNICAL-RISKS.md)
+- [Web and client architecture](discovery/WEB-AND-CLIENT-ARCHITECTURE.md)
+- [Naming research](discovery/NAMING.md)
 - [Original vision](../original-deep-research-prompt.txt)
 
 The discovery corpus contains 62 source-ledger entries. Mutable facts and legal/licensing claims must be revalidated when a phase depends on them.
@@ -128,6 +135,8 @@ The discovery corpus contains 62 source-ledger entries. Mutable facts and legal/
 The project will be developed through GSD research, discussion, planning, implementation, and verification. It should have high automated quality, deliberate architecture, one-way dependency flow, excellent CI/CD and release engineering, containerized deployment, secure defaults, actionable observability, low operational noise, polished UX and microcopy, accessibility, and maintainable code that is a pleasure to read.
 
 Elixir/Phoenix is the intended server foundation because it fits the owner's ecosystem and supports robust concurrent workflows and supervision. Supervision is not treated as a substitute for durable state, idempotency, bounded retries, process isolation, backpressure, resource limits, or tested recovery.
+
+The intended delivery boundary is API-first Phoenix with LiveView as the first-party web console. LiveView may call the same application services directly inside the Phoenix application, but sockets, assigns, HTML, and LiveView events are never the cross-platform protocol. The first Mac proof is a SwiftUI application with targeted AppKit use, pending an empirical signing, sandbox, and emulator-launch spike.
 
 ## Constraints
 
@@ -141,6 +150,7 @@ Elixir/Phoenix is the intended server foundation because it fits the owner's eco
 - **Operations**: Optimize for an opinionated low-administration deployment while preserving documented advanced adapters — the happy path is intentionally narrow.
 - **Architecture**: Build domain contracts before splitting repositories; integrate mature emulators and services behind adapters; avoid cyclic dependencies and infrastructure leakage into the core domain.
 - **Technology**: Elixir/Phoenix server is the strong default; Mac client technology and emulator adapter are decided by experiential spikes.
+- **Delivery boundary**: Phoenix LiveView is the built-in web experience, not the durable client protocol; native clients must converge through API state after disconnects and missed notifications.
 - **Naming**: `emu-server` is temporary until the product/protocol boundary survives the Mac spike.
 - **Commercialization**: Hosting is not a configuration toggle — it requires separate legal, policy, security, tenant, cost, and SRE readiness.
 
@@ -153,6 +163,9 @@ Elixir/Phoenix is the intended server foundation because it fits the owner's eco
 | Use managed copy as the initial import contract | It makes server availability, dedupe, backup, and export semantics reliable while leaving the source untouched | — Pending |
 | Address immutable game bytes separately from mutable saves | Their identity, transfer, caching, conflict, and compatibility properties are fundamentally different | — Pending |
 | Keep emulator adapters client-side | Local paths, process control, BIOS, controllers, and saves are platform/emulator concerns; the server protocol stays neutral | — Pending |
+| API-first Phoenix with a LiveView web console | LiveView provides a superb turnkey browser/admin experience while a durable API supports offline native and constrained-device clients | — Pending |
+| Native SwiftUI/AppKit Mac reference client | It most directly tests macOS filesystem, controller, Keychain, process, accessibility, signing, notarization, and offline requirements | — Pending |
+| Treat browser emulation as a separate later client | WebAssembly play can be a major convenience win, but browser storage, threading, controller, lifecycle, core maturity, and licensing are matrix-specific | — Pending |
 | Sync proven persistent saves before save states | Persistent saves have a more realistic portability contract; save states remain core/build/config bound | — Pending |
 | Local disk first, S3-compatible storage behind an adapter | Proves custody and recovery with minimal operations while retaining a route to R2/S3/MinIO | — Pending |
 | Server repository with selective client caches | Users can browse everywhere and download only what they intend to play; large collections do not need to travel with every device | — Pending |
@@ -164,10 +177,11 @@ Elixir/Phoenix is the intended server foundation because it fits the owner's eco
 ## Open Questions for Phase Planning
 
 - Which first system and emulator adapter best prove persistent-save and BIOS behavior? A no-proprietary-BIOS GBA path using a controlled RetroArch/mGBA integration is the current low-risk hypothesis.
-- Should the first Mac shell be native SwiftUI/AppKit or cross-platform? Test controller, filesystem, process, keychain, updater, accessibility, distribution, and visual quality before choosing.
+- Which direct macOS distribution and sandbox posture permits the required emulator adapter while retaining signing, notarization, secure credentials, accessibility, and safe file access?
 - Does the initial account model expose one user only or a household owner? Keep tenant/user scope explicit even if the UI is single-user.
 - When should S3-compatible direct transfer become necessary relative to server-proxied streaming?
 - Which metadata/DAT/artwork sources can be used or redistributed under the intended open-source and possible commercial models?
+- Which single WebAssembly core, system, and desktop-browser set, if any, passes the later browser-play performance, offline-cache, controller, save-sync, isolation-header, and licensing spike?
 
 ## Evolution
 
