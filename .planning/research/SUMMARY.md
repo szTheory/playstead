@@ -215,7 +215,7 @@ The roadmap should optimize for a single trustworthy Mac-to-server proof, not fo
 - [FEATURES.md](FEATURES.md) — table stakes, differentiators, feature dependency graph, explicit anti-features, and product-surface evidence.
 - [ARCHITECTURE.md](ARCHITECTURE.md) — normalized component boundaries, canonical data model, protocol seams, flows, topology, and phase gates.
 - [PITFALLS.md](PITFALLS.md) — failure modes, prevention strategies, operational warnings, and phase-to-verification mapping.
-- Discovery corpus cited by these files: `discovery/SUMMARY.md`, `LANDSCAPE.md`, `USER-FEEDBACK.md`, `TECHNICAL-RISKS.md`, `WEB-AND-CLIENT-ARCHITECTURE.md`, and `EXPERIENCE-ETHOS.md`.
+- Discovery corpus cited by these files: `.planning/discovery/SUMMARY.md`, `LANDSCAPE.md`, `USER-FEEDBACK.md`, `TECHNICAL-RISKS.md`, `WEB-AND-CLIENT-ARCHITECTURE.md`, and `EXPERIENCE-ETHOS.md`.
 
 ---
 *Research completed: 2026-08-26*  
