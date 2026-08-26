@@ -66,14 +66,6 @@
   },
   "mode": "yolo",
   "granularity": "coarse",
-  "preferences": {
-    "vendor_philosophy": "opinionated",
-    "research_with_subagents": true,
-    "idiomatic_elixir_lens": true,
-    "adopter_first_done_lens": true,
-    "retain_investigations": true,
-    "dx_ux_first": true
-  },
   "intel": {
     "enabled": false
   },

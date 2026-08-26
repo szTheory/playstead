@@ -134,6 +134,8 @@ The discovery corpus contains 62 source-ledger entries. Mutable facts and legal/
 
 The project will be developed through GSD research, discussion, planning, implementation, and verification. It should have high automated quality, deliberate architecture, one-way dependency flow, excellent CI/CD and release engineering, containerized deployment, secure defaults, actionable observability, low operational noise, polished UX and microcopy, accessibility, and maintainable code that is a pleasure to read.
 
+Project-local planning decisions use four persistent lenses: prefer idiomatic Elixir/Phoenix over generic framework-shaped code; judge “done” from a first adopter's complete experience rather than an internal demo; treat developer experience and user experience as product quality; and retain high-signal investigations with provenance so later phases can revisit evidence instead of rediscovering it. These are project guidance, not global GSD defaults.
+
 Elixir/Phoenix is the intended server foundation because it fits the owner's ecosystem and supports robust concurrent workflows and supervision. Supervision is not treated as a substitute for durable state, idempotency, bounded retries, process isolation, backpressure, resource limits, or tested recovery.
 
 The intended delivery boundary is API-first Phoenix with LiveView as the first-party web console. LiveView may call the same application services directly inside the Phoenix application, but sockets, assigns, HTML, and LiveView events are never the cross-platform protocol. The first Mac proof is a SwiftUI application with targeted AppKit use, pending an empirical signing, sandbox, and emulator-launch spike.

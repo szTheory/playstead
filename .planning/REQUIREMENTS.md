@@ -115,12 +115,52 @@ Which phases cover which requirements. This table is populated by roadmap creati
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| — | — | Pending |
+| OPER-01 | Phase 1 | Pending |
+| OPER-02 | Phase 1 | Pending |
+| OPER-03 | Phase 5 | Pending |
+| OPER-04 | Phase 5 | Pending |
+| PROT-01 | Phase 1 | Pending |
+| PROT-02 | Phase 1 | Pending |
+| PROT-03 | Phase 1 | Pending |
+| PROT-04 | Phase 1 | Pending |
+| PROT-05 | Phase 1 | Pending |
+| IMPT-01 | Phase 2 | Pending |
+| IMPT-02 | Phase 2 | Pending |
+| IMPT-03 | Phase 2 | Pending |
+| IMPT-04 | Phase 2 | Pending |
+| IMPT-05 | Phase 2 | Pending |
+| IMPT-06 | Phase 2 | Pending |
+| LIBR-01 | Phase 3 | Pending |
+| LIBR-02 | Phase 3 | Pending |
+| LIBR-03 | Phase 3 | Pending |
+| LIBR-04 | Phase 3 | Pending |
+| LIBR-05 | Phase 3 | Pending |
+| CACH-01 | Phase 3 | Pending |
+| CACH-02 | Phase 3 | Pending |
+| CACH-03 | Phase 3 | Pending |
+| CACH-04 | Phase 3 | Pending |
+| PLAY-01 | Phase 3 | Pending |
+| PLAY-02 | Phase 3 | Pending |
+| PLAY-03 | Phase 3 | Pending |
+| PLAY-04 | Phase 3 | Pending |
+| PLAY-05 | Phase 3 | Pending |
+| SAVE-01 | Phase 4 | Pending |
+| SAVE-02 | Phase 4 | Pending |
+| SAVE-03 | Phase 4 | Pending |
+| SAVE-04 | Phase 4 | Pending |
+| PORT-01 | Phase 4 | Pending |
+| PORT-02 | Phase 2 | Pending |
+| PORT-03 | Phase 5 | Pending |
+| PORT-04 | Phase 5 | Pending |
+| QUAL-01 | Phase 3 | Pending |
+| QUAL-02 | Phase 5 | Pending |
+| QUAL-03 | Phase 5 | Pending |
 
 **Coverage:**
 - v1 requirements: 40 total
-- Mapped to phases: 0
-- Unmapped: 40
+- Mapped to phases: 40
+- Unmapped: 0
+- Coverage summary: 40/40/0
 
 ---
 *Requirements defined: 2026-08-26*  
