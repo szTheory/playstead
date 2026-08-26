@@ -33,12 +33,17 @@ A locally available game and its progress remain effortless to play, safe, under
 - [ ] The library identifies supported content through replaceable metadata/hash providers while retaining source, version, confidence, and user correction.
 - [ ] The client presents a fast, polished, accessible, controller-friendly library rather than a generic CRUD interface.
 - [ ] The client can download, verify, cache, pin, and launch one deliberately supported system/emulator combination through an adapter.
+- [ ] A newly paired computer can browse the complete server library without downloading it, then fetch only selected games or collections on demand.
+- [ ] The client distinguishes server-only, queued, partially downloaded, verified locally, pinned offline, and safe-to-evict content with storage-aware controls.
+- [ ] A user can shape a focused personal library through favorites, collections, recent play, queue, filters, and system preferences instead of being confronted by an undifferentiated archive.
 - [ ] A verified local game can launch without a healthy server, metadata provider, achievement service, storefront, or internet connection.
 - [ ] The product preflights game assets, emulator support, BIOS, controller, local cache, and save readiness before launch.
 - [ ] The client captures a proven persistent save type, appends immutable revisions, restores history, queues safely offline, and exposes conflicts without silent last-write-wins.
 - [ ] A clean client installation can restore a game and its compatible persistent save from the server.
 - [ ] A user can export exact original game bytes, persistent saves, and a readable manifest into deterministic ordinary folders and verify their hashes.
 - [ ] Server and client updates preserve known-playable configurations through compatibility checks, migration preflight, atomicity where possible, and rollback.
+- [ ] Import supports both single-file immediacy and large staged collections through incremental, resumable, observable background work that can pause, resume, retry, and reconcile without duplicating unchanged content.
+- [ ] The server reports repository protection honestly and supports verified full and incremental backup/restore to user-controlled storage; one server copy is never described as a backup.
 - [ ] Failures are observable and actionable without turning normal operation into an alert stream; expert diagnostics remain available on demand.
 - [ ] The codebase has automated tests, CI/CD, secure defaults, dependency boundaries, observability, and release engineering appropriate for trustworthy user data.
 
@@ -63,6 +68,8 @@ Existing emulator frontends can feel polished while making library custody, exte
 
 The user should not fight folders, metadata providers, controller mappings, sync services, or server administration merely to resume a game. Automation should handle routine work, but every consequential action must remain explainable and reversible.
 
+The central migration story is “new computer, same library”: install the client, pair it, immediately browse the curated catalogue, connect or select a controller, download only what is wanted, restore compatible progress, and play. Carrying an external drive or rebuilding a complete local mirror should be optional, not the default operating model.
+
 ### First End-to-End Proof
 
 1. Start the server through the supported container configuration.
@@ -81,6 +88,8 @@ The user should not fight folders, metadata providers, controller mappings, sync
 - Platform-neutral library and synchronization protocol with capability negotiation.
 - High-quality clients for desktop, handheld, living-room, arcade, and homebrew environments.
 - Multiple storage backends, including local disk and S3-compatible object stores such as R2, without backend-specific client protocols.
+- Selective synchronization: the server retains the canonical personal repository while each client downloads only chosen games, collections, or recently used content and manages a bounded local cache.
+- Verified replication and backup to another local disk, NAS, or object store without requiring every client to mirror the full collection.
 - Lossless ingestion of large and complex libraries, including disc sets, variants, patches, manuals, artwork, and system dependencies.
 - Collections, favorites, queue, recency, play history, playlists, and restrained recommendations inspired by music-library workflows.
 - Optional achievements, streaming, launcher exports, and third-party integrations isolated behind adapters.
@@ -124,6 +133,7 @@ Elixir/Phoenix is the intended server foundation because it fits the owner's eco
 
 - **Content posture**: User-supplied, private content only — do not distribute, locate, or facilitate acquisition of copyrighted ROMs or proprietary BIOS files.
 - **Data ownership**: Preserve exact original bytes and provide documented, verified export — convenience cannot create lock-in.
+- **Repository safety**: Distinguish canonical storage from independent backup copies and display their health — centralization must reduce rather than concentrate the risk of disk loss.
 - **Reliability**: Never silently discard save conflicts or mutate imported source data — progress and provenance are trust-critical.
 - **Offline**: A verified locally cached game must remain launchable without optional network services — network enrichment stays off the critical path.
 - **Compatibility**: State support in terms of explicit client/emulator/core/system/version matrices — do not market aspirational universal compatibility.
@@ -145,6 +155,8 @@ Elixir/Phoenix is the intended server foundation because it fits the owner's eco
 | Keep emulator adapters client-side | Local paths, process control, BIOS, controllers, and saves are platform/emulator concerns; the server protocol stays neutral | — Pending |
 | Sync proven persistent saves before save states | Persistent saves have a more realistic portability contract; save states remain core/build/config bound | — Pending |
 | Local disk first, S3-compatible storage behind an adapter | Proves custody and recovery with minimal operations while retaining a route to R2/S3/MinIO | — Pending |
+| Server repository with selective client caches | Users can browse everywhere and download only what they intend to play; large collections do not need to travel with every device | — Pending |
+| Curated personal views before exhaustive catalogue features | Information hierarchy, favorites, collections, recency, and queue reduce choice overload without requiring a recommendation engine | — Pending |
 | Optional services never gate play | Metadata, artwork, achievements, storefronts, and recommendations must fail independently from local launch and saves | — Pending |
 | Polish outranks breadth | The project exists to remove friction; features that destabilize or fragment the happy path are deferred | — Pending |
 | Defer repository family and public naming | Stable contracts and multiple consumers should determine package boundaries and names | — Pending |

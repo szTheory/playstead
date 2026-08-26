@@ -46,6 +46,8 @@ Build one complete Mac-to-server vertical slice:
 9. A clean client installation can restore the game and save.
 10. The user can export the original game bytes, saves, and a documented manifest to ordinary folders and verify their hashes.
 
+A fresh computer never needs a full-library sync before it becomes useful. Pairing reveals the catalogue and curated views first; verified game bytes arrive on demand. A user may pin favorites or a collection offline, while the rest remains safely in the server repository.
+
 This is intentionally more integrated than a ROM CRUD application and narrower than owning emulator cores or supporting every platform.
 
 ## V1 Boundaries
@@ -60,11 +62,14 @@ This is intentionally more integrated than a ROM CRUD application and narrower t
 - Exact-byte deduplication within the user's library while preserving aliases and variants.
 - Recoverable exception queue for unknown, ambiguous, patched, incomplete, or malformed inputs.
 - Local-filesystem object-store adapter first; S3-compatible adapter behind the same server boundary later.
+- Canonical server repository plus selective per-device caches; catalogue sync is lightweight and game-byte sync is explicit, resumable, and storage-aware.
+- Single-item import and massive incremental collection import using the same ledger, with background progress, pause/resume, retry, idempotent reconciliation, and no needless rehash/download churn.
 - Versioned HTTPS API, client capability negotiation, device pairing, idempotent mutations, and HTTP range downloads.
 - One Mac client, one emulator adapter, one or two deliberately selected systems.
 - Persistent-save revisions, restore history, offline queue, and explicit conflict choice.
 - BIOS auditor/readiness UX for user-supplied files; open replacements only after per-system license and compatibility review.
 - Deterministic export, backup/restore validation, health checks, and migration safety.
+- Independent backup/replication status and verified full/incremental restore; the UI never conflates “stored on the server” with “backed up elsewhere.”
 - Compatibility-aware, atomic client/server updates; pinned adapter/content readiness; no background change may silently turn a known-playable local game into an unlaunchable one.
 
 ### Integrate
@@ -115,6 +120,8 @@ The evidence converges on six P0 experience requirements:
 Scanning must be incremental, idempotent, cancellable, and observable. Unchanged content cannot acquire a fake new version that causes needless client downloads. Docker volume, UID/GID, backup, migration, and storage-health errors are product UX.
 
 Large games make offline and update semantics especially visible. Downloads need resumability, capacity planning, pin/evict controls, checksum verification, and an unambiguous “Ready offline” state. Once ready, launch uses the verified local manifest and adapter configuration. Network services enrich the experience asynchronously; they do not sit on the critical path.
+
+The library is a curated personal space, not a warehouse dump. Favorites, collections, recently played, queue, strong filters, and system preferences are core information architecture. They let a large canonical repository remain comprehensive while each device and session stays intentionally small. Recommendations can wait until simple, user-directed organization is excellent.
 
 ## Architecture and Repository Strategy
 

@@ -82,6 +82,18 @@ Achievements can be delightful and may later arrive through an optional provider
 
 Known-playable configurations need compatibility records and rollback. Update metadata, cores, adapters, and server components atomically where possible; preflight migrations; retain the previous working state; and surface incompatibility before changing it. “Everything updated” is not success if the user can no longer play.
 
+### 15. A library is not an inventory dump
+
+The complete repository can be large without dominating the experience. Lead with favorites, collections, continue playing, recent additions, queue, and the systems this user cares about. Make global search and exhaustive filters excellent, but do not force every title and platform into every view. Curation is user-directed before it is algorithmic.
+
+### 16. Repository, cache, and backup are different promises
+
+The server is the canonical personal repository. A client cache is selective and safely reconstructable. A backup is an independent verified copy capable of restoring the repository after loss. Use these words and states consistently; never show a reassuring green “safe” state merely because one disk currently contains the bytes.
+
+### 17. New-computer setup is a product ritual
+
+Pairing a new machine should establish identity, show the catalogue, find available controllers and adapters, offer a small set of recommended downloads, and restore progress without requiring an external drive or complete mirror. A large collection becomes progressively available while the interface remains responsive and useful.
+
 ## Interaction Contracts
 
 ### Import
@@ -90,12 +102,21 @@ Known-playable configurations need compatibility records and rollback. Update me
 - Supporting explanation: “Your original file stays where it is. A verified copy will be stored by your server and available to your devices.”
 - Result receipt: exact duplicate / new managed copy / recognized variant / needs attention / failed safely
 - Advanced reference-in-place behavior is deferred until its failure and portability semantics can be made equally clear.
+- A single file feels immediate. A massive folder becomes a staged background job with estimated work, pause/resume, safe retries, and an import receipt; both paths use the same custody rules.
 
 ### Sync
 
 - States: only on this device / queued / uploading / backed up / downloading / offline / conflict / action required
 - Show the last successful revision, device, and time without requiring filename archaeology.
 - Never say “Synced” when a write is merely queued or when competing heads exist.
+- Keep catalogue metadata, game-byte availability, persistent saves, and backups as separate visible states rather than collapsing them into one ambiguous sync icon.
+
+### Collections and Local Availability
+
+- Primary views: Continue, Favorites, Collections, Queue, Recent, and chosen Systems
+- Per-game availability: On server / downloading / ready on this device / pinned offline
+- Collection actions: download here, pin offline, remove local copy, export, and verify
+- Storage view: explain reclaimable cache separately from irreplaceable repository data
 
 ### Ready to Play
 
