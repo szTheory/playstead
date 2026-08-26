@@ -1,0 +1,87 @@
+So I want to create a emulator server in Elixir github.com/szTheory That's my github account I've published a bunch of open source Elixir libraries by the way on hex.pm under user szTheory also u can find the code for all of these in ~/projects btw ..
+
+So yeah I made all these open source Elixir libraries because i wanted to make it easy to make Phoenix apps And now i feel like there's an opportunity here to make an emulation serverLike I want to have it be very easy so maybe to set this up with Docker you can self deploy it. Maybe eventually i would do a hosted version that people could pay for evenI do want to see the precedent for all this so if you could fan out Do research online. What is the Precedent for this space? Like what are the main options Consider record the providence of everything you find high-quality information onlyBut what I wanted to see is like...what is the gap here? Because to me what i want to have is a server you can connect with your emulators so there should have to be some kind of protocol i would have to make. There's probably prior art for it um..I don't necessarily want to reinvent the wheel but if need to i will cause i wanna do it better than everybody
+
+And so I'm thinking like imagine if you could just drag-and-drop your ROM files And they're automatically like scanned They're all searchable This whole thing is pretty hands-off for you And your files are just sitting there in the cloud Maybe uploads to S3 bucket or R2 on Cloudflare Or some kind of compatible layer object, store I don't know whatever would be cheapest and easiest to work with
+
+I mean i guess like we could also have the ability to if our files locally use those but i'm thinking this is kind of like a sync server because imagine if you are you have like imagine if You have like a hacked steam deck or psp Or do you just kind of want to share your save files across different computers?
+
+So like for me I've got a Mac laptop but then i've got windows gaming computer And I've all these different devices and as long as they have network access They should be able to pull down the games they want right?
+
+Like I want to have it be kind of like a Nintendo eShop you have a pro membership or whatever its called just a very nice front end we could build the front end so i guess the frontend could be another component I don't know how we do it STL, Electron. I wanted to be available on Mac, Windows, Linux and then also on PSP so I think that you'd have to have kind of a client pull down these ROM files gets all the metadata synced everything needs to be very efficient then of course there's legal oopals I don't know like checking hashes or checksums for these ROMs to identify them. I'm sure there is open source databases of ROM information obviously we can't recreate all of that from scratch so you have to build from existing sources
+
+But the one thing thats really important to me is I want this to be very seamless user friendly like easy to sync your saves pull them down up and down i dont know if there would be some kind of database sqlite Postgres or whatever everything should be really hands off and easy to like very low signal very very low alert like there shouldn't be a lot but there are a lot of admin in terms of upgrading this, patching it restarting it. That's why I think Elixir would be good because it has a supervisor and you can make it fault tolerant highly available with two deploys I guess But even one deploy will be better than other languages because it have a supervisor tree
+
+So yeah I'm sure there's a whole ecosystem out here for the emulators. The cores, the front ends Obviously we can't build everything you can kind of boil the ocean with AI And i'm okay with doing that pytest is better than another dependency But like obviously There's a limit to that point of diminution returns Like we're not going to rebuild Linux here
+
+So also there's like some here I'll paste you the prompt I use to make another related project don't get too distracted by this whole thing about the recomp stuff with EarthBound or whatever but like there's kind of some instructions there about the DNA of the project in terms of CICD and stuff you can kind of crib from.
+
+
+----
+
+talking about this which is at original-deep-research-prompt-project-kickoff.txt in ~/projects/recomp-game u can Read that file and kind of get a sense for what I'm talking about
+
+---
+
+So yeah I mean obviously it's a pretty broad subject so i guess you probably should ask me any questions And then also record all information in the project folder like High signal information research findings and include provenance. So this is kind of going to be the foundation of our second brain or like follow LLM with the second brain best practices for this
+
+And yeah help let's ask me the questions that will help narrow this in the most like any uncertainties you have about my intent extrapolate and then Ask me the most high leverage questions to narrow it down so we can triangulate on what I'm trying to do here as fast as possible
+
+But yeah this will be an open source project on github CI/CD high software quality AI generated using GST which is get you done it's kind of a research plan implement framework
+
+We're going to follow best practices for software architecture, software engineering avoiding cyclical dependencies and stuff like that DevOps, SRE easy to deploy containerized easy setup great developer experience great user experience easy for people to use all those are kind of fundamental principles
+
+Also great UI UX, UX microcopy controls design system everything's gonna be really nice polish easy to use controllers easy to set up to controllers. Everything should be as turnkey as possible like for that kind of Nintendo Apple experience even though it's open source
+
+And you know along with the theme of video games we were kind of going to do that juice it or loose it juice it, or lose it thing, or like game feel micro animations, principles of animations in UI controls
+
+Like not just overly bouncy and everything it should be very tastefully done kind of like the Kowalski animation stuff look up his blog posts
+
+And yeah probably PWA accessible as a phone on the phone would be good
+
+And of course this could almost be like unlimited scope so you kind of need to help scope it down
+
+But to me my vision is like ok yeah I'm on my mac, I have an app and then I am able to browse all the games filter them really quickly not just be a giant CRUD interface but very you're experiencing your game library because you do have to get those ROMs from somewhere obviously there's going to be transfer type we have to facilitate transfers so it's easy to upload download files to source storage to pick whatever storage options getting the highest value for the lowest amount of configuration we kind of do have to support power users to some extent perhaps but like you want to have a very I guess we don't just make this totally open-ended thing it should be an opinionated Ruby on Rails or Omarkey, like the DHH type opinionated. That's kind of like our main path, a happy path
+
+And then we sort of have to respect the error cases and boundary conditions But like you do want to optimize for getting the best experience with a happy path as possible So it's very well designed. Everything is kind of like almost industrial design in that respect
+
+And then like you know eventually I'd like to build out a front-end that you could install on a PSP or PS Vite PlayStation Vite Or maybe hacked Steam Deck. So this is like a whole ecosystem and probably we have to Plug in this emulator cores
+
+And then of course there's like library management here. It's a pretty big subject I know a lot of people spend time on it
+
+Then we also have things like arcade machines main so I think if some people are gonna want to they're not going to want just have every fucking system thrown at them They'll have certain preferences they have It's a pretty slim down experience when it needs to be And you get everything access to everything you do need to
+
+So I think there's some lessons learned here about like collection management from like DJs because if you just have a million songs You won't know how to find the game. Find the songs you want to queue them up Might be nice to have like a playlist cue games that we want to play Favorites things like that and like recommendations We could do it a basic recommendation engine for what to play next Not being overly annoying about it but you know like recency bias so to like oh if you've recently played this game probably gonna wanna play it again. And then maybe recommendations for other games you may want to play based on what you can playing sort of like a Netflix experience
+
+I know this is a lot of ambition but thats what i would like to have as frictionless experience where you can just easily play whatever games
+
+So yeah help me wrap my head around the scope of this vision narrow it down plan it out You know maybe it's something that's kind of like a multi-project thing or it's like we kind of build the foundations Build this ecosystem out I don't know. I want to make sure we have tight control over it. I don t want to adopt other people s janky shit So if we need to own something that's fine but like we just need to plan it out make sure everything is gonna Workout and then also we can kind of de risk it or spike it maybe
+
+So yeah, do deep research on this fan out gather a ton of information and Like this can serve as the foundation because we're gonna want to build a GSD project get shit done project for this And we're going to have to like map out the milestones a roadmap and everything scope everything out because it approach cons trade-offs
+
+Synthesizing sort of like a perfect one-shot plan well at least gathering all the information so yeah I'm just kind of giving you buzzwords to synthesize fan out research synthesized record provenance high signal information recorded building a good foundation so that we can get our bearings here ask me any questions to help narrow this down
+
+---
+
+I mean i don't know maybe it's kind of end to end like that's what we have to prove out is that we can have a server or have a client on one platform and then that it's going to be able to scale up and have clients in multiple platforms
+
+I would like to have one high quality experience on my Mac laptop connecting to a server for sync down. If we can get it working at one platform where we have a protocol that will work in theory across multiple I think we could start working that way maybe? What do you think about that?
+
+
+
+----
+
+
+https://openemu.org/ Yeah that sounds about right i mean because it's kind of like this open emu thing i tried it before but like i personally think it was a bit janky in terms of syncing it was okay but i don't know maybe we should also kind of look at what people complain about user feedback online i don t know if they're on github maybe some of these related projects have people complaining or we can figure out like what are the issues people are having with it personally i thought it was I don't know...I just had...I don't even know if it lets you sync to your cloud or anything but i had all these syncing issues And then I felt like- I don t think it supported cloud syncing Like I had to Plug in my hard drive with all these ROMs But then like I had map all the folders I don;t know It was just a lot of manual work and I think it was kind of slow too
+
+So like that's sort of the antithesis of what I want. I want everything perfectly Plug-and-play auto hands off You know you still have a data like you can get access to it somehow but like It's not totally proprietary format But and it's easy to kind of like pull down all that stuff and like put onto hard drive or from our drive Because you have to kind like initially import from your collection And then maybe you know people don't want to leave to leave the ecosystem at some point, so they're gonna want to pull the files down easily as well, so we have to support that. Then there's also like a lot of issues with deduping the files and mapping the files; it's just a huge pain in the ass ignoring dirty files, cordoning them all that stuff needs to be automated in the most elegant way possible
+
+But I mean just looking at your proof eight bullet items here. That seems decent to me except for the extent it contradicts what i just said but like it seems reasonable to me. I still want to make sure we do record all of the original vision and ambition though not that we necessarily to do it right now obviously we have to kind of like plan out the milestones but I just want to make sure we don't lose any high signal information
+
+The first successful Mac demo, i would say it should be pretty like integrated It should feel integrated, it shouldn't feel too janky If we just need to prove out a path That will definitely get us towards a more elegant solution, that's fine But like We just have to really keep in mind that it's about having this turnkey Elegant experience Great UI/UX Easy to Plug into your controller, it just works all of that stuff. And if we run into any technical roadblocks like you know I'm sure we're going to use controller libraries or something like that If one of them ends up being really bad We'll just have to source a better one or make our own even if we'd make those as separate project that we link up to Like we will systematically break through any issues we have here considering The realities of engineering but with AI to just fix the gaps if there's a gap is totally fucked up. We can overcome the limits I think
+
+So like this could definitely be a little bit of an ecosystem with projects I don't want to overly split it out but like you know just saying we can spin off new supporting libraries even if they're not directly related in project
+
+kinda like i did with exifcleaner the gui electron app github.com/szTheory/exifcleaner i have exifcleaner-node which is an npm lib that i'm using to strangler fig pattern remove the exiftool dep to simplify things and open up opportunities for more custom/quality/perf enhancements etc... and simplifyin the build/stack over time....
+
+
