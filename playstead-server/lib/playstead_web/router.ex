@@ -1,6 +1,12 @@
 defmodule PlaysteadWeb.Router do
   use PlaysteadWeb, :router
 
+  # Wraps the router's own call/2 in a try/rescue (same mechanism as
+  # Plug.ErrorHandler), so this fires before an exception can reach
+  # the endpoint's default render_errors HTML/JSON rendering (D-22;
+  # RESEARCH.md Pitfall 2).
+  use PlaysteadWeb.Plugs.ApiProblemHandler
+
   pipeline :browser do
     plug :accepts, ["html"]
     plug :fetch_session
@@ -27,6 +33,17 @@ defmodule PlaysteadWeb.Router do
     pipe_through :api
 
     get "/capabilities", CapabilitiesController, :show
+  end
+
+  # Dev/test-only target for the forced-500 problem+json contract test
+  # (D-22). Gated at compile time so it never ships in a production
+  # release.
+  if Mix.env() in [:dev, :test] do
+    scope "/api/v1", PlaysteadWeb.Api.V1 do
+      pipe_through :api
+
+      get "/debug/boom", DebugController, :boom
+    end
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
