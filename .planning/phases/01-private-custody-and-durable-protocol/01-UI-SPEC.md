@@ -45,12 +45,14 @@ Declared values (must be multiples of 4), Tailwind default scale:
 | 3xl | 64px | Page-level spacing (top of centered auth/wizard card from viewport edge) |
 
 Exceptions:
-- Icon-only buttons (approve/deny/revoke/rename glyph buttons on Devices page) use a 44×44px minimum touch/click target even though the visible icon is 20px — accessibility floor (QUAL-01), not a spacing-scale violation since the extra area is padding, not a new token.
+- Icon-only buttons (approve/deny/revoke/rename glyph buttons on Devices page) use a 44×44px minimum touch/click target even though the visible icon is 20px — accessibility floor (QUAL-01), not a spacing-scale violation since the extra area is padding, not a new token. **Label-fallback strategy (mandatory, no exceptions):** every icon-only button carries an accessible name via the Phoenix CoreComponents idiom — an `aria-label` on the `<button>`/`<.icon_button>`, or an `sr-only` span inside it, matching the button's action verb exactly (e.g. `aria-label="Approve device"`, `aria-label="Deny pairing request"`, `aria-label="Revoke [device name]"`, `aria-label="Rename [device name]"`). This is never optional and never satisfied by `title` alone. A visible tooltip (on hover/focus, using the same copy as the accessible name) is a nice-to-have on top of this, not a substitute for it.
 - The pairing display code and setup token render at a deliberately oversized type scale (see Typography — Display role) with generous letter-spacing; this is a typography decision, not a spacing exception.
 
 ---
 
 ## Typography
+
+**Font-size budget: 5 sizes, formally exceeding the standard 4-size constraint by one documented exception.** The 4-role UI hierarchy below (Body/Label/Heading/Display) uses exactly 4 sizes, satisfying the constraint on its own. The 5th size — 40px — is reserved exclusively for the pairing display code and exists as a separately-justified security exception, the same pattern already used for the 44px touch-target exception in the Spacing Scale section above. This is a constraint upgrade, not a violation: declaring it explicitly here is what makes it self-justifying and re-check-safe.
 
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
@@ -65,9 +67,15 @@ Only 2 weights exist in the system: 400 regular and 600 semibold. Never introduc
 
 | Element | Size | Weight | Letter Spacing |
 |---------|------|--------|-----------------|
-| Pairing display code (`MKTV-QRZC`) | 40px | 600 | 0.08em |
+| Pairing display code (`MKTV-QRZC`) — **5th size, exception** | 40px | 600 | 0.08em |
 | Setup token / recovery codes | 20px | 600 | 0.04em |
 | Device credential fingerprint (SHA-256 prefix) | 14px | 400 | normal |
+
+**Typography exception — pairing display code at 40px (5th font size):**
+- **Why it exists:** D-07 requires the owner to instantly and reliably compare the display code shown on the console against the code shown on the Mac from across a room. This is a security property, not an aesthetic preference — a code that is easy to misread or skim past defeats the pairing ceremony's purpose.
+- **Why it can't fold into the 4-role Display size (28px):** 28px is tuned for the console's ordinary heading hierarchy (readable at desk distance, sitting alongside body copy). The pairing code has a materially different reading distance and error-tolerance requirement — it must be legible and comparable at a glance from further away, and misreads have a real security cost. Shrinking it to 28px to preserve a 4-size budget would weaken the exact property D-07 exists to protect.
+- **Scope of the exception:** exactly one element (the pairing display code), one screen (the pairing approval card / evidence card), never reused elsewhere. It does not open the door to arbitrary additional sizes — any other new size request must still fit inside the 4-role budget or be rejected.
+- **Reinforcement, not replacement:** dominance is also carried by letter-spacing (0.08em, widest in the system), accent color (`#38BDF8`, reserved for exactly this + primary CTAs), and layout placement — size alone is not asked to do all the work.
 
 The pairing display code is the single largest text element in the entire console — it is the whole security property (D-07) and must dominate the approval card visually over every "claimed" field (device name, platform, IP).
 
