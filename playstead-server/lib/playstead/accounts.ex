@@ -13,7 +13,7 @@ defmodule Playstead.Accounts do
   import Ecto.Query, warn: false
   alias Playstead.Repo
 
-  alias Playstead.Accounts.{User, UserToken}
+  alias Playstead.Accounts.{User, UserToken, RecoveryCode}
 
   ## Database getters
 
@@ -104,6 +104,57 @@ defmodule Playstead.Accounts do
     %User{}
     |> User.owner_registration_changeset(attrs)
     |> Repo.insert()
+  end
+
+  ## Recovery codes (D-05b)
+
+  @doc """
+  Generates `count` single-use recovery codes for `user` (default 10),
+  each stored as its own bcrypt-hashed row so codes can be consumed
+  independently. Returns the plaintext codes — this is the ONLY public
+  function that ever does; there is no later retrieval path.
+
+  Called once, inside `Playstead.Setup.claim/2`'s transaction.
+  """
+  def generate_recovery_codes(user, count \\ 10) do
+    for _ <- 1..count do
+      code = Playstead.Codes.random_code()
+
+      %RecoveryCode{user_id: user.id, code_hash: Bcrypt.hash_pwd_salt(code)}
+      |> Repo.insert!()
+
+      code
+    end
+  end
+
+  @doc """
+  Consumes a single-use recovery code for `user`. Returns `{:ok, user}` and
+  permanently marks the matching row consumed, or `{:error, :invalid_code}`
+  for a wrong or already-consumed code. Calls `Bcrypt.no_user_verify/0` on
+  the no-match path to avoid a timing side-channel between "wrong code"
+  and "no unconsumed codes left".
+  """
+  def consume_recovery_code(user, code) when is_binary(code) do
+    candidate =
+      RecoveryCode
+      |> where([r], r.user_id == ^user.id and is_nil(r.consumed_at))
+      |> Repo.all()
+      |> Enum.find(&Bcrypt.verify_pass(code, &1.code_hash))
+
+    case candidate do
+      nil ->
+        Bcrypt.no_user_verify()
+        {:error, :invalid_code}
+
+      row ->
+        {count, _} =
+          Repo.update_all(
+            from(r in RecoveryCode, where: r.id == ^row.id and is_nil(r.consumed_at)),
+            set: [consumed_at: DateTime.utc_now(:second)]
+          )
+
+        if count == 1, do: {:ok, user}, else: {:error, :invalid_code}
+    end
   end
 
   ## Settings

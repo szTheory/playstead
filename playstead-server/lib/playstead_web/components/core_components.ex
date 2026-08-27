@@ -476,6 +476,27 @@ defmodule PlaysteadWeb.CoreComponents do
   end
 
   @doc """
+  Renders a security-sensitive code — the setup token, recovery codes, and
+  (from plan 01-04 onward) the pairing display code and device credential
+  fingerprint — in JetBrains Mono at the UI-SPEC "code role" 20px size with
+  0.04em letter-spacing (D-07/D-09: the owner must be able to visually
+  compare these character-by-character).
+  """
+  attr :class, :any, default: nil
+  slot :inner_block, required: true
+
+  def code_display(assigns) do
+    ~H"""
+    <span class={[
+      "font-['JetBrains_Mono'] text-[20px] font-semibold tracking-[0.04em] text-[#38BDF8]",
+      @class
+    ]}>
+      {render_slot(@inner_block)}
+    </span>
+    """
+  end
+
+  @doc """
   Translates an error message using gettext.
   """
   def translate_error({msg, opts}) do

@@ -23,12 +23,23 @@ defmodule PlaysteadWeb.Router do
     plug :accepts, ["json"]
   end
 
+  # D-03: `/setup` renders only while no owner exists, and 404s
+  # permanently — never a redirect — the moment one does.
+  pipeline :setup_open do
+    plug PlaysteadWeb.Plugs.RequireSetupOpen
+  end
+
   get "/healthz", PlaysteadWeb.HealthController, :show
 
   scope "/", PlaysteadWeb do
     pipe_through :browser
 
     get "/", PageController, :home
+  end
+
+  scope "/", PlaysteadWeb do
+    pipe_through [:browser, :setup_open]
+
     live "/setup", SetupLive
   end
 

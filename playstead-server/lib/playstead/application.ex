@@ -36,7 +36,17 @@ defmodule Playstead.Application do
     # See https://elixir.hexdocs.pm/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Playstead.Supervisor]
-    Supervisor.start_link(children, opts)
+
+    with {:ok, pid} <- Supervisor.start_link(children, opts) do
+      # D-03's setup-token bootstrap needs the Repo running, hence after
+      # the supervisor starts rather than before. Skipped in :test — the
+      # Ecto Sandbox pool requires an explicit per-process checkout that
+      # this boot-time call (running outside any test's owner process)
+      # does not have; tests exercise `Playstead.Setup` directly instead.
+      if @env != :test, do: Playstead.Setup.mint_token()
+
+      {:ok, pid}
+    end
   end
 
   # Tell Phoenix to update the endpoint configuration
