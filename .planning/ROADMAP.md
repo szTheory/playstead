@@ -46,7 +46,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 01-03-PLAN.md — Console session list with per-session revocation, sudo-mode gate, login throttling, audit log, and email-free credential recovery
+- [x] 01-03-PLAN.md — Console session list with per-session revocation, sudo-mode gate, login throttling, audit log, and email-free credential recovery
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
