@@ -1,0 +1,23 @@
+# Source: caddyserver.com/docs/automatic-https
+#
+# Caddy's automatic HTTPS already implements D-13 with no extra
+# directives: when the site address is a real, publicly-resolvable
+# domain (PLAYSTEAD_DOMAIN is set), Caddy automatically requests a
+# Let's Encrypt certificate for it. When the address is "localhost"
+# (PLAYSTEAD_DOMAIN unset, the default below), Caddy detects that it
+# is not a publicly-resolvable name and automatically issues from its
+# own internal CA instead — the same effect an explicit `tls internal`
+# directive would force, but without disabling automatic Let's Encrypt
+# issuance for the real-domain case. An unconditional `tls internal`
+# directive here would force the internal CA even when PLAYSTEAD_DOMAIN
+# is a real domain, breaking the "automatic Let's Encrypt when
+# PLAYSTEAD_DOMAIN is set" half of D-13 — so it is deliberately not
+# used unconditionally in this file.
+#
+# This does not implement PLAYSTEAD_PROXY=external — that is a
+# documented alternative deployment path (see docs/DEPLOY.md), not a
+# behavior of this Caddyfile.
+
+{$PLAYSTEAD_DOMAIN:localhost} {
+	reverse_proxy app:4000
+}
