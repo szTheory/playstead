@@ -1,8 +1,26 @@
-# Naming Research: Product Family — Revised Screening
+# Naming Decision: Playstead
 
 **Checked:** 2026-08-26  
-**Status:** no public-name recommendation; retain `emu-server` as the working name.  
+**Status:** **Playstead selected** as the project and ecosystem family name by the project owner on 2026-08-26.
 **Scope:** preliminary product, search, GitHub, app-store, package-ecosystem, and obvious trademark-collision screening. This is **not** trademark, company-name, domain, or legal clearance.
+
+## Decision
+
+Use **Playstead** as the project name, workspace name, and shared family for first-party components:
+
+```
+playstead/
+  playstead-server/
+  playstead-mac/
+```
+
+The protocol remains part of the server boundary until a stable contract and another proven consumer justify `playstead-protocol`. Likewise, web delivery remains inside the Phoenix server unless an independent deployment boundary emerges. The family name does not force a multi-repository architecture.
+
+**Rationale:** after several deliberately varied naming tournaments, the owner preferred Playstead over the remaining candidates. It is a short, pronounceable real-word construction that suggests a place set aside for play without saying ROM, retro, cloud, archive, or a specific platform. It supports descriptive component names while leaving the product subtitle to explain the literal value.
+
+**Provenance:** direct project-owner decision in the project discovery conversation, 2026-08-26. Earlier recommendations and their retractions remain below so future work can audit rather than repeat the failed screening process.
+
+**Clearance boundary:** this decision authorizes internal project and folder naming. Before a public GitHub organization, package namespace, app listing, marketing site, or commercial offering, rerun live namespace, domain, app-store, and relevant trademark checks. This document does not claim legal availability.
 
 ## Retraction of the prior recommendation
 
@@ -28,11 +46,11 @@ A name may enter a public shortlist only if this preliminary screen finds **none
 
 Every surviving candidate would additionally need a live, manual check of GitHub, npm, Hex, crates.io, PyPI, App Store, Google Play, desired domains, and relevant trademark registries. Absence from a search index is never proof of availability.
 
-## Result: no safe finalist at this stage
+## Historical result before the Playstead decision
 
 Under the stricter rule, this research cannot responsibly nominate even one public name. The candidate pool was intentionally reset rather than padded with loosely screened, invented “SaaS-like” names. A mark that only looks clean in a search result is not a useful family name when it must support `-server`, `-mac`, and `-protocol` repositories and, eventually, an app and a hosted offer.
 
-**Working-name decision:** keep **`emu-server`** for the Mac spike and internal code. It is explicitly temporary in `PROJECT.md`, but is clearer and safer than publishing another unvetted family mark. Do not create a GitHub organization, package namespace, marketing site, app listing, or paid offering under an un-cleared candidate.
+**Superseded working-name decision:** the research initially retained **`emu-server`** for the Mac spike and internal code. The owner subsequently selected Playstead. The caution against creating a public organization, package namespace, marketing site, app listing, or paid offering without a fresh clearance pass remains active.
 
 ## Product-fit guidance for the next naming sprint
 
@@ -109,15 +127,15 @@ All entries were checked on **2026-08-26**. These sources support specific colli
 | Cairnwood | [Registered trademark](https://trademarks.justia.com/880/45/cairnwood-88045689.html), [active company](https://find-and-update.company-information.service.gov.uk/company/NI721996) |
 | Candidate package/identity check surface | [GitHub repository search](https://github.com/search?q=NAME&type=repositories), [npm](https://www.npmjs.com/search?q=NAME), [Hex](https://hex.pm/packages?search=NAME), [crates.io](https://crates.io/search?q=NAME), [PyPI](https://pypi.org/search/?q=NAME) — replace `NAME` with each finalist and record a dated result. |
 
-## Required next step before public naming
+## Required next step before public release
 
-Run a short, dedicated naming-and-clearance sprint after the Mac spike, with a trademark professional or specialist where commercial use is contemplated. Start from 25–40 natural compounds or uncommon real-word constructions, then perform the strict screen above before discussing design. For each of 3–5 survivors, record:
+Run a focused Playstead clearance pass before public release, with a trademark professional or specialist where commercial use is contemplated. Record:
 
 1. exact and confusingly similar results in the applicable trademark classes/jurisdictions;
 2. `.com` and acceptable alternate-domain status;
-3. GitHub organization/user plus the expected `-server`, `-mac`, and `-protocol` slugs;
+3. GitHub organization/user plus the expected `playstead-server`, `playstead-mac`, and possible `playstead-protocol` slugs;
 4. npm, Hex, crates.io, and PyPI name status;
 5. Apple and Google app-store exact-name results; and
 6. an audio/spelling test with people who are not emulation enthusiasts.
 
-Only then should the project replace `emu-server` with a public family name.
+If a material collision appears, revisit the public mark without undoing the technical architecture or losing this decision history.

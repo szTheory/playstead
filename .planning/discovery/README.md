@@ -7,7 +7,7 @@ This directory preserves pre-project research gathered before `PROJECT.md` is ap
 - [`SUMMARY.md`](SUMMARY.md) — decision-oriented synthesis, proposed wedge, first proof, spikes, and research boundary
 - [`EXPERIENCE-ETHOS.md`](EXPERIENCE-ETHOS.md) — product experience constitution and design influences
 - [`WEB-AND-CLIENT-ARCHITECTURE.md`](WEB-AND-CLIENT-ARCHITECTURE.md) — Phoenix/LiveView, API, native Mac, and optional browser-play boundaries
-- [`NAMING.md`](NAMING.md) — preliminary family-name screening; no candidate is approved until the correction pass and live checks are complete
+- [`NAMING.md`](NAMING.md) — the Playstead decision, prior candidate retractions, provenance, and the remaining pre-public clearance gate
 
 ## Evidence Files
 

@@ -1,6 +1,6 @@
 # Domain Pitfalls: Personal Emulation Library and Continuity System
 
-**Project:** Emu Server  
+**Project:** Playstead
 **Domain:** Private, self-hosted ROM library, offline-capable clients, and revisioned save continuity  
 **Researched:** 2026-08-26  
 **Confidence:** MEDIUM — the guidance consolidates project discovery evidence. Assertions marked **Confirmed** are supported by the cited discovery source ledgers; **Inference** is a project decision drawn from that evidence and must be validated in its delivery phase.

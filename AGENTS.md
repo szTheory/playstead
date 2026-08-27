@@ -2,9 +2,9 @@
 
 ## Project
 
-**Emu Server**
+**Playstead**
 
-Emu Server is the working name for an open-source, self-hostable personal game-library and continuity system. It gives people a polished way to import user-supplied ROMs, understand exactly what happened to their files, browse and play through integrated clients, keep persistent saves safe across devices, and export everything without lock-in.
+Playstead is an open-source, self-hostable personal game-library and continuity system. It gives people a polished way to import user-supplied ROMs, understand exactly what happened to their files, browse and play through integrated clients, keep persistent saves safe across devices, and export everything without lock-in.
 
 The first proof is one excellent Mac-to-server experience. The long-term vision is a platform-neutral protocol and family of clients for Mac, Windows, Linux, Steam Deck, PSP/Vita-class homebrew devices, arcade and living-room systems, and the web where technically appropriate.
 
@@ -23,7 +23,7 @@ The first proof is one excellent Mac-to-server experience. The long-term vision 
 - **Architecture**: Build domain contracts before splitting repositories; integrate mature emulators and services behind adapters; avoid cyclic dependencies and infrastructure leakage into the core domain.
 - **Technology**: Elixir/Phoenix server is the strong default; Mac client technology and emulator adapter are decided by experiential spikes.
 - **Delivery boundary**: Phoenix LiveView is the built-in web experience, not the durable client protocol; native clients must converge through API state after disconnects and missed notifications.
-- **Naming**: `emu-server` is temporary until the product/protocol boundary survives the Mac spike.
+- **Naming**: Playstead is the selected project and ecosystem family name. Public launch, app-store, package, organization, and commercial use still require live namespace and appropriate legal clearance checks.
 - **Commercialization**: Hosting is not a configuration toggle — it requires separate legal, policy, security, tenant, cost, and SRE readiness.
 
 <!-- GSD:project-end -->

@@ -1,13 +1,13 @@
 # Feature Landscape
 
-**Project:** Emu Server  
+**Project:** Playstead
 **Domain:** self-hosted personal game-library custody, offline play, and cross-device persistent-save continuity  
 **Researched:** 2026-08-26  
 **Confidence:** MEDIUM-HIGH — product direction is strongly corroborated by the discovery corpus; system/core and adapter compatibility remain empirical.
 
 ## Product Boundary
 
-Emu Server is not another ROM catalogue, emulator, operating system, or generic file-sync tool. Its v1 promise is a **canonical, private server repository** for user-supplied content; a **selective, verified client cache** for games chosen to play locally; and an **independent, verified backup** for recovery after repository loss. These are three different user promises and must never share a vague “safe/synced” label.
+Playstead is not another ROM catalogue, emulator, operating system, or generic file-sync tool. Its v1 promise is a **canonical, private server repository** for user-supplied content; a **selective, verified client cache** for games chosen to play locally; and an **independent, verified backup** for recovery after repository loss. These are three different user promises and must never share a vague “safe/synced” label.
 
 The product proves one polished Mac-to-server path: managed-copy import, exact-byte custody, curated browsing, selected offline download, adapter preflight and launch, persistent-save revision sync, clean-machine restore, and deterministic export. Phoenix LiveView is the first-party setup/admin console; native, browser, and future device clients use a durable versioned HTTPS API and capability negotiation. Achievements and browser play are optional later adapters, never prerequisites for library use or local launch.
 
@@ -171,4 +171,4 @@ Selected direct sources already verified in those ledgers:
 - [Phoenix LiveView documentation](https://phoenix-live-view.hexdocs.pm/Phoenix.LiveView.html) — web-console lifecycle; not a durable native-client protocol (HIGH).
 
 ---
-*Feature research for Emu Server — repository custody and game continuity, not ROM/BIOS acquisition.*
+*Feature research for Playstead — repository custody and game continuity, not ROM/BIOS acquisition.*

@@ -159,7 +159,7 @@ This follows the user's successful strangler-fig pattern: own unstable or janky 
 
 Broad competitor search is now saturated enough to begin project definition. More value will come from phase-specific primary-source review and empirical spikes, not cataloguing additional frontends. Revalidate mutable facts when adopting a project, library, API, dataset, or license.
 
-Naming and repository-family design should wait until the protocol and product boundary survive the Mac spike. `emu-server` is an appropriate working name.
+The owner selected **Playstead** as the ecosystem family name on 2026-08-26. That settles the workspace and component vocabulary but does not force premature repository extraction: server, Mac, protocol, and supporting-library boundaries still become separate public repositories only when stable contracts and multiple consumers justify them. Live namespace and appropriate legal-clearance checks remain a gate before public or commercial use.
 
 ## Evidence Map
 

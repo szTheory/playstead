@@ -106,7 +106,7 @@ Scores: Severity (harm if wrong), Frequency (evidence recurrence/documented cons
 
 ## Positive Patterns Worth Preserving
 
-| Valued behavior | Evidence | Emu-server interpretation |
+| Valued behavior | Evidence | Playstead interpretation |
 |---|---|---|
 | Controller-first, keyboardless browsing | EmulationStation describes this as a core design goal. [S15] | Game-room/handheld UI cannot be a mouse-first admin console with controller support added later. |
 | Explicit import diagnostics | OpenEmu enumerates concrete failure categories and a manual system resolver. [S01] | Keep automation, but name the problem and offer a safe next action. |

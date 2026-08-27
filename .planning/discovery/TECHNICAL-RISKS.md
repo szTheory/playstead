@@ -1,6 +1,6 @@
 # Technical, Protocol, Data, BIOS, Storage, and Product-Risk Research
 
-**Project:** emu-server  
+**Project:** Playstead
 **Scope:** self-hosted ROM-library and save-sync server; polished Mac reference client; future multi-platform adapters  
 **Researched:** 2026-08-26  
 **Overall confidence:** MEDIUM — primary project, standards, cloud, security, and U.S. Copyright Office sources were checked. This is technical/product research, **not legal advice**; jurisdiction, facts, and product design matter.
@@ -191,4 +191,3 @@ All sources were accessed 2026-08-26. Confidence is **MEDIUM** unless noted beca
 | S22 | Sony Computer Entertainment v. Connectix | U.S. Court of Appeals, Ninth Circuit (via FindLaw) | https://caselaw.findlaw.com/court/us-9th-circuit/1452245.html | Case-specific fair-use holding for intermediate BIOS copying. |
 | S23 | DMCA / Section 1201 | U.S. Copyright Office | https://www.copyright.gov/dmca/ | DMCA overview and designated-agent notice. |
 | S24 | Ninth Triennial Section 1201 Proceeding | U.S. Copyright Office | https://www.copyright.gov/1201/2024/ | General anti-circumvention rule and limited exemptions. |
-

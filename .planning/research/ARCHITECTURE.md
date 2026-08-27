@@ -1,6 +1,6 @@
 # Canonical Architecture
 
-**Project:** Emu Server  
+**Project:** Playstead
 **Domain:** Self-hosted, user-custodied game-library and continuity system  
 **Researched:** 2026-08-26  
 **Confidence:** MEDIUM-HIGH for v1 boundaries; MEDIUM for unspiked adapter and remote-storage details
@@ -188,8 +188,8 @@ Deploy one documented container path with persistent volumes, health checks, mig
 ## Recommended Project Structure
 
 ```
-server/
-  lib/emu_server/
+playstead-server/
+  lib/playstead/
     domain/                 # pure entities, invariants, domain events/ports
     application/            # commands, queries, transactions, orchestration
     infrastructure/
@@ -198,10 +198,10 @@ server/
       metadata/             # replaceable providers, cache/policy/provenance
       workers/              # bounded job implementations and reconciliation
     protocol/v1/            # versioned schemas, serializers, API contract tests
-  lib/emu_server_web/
+  lib/playstead_web/
     controllers/api/v1/     # HTTP translation only
     live/                   # web console only
-mac-client/
+playstead-mac/
   App/                      # SwiftUI views + AppKit bridges
   Protocol/                 # generated/handwritten v1 client; no server internals
   Sync/                     # outbox, change cursor, cache/index
@@ -257,4 +257,4 @@ This architecture is derived from project decisions and discovery sources, rathe
 
 ---
 
-*Canonical architecture for Emu Server. This document preserves current decisions while naming empirical gates instead of promising unproven portability.*
+*Canonical architecture for Playstead. This document preserves current decisions while naming empirical gates instead of promising unproven portability.*

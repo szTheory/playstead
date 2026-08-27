@@ -1,13 +1,13 @@
 # Project Research Summary
 
-**Project:** Emu Server  
+**Project:** Playstead
 **Domain:** Self-hosted, user-custodied game-library and persistent-save continuity system  
 **Researched:** 2026-08-26  
 **Confidence:** MEDIUM-HIGH for product direction and v1 boundaries; MEDIUM for unspiked platform integrations
 
 ## Executive Summary
 
-Emu Server's wedge is not emulation itself, a ROM catalogue, or generic file sync. It is trustworthy personal custody and continuity: a private canonical repository for user-supplied exact bytes, selective verified caches on clients, and independently verified backups. The first product proof must let a clean Mac installation pair, browse without mirroring the library, download one selected game, prove it ready locally, launch it offline through one adapter, preserve a compatible persistent save, restore it on a clean client, and export all original bytes and evidence.
+Playstead's wedge is not emulation itself, a ROM catalogue, or generic file sync. It is trustworthy personal custody and continuity: a private canonical repository for user-supplied exact bytes, selective verified caches on clients, and independently verified backups. The first product proof must let a clean Mac installation pair, browse without mirroring the library, download one selected game, prove it ready locally, launch it offline through one adapter, preserve a compatible persistent save, restore it on a clean client, and export all original bytes and evidence.
 
 Build this as a modular Phoenix monolith backed by PostgreSQL and a local filesystem object-store adapter, with a versioned HTTPS `/api/v1` as the product boundary and LiveView only as the first-party setup/admin console. The Mac reference client is native SwiftUI with targeted AppKit; it owns cache, Keychain, controller, emulator, BIOS, and filesystem/process effects behind a client-side adapter. Durable domain state, idempotent commands, cursor convergence, immutable manifests, bounded workers, and immutable save revisions are the reliability substrate—not Phoenix/LiveView process supervision or sockets.
 

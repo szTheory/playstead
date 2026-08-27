@@ -1,4 +1,4 @@
-# Stack Research: Emu Server
+# Stack Research: Playstead
 
 **Domain:** Self-hosted, user-custodied game-library and save-continuity system
 **Researched:** 2026-08-26
@@ -67,7 +67,7 @@ Create the server with the current Phoenix generator and let its resolver select
 ```bash
 # Performed only after the phase validates the current generator/toolchain.
 mix archive.install hex phx_new
-mix phx.new emu_server --database postgres --live
+mix phx.new playstead-server --app playstead --module Playstead --database postgres --live
 
 # Add only the capabilities that are being built.
 mix deps.get
@@ -148,4 +148,4 @@ All links were checked or carried from the project’s primary-source discovery 
 5. Maintain a third-party BOM and licence review for every emulator/core, metadata dataset, artwork source and browser/WASM asset before redistribution.
 
 ---
-*Stack research for: Emu Server — current-version snapshot 2026-08-26; operational pins are established at implementation time, not guessed in research.*
+*Stack research for: Playstead — current-version snapshot 2026-08-26; operational pins are established at implementation time, not guessed in research.*

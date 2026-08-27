@@ -1,8 +1,8 @@
-# Emu Server
+# Playstead
 
 ## What This Is
 
-Emu Server is the working name for an open-source, self-hostable personal game-library and continuity system. It gives people a polished way to import user-supplied ROMs, understand exactly what happened to their files, browse and play through integrated clients, keep persistent saves safe across devices, and export everything without lock-in.
+Playstead is an open-source, self-hostable personal game-library and continuity system. It gives people a polished way to import user-supplied ROMs, understand exactly what happened to their files, browse and play through integrated clients, keep persistent saves safe across devices, and export everything without lock-in.
 
 The first proof is one excellent Mac-to-server experience. The long-term vision is a platform-neutral protocol and family of clients for Mac, Windows, Linux, Steam Deck, PSP/Vita-class homebrew devices, arcade and living-room systems, and the web where technically appropriate.
 
@@ -153,7 +153,7 @@ The intended delivery boundary is API-first Phoenix with LiveView as the first-p
 - **Architecture**: Build domain contracts before splitting repositories; integrate mature emulators and services behind adapters; avoid cyclic dependencies and infrastructure leakage into the core domain.
 - **Technology**: Elixir/Phoenix server is the strong default; Mac client technology and emulator adapter are decided by experiential spikes.
 - **Delivery boundary**: Phoenix LiveView is the built-in web experience, not the durable client protocol; native clients must converge through API state after disconnects and missed notifications.
-- **Naming**: `emu-server` is temporary until the product/protocol boundary survives the Mac spike.
+- **Naming**: Playstead is the selected project and ecosystem family name. Public launch, app-store, package, organization, and commercial use still require live namespace and appropriate legal clearance checks.
 - **Commercialization**: Hosting is not a configuration toggle — it requires separate legal, policy, security, tenant, cost, and SRE readiness.
 
 ## Key Decisions
@@ -174,7 +174,8 @@ The intended delivery boundary is API-first Phoenix with LiveView as the first-p
 | Curated personal views before exhaustive catalogue features | Information hierarchy, favorites, collections, recency, and queue reduce choice overload without requiring a recommendation engine | — Pending |
 | Optional services never gate play | Metadata, artwork, achievements, storefronts, and recommendations must fail independently from local launch and saves | — Pending |
 | Polish outranks breadth | The project exists to remove friction; features that destabilize or fragment the happy path are deferred | — Pending |
-| Defer repository family and public naming | Stable contracts and multiple consumers should determine package boundaries and names | — Pending |
+| Use Playstead as the project and ecosystem family name | The owner selected it after iterative naming tournaments; it is short, memorable, and extends coherently to server and client names without constraining the protocol | ✓ Selected 2026-08-26; public clearance pending |
+| Defer repository extraction until boundaries are proven | Stable contracts and multiple consumers should determine package boundaries; the Playstead family name does not require premature multi-repo architecture | — Pending |
 
 ## Open Questions for Phase Planning
 
