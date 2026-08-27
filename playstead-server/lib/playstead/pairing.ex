@@ -323,21 +323,54 @@ defmodule Playstead.Pairing do
     |> Repo.insert()
   end
 
-  defp insert_credential(device_id, superseded_by \\ nil) do
+  defp insert_credential(device_id, superseded_by \\ nil, command_id \\ nil) do
     plaintext = generate_credential_plaintext()
     hash = hash_credential(plaintext)
 
-    {:ok, credential} =
+    changeset =
       %DeviceCredential{}
       |> DeviceCredential.create_changeset(%{
         device_id: device_id,
         token_hash: hash,
         fingerprint_prefix: fingerprint_prefix(hash),
-        superseded_by_id: superseded_by
+        superseded_by_id: superseded_by,
+        command_id: command_id
       })
-      |> Repo.insert()
 
-    {:ok, credential, plaintext}
+    if command_id do
+      # D-20b: on_conflict upsert keyed on the client-generated natural
+      # key. A replay of the same command_id converges to the existing
+      # row instead of minting a second credential — even after the
+      # idempotency receipt (task 2) that would otherwise replay the
+      # original plaintext has expired. When convergence happens, the
+      # plaintext genuinely cannot be recovered (only its hash is ever
+      # stored), so the caller only gets a plaintext back on the row's
+      # actual first insertion.
+      # `on_conflict: :nothing` returns zero rows from Postgres on a
+      # real conflict, so Ecto can't distinguish "inserted" from
+      # "converged" by inspecting the returned struct (its
+      # client-generated binary_id primary key is always populated
+      # either way). `{:replace, [:updated_at]}` forces Postgres's
+      # `RETURNING` to always hand back the row that now genuinely
+      # exists — the pre-existing row on conflict, our own row on a
+      # fresh insert — so `credential.token_hash == hash` reliably
+      # tells us which one it is.
+      {:ok, credential} =
+        Repo.insert(changeset,
+          on_conflict: {:replace, [:updated_at]},
+          conflict_target: [:command_id],
+          returning: true
+        )
+
+      if credential.token_hash == hash do
+        {:ok, credential, plaintext}
+      else
+        {:ok, credential, nil}
+      end
+    else
+      {:ok, credential} = Repo.insert(changeset)
+      {:ok, credential, plaintext}
+    end
   end
 
   @doc """
@@ -392,26 +425,62 @@ defmodule Playstead.Pairing do
   and returns the new plaintext exactly once. The old credential keeps
   authenticating until the new one is first used, at which point
   `authenticate/1` deletes it. Never forced, never scheduled.
+
+  `command_id`, when given, must be a valid UUIDv7 string
+  (`Playstead.CommandId.valid_v7?/1`) — an invalid one is rejected
+  before any effect runs. It is the client-generated natural key
+  (D-20b) that makes a post-receipt-expiry outbox replay converge to
+  the same credential row instead of duplicating, and is threaded onto
+  a uniquely-enqueued `Playstead.Pairing.RotationAuditWorker` job.
   """
-  @spec rotate_credential(Device.t()) ::
-          {:ok, %{credential_plaintext: String.t(), fingerprint_prefix: String.t()}}
+  @spec rotate_credential(Device.t(), String.t() | nil) ::
+          {:ok, %{credential_plaintext: String.t() | nil, fingerprint_prefix: String.t()}}
           | {:error, term()}
-  def rotate_credential(%Device{} = device) do
-    Repo.transaction(fn ->
-      current =
-        DeviceCredential
-        |> where([c], c.device_id == ^device.id and is_nil(c.superseded_by_id))
-        |> Repo.one()
+  def rotate_credential(device, command_id \\ nil)
 
-      {:ok, new_credential, plaintext} = insert_credential(device.id)
+  def rotate_credential(%Device{} = device, command_id) when is_binary(command_id) do
+    case Playstead.CommandId.cast(command_id) do
+      {:ok, valid_command_id} -> do_rotate_credential(device, valid_command_id)
+      :error -> {:error, {:invalid_command_id, "must be a valid UUIDv7 string"}}
+    end
+  end
 
-      if current do
-        {:ok, _} =
-          current |> DeviceCredential.supersede_changeset(new_credential.id) |> Repo.update()
-      end
+  def rotate_credential(%Device{} = device, nil), do: do_rotate_credential(device, nil)
 
-      %{credential_plaintext: plaintext, fingerprint_prefix: new_credential.fingerprint_prefix}
-    end)
+  defp do_rotate_credential(%Device{} = device, command_id) do
+    result =
+      Repo.transaction(fn ->
+        current =
+          DeviceCredential
+          |> where([c], c.device_id == ^device.id and is_nil(c.superseded_by_id))
+          |> Repo.one()
+
+        {:ok, new_credential, plaintext} = insert_credential(device.id, nil, command_id)
+
+        if current && current.id != new_credential.id do
+          {:ok, _} =
+            current |> DeviceCredential.supersede_changeset(new_credential.id) |> Repo.update()
+        end
+
+        %{credential_plaintext: plaintext, fingerprint_prefix: new_credential.fingerprint_prefix}
+      end)
+
+    case result do
+      {:ok, %{} = ok} ->
+        maybe_enqueue_rotation_audit(device.id, command_id)
+        {:ok, ok}
+
+      error ->
+        error
+    end
+  end
+
+  defp maybe_enqueue_rotation_audit(_device_id, nil), do: :ok
+
+  defp maybe_enqueue_rotation_audit(device_id, command_id) do
+    %{device_id: device_id, command_id: command_id}
+    |> Playstead.Pairing.RotationAuditWorker.new()
+    |> Oban.insert()
   end
 
   ## Device lifecycle (D-10, D-11)

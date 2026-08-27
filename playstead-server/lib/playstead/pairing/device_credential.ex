@@ -22,6 +22,9 @@ defmodule Playstead.Pairing.DeviceCredential do
     field :activated_at, :utc_datetime
     field :last_used_at, :utc_datetime
     field :superseded_by_id, :binary_id
+    # D-20b: client-generated UUIDv7 natural key. Nil for
+    # non-command-scoped issuance (initial pairing redemption).
+    field :command_id, :string
 
     timestamps(type: :utc_datetime)
   end
@@ -34,10 +37,12 @@ defmodule Playstead.Pairing.DeviceCredential do
       :token_hash,
       :fingerprint_prefix,
       :activated_at,
-      :superseded_by_id
+      :superseded_by_id,
+      :command_id
     ])
     |> validate_required([:device_id, :token_hash])
     |> unique_constraint(:token_hash)
+    |> unique_constraint(:command_id)
   end
 
   @doc false

@@ -40,11 +40,12 @@ defmodule PlaysteadWeb.Api.V1.DevicesController do
   POST /api/v1/devices/me/rotate — Idempotency-Key gated, receipt and
   effect share one transaction via `Playstead.Idempotency.execute/4`.
   """
-  def rotate(conn, _params) do
+  def rotate(conn, params) do
     device = conn.assigns.current_device
+    command_id = params["command_id"]
 
     run_idempotent(conn, device, fn ->
-      case Pairing.rotate_credential(device) do
+      case Pairing.rotate_credential(device, command_id) do
         {:ok, %{credential_plaintext: credential, fingerprint_prefix: fingerprint_prefix}} ->
           {:ok, 201, %{credential: credential, fingerprint_prefix: fingerprint_prefix}}
 
