@@ -25,8 +25,8 @@ Playstead is now the canonical project and ecosystem family name throughout the 
 - The implementation commit is `1fd0dbe` (`docs: adopt Playstead project identity`).
 - Active product docs contain no stale temporary identity; remaining `emu-server` text is limited to the explicitly superseded historical record and this migration's before/after plan.
 - `git diff --check` found no whitespace errors after final cleanup.
-- `~/projects/playstead` was confirmed available before the planned final folder rename.
+- The workspace was renamed to `~/projects/playstead` and verified from the new path with a clean Git worktree.
 
 ## Next
 
-Rename the workspace to `~/projects/playstead`, then begin Phase 1 with `$gsd-discuss-phase 1` from the renamed parent workspace.
+Begin Phase 1 with `$gsd-discuss-phase 1` from `~/projects/playstead`.
