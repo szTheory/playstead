@@ -32,7 +32,11 @@ defmodule PlaysteadWeb.ProblemTest do
     conn =
       Phoenix.ConnTest.build_conn()
       |> Plug.Conn.put_req_header("accept", "application/json")
-      |> PlaysteadWeb.Problem.send_problem(422, :capability_incompatible, "The client version is too old.")
+      |> PlaysteadWeb.Problem.send_problem(
+        422,
+        :capability_incompatible,
+        "The client version is too old."
+      )
 
     assert conn.status == 422
 

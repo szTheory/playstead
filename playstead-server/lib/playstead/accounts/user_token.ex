@@ -6,7 +6,10 @@ defmodule Playstead.Accounts.UserToken do
   @hash_algorithm :sha256
   @rand_size 32
 
-  @session_validity_in_days 14
+  # D-06: remember-me is on by default with a ~60-day window, backed by
+  # this DB-backed token — revocation (deleting the row) actually
+  # invalidates the session on its next request.
+  @session_validity_in_days 60
 
   # Default validity for the generic hashed-token contexts that survive
   # the D-02 email-flow removal (currently only `:password_reset`, minted
@@ -20,6 +23,11 @@ defmodule Playstead.Accounts.UserToken do
     field :context, :string
     field :sent_to, :string
     field :authenticated_at, :utc_datetime
+    # D-06: a coarse, safe browser/OS label derived from User-Agent at
+    # session-creation time (T-01-19 — never the raw user-agent string).
+    # `nil` when the client string isn't recognizable; the Sessions list
+    # then renders the generic "Browser session" label.
+    field :client_label, :string
     belongs_to :user, Playstead.Accounts.User
 
     timestamps(type: :utc_datetime, updated_at: false)
@@ -44,10 +52,18 @@ defmodule Playstead.Accounts.UserToken do
   and devices in the UI and allow users to explicitly expire any
   session they deem invalid.
   """
-  def build_session_token(user) do
+  def build_session_token(user, client_label \\ nil) do
     token = :crypto.strong_rand_bytes(@rand_size)
     dt = user.authenticated_at || DateTime.utc_now(:second)
-    {token, %UserToken{token: token, context: "session", user_id: user.id, authenticated_at: dt}}
+
+    {token,
+     %UserToken{
+       token: token,
+       context: "session",
+       user_id: user.id,
+       authenticated_at: dt,
+       client_label: client_label
+     }}
   end
 
   @doc """
@@ -97,7 +113,11 @@ defmodule Playstead.Accounts.UserToken do
   valid if it matches its hashed counterpart in the database and has not
   expired (`validity_in_hours` after issuance).
   """
-  def verify_hashed_token_query(token, context, validity_in_hours \\ @hashed_token_default_validity_in_hours) do
+  def verify_hashed_token_query(
+        token,
+        context,
+        validity_in_hours \\ @hashed_token_default_validity_in_hours
+      ) do
     case Base.url_decode64(token, padding: false) do
       {:ok, decoded_token} ->
         hashed_token = :crypto.hash(@hash_algorithm, decoded_token)

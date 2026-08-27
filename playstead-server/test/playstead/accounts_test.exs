@@ -95,7 +95,9 @@ defmodule Playstead.AccountsTest do
 
     test "validates password length" do
       {:error, changeset} =
-        Accounts.register_owner(valid_owner_attributes(password: "short", password_confirmation: "short"))
+        Accounts.register_owner(
+          valid_owner_attributes(password: "short", password_confirmation: "short")
+        )
 
       assert "should be at least 12 character(s)" in errors_on(changeset).password
     end

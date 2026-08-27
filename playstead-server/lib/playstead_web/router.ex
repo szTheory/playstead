@@ -29,6 +29,25 @@ defmodule PlaysteadWeb.Router do
     plug PlaysteadWeb.Plugs.RequireSetupOpen
   end
 
+  pipeline :require_authenticated do
+    plug :require_authenticated_user
+  end
+
+  # D-06, T-01-15: dangerous actions require a fresh sudo confirmation.
+  pipeline :require_sudo do
+    plug PlaysteadWeb.Plugs.SudoMode
+  end
+
+  # D-06, T-01-16: fixed per-IP/per-account throttling, distinct buckets
+  # per action.
+  pipeline :throttle_login do
+    plug PlaysteadWeb.Plugs.Throttle, action: :login
+  end
+
+  pipeline :throttle_recovery do
+    plug PlaysteadWeb.Plugs.Throttle, action: :recovery
+  end
+
   get "/healthz", PlaysteadWeb.HealthController, :show
 
   scope "/", PlaysteadWeb do
@@ -86,9 +105,60 @@ defmodule PlaysteadWeb.Router do
     live_session :current_user,
       on_mount: [{PlaysteadWeb.UserAuth, :mount_current_scope}] do
       live "/log-in", LoginLive, :new
+      live "/log-in/recovery", RecoveryLoginLive, :new
     end
+  end
+
+  scope "/", PlaysteadWeb do
+    pipe_through [:browser, :throttle_login]
 
     post "/log-in", UserSessionController, :create
+  end
+
+  scope "/", PlaysteadWeb do
+    pipe_through [:browser, :throttle_recovery]
+
+    post "/log-in/recovery", UserSessionController, :create_via_recovery
+  end
+
+  scope "/", PlaysteadWeb do
+    pipe_through [:browser]
+
     delete "/log-out", UserSessionController, :delete
+  end
+
+  ## Sessions and sudo mode (D-06)
+
+  scope "/", PlaysteadWeb do
+    pipe_through [:browser, :require_authenticated]
+
+    live_session :sudo,
+      on_mount: [{PlaysteadWeb.UserAuth, :mount_current_scope}] do
+      live "/sudo", SudoLive, :new
+    end
+  end
+
+  scope "/", PlaysteadWeb do
+    pipe_through [:browser, :require_authenticated, :require_sudo]
+
+    live_session :require_sudo,
+      on_mount: [
+        {PlaysteadWeb.UserAuth, :mount_current_scope},
+        {PlaysteadWeb.Plugs.SudoMode, :require_sudo}
+      ] do
+      live "/settings/sessions", SessionsLive, :index
+    end
+
+    post "/settings/recovery-codes/regenerate", RecoveryCodesController, :regenerate
+  end
+
+  ## Email-free credential recovery (D-05)
+
+  scope "/", PlaysteadWeb do
+    pipe_through [:browser]
+
+    get "/reset/:token", ResetPasswordController, :edit
+    post "/reset/:token", ResetPasswordController, :update
+    get "/docs/recovery", RecoveryDocsController, :show
   end
 end

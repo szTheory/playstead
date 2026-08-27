@@ -23,7 +23,8 @@ defmodule PlaysteadWeb.SetupLive do
        step: 1,
        token: nil,
        token_error: nil,
-       credentials_form: to_form(%{"email" => "", "password" => "", "password_confirmation" => ""}, as: "owner"),
+       credentials_form:
+         to_form(%{"email" => "", "password" => "", "password_confirmation" => ""}, as: "owner"),
        recovery_codes: [],
        readiness: :loading
      )}
@@ -62,7 +63,13 @@ defmodule PlaysteadWeb.SetupLive do
       and looking for the banner printed at boot. Paste it below.
     </p>
 
-    <.form for={%{}} as={:setup} id="setup_token_form" phx-submit="verify_token" class="mt-4 space-y-3">
+    <.form
+      for={%{}}
+      as={:setup}
+      id="setup_token_form"
+      phx-submit="verify_token"
+      class="mt-4 space-y-3"
+    >
       <div>
         <label for="setup_token" class="block text-sm font-semibold text-[#F1F5F9]">
           Setup token
@@ -97,7 +104,13 @@ defmodule PlaysteadWeb.SetupLive do
     ~H"""
     <p class="text-sm text-[#94A3B8]">Create your owner account.</p>
 
-    <.form for={@credentials_form} as={:owner} id="owner_form" phx-submit="create_owner" class="mt-4 space-y-3">
+    <.form
+      for={@credentials_form}
+      as={:owner}
+      id="owner_form"
+      phx-submit="create_owner"
+      class="mt-4 space-y-3"
+    >
       <div>
         <label for="owner_email" class="block text-sm font-semibold text-[#F1F5F9]">Email</label>
         <input
@@ -231,7 +244,8 @@ defmodule PlaysteadWeb.SetupLive do
   defp readiness_label(:volumes), do: "Storage volumes"
   defp readiness_label(:https), do: "HTTPS"
 
-  defp translate_form_error({msg, opts}), do: PlaysteadWeb.CoreComponents.translate_error({msg, opts})
+  defp translate_form_error({msg, opts}),
+    do: PlaysteadWeb.CoreComponents.translate_error({msg, opts})
 
   @impl true
   def handle_event("verify_token", %{"setup" => %{"token" => token}}, socket) do
@@ -240,8 +254,7 @@ defmodule PlaysteadWeb.SetupLive do
         {:noreply, assign(socket, step: 2, token: token, token_error: nil)}
 
       {:error, :invalid_or_expired} ->
-        {:noreply,
-         assign(socket, token_error: "This token is invalid or has already been used.")}
+        {:noreply, assign(socket, token_error: "This token is invalid or has already been used.")}
     end
   end
 

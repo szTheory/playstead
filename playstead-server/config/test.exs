@@ -39,3 +39,13 @@ config :phoenix_live_view,
 # Sort query params output of verified routes for robust url comparisons
 config :phoenix,
   sort_verified_routes_query_params: true
+
+# D-06: the full test suite exercises real POST /log-in traffic across
+# many test files, all sharing ConnTest's default 127.0.0.1 remote_ip
+# within the same 1-minute fixed window. A production-realistic limit
+# here would throttle the test suite itself, not the feature under test.
+# PlaysteadWeb.Plugs.Throttle's own test file passes small explicit
+# per-call limits to exercise the actual fixed-limit behavior directly.
+config :playstead, PlaysteadWeb.Plugs.Throttle,
+  per_ip_limit: 100_000,
+  per_account_limit: 100_000

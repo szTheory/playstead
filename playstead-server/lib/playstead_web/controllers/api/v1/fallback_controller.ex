@@ -10,7 +10,12 @@ defmodule PlaysteadWeb.Api.V1.FallbackController do
   use PlaysteadWeb, :controller
 
   def call(conn, {:error, :not_found}) do
-    PlaysteadWeb.Problem.send_problem(conn, 404, :not_found, "The requested resource was not found.")
+    PlaysteadWeb.Problem.send_problem(
+      conn,
+      404,
+      :not_found,
+      "The requested resource was not found."
+    )
   end
 
   def call(conn, {:error, :unauthorized}) do

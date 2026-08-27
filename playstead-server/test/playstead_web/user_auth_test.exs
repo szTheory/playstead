@@ -9,7 +9,8 @@ defmodule PlaysteadWeb.UserAuthTest do
   import Playstead.AccountsFixtures
 
   @remember_me_cookie "_playstead_web_user_remember_me"
-  @remember_me_cookie_max_age 60 * 60 * 24 * 14
+  # D-06: remember-me window is ~60 days, not phx.gen.auth's default 14.
+  @remember_me_cookie_max_age 60 * 60 * 24 * 60
 
   setup %{conn: conn} do
     conn =
@@ -396,6 +397,70 @@ defmodule PlaysteadWeb.UserAuthTest do
         event: "disconnect",
         topic: "users_sessions:dG9rZW4y"
       }
+    end
+  end
+
+  describe "cookie posture (D-06)" do
+    test "an https request receives a remember-me cookie with the secure attribute", %{
+      conn: conn,
+      user: user
+    } do
+      conn =
+        conn
+        |> Map.put(:scheme, :https)
+        |> fetch_cookies()
+        |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
+
+      assert %{secure: true} = conn.resp_cookies[@remember_me_cookie]
+    end
+
+    test "an http request receives a remember-me cookie without the secure attribute", %{
+      conn: conn,
+      user: user
+    } do
+      conn =
+        conn
+        |> Map.put(:scheme, :http)
+        |> fetch_cookies()
+        |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
+
+      refute Map.has_key?(conn.resp_cookies[@remember_me_cookie], :secure)
+    end
+
+    test "both http and https remember-me cookies are http_only with SameSite=Lax", %{
+      conn: conn,
+      user: user
+    } do
+      conn = conn |> fetch_cookies() |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
+      assert %{http_only: true, same_site: "Lax"} = conn.resp_cookies[@remember_me_cookie]
+    end
+  end
+
+  describe "client_label (D-06, T-01-19)" do
+    test "a recognizable User-Agent produces a browser/OS label", %{conn: conn, user: user} do
+      conn =
+        conn
+        |> put_req_header(
+          "user-agent",
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        )
+        |> UserAuth.log_in_user(user)
+
+      token = get_session(conn, :user_token)
+      [session] = Accounts.list_sessions(Scope.for_user(user))
+      assert session.token == token
+      assert session.client_label == "Chrome on macOS"
+    end
+
+    test "an unrecognizable or missing User-Agent stores no client label", %{
+      conn: conn,
+      user: user
+    } do
+      conn = UserAuth.log_in_user(conn, user)
+      token = get_session(conn, :user_token)
+      [session] = Accounts.list_sessions(Scope.for_user(user))
+      assert session.token == token
+      assert session.client_label == nil
     end
   end
 end

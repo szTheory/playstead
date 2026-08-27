@@ -4,11 +4,18 @@ defmodule PlaysteadWeb.Endpoint do
   # The session will be stored in the cookie and signed,
   # this means its contents can be read but not tampered with.
   # Set :encryption_salt if you would also like to encrypt it.
+  # D-06: `http_only: true` and `same_site: "Lax"` always. Deliberately no
+  # `:secure` key — `Plug.Conn.put_resp_cookie/4` sets `secure: true`
+  # automatically, and only, when the request's own `conn.scheme` is
+  # `:https` (never hard-forced, so a LAN plain-HTTP self-hoster is never
+  # silently locked out). See `PlaysteadWeb.UserAuth`'s cookie options
+  # comment for the full rationale.
   @session_options [
     store: :cookie,
     key: "_playstead_key",
     signing_salt: "+8AWZccK",
-    same_site: "Lax"
+    same_site: "Lax",
+    http_only: true
   ]
 
   socket "/live", Phoenix.LiveView.Socket,

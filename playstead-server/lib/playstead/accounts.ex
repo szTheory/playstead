@@ -13,7 +13,7 @@ defmodule Playstead.Accounts do
   import Ecto.Query, warn: false
   alias Playstead.Repo
 
-  alias Playstead.Accounts.{User, UserToken, RecoveryCode}
+  alias Playstead.Accounts.{User, UserToken, RecoveryCode, Scope}
 
   ## Database getters
 
@@ -70,6 +70,15 @@ defmodule Playstead.Accounts do
 
   """
   def get_user!(id), do: Repo.get!(User, id)
+
+  @doc """
+  Returns the owner account, or `nil` if none exists yet. Used by the
+  email-free recovery paths (D-05), which act on "the" owner directly
+  since Phase 1 is single-owner.
+  """
+  def get_owner do
+    Repo.get_by(User, role: :owner)
+  end
 
   ## Owner registration (D-01, D-02, D-03, D-04)
 
@@ -147,14 +156,37 @@ defmodule Playstead.Accounts do
         {:error, :invalid_code}
 
       row ->
-        {count, _} =
-          Repo.update_all(
-            from(r in RecoveryCode, where: r.id == ^row.id and is_nil(r.consumed_at)),
-            set: [consumed_at: DateTime.utc_now(:second)]
-          )
+        Repo.transact(fn ->
+          {count, _} =
+            Repo.update_all(
+              from(r in RecoveryCode, where: r.id == ^row.id and is_nil(r.consumed_at)),
+              set: [consumed_at: DateTime.utc_now(:second)]
+            )
 
-        if count == 1, do: {:ok, user}, else: {:error, :invalid_code}
+          if count == 1 do
+            Playstead.AuditLog.record(user.id, :recovery_code_consumed, %{})
+            {:ok, user}
+          else
+            {:error, :invalid_code}
+          end
+        end)
     end
+  end
+
+  @doc """
+  Regenerates `user`'s recovery codes (D-05b): the existing codes are
+  invalidated immediately (deleted) and a fresh set is generated and
+  returned once. Reachable only through the sudo-mode gate
+  (`PlaysteadWeb.Plugs.SudoMode`) — this function itself performs no
+  sudo check, so callers MUST gate access before invoking it.
+  """
+  def regenerate_recovery_codes(user, count \\ 10) do
+    Repo.transact(fn ->
+      Repo.delete_all(from(r in RecoveryCode, where: r.user_id == ^user.id))
+      codes = generate_recovery_codes(user, count)
+      Playstead.AuditLog.record(user.id, :recovery_codes_regenerated, %{})
+      {:ok, codes}
+    end)
   end
 
   ## Settings
@@ -211,13 +243,35 @@ defmodule Playstead.Accounts do
     |> update_user_and_delete_all_tokens()
   end
 
+  @doc """
+  Consumes a single-use `:password_reset` token (D-05a, minted by
+  `Playstead.Release.reset_owner_password/0`) and sets a new password.
+
+  A second call with the same token returns `{:error, :invalid_or_expired}`
+  because `update_user_and_delete_all_tokens/1` deletes every `UserToken`
+  row for the user — including the reset token itself — as part of
+  changing the password, so the row simply no longer exists to match.
+  An expired token (outside `UserToken`'s validity window) is rejected the
+  same way, before any password change is attempted.
+  """
+  def reset_password_with_token(token, attrs) do
+    with {:ok, query} <- UserToken.verify_hashed_token_query(token, "password_reset"),
+         %UserToken{} = user_token <- Repo.one(query),
+         %User{} = user <- Repo.get(User, user_token.user_id) do
+      update_user_password(user, attrs)
+    else
+      _ -> {:error, :invalid_or_expired}
+    end
+  end
+
   ## Session
 
   @doc """
-  Generates a session token.
+  Generates a session token, optionally storing a coarse client label
+  (D-06) derived from the requesting client's User-Agent.
   """
-  def generate_user_session_token(user) do
-    {token, user_token} = UserToken.build_session_token(user)
+  def generate_user_session_token(user, client_label \\ nil) do
+    {token, user_token} = UserToken.build_session_token(user, client_label)
     Repo.insert!(user_token)
     token
   end
@@ -237,6 +291,53 @@ defmodule Playstead.Accounts do
   """
   def delete_user_session_token(token) do
     Repo.delete_all(from(UserToken, where: [token: ^token, context: "session"]))
+    :ok
+  end
+
+  ## Sessions list and revocation (D-06)
+
+  @doc """
+  Lists `scope`'s owner's session tokens, most recent first. Each row
+  carries `client_label` (`nil` when the client string wasn't
+  recognizable at creation time — the UI renders a generic label) and
+  `inserted_at`. Scoped by `%Scope{}` so a session can never be listed
+  across accounts.
+  """
+  def list_sessions(%Scope{user: user}) do
+    UserToken
+    |> where([t], t.user_id == ^user.id and t.context == "session")
+    |> order_by([t], desc: t.inserted_at)
+    |> Repo.all()
+  end
+
+  @doc """
+  Revokes exactly one session token belonging to `scope`'s owner, leaving
+  every other session valid. Returns `{:error, :not_found}` if `token_id`
+  doesn't belong to this scope's user (never revokes across accounts).
+  """
+  def revoke_session(%Scope{user: user}, token_id) do
+    {count, _} =
+      Repo.delete_all(
+        from(t in UserToken,
+          where: t.id == ^token_id and t.user_id == ^user.id and t.context == "session"
+        )
+      )
+
+    if count == 1 do
+      Playstead.AuditLog.record(user.id, :session_revoked, %{subject: to_string(token_id)})
+      :ok
+    else
+      {:error, :not_found}
+    end
+  end
+
+  @doc """
+  Deletes every session token for `scope`'s owner — used by the
+  release-command reset (D-05a) so a stolen session cannot survive
+  alongside a password reset.
+  """
+  def delete_all_sessions(%Scope{user: user}) do
+    Repo.delete_all(from(t in UserToken, where: t.user_id == ^user.id and t.context == "session"))
     :ok
   end
 

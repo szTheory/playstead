@@ -7,15 +7,28 @@ defmodule PlaysteadWeb.UserAuth do
   alias Playstead.Accounts
   alias Playstead.Accounts.Scope
 
-  # Make the remember me cookie valid for 14 days. This should match
-  # the session validity setting in UserToken.
-  @max_cookie_age_in_days 14
+  # D-06: remember-me is on by default with a ~60-day window. This must
+  # match UserToken's @session_validity_in_days — the cookie's own max_age
+  # only controls how long the browser retains it; the DB-backed token is
+  # the actual source of truth for whether the session is still valid.
+  @max_cookie_age_in_days 60
   @remember_me_cookie "_playstead_web_user_remember_me"
   @remember_me_options [
     sign: true,
     max_age: @max_cookie_age_in_days * 24 * 60 * 60,
-    same_site: "Lax"
+    same_site: "Lax",
+    http_only: true
   ]
+
+  # Deliberately no `:secure` key here (and none in the endpoint's session
+  # cookie options either) — `Plug.Conn.put_resp_cookie/4` already sets
+  # `secure: true` automatically, and only, when the request's own
+  # `conn.scheme` is `:https` (see `Plug.Conn.maybe_secure_cookie/2`).
+  # Hard-forcing `secure: true` here would break every LAN plain-HTTP
+  # self-hoster silently (RESEARCH.md anti-pattern; D-06). In production,
+  # `conn.scheme` reflects the true original scheme via
+  # `force_ssl: [rewrite_on: [:x_forwarded_proto]]` (config/prod.exs),
+  # which Caddy's `x-forwarded-proto` header feeds.
 
   # How old the session token should be before a new one is issued. When a request is made
   # with a session token older than this value, then a new session token will be created
@@ -110,13 +123,60 @@ defmodule PlaysteadWeb.UserAuth do
   # function will clear the session to avoid fixation attacks. See the
   # renew_session function to customize this behaviour.
   defp create_or_extend_session(conn, user, params) do
-    token = Accounts.generate_user_session_token(user)
+    token = Accounts.generate_user_session_token(user, client_label(conn))
     remember_me = get_session(conn, :user_remember_me)
 
     conn
     |> renew_session(user)
     |> put_token_in_session(token)
     |> maybe_write_remember_me_cookie(token, params, remember_me)
+  end
+
+  # D-06: a coarse, safe browser/OS label for the Sessions list, derived
+  # from User-Agent. Never the raw user-agent string (T-01-19) — `nil`
+  # when nothing recognizable is found, and the UI renders a generic
+  # "Browser session" label in that case rather than a blank cell.
+  @browser_markers [
+    {"Edg/", "Edge"},
+    {"OPR/", "Opera"},
+    {"Chrome/", "Chrome"},
+    {"Firefox/", "Firefox"},
+    {"Safari/", "Safari"}
+  ]
+  @os_markers [
+    {"Windows", "Windows"},
+    {"Mac OS X", "macOS"},
+    {"iPhone", "iOS"},
+    {"iPad", "iOS"},
+    {"Android", "Android"},
+    {"Linux", "Linux"}
+  ]
+
+  defp client_label(conn) do
+    conn
+    |> get_req_header("user-agent")
+    |> List.first()
+    |> client_label_from_user_agent()
+  end
+
+  defp client_label_from_user_agent(nil), do: nil
+  defp client_label_from_user_agent(""), do: nil
+
+  defp client_label_from_user_agent(ua) when is_binary(ua) do
+    browser =
+      Enum.find_value(@browser_markers, fn {marker, name} ->
+        String.contains?(ua, marker) && name
+      end)
+
+    os =
+      Enum.find_value(@os_markers, fn {marker, name} -> String.contains?(ua, marker) && name end)
+
+    case {browser, os} do
+      {nil, nil} -> nil
+      {b, nil} -> b
+      {nil, o} -> o
+      {b, o} -> "#{b} on #{o}"
+    end
   end
 
   # Do not renew session if the user is already logged in

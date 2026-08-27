@@ -29,6 +29,9 @@ defmodule Playstead.Application do
       {DNSCluster, query: Application.get_env(:playstead, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Playstead.PubSub},
       {Oban, Application.fetch_env!(:playstead, Oban)},
+      # D-06: fixed per-IP/per-account throttling for login, sudo, and
+      # recovery-code submission (PlaysteadWeb.Plugs.Throttle).
+      Playstead.RateLimiter,
       # Start to serve requests, typically the last entry
       PlaysteadWeb.Endpoint
     ]
