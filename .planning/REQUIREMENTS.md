@@ -20,7 +20,7 @@ Requirements for the first complete Mac-to-server custody and continuity release
 - [x] **PROT-02**: An authenticated owner can review paired devices and revoke one without invalidating other devices.
 - [x] **PROT-03**: A client can declare protocol, application, cache, transfer, emulator-adapter, and save capabilities and receive an actionable incompatibility response when the server cannot support them.
 - [x] **PROT-04**: A disconnected client can safely retry a mutation and receive the original durable receipt instead of creating a duplicate effect.
-- [ ] **PROT-05**: A client that misses notifications can reconstruct catalogue, job, transfer, and save state through a versioned HTTPS snapshot-and-cursor API without requiring a persistent WebSocket.
+- [x] **PROT-05**: A client that misses notifications can reconstruct catalogue, job, transfer, and save state through a versioned HTTPS snapshot-and-cursor API without requiring a persistent WebSocket.
 
 ### Import, Identity, and Provenance
 
@@ -123,7 +123,7 @@ Which phases cover which requirements. This table is populated by roadmap creati
 | PROT-02 | Phase 1 | Complete |
 | PROT-03 | Phase 1 | Complete |
 | PROT-04 | Phase 1 | Complete |
-| PROT-05 | Phase 1 | Pending |
+| PROT-05 | Phase 1 | Complete |
 | IMPT-01 | Phase 2 | Pending |
 | IMPT-02 | Phase 2 | Pending |
 | IMPT-03 | Phase 2 | Pending |

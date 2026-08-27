@@ -2,17 +2,17 @@
 gsd_state_version: 1.0
 current_phase: 01
 current_phase_name: Private Custody and Durable Protocol
-status: executing
-stopped_at: Completed 01-06-PLAN.md
-last_updated: "2026-08-27T18:38:16.811Z"
+status: verifying
+stopped_at: Completed 01-07-PLAN.md
+last_updated: "2026-08-27T19:07:18.781Z"
 last_activity: 2026-08-27
 last_activity_desc: Phase 01 execution started
-state_head: ce73036b5b3fce2f1b2e54c147f1c501cad9aa22
+state_head: aaee06b5697e90870d1ff6824b8cf4bab4b54d10
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 7
-  completed_plans: 6
+  completed_plans: 7
   percent: 0
 ---
 
@@ -29,7 +29,7 @@ See: `.planning/PROJECT.md` (updated 2026-08-26)
 
 Phase: 01 (Private Custody and Durable Protocol) — EXECUTING
 Plan: 7 of 7
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-08-27 — Phase 01 execution started
 
 Progress: [░░░░░░░░░░] 0%
@@ -63,6 +63,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01 P04 | 55min | 3 tasks | 22 files |
 | Phase 01 P05 | 45min | 2 tasks | 10 files |
 | Phase 01 P06 | 80min | 3 tasks | 28 files |
+| Phase 01 P07 | 65min | 3 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -82,6 +83,7 @@ Progress: [░░░░░░░░░░] 0%
 - [Phase 01]: Added a read-only caddy_data volume mount to the app service in docker-compose.yml so Playstead.TlsTrust can read Caddy's internal-CA root certificate for pairing-time client pinning
 - [Phase 01]: [Phase 01]: on_conflict convergence detection required {:replace, [:updated_at]} not :nothing, since Ecto client-generates binary_id primary keys before INSERT, making :nothing's returned struct identical between insert and no-op conflict
 - [Phase 01]: [Phase 01]: Only the protocol capability namespace is required for a compatible negotiation verdict; app/cache/transfer/adapter/save mismatches degrade to compatible_with_limits, never incompatible
+- [Phase 01]: Commit-order fencing for the change journal uses a write-side pg_advisory_xact_lock rather than read-side xact-id/snapshot-xmin filtering, since the latter is untestable under Ecto Sandbox's shared-transaction test harness
 
 ### Pending Todos
 
@@ -108,6 +110,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-27T18:38:05.220Z
-Stopped at: Completed 01-06-PLAN.md
+Last session: 2026-08-27T19:07:18.768Z
+Stopped at: Completed 01-07-PLAN.md
 Resume file: None
