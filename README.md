@@ -25,4 +25,3 @@ The canonical project definition, requirements, and roadmap live in [`.planning/
 ## Content posture
 
 Playstead handles private, user-supplied content. It does not distribute, locate, or facilitate acquisition of copyrighted ROMs or proprietary BIOS files. Supported open BIOS replacements may be integrated where licensing permits; user-supplied BIOS files must remain explicit, validated, and portable.
-

@@ -7,4 +7,3 @@ It owns the canonical private repository, domain and application services, versi
 The native-client protocol is API-first. LiveView may call the same application services inside Phoenix, but LiveView events, sockets, assigns, and HTML are not cross-platform protocol contracts.
 
 The Phoenix application will be initialized here during Phase 1. Its Elixir application and module namespace is `playstead` / `Playstead`; the delivery namespace is `PlaysteadWeb`.
-
