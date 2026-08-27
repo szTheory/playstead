@@ -29,7 +29,16 @@ This MVP proves one trustworthy Mac-to-server custody and continuity journey: de
   3. A client can declare its protocol, app, cache, transfer, adapter, and save capabilities and receive a clear remedy when they are incompatible.
   4. After a disconnection, a client can retry a mutation without creating another effect and reconstruct catalogue, job, transfer, and save state through HTTPS snapshot-and-cursor reads without a WebSocket.
 **Research / spike flags**: Contract gate: prove idempotency receipts, authorization, and missed-notification cursor reset/convergence with HTTP contract tests. Preserve the API-first boundary; LiveView is console delivery only.
-**Plans**: TBD
+**Plans**: 7 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Tracer: deployable HTTPS stack, `/healthz`, frozen `/api/v1/capabilities`, RFC 9457 error spine, boot gates and deploy docs
+- [ ] 01-02-PLAN.md — Owner account with Phoenix Scopes, email-free password auth, setup-token bootstrap and the four-step setup wizard
+- [ ] 01-03-PLAN.md — Console session list with per-session revocation, sudo-mode gate, login throttling, audit log, and email-free credential recovery
+- [ ] 01-04-PLAN.md — Pairing protocol API: two-code RFC 8628 ceremony, one-time device credential, header-only auth, rotation, and revocation with tombstones
+- [ ] 01-05-PLAN.md — Devices console: pairing approval queue and evidence card, device list, sudo-gated revoke, and root-CA fingerprint for client pinning
+- [ ] 01-06-PLAN.md — Capability negotiation with structured remedies, and the Idempotency-Key layer with transactional receipts and UUIDv7 natural keys
+- [ ] 01-07-PLAN.md — Change journal with tombstones, HMAC-signed opaque cursor, 410 resync, transactional snapshot, and the convergence proof
 **UI hint**: yes
 
 ### Phase 2: Explainable Import and Exact Export
@@ -93,7 +102,7 @@ This MVP proves one trustworthy Mac-to-server custody and continuity journey: de
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Private Custody and Durable Protocol | 0/TBD | Not started | - |
+| 1. Private Custody and Durable Protocol | 0/7 | Planned | - |
 | 2. Explainable Import and Exact Export | 0/TBD | Not started | - |
 | 3. Mac Offline Play Vertical Slice | 0/TBD | Not started | - |
 | 4. Persistent Save Continuity | 0/TBD | Not started | - |
