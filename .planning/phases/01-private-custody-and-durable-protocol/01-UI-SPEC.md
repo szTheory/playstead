@@ -131,26 +131,47 @@ Accent reserved for: primary call-to-action buttons, active navigation state, ke
 
 ## UI Considerations
 
-Applicable state considerations resolved: 13 covered, 3 backstop, 0 unresolved
+Probe run 2026-08-27 (post-verification, engine `ui-consideration-probe.cjs`, 7 elements, 47 applicable): 41 resolved explicit, 3 resolved backstop, 3 dismissed with reason, 0 unresolved. Kinds and resolutions confirmed by the owner.
 
 | Category | Element(s) | Status | Resolution / Reason |
 |----------|------------|--------|---------------------|
-| empty | Pairing approval queue | ✅ covered | Renders "No pairing requests" empty state (see Copywriting Contract) with no phantom CTA |
-| empty | Device list (pre-first-pair) | ✅ covered | Renders "No devices paired yet" empty state pointing at the Mac's Settings screen |
-| zero-one-many | Pairing approval queue | ✅ covered | Queue has a small fixed cap (D-12) with oldest-evicted; UI shows a count and, at cap, a "queue full — oldest request will be evicted" notice rather than silently dropping |
-| zero-one-many | Device list | ✅ covered | Single device and many-device layouts share the same row component; no special-cased "first device" congratulatory UI (quiet-by-default, EXPERIENCE-ETHOS #3) |
-| zero-one-many | Browser sessions list | ✅ covered | Current session is visually marked and excluded from the revoke action; other sessions list identically whether there is 1 or many |
-| loading | Pairing approval card actions | ✅ covered | Approve/Deny buttons show an inline spinner and disable on click to prevent double-submit while the LiveView round-trip completes; no full-page loading overlay |
-| loading | Setup wizard readiness summary | ✅ covered | Each readiness row (DB, volumes, HTTPS) shows a brief inline check-in-progress state before resolving to OK/Warning, never a blocking full-page spinner |
-| error | Login (bad credentials) | ✅ covered | Inline error copy on the password field per Copywriting Contract; page never blanks or reloads |
-| error | Pairing approval — expired request | ✅ covered | Expired request renders inert: countdown reaches zero, Approve/Deny buttons disappear, row shows "Expired" state text (D-12); re-checked server-side even if client clock drifts |
-| error | Generic RFC 9457 server error on any console action | ✅ covered | Flash banner shows correlation ID copy from Copywriting Contract; console never leaks a raw Phoenix error page or stack trace to the owner |
-| partial | Setup wizard readiness summary | ✅ covered | Readiness warnings (amber) render alongside OK (green) rows in the same list; wizard completion is never blocked by a warning (D-04) — this is the defining "partial success" state of this phase |
-| overflow | Pairing evidence card — claimed device name | ✅ covered | Long/adversarial device-name claims truncate with ellipsis + full value on hover/focus; claimed fields never overflow into or visually merge with the display-code region |
-| overflow | Device list — long device name (owner-renamed) | ✅ covered | Table cell truncates with ellipsis; full name available via title attribute / focus-visible tooltip |
-| long-text | Capability-incompatible remedy copy | 🧪 backstop | Remedy `detail` strings come from the server and are of variable length; verify at execution time that the flash/banner component wraps rather than clips arbitrary-length remedy text |
-| long-text | Sudo-mode re-auth error copy | 🧪 backstop | Standard phx.gen.auth error copy is short and known, but verify the modal/interstitial layout does not need adjustment if a longer validation message is ever surfaced |
-| overflow | Recovery codes display (setup wizard) | 🧪 backstop | Codes are fixed-format and short, but verify the grid layout holds if the code count or format changes before this phase ships (currently assumed short alphanumeric codes, generated at setup) |
+| empty | Setup wizard (E1) | ✅ covered | Each step opens as a clean form with its helper text visible and focus on the first input; no data-dependent empty state exists before the readiness summary |
+| empty | Login (E2) | ✅ covered | Unfilled form with focus on the password field and the no-email helper text visible (D-02) |
+| empty | Pairing approval queue (E3) | ✅ covered | Renders "No pairing requests" empty state (see Copywriting Contract) with no phantom CTA |
+| empty | Device list (E4, pre-first-pair) | ✅ covered | Renders "No devices paired yet" empty state pointing at the Mac's Settings screen |
+| empty | Browser sessions list (E5) | ✅ dismissed | The current session always exists while the console is authenticated — a zero-session state is unreachable; the current-session row is the floor |
+| empty | Sudo modal (E6) | ✅ covered | Opens as a clean single password field with the "Confirm it's you" prompt; no prior state carried in |
+| loading | Setup wizard readiness summary (E1) | ✅ covered | Each readiness row (DB, volumes, HTTPS) shows a brief inline check-in-progress state before resolving to OK/Warning, never a blocking full-page spinner |
+| loading | Login / sudo submit (E2, E6) | ✅ covered | Submit button disables with an inline spinner during the round-trip; the form stays visible |
+| loading | Pairing approval card actions (E3) | ✅ covered | Approve/Deny buttons show an inline spinner and disable on click to prevent double-submit while the LiveView round-trip completes; no full-page loading overlay |
+| loading | Device/session row actions (E4, E5, E7) | ✅ covered | Rename, revoke, and per-session revoke actions use the same inline-spinner-and-disable idiom; the affected row shows a pending state, other rows stay interactive |
+| error | Setup wizard (E1) | ✅ covered | Wrong/expired setup token and credential validation errors render inline on the offending field; readiness check failures render as amber warning rows, never blocking (D-04) |
+| error | Login bad credentials (E2) | ✅ covered | Inline error copy on the password field per Copywriting Contract; page never blanks or reloads |
+| error | Pairing approval — expired request (E3) | ✅ covered | Expired request renders inert: countdown reaches zero, Approve/Deny buttons disappear, row shows "Expired" state text (D-12); re-checked server-side even if client clock drifts |
+| error | Device rename/revoke, session revoke failure (E4, E5) | ✅ covered | Failed mutation restores the row to its prior state and surfaces the RFC 9457 flash with correlation ID; no optimistic state is left standing |
+| error | Sudo modal wrong password (E6) | ✅ covered | Inline error on the password field; the modal stays open, the protected action is not performed |
+| error | Generic RFC 9457 server error on any console action (E7) | ✅ covered | Flash banner shows correlation ID copy from Copywriting Contract; console never leaks a raw Phoenix error page or stack trace to the owner |
+| populated | Wizard, queue, device list, sessions (E1, E3, E4, E5) | ✅ covered | Happy-path layouts are the card/row components specified in Spacing/Color sections at typical volume (single-digit devices/requests for a personal server); density tuned to the Grafana/Portainer precedent |
+| partial | Setup wizard readiness summary (E1) | ✅ covered | Readiness warnings (amber) render alongside OK (green) rows in the same list; wizard completion is never blocked by a warning (D-04) — this is the defining "partial success" state of this phase |
+| partial | Login (E2) | ✅ dismissed | Single-field form — no partial-data state exists between empty and submitted |
+| partial | Pairing evidence card — missing claims (E3) | ✅ covered | A device that omits a claimed field (name, platform, version) renders a muted "Not reported" placeholder in that slot; observed fields (code, IP, age) are always present — claims and observations never visually merge (D-09) |
+| partial | Device list — never-seen / missing fields (E4) | ✅ covered | A paired-but-never-connected device shows last-seen "Never" in muted text; missing claimed fields render the same "Not reported" placeholder as the evidence card |
+| partial | Sessions — missing user-agent (E5) | ✅ covered | Sessions without a recognizable client string render a generic "Browser session" label rather than raw UA text or a blank cell |
+| partial | Sudo modal (E6) | ✅ dismissed | Single-field form — no partial-data state exists |
+| overflow | Pairing evidence card — claimed device name (E3) | ✅ covered | Long/adversarial device-name claims truncate with ellipsis + full value on hover/focus; claimed fields never overflow into or visually merge with the display-code region |
+| overflow | Device list — long device name (E4) | ✅ covered | Table cell truncates with ellipsis; full name available via title attribute / focus-visible tooltip; the rename input enforces a max length so owner-entered names cannot exceed it |
+| overflow | Sessions — long client string (E5) | ✅ covered | Session label cell truncates with ellipsis, full value on hover/focus |
+| overflow | Recovery codes display (E1) | 🧪 backstop | Codes are fixed-format and short, but verify the grid layout holds if the code count or format changes before this phase ships (currently assumed short alphanumeric codes, generated at setup) |
+| zero-one-many | Setup wizard readiness summary (E1) | ✅ covered | The readiness list is a fixed enumerated set of checks (DB, volumes, HTTPS) — no plural-variance layout exists |
+| zero-one-many | Pairing approval queue (E3) | ✅ covered | Queue has a small fixed cap (D-12) with oldest-evicted; UI shows a count and, at cap, a "queue full — oldest request will be evicted" notice rather than silently dropping |
+| zero-one-many | Device list (E4) | ✅ covered | Single device and many-device layouts share the same row component; revoked tombstones group below active devices; no special-cased "first device" congratulatory UI (quiet-by-default, EXPERIENCE-ETHOS #3) |
+| zero-one-many | Browser sessions list (E5) | ✅ covered | Current session is visually marked and excluded from the revoke action; other sessions list identically whether there is 1 or many |
+| long-text | Wizard helper/backup-nudge copy (E1) | ✅ covered | Helper and nudge lines wrap within the step container; the setup-token input is fixed-length and cannot overflow |
+| long-text | Login error copy (E2) | ✅ covered | Inline error copy wraps under the field; the layout reserves no fixed single-line height |
+| long-text | Pairing card claimed fields (E3) | ✅ covered | Same truncation contract as the overflow rows above — claims truncate, observed values never do |
+| long-text | Device names (E4) | ✅ covered | Covered by the rename max-length + truncation contract above |
+| long-text | Capability-incompatible remedy copy (E7) | 🧪 backstop | Remedy `detail` strings come from the server and are of variable length; verify at execution time that the flash/banner component wraps rather than clips arbitrary-length remedy text |
+| long-text | Sudo-mode re-auth error copy (E6) | 🧪 backstop | Standard phx.gen.auth error copy is short and known, but verify the modal/interstitial layout does not need adjustment if a longer validation message is ever surfaced |
 
 <!-- Status vocabulary (locked by probe-core projectTruths):
      ✅ covered   → a plain truth string lifted into must_haves.truths
@@ -174,11 +195,11 @@ Not applicable — this is a Phoenix LiveView project with no shadcn/component r
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS (FLAG: prefer verb+noun CTAs — "Continue setup", "Approve device" — over "Continue"/"Approve")
+- [x] Dimension 2 Visuals: PASS (FLAG: declare focal points for wizard/login/Devices layouts at execution — recommended: primary CTA, password field, approval queue respectively)
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS (5th size accepted as documented D-07 exception)
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** APPROVED 2026-08-27 (gsd-ui-checker, revision 1; 2 non-blocking FLAGs recorded above)
