@@ -175,6 +175,19 @@ defmodule PlaysteadWeb.Router do
     end
   end
 
+  ## Device pairing and lifecycle console (D-07, D-09, D-11, D-13). Viewing
+  ## the page never requires sudo — the approval queue and device list are
+  ## routine reads — but DevicesLive itself gates revoke/rotate on a fresh
+  ## sudo confirmation before executing, exactly like /settings/sessions.
+  scope "/", PlaysteadWeb do
+    pipe_through [:browser, :require_authenticated]
+
+    live_session :devices,
+      on_mount: [{PlaysteadWeb.UserAuth, :mount_current_scope}] do
+      live "/devices", DevicesLive, :index
+    end
+  end
+
   scope "/", PlaysteadWeb do
     pipe_through [:browser, :require_authenticated, :require_sudo]
 

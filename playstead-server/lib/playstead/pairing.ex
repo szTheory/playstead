@@ -29,7 +29,41 @@ defmodule Playstead.Pairing do
   @doc "The poll interval (seconds) advertised to clients at request creation."
   def poll_interval_seconds, do: @poll_interval_seconds
 
+  @doc "The fixed pending-queue cap (D-12) — exposed for the console's queue-full notice."
+  def pending_queue_cap, do: @pending_queue_cap
+
   ## Pairing requests
+
+  @doc """
+  Pending pairing requests for the owner's approval queue (D-07), oldest
+  first (the same order eviction uses). Filters only on the persisted
+  `status` column, not on `expires_at` — a request that has timed out but
+  hasn't been swept by `expire_stale_requests/0` yet still belongs in the
+  queue so the console can render it inert with "Expired" (D-12), rather
+  than having it silently vanish. Each returned request's `status` is
+  eagerly re-derived via `PairingRequest.effective_status/1`, exactly as
+  `get_request_status/1` does, so callers never see a stale "pending".
+  """
+  @spec list_pending_requests(Scope.t()) :: [PairingRequest.t()]
+  def list_pending_requests(%Scope{}) do
+    PairingRequest
+    |> where([r], r.status == "pending")
+    |> order_by([r], asc: r.inserted_at)
+    |> Repo.all()
+    |> Enum.map(&%{&1 | status: PairingRequest.effective_status(&1)})
+  end
+
+  @doc """
+  Count of requests still in the persisted `pending` status — the same
+  count `create_request/1`'s eviction check uses, so the console's
+  queue-full notice always agrees with the actual enforcement point.
+  """
+  @spec pending_request_count() :: non_neg_integer()
+  def pending_request_count do
+    PairingRequest
+    |> where([r], r.status == "pending")
+    |> Repo.aggregate(:count)
+  end
 
   @doc """
   Creates a pairing request from the client's self-reported claims plus
@@ -217,7 +251,12 @@ defmodule Playstead.Pairing do
   isn't approved yet, so the response gives no oracle for guessing.
   """
   @spec redeem(binary(), String.t() | nil) ::
-          {:ok, %{device: Device.t(), credential: DeviceCredential.t(), credential_plaintext: String.t()}}
+          {:ok,
+           %{
+             device: Device.t(),
+             credential: DeviceCredential.t(),
+             credential_plaintext: String.t()
+           }}
           | {:error, term()}
   def redeem(id, device_code) do
     Repo.transaction(fn ->
@@ -262,7 +301,10 @@ defmodule Playstead.Pairing do
     if count == 1 do
       {:ok, device} = insert_device(request)
       {:ok, credential, plaintext} = insert_credential(device.id)
-      {:ok, _} = AuditLog.record(request.approved_by_user_id, :pairing_redeemed, %{subject: request.id})
+
+      {:ok, _} =
+        AuditLog.record(request.approved_by_user_id, :pairing_redeemed, %{subject: request.id})
+
       %{device: device, credential: credential, credential_plaintext: plaintext}
     else
       Repo.rollback(:pairing_request_already_redeemed)
@@ -432,6 +474,21 @@ defmodule Playstead.Pairing do
   defp owned_device(user_id, device_id) do
     Device
     |> where([d], d.id == ^device_id and d.user_id == ^user_id)
+    |> Repo.one()
+  end
+
+  @doc """
+  The fingerprint prefix of a device's currently active credential (the
+  row with no `superseded_by_id`), for the console's device list. Never
+  returns the credential itself — only what `insert_credential/2` already
+  computed and stored as `fingerprint_prefix` (D-10). Returns `nil` if the
+  device somehow has no active credential row.
+  """
+  @spec active_credential_fingerprint(binary()) :: String.t() | nil
+  def active_credential_fingerprint(device_id) do
+    DeviceCredential
+    |> where([c], c.device_id == ^device_id and is_nil(c.superseded_by_id))
+    |> select([c], c.fingerprint_prefix)
     |> Repo.one()
   end
 

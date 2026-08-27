@@ -38,6 +38,11 @@ services:
       # THIS IS YOUR LIBRARY — created now, unused until Phase 2. Never
       # run `docker compose down -v`, it destroys this volume.
       - playstead_blobs:/app/blobs
+      # Read-only: lets Playstead.TlsTrust read Caddy's internal-CA root
+      # certificate (D-13) to display its fingerprint on the Devices page
+      # for pairing-time client pinning. The app never writes into this
+      # volume — Caddy owns it exclusively.
+      - caddy_data:/caddy_data:ro
     restart: unless-stopped
 
   caddy:

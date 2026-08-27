@@ -11,6 +11,11 @@ defmodule Playstead.Pairing.Device do
   use Ecto.Schema
   import Ecto.Changeset
 
+  # D-11 / UI-SPEC overflow contract: the rename input enforces this
+  # ceiling so an owner-entered name can never exceed the truncation
+  # contract the console's rename form and device list share.
+  @max_name_length 100
+
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
   schema "devices" do
@@ -33,9 +38,14 @@ defmodule Playstead.Pairing.Device do
     |> validate_required([:user_id, :paired_at])
   end
 
+  @doc "The maximum length enforced for an owner-entered rename."
+  def max_name_length, do: @max_name_length
+
   @doc "Owner rename — writes only `name`, never `claimed_name` (D-11)."
   def rename_changeset(device, name) do
-    change(device, name: name)
+    device
+    |> change(name: name)
+    |> validate_length(:name, max: @max_name_length)
   end
 
   @doc false
