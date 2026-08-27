@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 current_phase: 01
 current_phase_name: Private Custody and Durable Protocol
 status: executing
-stopped_at: Completed 01-05-PLAN.md
-last_updated: "2026-08-27T18:14:55.463Z"
+stopped_at: Completed 01-06-PLAN.md
+last_updated: "2026-08-27T18:38:16.811Z"
 last_activity: 2026-08-27
 last_activity_desc: Phase 01 execution started
-state_head: a380ace417295ef16b099ae0d82a61b6fcdbe7b4
+state_head: ce73036b5b3fce2f1b2e54c147f1c501cad9aa22
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 7
-  completed_plans: 5
+  completed_plans: 6
   percent: 0
 ---
 
@@ -28,7 +28,7 @@ See: `.planning/PROJECT.md` (updated 2026-08-26)
 ## Current Position
 
 Phase: 01 (Private Custody and Durable Protocol) — EXECUTING
-Plan: 6 of 7
+Plan: 7 of 7
 Status: Ready to execute
 Last activity: 2026-08-27 — Phase 01 execution started
 
@@ -62,6 +62,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01-private-custody-and-durable-protocol P03 | 90 min | 2 tasks | 31 files |
 | Phase 01 P04 | 55min | 3 tasks | 22 files |
 | Phase 01 P05 | 45min | 2 tasks | 10 files |
+| Phase 01 P06 | 80min | 3 tasks | 28 files |
 
 ## Accumulated Context
 
@@ -79,6 +80,8 @@ Progress: [░░░░░░░░░░] 0%
 - [Phase 01]: Per-action sudo freshness check (Accounts.sudo_mode?/1) instead of a whole-route gate for /devices, so the read-only approval queue and device list stay reachable without forcing re-authentication on every visit
 - [Phase 01]: Console-triggered credential rotation UI deliberately not built in plan 01-05 — D-10 rotation already ships as a device-initiated action via /api/v1/devices/me/rotate, a stronger auth factor than owner sudo with an actual delivery path
 - [Phase 01]: Added a read-only caddy_data volume mount to the app service in docker-compose.yml so Playstead.TlsTrust can read Caddy's internal-CA root certificate for pairing-time client pinning
+- [Phase 01]: [Phase 01]: on_conflict convergence detection required {:replace, [:updated_at]} not :nothing, since Ecto client-generates binary_id primary keys before INSERT, making :nothing's returned struct identical between insert and no-op conflict
+- [Phase 01]: [Phase 01]: Only the protocol capability namespace is required for a compatible negotiation verdict; app/cache/transfer/adapter/save mismatches degrade to compatible_with_limits, never incompatible
 
 ### Pending Todos
 
@@ -105,6 +108,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-27T18:14:55.455Z
-Stopped at: Completed 01-05-PLAN.md
+Last session: 2026-08-27T18:38:05.220Z
+Stopped at: Completed 01-06-PLAN.md
 Resume file: None
