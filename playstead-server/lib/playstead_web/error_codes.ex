@@ -17,6 +17,8 @@ defmodule PlaysteadWeb.ErrorCodes do
     device_revoked: {401, "Device Revoked"},
     pairing_request_expired: {410, "Pairing Request Expired"},
     pairing_request_already_redeemed: {409, "Pairing Request Already Redeemed"},
+    pairing_request_not_approved: {409, "Pairing Request Not Approved"},
+    slow_down: {429, "Slow Down"},
     unauthorized: {401, "Unauthorized"},
     not_found: {404, "Not Found"},
     rate_limited: {429, "Rate Limited"},

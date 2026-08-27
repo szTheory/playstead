@@ -29,7 +29,16 @@ config :playstead, Oban,
   notifier: Oban.Notifiers.Postgres,
   repo: Playstead.Repo,
   queues: [default: 10],
-  plugins: [{Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7}]
+  plugins: [
+    {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
+    # D-12: housekeeping-only sweep of stale pending pairing requests.
+    # Playstead.Pairing never depends on this having run — expiry is
+    # re-derived from expires_at on every read.
+    {Oban.Plugins.Cron,
+     crontab: [
+       {"* * * * *", Playstead.Pairing.ExpireStaleRequestsWorker}
+     ]}
+  ]
 
 # Configure the endpoint
 config :playstead, PlaysteadWeb.Endpoint,

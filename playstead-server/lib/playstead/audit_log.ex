@@ -55,4 +55,18 @@ defmodule Playstead.AuditLog do
     |> limit(^limit)
     |> Repo.all()
   end
+
+  @doc """
+  Lists audit entries recorded against a given `subject` (e.g. a pairing
+  request or device id), most recent first. Used by plan 01-04's pairing
+  events, which are system-level (`user_id: nil`) for request-side
+  transitions.
+  """
+  @spec list_by_subject(String.t()) :: [Entry.t()]
+  def list_by_subject(subject) do
+    Entry
+    |> where([e], e.subject == ^subject)
+    |> order_by([e], desc: e.inserted_at, desc: e.id)
+    |> Repo.all()
+  end
 end

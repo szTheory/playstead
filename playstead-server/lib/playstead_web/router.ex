@@ -21,6 +21,12 @@ defmodule PlaysteadWeb.Router do
 
   pipeline :api do
     plug :accepts, ["json"]
+    plug PlaysteadWeb.Plugs.ClientIp
+  end
+
+  # D-12: per-IP rate limit on pairing-request creation.
+  pipeline :throttle_pairing_request do
+    plug PlaysteadWeb.Plugs.Throttle, action: :pairing_request
   end
 
   # D-03: `/setup` renders only while no owner exists, and 404s
@@ -66,6 +72,20 @@ defmodule PlaysteadWeb.Router do
     pipe_through :api
 
     get "/capabilities", CapabilitiesController, :show
+  end
+
+  # D-07, D-08: unauthenticated pairing-ceremony endpoints. The client has
+  # no credential yet, only its self-generated device_code.
+  scope "/api/v1/device-pairing", PlaysteadWeb.Api.V1 do
+    pipe_through [:api, :throttle_pairing_request]
+
+    post "/requests", PairingController, :create
+  end
+
+  scope "/api/v1/device-pairing", PlaysteadWeb.Api.V1 do
+    pipe_through :api
+
+    get "/requests/:id", PairingController, :show
   end
 
   # Dev/test-only target for the forced-500 problem+json contract test
