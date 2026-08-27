@@ -147,6 +147,64 @@ defmodule Playstead.PairingTest do
     end
   end
 
+  describe "revoke_device/2, list_devices/1, rename_device/3" do
+    test "revoking device A does not affect device B; A gets device_revoked, B keeps working" do
+      scope = user_scope_fixture()
+      %{device: device_a, credential_plaintext: token_a} = device_fixture(scope)
+      %{device: device_b, credential_plaintext: token_b} = device_fixture(scope)
+
+      {:ok, _revoked} = Pairing.revoke_device(scope, device_a.id)
+
+      assert {:error, :device_revoked} = Pairing.authenticate(token_a)
+      assert {:ok, ^device_b} = Pairing.authenticate(token_b)
+    end
+
+    test "revoke_device/2 sets a revoked_at tombstone and audits the revocation" do
+      scope = user_scope_fixture()
+      %{device: device, credential_plaintext: token} = device_fixture(scope)
+
+      {:ok, revoked} = Pairing.revoke_device(scope, device.id)
+
+      assert revoked.revoked_at != nil
+      assert {:error, :device_revoked} = Pairing.authenticate(token)
+
+      entries = AuditLog.list_by_subject(device.id)
+      assert Enum.any?(entries, &(&1.event == "device_revoked"))
+    end
+
+    test "re-pairing after revocation creates a new device row and the revoked row survives" do
+      scope = user_scope_fixture()
+      %{device: original} = device_fixture(scope)
+      {:ok, _} = Pairing.revoke_device(scope, original.id)
+
+      %{device: repaired} = device_fixture(scope)
+
+      assert repaired.id != original.id
+      assert Repo.get!(Playstead.Pairing.Device, original.id).revoked_at != nil
+    end
+
+    test "list_devices/1 never returns a device belonging to another scope" do
+      scope_a = user_scope_fixture()
+      scope_b = user_scope_fixture()
+      %{device: device_a} = device_fixture(scope_a)
+      %{device: _device_b} = device_fixture(scope_b)
+
+      devices = Pairing.list_devices(scope_a)
+
+      assert Enum.map(devices, & &1.id) == [device_a.id]
+    end
+
+    test "rename_device/3 changes name and leaves claimed_name untouched" do
+      scope = user_scope_fixture()
+      %{device: device} = device_fixture(scope, %{"device_name" => "Original Claim"})
+
+      {:ok, renamed} = Pairing.rename_device(scope, device.id, "My Study Mac")
+
+      assert renamed.name == "My Study Mac"
+      assert renamed.claimed_name == "Original Claim"
+    end
+  end
+
   describe "no auto-approval code path" do
     test "the module source contains no transition to approved without a %Scope{} argument" do
       source = File.read!("lib/playstead/pairing.ex")

@@ -372,6 +372,69 @@ defmodule Playstead.Pairing do
     end)
   end
 
+  ## Device lifecycle (D-10, D-11)
+
+  @doc """
+  Revokes a device: sets `revoked_at` on the device (a permanent
+  tombstone, never deleted) and records a `device_revoked` audit entry,
+  all in one transaction. Takes effect on the device's next request;
+  there is no push and no attempt to reach a device that may be offline
+  for weeks (D-10's honest semantic).
+
+  Credential rows are intentionally left in place rather than deleted:
+  they hold only an irreversible SHA-256 hash (no recoverable secret),
+  and `authenticate/1` already refuses any credential belonging to a
+  revoked device via `device.revoked_at` — this is what lets a revoked
+  device's next request come back as the distinct `device_revoked` code
+  (T-01, the load-bearing PROT-02 isolation proof) instead of a generic,
+  indistinguishable `unauthorized`.
+  """
+  @spec revoke_device(Scope.t(), binary()) :: {:ok, Device.t()} | {:error, term()}
+  def revoke_device(%Scope{user: user}, device_id) do
+    Repo.transaction(fn ->
+      case owned_device(user.id, device_id) do
+        nil ->
+          Repo.rollback(:not_found)
+
+        device ->
+          {:ok, revoked} =
+            device
+            |> Device.revoke_changeset(now_seconds())
+            |> Repo.update()
+
+          {:ok, _} = AuditLog.record(user.id, :device_revoked, %{subject: device.id})
+          revoked
+      end
+    end)
+  end
+
+  @doc "Lists every device (active and revoked) belonging to `scope`, never another scope's."
+  @spec list_devices(Scope.t()) :: [Device.t()]
+  def list_devices(%Scope{user: user}) do
+    Device
+    |> where([d], d.user_id == ^user.id)
+    |> order_by([d], desc: d.inserted_at)
+    |> Repo.all()
+  end
+
+  @doc """
+  Renames a device's owner-editable `name`. Never touches `claimed_name`
+  — the client's self-report is preserved separately (D-11).
+  """
+  @spec rename_device(Scope.t(), binary(), String.t()) :: {:ok, Device.t()} | {:error, term()}
+  def rename_device(%Scope{user: user}, device_id, name) do
+    case owned_device(user.id, device_id) do
+      nil -> {:error, :not_found}
+      device -> device |> Device.rename_changeset(name) |> Repo.update()
+    end
+  end
+
+  defp owned_device(user_id, device_id) do
+    Device
+    |> where([d], d.id == ^device_id and d.user_id == ^user_id)
+    |> Repo.one()
+  end
+
   ## Helpers
 
   defp fetch(attrs, key) when is_map(attrs) do
