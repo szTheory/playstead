@@ -69,6 +69,86 @@ defmodule Playstead.Release do
   end
 
   @doc """
+  Email-free credential recovery, path (a) (D-05a). Runnable as:
+
+      docker compose exec app bin/playstead eval 'Playstead.Release.reset_owner_password()'
+
+  Mints a single-use, short-expiry `:password_reset` token (hash stored;
+  the plaintext token is embedded once in the printed URL and never
+  persisted), deletes every existing session token for the owner so a
+  stolen session cannot survive alongside the reset, and records a
+  `password_reset_issued` audit entry — all inside one transaction. Prints
+  the full reset URL to stdout exactly once. Host access is the
+  documented root of trust for both bootstrap and recovery — the same
+  principle that governs the setup token.
+  """
+  @spec reset_owner_password() :: :ok | :error
+  def reset_owner_password do
+    load_app()
+
+    {:ok, result, _apps} =
+      Ecto.Migrator.with_repo(Playstead.Repo, fn _repo -> do_reset_owner_password() end)
+
+    case result do
+      {:ok, url} ->
+        IO.puts("""
+        ============================================================
+        Password reset link (single-use, expires in 1 hour):
+
+        #{url}
+
+        This also ended every existing session for the owner account.
+        ============================================================
+        """)
+
+        :ok
+
+      :no_owner ->
+        IO.puts(:stderr, "No owner account exists yet — run the setup wizard first.")
+        :error
+    end
+  end
+
+  defp do_reset_owner_password do
+    case Playstead.Accounts.get_owner() do
+      nil ->
+        :no_owner
+
+      user ->
+        {url_token, user_token} =
+          Playstead.Accounts.UserToken.build_hashed_token(user, "password_reset")
+
+        {:ok, :done} =
+          Playstead.Repo.transact(fn ->
+            Playstead.Repo.insert!(user_token)
+            Playstead.Accounts.delete_all_sessions(Playstead.Accounts.Scope.for_user(user))
+            Playstead.AuditLog.record(user.id, :password_reset_issued, %{})
+            {:ok, :done}
+          end)
+
+        {:ok, reset_url(url_token)}
+    end
+  end
+
+  defp reset_url(token) do
+    endpoint_conf = Application.get_env(@app, PlaysteadWeb.Endpoint, [])
+    url_conf = Keyword.get(endpoint_conf, :url, [])
+    scheme = Keyword.get(url_conf, :scheme, "https")
+    host = Keyword.get(url_conf, :host, "localhost")
+    port = Keyword.get(url_conf, :port)
+
+    port_suffix =
+      case {scheme, port} do
+        {_, nil} -> ""
+        {"https", 443} -> ""
+        {"http", 80} -> ""
+        {_, p} -> ":#{p}"
+      end
+
+    "#{scheme}://#{host}#{port_suffix}/reset/#{token}"
+  end
+
+  @doc """
   Refuses to boot when `SECRET_KEY_BASE` or `POSTGRES_PASSWORD` still
   hold their `.env.example` placeholder values (D-15). Raises with an
   actionable message naming the variable and a one-line generator

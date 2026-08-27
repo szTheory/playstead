@@ -90,12 +90,9 @@ defmodule PlaysteadWeb.LoginLive do
         </.form>
 
         <p class="mt-4 text-center text-sm text-[#94A3B8]">
-          <%!-- Plain <a>, not ~p/navigate: plan 01-03 creates this route. Using
-          a verified route here would fail `mix compile --warnings-as-errors`
-          until that route exists. --%>
-          <a href="/docs/recovery" class="underline hover:text-[#F1F5F9]">
+          <.link href={~p"/docs/recovery"} class="underline hover:text-[#F1F5F9]">
             Locked out?
-          </a>
+          </.link>
         </p>
       </div>
     </div>
