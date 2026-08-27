@@ -29,6 +29,12 @@ defmodule PlaysteadWeb.Router do
     plug PlaysteadWeb.Plugs.Throttle, action: :pairing_request
   end
 
+  # D-10: header-only device credential authentication for paired
+  # clients. Plans 01-06/01-07 attach their endpoints to this pipeline.
+  pipeline :device_auth do
+    plug PlaysteadWeb.Plugs.DeviceAuth
+  end
+
   # D-03: `/setup` renders only while no owner exists, and 404s
   # permanently — never a redirect — the moment one does.
   pipeline :setup_open do
@@ -86,6 +92,17 @@ defmodule PlaysteadWeb.Router do
     pipe_through :api
 
     get "/requests/:id", PairingController, :show
+    # D-08: the client has no credential yet at redemption time, only
+    # its self-generated device_code — this stays unauthenticated.
+    post "/requests/:id/redeem", PairingController, :redeem
+  end
+
+  # D-10: authenticated device endpoints, header-only credential auth.
+  scope "/api/v1/devices", PlaysteadWeb.Api.V1 do
+    pipe_through [:api, :device_auth]
+
+    get "/me", DevicesController, :me
+    post "/me/rotate", DevicesController, :rotate
   end
 
   # Dev/test-only target for the forced-500 problem+json contract test

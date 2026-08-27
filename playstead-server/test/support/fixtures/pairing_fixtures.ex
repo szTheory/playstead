@@ -55,4 +55,15 @@ defmodule Playstead.PairingFixtures do
   def pairing_request_struct(attrs \\ %{}) do
     struct!(PairingRequest, attrs)
   end
+
+  @doc """
+  Pairs a brand-new device end to end (request -> approve -> redeem) and
+  returns the `%{device:, credential:, credential_plaintext:}` map
+  `Pairing.redeem/2` returns.
+  """
+  def device_fixture(scope, attrs \\ %{}) do
+    {request, device_code} = approved_pairing_request_fixture(scope, attrs)
+    {:ok, result} = Pairing.redeem(request.id, device_code)
+    result
+  end
 end

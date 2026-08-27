@@ -47,4 +47,50 @@ defmodule PlaysteadWeb.Api.V1.PairingController do
         PlaysteadWeb.Problem.send_problem(conn, 404, :not_found, "Pairing request not found.")
     end
   end
+
+  @doc """
+  POST /api/v1/device-pairing/requests/:id/redeem
+
+  Unauthenticated — the client has no credential yet, only the
+  `device_code` it generated at request time (D-08).
+  """
+  def redeem(conn, %{"id" => id} = params) do
+    case Pairing.redeem(id, params["device_code"]) do
+      {:ok, result} ->
+        conn
+        |> put_status(:created)
+        |> json(%{
+          device_id: result.device.id,
+          credential: result.credential_plaintext,
+          fingerprint_prefix: result.credential.fingerprint_prefix
+        })
+
+      {:error, :not_found} ->
+        PlaysteadWeb.Problem.send_problem(conn, 404, :not_found, "Pairing request not found.")
+
+      {:error, :pairing_request_expired} ->
+        PlaysteadWeb.Problem.send_problem(
+          conn,
+          410,
+          :pairing_request_expired,
+          "This pairing request has expired."
+        )
+
+      {:error, :pairing_request_already_redeemed} ->
+        PlaysteadWeb.Problem.send_problem(
+          conn,
+          409,
+          :pairing_request_already_redeemed,
+          "This pairing request has already been redeemed."
+        )
+
+      {:error, :pairing_request_not_approved} ->
+        PlaysteadWeb.Problem.send_problem(
+          conn,
+          409,
+          :pairing_request_not_approved,
+          "This pairing request has not been approved."
+        )
+    end
+  end
 end

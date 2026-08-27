@@ -104,6 +104,115 @@ defmodule PlaysteadWeb.Api.V1.PairingControllerTest do
     end
   end
 
+  describe "POST /api/v1/device-pairing/requests/:id/redeem" do
+    test "an approved request redeems exactly once, returning the credential", %{conn: conn} do
+      scope = user_scope_fixture()
+      {request, device_code} = approved_pairing_request_fixture(scope)
+
+      conn =
+        post(conn, ~p"/api/v1/device-pairing/requests/#{request.id}/redeem", %{
+          "device_code" => device_code
+        })
+
+      assert %{"device_id" => device_id, "credential" => credential, "fingerprint_prefix" => fp} =
+               json_response(conn, 201)
+
+      assert is_binary(device_id)
+      assert is_binary(credential)
+      assert is_binary(fp)
+    end
+
+    test "a second redemption of the same request returns 409 and issues no second credential",
+         %{conn: conn} do
+      scope = user_scope_fixture()
+      {request, device_code} = approved_pairing_request_fixture(scope)
+
+      conn1 =
+        post(conn, ~p"/api/v1/device-pairing/requests/#{request.id}/redeem", %{
+          "device_code" => device_code
+        })
+
+      assert conn1.status == 201
+
+      conn2 =
+        post(build_conn(), ~p"/api/v1/device-pairing/requests/#{request.id}/redeem", %{
+          "device_code" => device_code
+        })
+
+      assert_problem(conn2, 409, :pairing_request_already_redeemed)
+      assert Playstead.Repo.aggregate(Playstead.Pairing.DeviceCredential, :count) == 1
+    end
+
+    test "two concurrent redemptions of the same request produce exactly one credential row" do
+      scope = user_scope_fixture()
+      {request, device_code} = approved_pairing_request_fixture(scope)
+      parent = self()
+
+      tasks =
+        for _ <- 1..2 do
+          Task.async(fn ->
+            Ecto.Adapters.SQL.Sandbox.allow(Playstead.Repo, parent, self())
+            Pairing.redeem(request.id, device_code)
+          end)
+        end
+
+      results = Task.await_many(tasks)
+
+      assert Enum.count(results, &match?({:ok, _}, &1)) == 1
+      assert Enum.count(results, &match?({:error, :pairing_request_already_redeemed}, &1)) == 1
+      assert Playstead.Repo.aggregate(Playstead.Pairing.DeviceCredential, :count) == 1
+    end
+
+    test "an incorrect device_code returns an error indistinguishable from not-approved",
+         %{conn: conn} do
+      scope = user_scope_fixture()
+      {request, _device_code} = approved_pairing_request_fixture(scope)
+
+      conn =
+        post(conn, ~p"/api/v1/device-pairing/requests/#{request.id}/redeem", %{
+          "device_code" => "wrong-code"
+        })
+
+      assert_problem(conn, 409, :pairing_request_not_approved)
+    end
+
+    test "a pending (not yet approved) request cannot be redeemed", %{conn: conn} do
+      {request, device_code} = pairing_request_fixture()
+
+      conn =
+        post(conn, ~p"/api/v1/device-pairing/requests/#{request.id}/redeem", %{
+          "device_code" => device_code
+        })
+
+      assert_problem(conn, 409, :pairing_request_not_approved)
+    end
+  end
+
+  describe "authenticated device endpoints" do
+    test "a redeemed credential authenticates GET /api/v1/devices/me from the header",
+         %{conn: conn} do
+      scope = user_scope_fixture()
+      %{credential_plaintext: token, device: device} = device_fixture(scope)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> get(~p"/api/v1/devices/me")
+
+      assert %{"id" => id} = json_response(conn, 200)
+      assert id == device.id
+    end
+
+    test "a query-param credential is rejected", %{conn: conn} do
+      scope = user_scope_fixture()
+      %{credential_plaintext: token} = device_fixture(scope)
+
+      conn = get(conn, ~p"/api/v1/devices/me?token=#{token}")
+
+      assert_problem(conn, 401, :unauthorized)
+    end
+  end
+
   describe "router surface" do
     test "no route accepts a display code as a path or query parameter" do
       source = File.read!("lib/playstead_web/router.ex")

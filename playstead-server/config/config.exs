@@ -86,6 +86,11 @@ config :logger, :default_formatter,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
+# D-10: the device_code and the issued credential must never appear in
+# Phoenix's own request-parameter logging, alongside the pre-existing
+# password filter.
+config :phoenix, :filter_parameters, {:discard, ~w(password device_code credential)}
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"
