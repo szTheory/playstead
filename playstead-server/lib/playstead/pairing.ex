@@ -15,6 +15,7 @@ defmodule Playstead.Pairing do
   alias Playstead.AuditLog
   alias Playstead.Accounts.Scope
   alias Playstead.Pairing.{PairingRequest, DisplayCode, Device, DeviceCredential}
+  alias Playstead.Sync.ChangeJournal
 
   # D-12: 10-minute expiry, re-checked server-side on every read.
   @request_ttl_seconds 600
@@ -102,6 +103,13 @@ defmodule Playstead.Pairing do
       {:error, _step, reason, _changes} -> {:error, reason}
     end
   end
+
+  # A pairing request has no owner until `approve/2`/`deny/2` assigns
+  # one (`transition/4` below) — the change journal is per-owner
+  # partitioned (T-01-45), so there is no correct owner to journal
+  # against before that point. The pairing entity kind's first journal
+  # entry is therefore always its approved-or-denied transition, not
+  # its creation.
 
   defp new_request_changeset(attrs, device_code) do
     request_attrs = %{
@@ -208,6 +216,7 @@ defmodule Playstead.Pairing do
             if count == 1 do
               updated = Repo.get!(PairingRequest, id)
               {:ok, _} = AuditLog.record(user.id, audit_event, %{subject: id})
+              {:ok, _} = ChangeJournal.append(user.id, :pairing, id, %{status: new_status})
               updated
             else
               Repo.rollback(:already_transitioned)
@@ -304,6 +313,11 @@ defmodule Playstead.Pairing do
 
       {:ok, _} =
         AuditLog.record(request.approved_by_user_id, :pairing_redeemed, %{subject: request.id})
+
+      {:ok, _} = ChangeJournal.append(device.user_id, :device, device.id, device_payload(device))
+
+      {:ok, _} =
+        ChangeJournal.append(device.user_id, :pairing, request.id, %{status: "redeemed"})
 
       %{device: device, credential: credential, credential_plaintext: plaintext}
     else
@@ -514,6 +528,11 @@ defmodule Playstead.Pairing do
             |> Repo.update()
 
           {:ok, _} = AuditLog.record(user.id, :device_revoked, %{subject: device.id})
+          # PROT-05, D-21, T-01-47: a tombstone, not an upsert — a
+          # resuming client must remove this device from local state
+          # entirely, and the entry carries no content about it beyond
+          # its identity.
+          {:ok, _} = ChangeJournal.tombstone(user.id, :device, revoked.id)
           revoked
       end
     end)
@@ -535,8 +554,20 @@ defmodule Playstead.Pairing do
   @spec rename_device(Scope.t(), binary(), String.t()) :: {:ok, Device.t()} | {:error, term()}
   def rename_device(%Scope{user: user}, device_id, name) do
     case owned_device(user.id, device_id) do
-      nil -> {:error, :not_found}
-      device -> device |> Device.rename_changeset(name) |> Repo.update()
+      nil ->
+        {:error, :not_found}
+
+      device ->
+        Repo.transaction(fn ->
+          case device |> Device.rename_changeset(name) |> Repo.update() do
+            {:ok, updated} ->
+              {:ok, _} = ChangeJournal.append(user.id, :device, updated.id, device_payload(updated))
+              updated
+
+            {:error, changeset} ->
+              Repo.rollback(changeset)
+          end
+        end)
     end
   end
 
@@ -548,9 +579,30 @@ defmodule Playstead.Pairing do
   """
   @spec update_self_report(Device.t(), map()) :: {:ok, Device.t()} | {:error, term()}
   def update_self_report(%Device{} = device, attrs) do
-    device
-    |> Device.self_report_changeset(attrs)
-    |> Repo.update()
+    Repo.transaction(fn ->
+      case device |> Device.self_report_changeset(attrs) |> Repo.update() do
+        {:ok, updated} ->
+          {:ok, _} = ChangeJournal.append(updated.user_id, :device, updated.id, device_payload(updated))
+          updated
+
+        {:error, changeset} ->
+          Repo.rollback(changeset)
+      end
+    end)
+  end
+
+  # Privacy-safe device snapshot for journal payloads (T-01-47's
+  # discipline extends here too): never the credential, its hash, or
+  # its fingerprint — only the fields a client's device list actually
+  # renders.
+  defp device_payload(%Device{} = device) do
+    %{
+      name: device.name,
+      claimed_name: device.claimed_name,
+      platform: device.platform,
+      app_version: device.app_version,
+      revoked_at: device.revoked_at
+    }
   end
 
   defp owned_device(user_id, device_id) do
