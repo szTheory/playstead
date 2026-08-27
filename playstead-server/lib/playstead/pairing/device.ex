@@ -48,6 +48,17 @@ defmodule Playstead.Pairing.Device do
     |> validate_length(:name, max: @max_name_length)
   end
 
+  @doc """
+  Device self-report refresh (D-20a's `PATCH /api/v1/devices/me`) —
+  writes only the client's own claimed fields, mirroring the initial
+  pairing-time declaration. Never touches the owner-editable `name`.
+  """
+  def self_report_changeset(device, attrs) do
+    device
+    |> cast(attrs, [:claimed_name, :app_version])
+    |> validate_length(:claimed_name, max: @max_name_length)
+  end
+
   @doc false
   def revoke_changeset(device, revoked_at) do
     change(device, revoked_at: revoked_at)

@@ -11,8 +11,10 @@ defmodule PlaysteadWeb.ErrorCodes do
 
   @registry %{
     capability_incompatible: {422, "Capability Incompatible"},
+    idempotency_key_missing: {422, "Idempotency Key Missing"},
     idempotency_key_conflict: {409, "Idempotency Key Conflict"},
     idempotency_key_mismatch: {422, "Idempotency Key Mismatch"},
+    invalid_command_id: {422, "Invalid Command Id"},
     cursor_expired: {410, "Cursor Expired"},
     device_revoked: {401, "Device Revoked"},
     pairing_request_expired: {410, "Pairing Request Expired"},

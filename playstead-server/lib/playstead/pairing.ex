@@ -471,6 +471,19 @@ defmodule Playstead.Pairing do
     end
   end
 
+  @doc """
+  Device self-report refresh (D-20a): the device updates its own
+  claimed name/app version, mirroring the initial pairing-time
+  declaration. This is the effect wrapped by `Playstead.Idempotency.execute/4`
+  behind `PATCH /api/v1/devices/me`.
+  """
+  @spec update_self_report(Device.t(), map()) :: {:ok, Device.t()} | {:error, term()}
+  def update_self_report(%Device{} = device, attrs) do
+    device
+    |> Device.self_report_changeset(attrs)
+    |> Repo.update()
+  end
+
   defp owned_device(user_id, device_id) do
     Device
     |> where([d], d.id == ^device_id and d.user_id == ^user_id)

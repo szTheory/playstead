@@ -36,7 +36,10 @@ config :playstead, Oban,
     # re-derived from expires_at on every read.
     {Oban.Plugins.Cron,
      crontab: [
-       {"* * * * *", Playstead.Pairing.ExpireStaleRequestsWorker}
+       {"* * * * *", Playstead.Pairing.ExpireStaleRequestsWorker},
+       # D-20a: daily sweep of idempotency receipts past their ~90-day
+       # retention horizon.
+       {"@daily", Playstead.Idempotency.PruneExpiredWorker}
      ]}
   ]
 

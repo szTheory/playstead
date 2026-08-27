@@ -35,6 +35,13 @@ defmodule PlaysteadWeb.Router do
     plug PlaysteadWeb.Plugs.DeviceAuth
   end
 
+  # D-20a: required Idempotency-Key on mutating /api/v1 routes. Must
+  # come after :device_auth — it scopes receipts per authenticated
+  # device.
+  pipeline :idempotency do
+    plug PlaysteadWeb.Plugs.Idempotency
+  end
+
   # D-03: `/setup` renders only while no owner exists, and 404s
   # permanently — never a redirect — the moment one does.
   pipeline :setup_open do
@@ -102,6 +109,14 @@ defmodule PlaysteadWeb.Router do
     pipe_through [:api, :device_auth]
 
     get "/me", DevicesController, :me
+  end
+
+  # D-20a: mutating device endpoints additionally require an
+  # Idempotency-Key.
+  scope "/api/v1/devices", PlaysteadWeb.Api.V1 do
+    pipe_through [:api, :device_auth, :idempotency]
+
+    patch "/me", DevicesController, :update
     post "/me/rotate", DevicesController, :rotate
   end
 

@@ -35,6 +35,7 @@ defmodule PlaysteadWeb.Api.V1.DevicesControllerTest do
       conn =
         conn
         |> put_req_header("authorization", "Bearer #{old_token}")
+        |> put_req_header("idempotency-key", "rotate-#{System.unique_integer([:positive])}")
         |> post(~p"/api/v1/devices/me/rotate")
 
       assert %{"credential" => new_token, "fingerprint_prefix" => fp} = json_response(conn, 201)
