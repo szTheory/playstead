@@ -19,6 +19,15 @@ defmodule Playstead.Protocol.Capabilities do
   # for unbuilt features.
   @capability_namespaces [:protocol, :app, :cache, :transfer, :adapter, :save]
 
+  # D-19: `protocol` is the only namespace whose overlap is mandatory —
+  # it is the versioning contract itself. A mismatch on any other
+  # namespace degrades to `compatible_with_limits`, never a hard
+  # incompatibility. This required/optional split is server-side
+  # negotiation logic, never part of the frozen public envelope shape
+  # (`envelope/0`'s `supported_client_ranges` keeps exactly `min`/`max`
+  # per namespace — see the capabilities_controller contract test).
+  @required_namespaces [:protocol]
+
   @doc """
   The frozen capability document.
 
@@ -40,13 +49,23 @@ defmodule Playstead.Protocol.Capabilities do
   @spec protocol_version() :: %{major: non_neg_integer(), minor: non_neg_integer()}
   def protocol_version, do: %{major: @protocol_major, minor: @protocol_minor}
 
-  defp server_build do
-    Application.spec(:playstead, :vsn) |> to_string()
-  end
+  @doc "The six namespaces this server negotiates over (D-19)."
+  @spec namespaces() :: [atom()]
+  def namespaces, do: @capability_namespaces
 
-  defp supported_client_ranges do
+  @doc "Whether `namespace` requires overlap for a `compatible` verdict (D-19)."
+  @spec required?(atom()) :: boolean()
+  def required?(namespace), do: namespace in @required_namespaces
+
+  @doc "The server's supported client ranges, keyed by namespace atom. Same values `envelope/0` publishes, exposed directly for negotiation."
+  @spec supported_client_ranges() :: %{atom() => %{min: String.t(), max: String.t()}}
+  def supported_client_ranges do
     Map.new(@capability_namespaces, fn namespace ->
       {namespace, %{min: "1.0.0", max: "1.0.0"}}
     end)
+  end
+
+  defp server_build do
+    Application.spec(:playstead, :vsn) |> to_string()
   end
 end

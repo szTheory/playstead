@@ -105,6 +105,15 @@ defmodule PlaysteadWeb.Router do
     post "/me/rotate", DevicesController, :rotate
   end
 
+  # D-19: per-session capability negotiation. Not itself mutating in the
+  # idempotency-receipt sense (a repeat hello just refreshes the
+  # declaration row), so it stays on the plain device_auth pipeline.
+  scope "/api/v1", PlaysteadWeb.Api.V1 do
+    pipe_through [:api, :device_auth]
+
+    post "/hello", HelloController, :create
+  end
+
   # Dev/test-only target for the forced-500 problem+json contract test
   # (D-22). Gated at compile time so it never ships in a production
   # release.
