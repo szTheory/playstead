@@ -129,6 +129,17 @@ defmodule PlaysteadWeb.Router do
     post "/hello", HelloController, :create
   end
 
+  # D-21, PROT-05: the resumable change feed and its transactional
+  # snapshot counterpart. Both are read-only — never mutating, never
+  # Idempotency-Key gated — so they stay on the plain device_auth
+  # pipeline.
+  scope "/api/v1", PlaysteadWeb.Api.V1 do
+    pipe_through [:api, :device_auth]
+
+    get "/changes", ChangesController, :index
+    get "/snapshot", SnapshotController, :show
+  end
+
   # Dev/test-only target for the forced-500 problem+json contract test
   # (D-22). Gated at compile time so it never ships in a production
   # release.

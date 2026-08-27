@@ -16,6 +16,7 @@ defmodule PlaysteadWeb.ErrorCodes do
     idempotency_key_mismatch: {422, "Idempotency Key Mismatch"},
     invalid_command_id: {422, "Invalid Command Id"},
     cursor_expired: {410, "Cursor Expired"},
+    cursor_invalid: {400, "Cursor Invalid"},
     device_revoked: {401, "Device Revoked"},
     pairing_request_expired: {410, "Pairing Request Expired"},
     pairing_request_already_redeemed: {409, "Pairing Request Already Redeemed"},

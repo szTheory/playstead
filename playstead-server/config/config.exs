@@ -39,7 +39,10 @@ config :playstead, Oban,
        {"* * * * *", Playstead.Pairing.ExpireStaleRequestsWorker},
        # D-20a: daily sweep of idempotency receipts past their ~90-day
        # retention horizon.
-       {"@daily", Playstead.Idempotency.PruneExpiredWorker}
+       {"@daily", Playstead.Idempotency.PruneExpiredWorker},
+       # D-21: daily sweep of change-journal entries past
+       # Playstead.Sync.Compaction.horizon/0.
+       {"@daily", Playstead.Sync.CompactionWorker}
      ]}
   ]
 
