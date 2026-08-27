@@ -561,7 +561,9 @@ defmodule Playstead.Pairing do
         Repo.transaction(fn ->
           case device |> Device.rename_changeset(name) |> Repo.update() do
             {:ok, updated} ->
-              {:ok, _} = ChangeJournal.append(user.id, :device, updated.id, device_payload(updated))
+              {:ok, _} =
+                ChangeJournal.append(user.id, :device, updated.id, device_payload(updated))
+
               updated
 
             {:error, changeset} ->
@@ -582,7 +584,9 @@ defmodule Playstead.Pairing do
     Repo.transaction(fn ->
       case device |> Device.self_report_changeset(attrs) |> Repo.update() do
         {:ok, updated} ->
-          {:ok, _} = ChangeJournal.append(updated.user_id, :device, updated.id, device_payload(updated))
+          {:ok, _} =
+            ChangeJournal.append(updated.user_id, :device, updated.id, device_payload(updated))
+
           updated
 
         {:error, changeset} ->

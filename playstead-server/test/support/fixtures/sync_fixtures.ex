@@ -13,7 +13,12 @@ defmodule Playstead.SyncFixtures do
   transaction — for fixture purposes a dedicated transaction is fine
   since there is no accompanying effect to keep atomic with).
   """
-  def journal_entry_fixture(user_id, entity_kind \\ :device, entity_id \\ Ecto.UUID.generate(), payload \\ %{}) do
+  def journal_entry_fixture(
+        user_id,
+        entity_kind \\ :device,
+        entity_id \\ Ecto.UUID.generate(),
+        payload \\ %{}
+      ) do
     {:ok, entry} =
       Repo.transaction(fn ->
         case ChangeJournal.append(user_id, entity_kind, entity_id, payload) do
@@ -26,7 +31,11 @@ defmodule Playstead.SyncFixtures do
   end
 
   @doc "Appends a tombstone entry directly, in its own transaction."
-  def journal_tombstone_fixture(user_id, entity_kind \\ :device, entity_id \\ Ecto.UUID.generate()) do
+  def journal_tombstone_fixture(
+        user_id,
+        entity_kind \\ :device,
+        entity_id \\ Ecto.UUID.generate()
+      ) do
     {:ok, entry} =
       Repo.transaction(fn ->
         case ChangeJournal.tombstone(user_id, entity_kind, entity_id) do

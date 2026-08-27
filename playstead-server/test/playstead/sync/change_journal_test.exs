@@ -136,7 +136,8 @@ defmodule Playstead.Sync.ChangeJournalTest do
       entries = ChangeJournal.read_after(device.user_id, baseline, 100)
 
       assert Enum.any?(entries, fn e ->
-               e.entity_kind == "device" and e.entity_id == device.id and e.operation == "tombstone"
+               e.entity_kind == "device" and e.entity_id == device.id and
+                 e.operation == "tombstone"
              end)
     end
 
