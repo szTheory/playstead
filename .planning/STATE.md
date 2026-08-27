@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 current_phase: 01
 current_phase_name: Private Custody and Durable Protocol
 status: executing
-stopped_at: Completed 01-04-PLAN.md
-last_updated: "2026-08-27T17:52:29.239Z"
+stopped_at: Completed 01-05-PLAN.md
+last_updated: "2026-08-27T18:14:55.463Z"
 last_activity: 2026-08-27
 last_activity_desc: Phase 01 execution started
-state_head: 7d0c761f3bc2b623f9fe928560c01f5bd86adb7d
+state_head: a380ace417295ef16b099ae0d82a61b6fcdbe7b4
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 7
-  completed_plans: 4
+  completed_plans: 5
   percent: 0
 ---
 
@@ -28,7 +28,7 @@ See: `.planning/PROJECT.md` (updated 2026-08-26)
 ## Current Position
 
 Phase: 01 (Private Custody and Durable Protocol) — EXECUTING
-Plan: 5 of 7
+Plan: 6 of 7
 Status: Ready to execute
 Last activity: 2026-08-27 — Phase 01 execution started
 
@@ -61,6 +61,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01 P02 | 70min | 2 tasks | 29 files |
 | Phase 01-private-custody-and-durable-protocol P03 | 90 min | 2 tasks | 31 files |
 | Phase 01 P04 | 55min | 3 tasks | 22 files |
+| Phase 01 P05 | 45min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -75,6 +76,9 @@ Progress: [░░░░░░░░░░] 0%
 - [Phase 01]: [Phase 01]: Login screen keeps the generated Email field alongside Password since D-02's no-email constraint is about mail delivery, not the login identifier
 - [Phase 01]: [Phase 01]: revoke_device/2 keeps device_credentials rows (only sets revoked_at) rather than deleting them, since deletion would make a revoked device's next request indistinguishable from unauthorized, breaking the PROT-02 device_revoked contract
 - [Phase 01]: [Phase 01]: pairing_requests uses utc_datetime_usec (not the app-wide utc_datetime default) so pending-queue eviction's oldest-request selection is deterministic under a fast request burst
+- [Phase 01]: Per-action sudo freshness check (Accounts.sudo_mode?/1) instead of a whole-route gate for /devices, so the read-only approval queue and device list stay reachable without forcing re-authentication on every visit
+- [Phase 01]: Console-triggered credential rotation UI deliberately not built in plan 01-05 — D-10 rotation already ships as a device-initiated action via /api/v1/devices/me/rotate, a stronger auth factor than owner sudo with an actual delivery path
+- [Phase 01]: Added a read-only caddy_data volume mount to the app service in docker-compose.yml so Playstead.TlsTrust can read Caddy's internal-CA root certificate for pairing-time client pinning
 
 ### Pending Todos
 
@@ -101,6 +105,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-27T17:52:19.548Z
-Stopped at: Completed 01-04-PLAN.md
+Last session: 2026-08-27T18:14:55.455Z
+Stopped at: Completed 01-05-PLAN.md
 Resume file: None
