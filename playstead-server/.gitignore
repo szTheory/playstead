@@ -35,3 +35,6 @@ playstead-*.tar
 npm-debug.log
 /assets/node_modules/
 
+# Real secrets live here, generated from .env.example — never commit this.
+/.env
+

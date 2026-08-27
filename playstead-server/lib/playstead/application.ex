@@ -5,8 +5,24 @@ defmodule Playstead.Application do
 
   use Application
 
+  # Evaluated at compile time — Mix is not available in a compiled
+  # release at runtime, but the resulting atom is embedded as a
+  # literal, so this check works fine in a release.
+  @env Mix.env()
+
   @impl true
   def start(_type, _args) do
+    # Boot-time safety gates (D-15, D-17), production releases only.
+    # Order matters: refuse placeholder secrets before touching the
+    # database; check the schema floor against the pre-migration state
+    # before running migrations that could otherwise silently skip an
+    # operator through an unsupported upgrade path.
+    if @env == :prod do
+      Playstead.Release.assert_no_placeholder_secrets!()
+      Playstead.Release.assert_minimum_upgradable_version!()
+      Playstead.Release.migrate()
+    end
+
     children = [
       PlaysteadWeb.Telemetry,
       Playstead.Repo,

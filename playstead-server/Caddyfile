@@ -1,12 +1,18 @@
 # Source: caddyserver.com/docs/automatic-https
 #
+# CADDY_SITE_ADDRESS is derived in docker-compose.yml from
+# PLAYSTEAD_DOMAIN via Compose's ${VAR:-default} (falls back on unset
+# OR empty), not Caddy's own {$VAR:default} Caddyfile syntax (falls
+# back only when the variable is truly unset — see docker-compose.yml
+# for why that distinction matters here).
+#
 # Caddy's automatic HTTPS already implements D-13 with no extra
 # directives: when the site address is a real, publicly-resolvable
 # domain (PLAYSTEAD_DOMAIN is set), Caddy automatically requests a
 # Let's Encrypt certificate for it. When the address is "localhost"
-# (PLAYSTEAD_DOMAIN unset, the default below), Caddy detects that it
-# is not a publicly-resolvable name and automatically issues from its
-# own internal CA instead — the same effect an explicit `tls internal`
+# (PLAYSTEAD_DOMAIN unset, the default), Caddy detects that it is not
+# a publicly-resolvable name and automatically issues from its own
+# internal CA instead — the same effect an explicit `tls internal`
 # directive would force, but without disabling automatic Let's Encrypt
 # issuance for the real-domain case. An unconditional `tls internal`
 # directive here would force the internal CA even when PLAYSTEAD_DOMAIN
@@ -18,6 +24,6 @@
 # documented alternative deployment path (see docs/DEPLOY.md), not a
 # behavior of this Caddyfile.
 
-{$PLAYSTEAD_DOMAIN:localhost} {
+{$CADDY_SITE_ADDRESS} {
 	reverse_proxy app:4000
 }
