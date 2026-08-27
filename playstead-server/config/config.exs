@@ -7,6 +7,19 @@
 # General application configuration
 import Config
 
+config :playstead, :scopes,
+  user: [
+    default: true,
+    module: Playstead.Accounts.Scope,
+    assign_key: :current_scope,
+    access_path: [:user, :id],
+    schema_key: :user_id,
+    schema_type: :id,
+    schema_table: :users,
+    test_data_fixture: Playstead.AccountsFixtures,
+    test_setup_helper: :register_and_log_in_user
+  ]
+
 config :playstead,
   ecto_repos: [Playstead.Repo],
   generators: [timestamp_type: :utc_datetime]
@@ -33,15 +46,6 @@ config :playstead, PlaysteadWeb.Endpoint,
 config :phoenix_live_view,
   # the attribute set on all root tags. Used for Phoenix.LiveView.ColocatedCSS.
   root_tag_attribute: "phx-r"
-
-# Configure the mailer
-#
-# By default it uses the "Local" adapter which stores the emails
-# locally. You can see the emails in your browser, at "/dev/mailbox".
-#
-# For production it's recommended to configure a different adapter
-# at the `config/runtime.exs`.
-config :playstead, Playstead.Mailer, adapter: Swoosh.Adapters.Local
 
 # Configure esbuild (the version is required)
 config :esbuild,

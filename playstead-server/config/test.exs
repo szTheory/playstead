@@ -1,5 +1,8 @@
 import Config
 
+# Only in tests, remove the complexity from the password hashing algorithm
+config :bcrypt_elixir, :log_rounds, 1
+
 # Configure your database
 #
 # The MIX_TEST_PARTITION environment variable can be used
@@ -20,14 +23,8 @@ config :playstead, PlaysteadWeb.Endpoint,
   secret_key_base: "64CRN9kJz6+vSE1TtjV3XAwR1vnhNP8+wQcreYNJSKSHIJu9/MWBKAd4LbntFdrL",
   server: false
 
-# In test we don't send emails
-config :playstead, Playstead.Mailer, adapter: Swoosh.Adapters.Test
-
 # Oban jobs run manually in tests, never on a background schedule
 config :playstead, Oban, testing: :manual
-
-# Disable swoosh api client as it is only required for production adapters
-config :swoosh, :api_client, false
 
 # Print only warnings and errors during test
 config :logger, level: :warning

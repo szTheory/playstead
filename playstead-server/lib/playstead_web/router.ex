@@ -1,6 +1,8 @@
 defmodule PlaysteadWeb.Router do
   use PlaysteadWeb, :router
 
+  import PlaysteadWeb.UserAuth
+
   # Wraps the router's own call/2 in a try/rescue (same mechanism as
   # Plug.ErrorHandler), so this fires before an exception can reach
   # the endpoint's default render_errors HTML/JSON rendering (D-22;
@@ -14,6 +16,7 @@ defmodule PlaysteadWeb.Router do
     plug :put_root_layout, html: {PlaysteadWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug :fetch_current_scope_for_user
   end
 
   pipeline :api do
@@ -46,7 +49,7 @@ defmodule PlaysteadWeb.Router do
     end
   end
 
-  # Enable LiveDashboard and Swoosh mailbox preview in development
+  # Enable LiveDashboard in development
   if Application.compile_env(:playstead, :dev_routes) do
     # If you want to use the LiveDashboard in production, you should put
     # it behind authentication and allow only admins to access it.
@@ -59,7 +62,22 @@ defmodule PlaysteadWeb.Router do
       pipe_through :browser
 
       live_dashboard "/dashboard", metrics: PlaysteadWeb.Telemetry
-      forward "/mailbox", Plug.Swoosh.MailboxPreview
     end
+  end
+
+  ## Authentication routes (D-02: password-only, no magic link, no
+  ## self-registration — the owner account is created exclusively through
+  ## the /setup wizard in Playstead.Setup)
+
+  scope "/", PlaysteadWeb do
+    pipe_through [:browser]
+
+    live_session :current_user,
+      on_mount: [{PlaysteadWeb.UserAuth, :mount_current_scope}] do
+      live "/log-in", LoginLive, :new
+    end
+
+    post "/log-in", UserSessionController, :create
+    delete "/log-out", UserSessionController, :delete
   end
 end
