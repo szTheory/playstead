@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 current_phase: 01
 current_phase_name: Private Custody and Durable Protocol
 status: executing
-stopped_at: Completed 01-03-PLAN.md
-last_updated: "2026-08-27T17:26:06.021Z"
+stopped_at: Completed 01-04-PLAN.md
+last_updated: "2026-08-27T17:52:29.239Z"
 last_activity: 2026-08-27
 last_activity_desc: Phase 01 execution started
-state_head: 34c08a47f23d198baa9a35e787c9ffc1c73176cf
+state_head: 7d0c761f3bc2b623f9fe928560c01f5bd86adb7d
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 7
-  completed_plans: 3
+  completed_plans: 4
   percent: 0
 ---
 
@@ -28,7 +28,7 @@ See: `.planning/PROJECT.md` (updated 2026-08-26)
 ## Current Position
 
 Phase: 01 (Private Custody and Durable Protocol) — EXECUTING
-Plan: 4 of 7
+Plan: 5 of 7
 Status: Ready to execute
 Last activity: 2026-08-27 — Phase 01 execution started
 
@@ -60,6 +60,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01 P01 | 55 min | 3 tasks | 27 files |
 | Phase 01 P02 | 70min | 2 tasks | 29 files |
 | Phase 01-private-custody-and-durable-protocol P03 | 90 min | 2 tasks | 31 files |
+| Phase 01 P04 | 55min | 3 tasks | 22 files |
 
 ## Accumulated Context
 
@@ -72,6 +73,8 @@ Progress: [░░░░░░░░░░] 0%
 - [Phase 01]: Caddyfile site address derived via Compose localhost into CADDY_SITE_ADDRESS, since Compose always sets a listed env key (even empty) but Caddy's own {$VAR:default} only falls back on truly-unset vars
 - [Phase 01]: [Phase 01]: Setup-token consumption uses a guarded UPDATE ... WHERE consumed_at IS NULL inside claim/2's Ecto.Multi, relying on Postgres row-level serialization instead of an explicit SELECT FOR UPDATE, to guarantee exactly one owner from concurrent claims
 - [Phase 01]: [Phase 01]: Login screen keeps the generated Email field alongside Password since D-02's no-email constraint is about mail delivery, not the login identifier
+- [Phase 01]: [Phase 01]: revoke_device/2 keeps device_credentials rows (only sets revoked_at) rather than deleting them, since deletion would make a revoked device's next request indistinguishable from unauthorized, breaking the PROT-02 device_revoked contract
+- [Phase 01]: [Phase 01]: pairing_requests uses utc_datetime_usec (not the app-wide utc_datetime default) so pending-queue eviction's oldest-request selection is deterministic under a fast request burst
 
 ### Pending Todos
 
@@ -98,6 +101,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-27T17:26:06.000Z
-Stopped at: Completed 01-03-PLAN.md
+Last session: 2026-08-27T17:52:19.548Z
+Stopped at: Completed 01-04-PLAN.md
 Resume file: None
