@@ -446,17 +446,21 @@ Caddy generates its own local CA when serving non-public hosts and uses it to si
 | A2 | UUIDv7 generation on the Elixir side may require a small helper package (`Ecto.UUID.generate/0` produces v4) | Standard Stack (Supporting) | Medium — if the planner assumes v7 is available for free from Ecto and it isn't, the natural-key ordering property D-20b relies on for outbox replay convergence may silently degrade to v4's non-monotonic ordering; verify at plan time with a quick `Ecto.UUID` doc check or spike |
 | A3 | Postgres 17.2 and Caddy 2.10 are reasonable exact pins for the Compose skeleton | Code Examples | Low — these are illustrative pins; the planner/executor should confirm current stable tags at scaffold time rather than treating 17.2/2.10 as load-bearing version requirements |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Exact UUIDv7 generation strategy for Elixir**
+Both questions below were resolved during phase planning. Resolutions are recorded inline and are binding on execution.
+
+1. **Exact UUIDv7 generation strategy for Elixir** — **(RESOLVED in 01-06, task 3)**
    - What we know: D-20b requires client-generated UUIDv7 IDs; the Mac client (Swift) can likely use a modern UUID v7 API or a small library. The Elixir side's own need for v7 (vs. accepting client-supplied v7 strings as opaque values) is less clear — the server may never need to *generate* v7 itself if IDs are always client-supplied.
    - What's unclear: whether any server-side code path (e.g., Oban job dedup keys) needs to mint its own UUIDv7 values, which would require adding a small hex dependency.
    - Recommendation: Treat server-side UUIDv7 as "accept and validate format from client," not "generate," unless a specific Phase 1 task proves otherwise; confirm during planning before adding a dependency.
+   - **RESOLVED:** Plan 01-06 task 3 adopts the recommendation. The server accepts and validates client-supplied UUIDv7 command IDs (`playstead/command_id.ex`) and never generates them, so no UUIDv7 hex dependency is added in Phase 1.
 
-2. **Exact recovery-code format and storage (D-05b)**
+2. **Exact recovery-code format and storage (D-05b)** — **(RESOLVED in 01-02, task 2)**
    - What we know: single-use recovery codes generated at setup, rate-limited like passwords, displayed once.
    - What's unclear: exact code alphabet/length and hashing scheme were left to Claude's Discretion implicitly (not explicitly called out, but not locked either).
    - Recommendation: Mirror the pairing display-code convention (Base-20 consonant alphabet) for visual consistency, hash with the same bcrypt mechanism as passwords, store as a set of single-use rows (not a single hashed blob) so individual codes can be marked consumed independently.
+   - **RESOLVED:** Plan 01-02 task 2 adopts the recommendation in full — Base-20 consonant alphabet matching the pairing display code, bcrypt-hashed with the same mechanism as passwords, stored as single-use rows that are marked consumed independently.
 
 ## Environment Availability
 
