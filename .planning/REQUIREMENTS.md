@@ -9,18 +9,18 @@ Requirements for the first complete Mac-to-server custody and continuity release
 
 ### Private Server and Operations
 
-- [x] **OPER-01**: A self-hoster can deploy the private server through one documented Docker Compose path with explicitly configured persistent database and blob volumes.
-- [x] **OPER-02**: A self-hoster can complete initial setup in a Phoenix LiveView console without editing application data or calling the device API by hand.
+- [ ] **OPER-01**: A self-hoster can deploy the private server through one documented Docker Compose path with explicitly configured persistent database and blob volumes.
+- [ ] **OPER-02**: A self-hoster can complete initial setup in a Phoenix LiveView console without editing application data or calling the device API by hand.
 - [ ] **OPER-03**: A self-hoster can see separate, actionable health for the database, blob store, durable work queues, migrations, storage capacity, and backup freshness.
 - [ ] **OPER-04**: A self-hoster can upgrade through a compatibility and migration preflight, verify the known-playable path afterward, and follow a documented rollback when verification fails.
 
 ### Pairing and Durable Protocol
 
-- [x] **PROT-01**: An authenticated owner can approve a Mac device-pairing request and the Mac client stores the resulting scoped credential in Keychain.
-- [x] **PROT-02**: An authenticated owner can review paired devices and revoke one without invalidating other devices.
-- [x] **PROT-03**: A client can declare protocol, application, cache, transfer, emulator-adapter, and save capabilities and receive an actionable incompatibility response when the server cannot support them.
-- [x] **PROT-04**: A disconnected client can safely retry a mutation and receive the original durable receipt instead of creating a duplicate effect.
-- [x] **PROT-05**: A client that misses notifications can reconstruct catalogue, job, transfer, and save state through a versioned HTTPS snapshot-and-cursor API without requiring a persistent WebSocket.
+- [ ] **PROT-01**: An authenticated owner can approve a Mac device-pairing request and the Mac client stores the resulting scoped credential in Keychain.
+- [ ] **PROT-02**: An authenticated owner can review paired devices and revoke one without invalidating other devices.
+- [ ] **PROT-03**: A client can declare protocol, application, cache, transfer, emulator-adapter, and save capabilities and receive an actionable incompatibility response when the server cannot support them.
+- [ ] **PROT-04**: A disconnected client can safely retry a mutation and receive the original durable receipt instead of creating a duplicate effect.
+- [ ] **PROT-05**: A client that misses notifications can reconstruct catalogue, job, transfer, and save state through a versioned HTTPS snapshot-and-cursor API without requiring a persistent WebSocket.
 
 ### Import, Identity, and Provenance
 
@@ -115,15 +115,15 @@ Which phases cover which requirements. This table is populated by roadmap creati
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| OPER-01 | Phase 1 | Complete |
-| OPER-02 | Phase 1 | Complete |
+| OPER-01 | Phase 1 | Gaps Found |
+| OPER-02 | Phase 1 | Gaps Found |
 | OPER-03 | Phase 5 | Pending |
 | OPER-04 | Phase 5 | Pending |
-| PROT-01 | Phase 1 | Complete |
-| PROT-02 | Phase 1 | Complete |
-| PROT-03 | Phase 1 | Complete |
-| PROT-04 | Phase 1 | Complete |
-| PROT-05 | Phase 1 | Complete |
+| PROT-01 | Phase 1 | Gaps Found |
+| PROT-02 | Phase 1 | Gaps Found |
+| PROT-03 | Phase 1 | Gaps Found |
+| PROT-04 | Phase 1 | Gaps Found |
+| PROT-05 | Phase 1 | Gaps Found |
 | IMPT-01 | Phase 2 | Pending |
 | IMPT-02 | Phase 2 | Pending |
 | IMPT-03 | Phase 2 | Pending |
