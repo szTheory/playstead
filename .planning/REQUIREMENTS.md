@@ -10,7 +10,7 @@ Requirements for the first complete Mac-to-server custody and continuity release
 ### Private Server and Operations
 
 - [x] **OPER-01**: A self-hoster can deploy the private server through one documented Docker Compose path with explicitly configured persistent database and blob volumes.
-- [ ] **OPER-02**: A self-hoster can complete initial setup in a Phoenix LiveView console without editing application data or calling the device API by hand.
+- [x] **OPER-02**: A self-hoster can complete initial setup in a Phoenix LiveView console without editing application data or calling the device API by hand.
 - [ ] **OPER-03**: A self-hoster can see separate, actionable health for the database, blob store, durable work queues, migrations, storage capacity, and backup freshness.
 - [ ] **OPER-04**: A self-hoster can upgrade through a compatibility and migration preflight, verify the known-playable path afterward, and follow a documented rollback when verification fails.
 
@@ -116,7 +116,7 @@ Which phases cover which requirements. This table is populated by roadmap creati
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | OPER-01 | Phase 1 | Complete |
-| OPER-02 | Phase 1 | Pending |
+| OPER-02 | Phase 1 | Complete |
 | OPER-03 | Phase 5 | Pending |
 | OPER-04 | Phase 5 | Pending |
 | PROT-01 | Phase 1 | Pending |

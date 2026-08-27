@@ -33,7 +33,7 @@ This MVP proves one trustworthy Mac-to-server custody and continuity journey: de
   4. After a disconnection, a client can retry a mutation without creating another effect and reconstruct catalogue, job, transfer, and save state through HTTPS snapshot-and-cursor reads without a WebSocket.
 
 **Research / spike flags**: Contract gate: prove idempotency receipts, authorization, and missed-notification cursor reset/convergence with HTTP contract tests. Preserve the API-first boundary; LiveView is console delivery only.
-**Plans**: 1/7 plans executed
+**Plans**: 2/7 plans executed
 
 Plans:
 **Wave 1**
@@ -42,7 +42,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 01-02-PLAN.md — Owner account with Phoenix Scopes, email-free password auth, setup-token bootstrap and the four-step setup wizard
+- [x] 01-02-PLAN.md — Owner account with Phoenix Scopes, email-free password auth, setup-token bootstrap and the four-step setup wizard
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -139,7 +139,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Private Custody and Durable Protocol | 1/7 | In Progress|  |
+| 1. Private Custody and Durable Protocol | 2/7 | In Progress|  |
 | 2. Explainable Import and Exact Export | 0/TBD | Not started | - |
 | 3. Mac Offline Play Vertical Slice | 0/TBD | Not started | - |
 | 4. Persistent Save Continuity | 0/TBD | Not started | - |
