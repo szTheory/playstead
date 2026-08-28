@@ -213,6 +213,21 @@ defmodule PlaysteadWeb.Router do
     get "/import-sessions/:id/receipts", ImportSessionsController, :receipts
   end
 
+  # D-26/D-30: the cursor-paginated attention list, strictly user-scoped.
+  scope "/api/v1", PlaysteadWeb.Api.V1 do
+    pipe_through [:api, :device_auth]
+
+    get "/attention", AttentionController, :index
+  end
+
+  # D-27/D-30: the idempotent resolve endpoint — mutating, so it
+  # additionally requires an Idempotency-Key.
+  scope "/api/v1", PlaysteadWeb.Api.V1 do
+    pipe_through [:api, :device_auth, :idempotency]
+
+    post "/attention/:id/resolve", AttentionController, :resolve
+  end
+
   # Dev/test-only target for the forced-500 problem+json contract test
   # (D-22). Gated at compile time so it never ships in a production
   # release.
@@ -319,6 +334,7 @@ defmodule PlaysteadWeb.Router do
       live "/library/:id", LibraryLive, :show
     end
   end
+
 
   scope "/", PlaysteadWeb do
     pipe_through [:browser, :require_authenticated, :require_sudo]
