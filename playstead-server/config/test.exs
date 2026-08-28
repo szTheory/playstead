@@ -1,5 +1,14 @@
 import Config
 
+# Phase 2: point the blob volume and export root at per-run temp
+# directories, and cap the upload ceiling small enough to exercise the
+# "too large" rejection cheaply. Set via System.put_env/2 (not `config
+# :playstead, ...`) because config/runtime.exs runs after this file and
+# unconditionally re-derives its own config from these OS env vars.
+System.put_env("PLAYSTEAD_BLOB_PATH", Path.join(System.tmp_dir!(), "playstead-test-blobs"))
+System.put_env("PLAYSTEAD_EXPORT_PATH", Path.join(System.tmp_dir!(), "playstead-test-exports"))
+System.put_env("PLAYSTEAD_MAX_UPLOAD_BYTES", "104857600")
+
 # Only in tests, remove the complexity from the password hashing algorithm
 config :bcrypt_elixir, :log_rounds, 1
 

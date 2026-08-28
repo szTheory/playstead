@@ -74,6 +74,8 @@ config :playstead,
   max_upload_bytes: parse_integer_env.("PLAYSTEAD_MAX_UPLOAD_BYTES", 8_589_934_592),
   max_session_files: parse_integer_env.("PLAYSTEAD_MAX_SESSION_FILES", 250_000)
 
+config :playstead, Playstead.Blobs, store: Playstead.Blobs.Store.LocalDisk
+
 config :playstead, PlaysteadWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 

@@ -34,6 +34,9 @@ defmodule Playstead.Application do
       # D-06: fixed per-IP/per-account throttling for login, sudo, and
       # recovery-code submission (PlaysteadWeb.Plugs.Throttle).
       Playstead.RateLimiter,
+      # D-29: clears leftover temporary files under the blob volume's
+      # tmp/ at boot; never touches objects/.
+      Playstead.Import.OrphanSweeper,
       # Start to serve requests, typically the last entry
       PlaysteadWeb.Endpoint
     ]
