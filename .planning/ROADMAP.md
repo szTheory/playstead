@@ -106,7 +106,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3)*
 
-- [ ] 02-05-PLAN.md — Symlink-safe inbox staging, the durable session worker with cooperative pause/resume/retry/cancel, hybrid reconcile, bounded progress, and the receipts API
+- [x] 02-05-PLAN.md — Symlink-safe inbox staging, the durable session worker with cooperative pause/resume/retry/cancel, hybrid reconcile, bounded progress, and the receipts API
 
 **Wave 5** *(blocked on Wave 4)*
 

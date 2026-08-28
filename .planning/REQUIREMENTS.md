@@ -28,7 +28,7 @@ Requirements for the first complete Mac-to-server custody and continuity release
 - [x] **IMPT-02**: After import, a user can verify the SHA-256 and byte size of the exact original bytes and inspect their source provenance.
 - [x] **IMPT-03**: A user receives a durable import receipt that distinguishes a new asset, exact duplicate, alias or variant, incomplete set, unrecognized or patched content, quarantined input, and safely failed input.
 - [x] **IMPT-04**: A user can import a supported multi-file game as an ordered asset manifest whose required members and readiness remain explicit.
-- [ ] **IMPT-05**: A user can stage a large collection import, observe bounded progress, pause or resume it, retry interrupted work, and reconcile it without duplicating unchanged content.
+- [x] **IMPT-05**: A user can stage a large collection import, observe bounded progress, pause or resume it, retry interrupted work, and reconcile it without duplicating unchanged content.
 - [ ] **IMPT-06**: A user can resolve an item in a Needs Attention inbox by reviewing evidence and then correcting its system or metadata, attaching a missing companion, retaining it as custom content, excluding it, or retrying safe processing.
 
 ### Curated Library
@@ -128,7 +128,7 @@ Which phases cover which requirements. This table is populated by roadmap creati
 | IMPT-02 | Phase 2 | Complete |
 | IMPT-03 | Phase 2 | Complete |
 | IMPT-04 | Phase 2 | Complete |
-| IMPT-05 | Phase 2 | Pending |
+| IMPT-05 | Phase 2 | Complete |
 | IMPT-06 | Phase 2 | Pending |
 | LIBR-01 | Phase 3 | Pending |
 | LIBR-02 | Phase 3 | Pending |

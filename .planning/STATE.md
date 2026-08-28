@@ -4,15 +4,15 @@ milestone: v1.0
 current_phase: 02
 current_phase_name: Explainable Import and Exact Export
 status: executing
-stopped_at: Completed 02-04-PLAN.md
-last_updated: "2026-08-28T20:17:20.965Z"
+stopped_at: Completed 02-05-PLAN.md
+last_updated: "2026-08-28T21:17:03.412Z"
 last_activity: 2026-08-28
-state_head: a9f0184f912436095369075d3d7b4e3e4f60a284
+state_head: 6b3eeb05e27826a4f69c9cfd928e3a9c4298e2cb
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 16
-  completed_plans: 12
+  completed_plans: 13
 milestone_name: milestone
 ---
 
@@ -28,7 +28,7 @@ See: `.planning/PROJECT.md` (updated 2026-08-28)
 ## Current Position
 
 Phase: 02 (Explainable Import and Exact Export) — EXECUTING
-Plan: 5 of 8
+Plan: 6 of 8
 Status: Ready to execute
 Last activity: 2026-08-28
 
@@ -70,6 +70,7 @@ Progress: [███████░░░] 69%
 | Phase 02-explainable-import-and-exact-export P02 | 4h30min | 3 tasks | 37 files |
 | Phase 02-explainable-import-and-exact-export P03 | 3h10min | 3 tasks | 32 files |
 | Phase 02 P04 | 3h40min | 3 tasks | 22 files |
+| Phase 02-explainable-import-and-exact-export P05 | 3h05min | 3 tasks | 23 files |
 
 ## Accumulated Context
 
@@ -100,6 +101,8 @@ Progress: [███████░░░] 69%
 - [Phase ?]: Recognition provider stays pure/DB-free; the calling context precomputes alias/possible-variant signals from the database — Keeps HeaderEvidence unit-testable without a database and matches the behaviour contract
 - [Phase 02]: adopt_temp_file/2 added to Playstead.Blobs.Store so the browser writer's finished temp file joins the CAS commit path without re-streaming its bytes — Preserves the read-once guarantee: put_stream/2 would re-read the writer's already-written file, and commit/2 assumes a live open WriteRef the writer no longer has after close
 - [Phase 02]: Catalogue.list_assets/2 and get_asset_detail/2 take a Scope, unlike the rest of Phase 2's import/export context functions — These are the console's own read surface (Phase 1 convention), not part of the import pipeline's internal call chain
+- [Phase 02]: SessionWorker self-chains one bounded batch per perform/1 (not a loop to completion) so the cooperative pause/cancel check is exercisable one batch at a time — Bounds a single job's runtime and makes control-check semantics directly testable
+- [Phase 02]: Oban uniqueness on the session job excludes :executing so the worker's own self-chained continuation insert is never swallowed as a duplicate of the job it is chaining from — Self-chaining inserts a new job while the current one is still executing
 
 ### Pending Todos
 
@@ -130,6 +133,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-28T20:17:09.756Z
-Stopped at: Completed 02-04-PLAN.md
+Last session: 2026-08-28T21:17:03.377Z
+Stopped at: Completed 02-05-PLAN.md
 Resume file: None
