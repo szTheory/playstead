@@ -2,7 +2,9 @@
 
 **Detector result:** `api-coverage.cjs` returned `{"detected": false, "signals": []}` against the Phase 1 roadmap scope on 2026-08-27.
 
-No external API integration: this phase *publishes* Playstead's own first-party HTTPS protocol (`/api/v1` capabilities, pairing, idempotency, and snapshot-and-cursor endpoints) and consumes no third-party API, SDK, hosted service, OAuth provider, or webhook source.
+No external API integration: this phase publishes Playstead's own first-party HTTPS protocol and consumes no third-party API, SDK, hosted service, OAuth provider, or webhook source.
+
+The published surface is `/api/v1` capabilities, pairing, idempotency, and snapshot-and-cursor endpoints — all first-party.
 
 The only external components in scope are self-hosted infrastructure images the deployment runs (PostgreSQL and Caddy) and hex.pm library dependencies — neither is an external API surface whose capability set could be partially integrated. Dependency legitimacy is covered separately by the `## Package Legitimacy Audit` in `01-RESEARCH.md` and by threat `T-01-SC` in `01-01-PLAN.md`.
 
