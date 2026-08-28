@@ -59,10 +59,18 @@ coverage:
     requirement: PROT-01
     verification:
       - kind: integration
-        ref: "test/playstead_web/live/devices_live_test.exs (empty state, nil-claim 'Not reported', microcopy verbatim, approve happy path)"
+        ref: "test/playstead_web/browser/devices_journey_test.exs#pair → approve → redeem → rename → revoke (sudo) → tombstone"
         status: pass
-    human_judgment: true
-    rationale: "Automated tests assert markup/text/state-transition behavior (labels, empty states, error copy, approve/deny wiring), not visual fidelity to the UI-SPEC's 40px display-code dominance, letter-spacing, and color-authority contract between claimed and observed fields — this needs a human (or the phase's end-of-phase UAT pass) to confirm the rendered card actually reads as D-09 intends."
+      - kind: integration
+        ref: "test/playstead_web/browser/typography_test.exs#the pairing display code is the only 40px element and the largest on the Devices screen (40px / 600 / 0.08em / JetBrains Mono / accent)"
+        status: pass
+      - kind: integration
+        ref: "test/playstead_web/browser/states_test.exs#E3 partial (muted Not reported), E3 overflow/long-text (claimed name truncates, never touches the display code)"
+        status: pass
+      - kind: integration
+        ref: "test/playstead_web/browser/copy_test.exs#devices: the pairing evidence micro-copy, Approve / Deny, and the deny confirmation"
+        status: pass
+    human_judgment: false
   - id: D2
     description: "An expired pairing request renders inert (no Approve/Deny, 'Expired' shown) and cannot be approved even if the client fires the approve event directly — expiry is re-checked server-side, never trusted from the countdown display"
     requirement: PROT-01
@@ -114,9 +122,20 @@ coverage:
     human_judgment: false
   - id: D8
     description: "The full visual hierarchy, spacing, color, and typography of the approval card and device list read as the UI-SPEC intends across all documented empty/loading/error/partial/overflow/zero-one-many states"
-    verification: []
-    human_judgment: true
-    rationale: "Automated tests assert structural/textual correctness (labels, ARIA attributes, state transitions, confirmation copy), not visual fidelity to the UI-SPEC's dark-console color roles, spacing scale, and the 40px display-code dominance-over-claims contract — deferred to the phase's end-of-phase human UAT pass, consistent with plans 01-02 and 01-03's D10/D10 coverage entries."
+    verification:
+      - kind: integration
+        ref: "test/playstead_web/browser/palette_test.exs#devices: every rendered color is one of the nine palette hexes; accent/destructive/success/warning only where reserved"
+        status: pass
+      - kind: integration
+        ref: "test/playstead_web/browser/coherence_test.exs#devices: icon-only buttons are ≥44×44 with an exact accessible name; no horizontal scroll on desktop or phone widths"
+        status: pass
+      - kind: integration
+        ref: "test/playstead_web/browser/states_test.exs#E3 empty/error/zero-one-many (queue full + eviction), E4 partial/zero-one-many (Never, tombstones below with no controls), E4 overflow (rename limit), E4 error (stale sudo redirect)"
+        status: pass
+      - kind: integration
+        ref: "test/playstead_web/browser/devices_journey_test.exs#the server-certificate panel is honest in every transport state"
+        status: pass
+    human_judgment: false
 
 duration: ~45min
 completed: 2026-08-27

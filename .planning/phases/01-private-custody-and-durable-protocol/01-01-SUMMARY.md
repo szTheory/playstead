@@ -109,9 +109,17 @@ coverage:
     human_judgment: false
   - id: D6
     description: "GET /setup renders the real console shell (LiveView architecture, content stub) per the UI-SPEC dark surface"
-    verification: []
-    human_judgment: true
-    rationale: "Visual/UX adequacy of the shell is a human judgment call; plan 01-02 fills the wizard content and is the natural point for a full visual UAT pass"
+    verification:
+      - kind: integration
+        ref: "test/playstead_web/browser/coherence_test.exs#setup: canvas background, console nav, one display heading; no horizontal scroll on desktop or phone widths"
+        status: pass
+      - kind: integration
+        ref: "test/playstead_web/browser/palette_test.exs#setup: every rendered color is one of the nine palette hexes"
+        status: pass
+      - kind: integration
+        ref: "test/playstead_web/browser/typography_test.exs#setup: Inter renders every text element; font sizes ⊆ {14,16,20,28,40}px"
+        status: pass
+    human_judgment: false
 
 duration: 55min
 completed: 2026-08-27

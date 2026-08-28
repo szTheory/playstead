@@ -149,9 +149,23 @@ coverage:
     human_judgment: false
   - id: D10
     description: "The wizard's visual design (dark console surface, JetBrains Mono code display, spacing/typography per UI-SPEC) reads as intended, and the empty/loading/error/populated states specified in the UI-SPEC hold up visually"
-    verification: []
-    human_judgment: true
-    rationale: "Automated tests assert markup/text/state transitions, not visual fidelity to the UI-SPEC's color, spacing, and typography contract — this needs a human (or the phase's end-of-phase UAT pass) to confirm the rendered wizard actually looks like the dark console spec describes"
+    verification:
+      - kind: integration
+        ref: "test/playstead_web/browser/setup_wizard_journey_test.exs#first run: token → credentials → recovery codes → readiness → login → recovery login"
+        status: pass
+      - kind: integration
+        ref: "test/playstead_web/browser/states_test.exs#E1 (error, backstop: recovery-code grid never clips, zero-one-many readiness rows)"
+        status: pass
+      - kind: integration
+        ref: "test/playstead_web/browser/typography_test.exs#the setup token field is code-role: 20px / 0.04em JetBrains Mono"
+        status: pass
+      - kind: integration
+        ref: "test/playstead_web/browser/palette_test.exs#setup: accent, destructive, success and warning are used only where reserved"
+        status: pass
+      - kind: integration
+        ref: "test/playstead_web/live/loading_contract_test.exs (inline loading affordances, no full-page overlay)"
+        status: pass
+    human_judgment: false
 
 duration: ~70min
 completed: 2026-08-27

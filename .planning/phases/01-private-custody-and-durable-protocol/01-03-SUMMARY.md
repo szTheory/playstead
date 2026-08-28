@@ -155,9 +155,17 @@ coverage:
     human_judgment: false
   - id: D10
     description: "The session list's, sudo modal's, and error banner's visual design (dark console surface, spacing scale, JetBrains Mono where applicable, loading/error/empty/overflow/zero-one-many states) reads as intended per the UI-SPEC"
-    verification: []
-    human_judgment: true
-    rationale: "Automated tests assert markup/text/state-transition behavior (labels, ARIA attributes, redirect targets, revoke/restore logic), not visual fidelity to the UI-SPEC's color, spacing, typography, and truncation/tooltip contract — this needs a human (or the phase's end-of-phase UAT pass) to confirm the rendered Sessions/Sudo/RecoveryLogin surfaces actually look like the dark console spec describes, including the two backstop items (sudo modal layout under a longer validation message; flash/banner wrapping of arbitrary-length remedy text)"
+    verification:
+      - kind: integration
+        ref: "test/playstead_web/browser/auth_sessions_journey_test.exs#sessions: list, revoke one, stale sudo round-trip, log out"
+        status: pass
+      - kind: integration
+        ref: "test/playstead_web/browser/states_test.exs#E5 sessions (current unrevokable, labelled, long-text truncation), E6 sudo (error, backstop: long validation message), E7 (generic error + dismiss, backstop: 800-char flash wraps)"
+        status: pass
+      - kind: integration
+        ref: "test/playstead_web/browser/palette_test.exs + typography_test.exs + coherence_test.exs for :sessions, :sudo, :recovery_login, :login screens"
+        status: pass
+    human_judgment: false
 
 duration: ~90min
 completed: 2026-08-27

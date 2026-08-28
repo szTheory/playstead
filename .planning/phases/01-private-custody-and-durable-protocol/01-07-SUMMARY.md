@@ -125,13 +125,18 @@ coverage:
         status: pass
     human_judgment: false
   - id: D7
-    description: "The interleaved-write concurrency case (a write racing a multi-page snapshot read) — best-effort, with the exact scope of what remains unproven documented"
+    description: "The interleaved-write concurrency case — a commit racing the snapshot transaction, and writes interleaved between the pages of one pinned multi-page read — proven against genuinely independent Postgres transactions"
     verification:
       - kind: integration
-        ref: "test/playstead_web/controllers/api/v1/convergence_test.exs#best-effort: a write interleaved with a snapshot read..."
+        ref: "test/playstead/sync/snapshot_concurrency_test.exs#a commit interleaved inside the snapshot transaction is excluded from the page and delivered once on resume (asserts REPEATABLE READ is actually in effect)"
         status: pass
-    human_judgment: true
-    rationale: "Ecto's Sandbox test harness runs an entire test (and any Task.async work allowed onto it via Sandbox.allow/3) inside one shared database connection/transaction, so it cannot produce two genuinely independent, concurrently-committing Postgres backend transactions. The committed test asserts the one property that IS deterministic in this environment (a post-snapshot write is not duplicated on resume); true interleaved-commit safety and multi-page consistency specifically are asserted by design (single Repo.transaction/2 at :repeatable_read; timestamp-bounded pinning across pages) rather than by an automated test, and a human reviewing the design rationale in lib/playstead/sync/snapshot.ex and the test's own comment is the appropriate check."
+      - kind: integration
+        ref: "test/playstead/sync/snapshot_concurrency_test.exs#a multi-page read with writes interleaved between pages converges to the fresh state, every mutation delivered once"
+        status: pass
+      - kind: unit
+        ref: "test/playstead/sync/snapshot_test.exs (page_size / has_more / next_after_id / pinned as_of)"
+        status: pass
+    human_judgment: false
 
 duration: 65min
 completed: 2026-08-27

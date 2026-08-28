@@ -121,11 +121,16 @@ coverage:
         status: pass
     human_judgment: false
   - id: D7
-    description: "UI-SPEC visual fidelity walkthrough across setup wizard, login/sessions/sudo/recovery-login, and Devices queue/list, discharging the second human_verification item from 01-VERIFICATION.md."
+    description: "UI-SPEC visual fidelity across setup wizard, login/sessions/sudo/recovery-login, and Devices queue/list, enforced on the rendered page by the headless-Chrome contract suites (palette, typography, coherence, states, copy) and end-to-end journeys — run by `mix precommit` and CI."
     requirement: "OPER-01"
-    verification: []
-    human_judgment: true
-    rationale: "Visual fidelity (dark console surfaces, typography scale, spacing, claimed-vs-observed authority hierarchy on the pairing card per D-09) requires a human eye; VERIFICATION.md records this item as human_judgment: true. Human returned PASS for all three screen groups during this plan's checkpoint, with the specific coverage caveats recorded in the walkthrough record below."
+    verification:
+      - kind: integration
+        ref: "test/playstead_web/browser/ (82 features: palette_test, typography_test, coherence_test, states_test, copy_test, setup_wizard_journey_test, auth_sessions_journey_test, devices_journey_test, smoke_test)"
+        status: pass
+      - kind: integration
+        ref: "test/playstead_web/browser/coherence_test.exs#the screen registry covers every console route in the router"
+        status: pass
+    human_judgment: false
 
 duration: 33min (core execution across three task commits; additional wall time spent in two human checkpoint round-trips)
 completed: 2026-08-28
