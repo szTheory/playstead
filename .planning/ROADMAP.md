@@ -85,7 +85,40 @@ Plans:
   5. A user can export exact original game bytes into deterministic ordinary folders with a readable hash manifest, verify the export, and reimport it without byte changes, missing relationships, or duplicate logical records.
 
 **Research / spike flags**: Required archive-security gate before enabling ZIP/7z/CUE extraction or deep inspection: adversarial corpus plus isolated CPU, memory, path, recursion, and expanded-size limits. Until it passes, accept only narrow magic-byte-validated formats and retain archives opaque.
-**Plans**: TBD
+**Plans**: 8 plans
+
+Plans:
+**Wave 0**
+
+- [ ] 02-01-PLAN.md — Import problem-code registry, inbox/export/same-volume readiness, container and compose mounts, and the phase test scaffolding
+
+**Wave 1** *(blocked on Wave 0)*
+
+- [ ] 02-02-PLAN.md — Tracer: content-addressed write path and store seam, API upload with digest verification, durable receipt, blob serving, and a one-set export/reimport round trip
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 02-03-PLAN.md — Frozen system registry, six bounded never-raising format validators, opaque archive detection, header-evidence recognition, honest titles, and ordered multi-file manifests
+
+**Wave 3** *(blocked on Wave 2)*
+
+- [ ] 02-04-PLAN.md — Streaming browser upload, the pre-copy preview, the import console, and the library asset detail where hash, size, and provenance are inspected
+
+**Wave 4** *(blocked on Wave 3)*
+
+- [ ] 02-05-PLAN.md — Symlink-safe inbox staging, the durable session worker with cooperative pause/resume/retry/cancel, hybrid reconcile, bounded progress, and the receipts API
+
+**Wave 5** *(blocked on Wave 4)*
+
+- [ ] 02-06-PLAN.md — Needs Attention derivation and quarantine state, the five audited reversible resolutions, the attention API, and the console inbox
+
+**Wave 6** *(blocked on Wave 5)*
+
+- [ ] 02-07-PLAN.md — Deterministic BagIt layout with sidecars, the resumable write-then-verify export worker, and hash-set-first reimport identity with the five PORT-02 round-trip assertions
+
+**Wave 7** *(blocked on Wave 6 — independently droppable)*
+
+- [ ] 02-08-PLAN.md — Administrator-supplied reference packs: pinned audited dependency, entity-safe capped streaming parser, digest-based matching, and the reference packs console
 
 ### Phase 3: Mac Offline Play Vertical Slice
 
@@ -144,7 +177,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Private Custody and Durable Protocol | 8/8 | Complete    | 2026-08-28 |
-| 2. Explainable Import and Exact Export | 0/TBD | Not started | - |
+| 2. Explainable Import and Exact Export | 0/8 | Planned | - |
 | 3. Mac Offline Play Vertical Slice | 0/TBD | Not started | - |
 | 4. Persistent Save Continuity | 0/TBD | Not started | - |
 | 5. Recovery and Release Proof | 0/TBD | Not started | - |
