@@ -99,6 +99,34 @@ defmodule Playstead.Attention do
   @spec reopen_item(Item.t()) :: {:ok, Item.t()}
   def reopen_item(%Item{} = item), do: item |> Item.reopen_changeset() |> Repo.update()
 
+  # Reasons a reference match can settle with no human decision (D-26):
+  # the two flavours of "we weren't sure" that a definitive digest match
+  # resolves outright. Every other open reason (missing parts, a
+  # quarantine, a patch file, a repeated failure, a system contradiction)
+  # needs a human choice a reference pack cannot make for them.
+  @resolvable_by_match ~w(ambiguous_recognition signature_mismatch)
+
+  @doc """
+  Transitions every open attention item for `asset_set_id` whose reason
+  a reference match can settle (D-18: "resolves ambiguous and
+  unidentified items in place without creating new attention items")
+  to `"resolved"`. Silently a no-op when there is nothing open to
+  resolve — this is the common case for library content that was
+  already quiet.
+  """
+  @spec resolve_for_asset_set(pos_integer(), binary()) :: :ok
+  def resolve_for_asset_set(user_id, asset_set_id) do
+    from(i in Item,
+      where:
+        i.user_id == ^user_id and i.asset_set_id == ^asset_set_id and i.status == "open" and
+          i.reason in ^@resolvable_by_match
+    )
+    |> Repo.all()
+    |> Enum.each(&try_transition(&1, "resolved"))
+
+    :ok
+  end
+
   @doc """
   Lists `user_id`'s open attention items, grouped by reason (D-31).
   Ordering inside each group is stable across renders — always

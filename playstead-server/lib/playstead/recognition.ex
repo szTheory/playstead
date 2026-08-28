@@ -9,14 +9,22 @@ defmodule Playstead.Recognition do
   provider itself stays pure and DB-free — `recognize_and_record/3`
   pre-computes those signals from the database, then hands them to the
   provider as ordinary facts.
+
+  `reidentify/2` is the separate, later-run entry point for
+  `Playstead.Recognition.ReferenceMatch` (D-18): installing a pack does
+  not re-run the live import pipeline, it re-scans the existing
+  library for blobs a reference pack can now name.
   """
 
   import Ecto.Query, warn: false
 
-  alias Playstead.Blobs.Blob
+  alias Playstead.Attention
+  alias Playstead.Blobs.{Blob, BlobFingerprint}
+  alias Playstead.Catalogue.{AssetSet, Payload}
   alias Playstead.Import.SourceFile
-  alias Playstead.Recognition.{Evidence, HeaderEvidence}
+  alias Playstead.Recognition.{Evidence, HeaderEvidence, ReferenceMatch}
   alias Playstead.Repo
+  alias Playstead.Sync.ChangeJournal
 
   @provider HeaderEvidence
 
@@ -107,4 +115,98 @@ defmodule Playstead.Recognition do
     do: to_string(v)
 
   defp stringify_value(v), do: v
+
+  # --- reference-pack re-identification (D-18) --------------------------
+
+  @doc """
+  Re-scans `user_id`'s existing library through
+  `Playstead.Recognition.ReferenceMatch`. Every blob not already
+  matched by a reference pack is checked against installed reference
+  entries; a match appends a new evidence row, promotes the asset's
+  current identification state (a fresh catalogue journal entry is
+  emitted only for that asset), and resolves any open attention item a
+  match can settle. Content that stays unmatched is left exactly as
+  quiet as it was — no evidence row, no journal entry, no attention
+  item. Returns the count of assets newly identified in this pass.
+  """
+  @spec reidentify(pos_integer(), keyword()) :: %{identified: non_neg_integer()}
+  def reidentify(user_id, _opts \\ []) do
+    user_id
+    |> unmatched_candidates()
+    |> Enum.reduce(%{identified: 0}, fn {asset_set, blob}, acc ->
+      fingerprints = Repo.all(from(f in BlobFingerprint, where: f.blob_id == ^blob.id))
+
+      case ReferenceMatch.match(blob, fingerprints) do
+        {:match, entry} ->
+          promote(user_id, asset_set, blob, entry)
+          %{acc | identified: acc.identified + 1}
+
+        :no_match ->
+          acc
+      end
+    end)
+  end
+
+  # One `{asset_set, blob}` pair per member with a blob, excluding any
+  # blob a reference pack has already matched — reidentify only ever
+  # does new work, so installing a second pack never re-processes what
+  # the first pack already settled.
+  defp unmatched_candidates(user_id) do
+    asset_sets =
+      from(a in AssetSet,
+        where: a.user_id == ^user_id and is_nil(a.excluded_at),
+        preload: [asset_members: :blob]
+      )
+      |> Repo.all()
+
+    already_matched_blob_ids =
+      from(e in Evidence, where: e.provider_name == ^ReferenceMatch.name(), select: e.blob_id)
+      |> Repo.all()
+      |> MapSet.new()
+
+    for asset_set <- asset_sets,
+        member <- asset_set.asset_members,
+        not is_nil(member.blob_id),
+        not MapSet.member?(already_matched_blob_ids, member.blob_id) do
+      {asset_set, member.blob}
+    end
+    |> Enum.uniq_by(fn {asset_set, blob} -> {asset_set.id, blob.id} end)
+  end
+
+  defp promote(user_id, asset_set, blob, entry) do
+    variant? = latest_status(blob.id) == "possible_variant"
+    result = ReferenceMatch.recognize(%{reference_entry: entry, variant?: variant?}, nil)
+
+    {:ok, _evidence} =
+      %Evidence{}
+      |> Evidence.create_changeset(%{
+        blob_id: blob.id,
+        asset_set_id: asset_set.id,
+        provider_name: ReferenceMatch.name(),
+        provider_version: ReferenceMatch.version(),
+        status: to_string(result.status),
+        confidence: to_string(result.confidence),
+        reference_name: result.reference_name,
+        evidence: stringify(result.evidence)
+      })
+      |> Repo.insert()
+
+    emit_catalogue_journal(user_id, asset_set.id)
+    Attention.resolve_for_asset_set(user_id, asset_set.id)
+    :ok
+  end
+
+  defp latest_status(blob_id) do
+    from(e in Evidence, where: e.blob_id == ^blob_id, order_by: [desc: e.inserted_at], limit: 1)
+    |> Repo.one()
+    |> case do
+      %Evidence{status: status} -> status
+      nil -> nil
+    end
+  end
+
+  defp emit_catalogue_journal(user_id, asset_set_id) do
+    fresh = Repo.get!(AssetSet, asset_set_id) |> Repo.preload(asset_members: :blob)
+    ChangeJournal.append(user_id, :catalogue, fresh.id, Payload.build(fresh))
+  end
 end

@@ -22,7 +22,13 @@ defmodule Playstead.Recognition.Evidence do
     field :reference_name, :string
     field :evidence, :map, default: %{}
 
-    timestamps(type: :utc_datetime, updated_at: false)
+    # Microsecond precision (not the app-wide `:utc_datetime` default):
+    # "the latest evidence row for a blob" is read by ordering on this
+    # column in several places, and a reference match commonly runs
+    # within the same second as the header-evidence row it supersedes
+    # during an automated re-identification pass — second precision
+    # would make that ordering ambiguous.
+    timestamps(type: :utc_datetime_usec, updated_at: false)
   end
 
   @doc false
