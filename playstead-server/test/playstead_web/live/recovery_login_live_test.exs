@@ -11,7 +11,12 @@ defmodule PlaysteadWeb.RecoveryLoginLiveTest do
       assert has_element?(lv, "h1", "Log in with a recovery code")
       assert has_element?(lv, "#recovery_login_form")
       assert has_element?(lv, "#recovery_submit", "Log in")
-      assert has_element?(lv, "#recovery_login_form input[name='recovery[code]'][autocomplete=off]")
+
+      assert has_element?(
+               lv,
+               "#recovery_login_form input[name='recovery[code]'][autocomplete=off]"
+             )
+
       assert render(lv) =~ "ten single-use codes you saved at setup"
       refute render(lv) =~ "email"
     end

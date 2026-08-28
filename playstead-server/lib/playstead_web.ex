@@ -52,6 +52,14 @@ defmodule PlaysteadWeb do
     quote do
       use Phoenix.LiveView
 
+      # Test-only (see config/test.exs `:sql_sandbox`): attaches the Ecto
+      # sandbox hook to every LiveView — including `SetupLive`, which is
+      # mounted outside any `live_session` — so browser tests share the
+      # owning test's database connection. Compiled out of dev/prod.
+      if Application.compile_env(:playstead, :sql_sandbox, false) do
+        on_mount PlaysteadWeb.SandboxHook
+      end
+
       unquote(html_helpers())
     end
   end

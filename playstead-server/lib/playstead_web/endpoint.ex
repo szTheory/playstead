@@ -22,9 +22,21 @@ defmodule PlaysteadWeb.Endpoint do
   # limit the `verify_token` event per connect IP — the setup wizard's
   # token-verification step runs entirely over the LiveView socket with no
   # HTTP-pipeline throttle to fall back on.
+  # `:user_agent` is included so `PlaysteadWeb.SandboxHook` can find the
+  # Ecto sandbox owner a browser test stamped into it (test env only).
   socket "/live", Phoenix.LiveView.Socket,
-    websocket: [connect_info: [:peer_data, session: @session_options]],
-    longpoll: [connect_info: [:peer_data, session: @session_options]]
+    websocket: [connect_info: [:peer_data, :user_agent, session: @session_options]],
+    longpoll: [connect_info: [:peer_data, :user_agent, session: @session_options]]
+
+  # Test-only: routes browser-driven requests onto the owning test's Ecto
+  # sandbox connection. `:sql_sandbox` is set exclusively in config/test.exs
+  # and read at compile time, so this plug does not exist in dev/prod builds.
+  if Application.compile_env(:playstead, :sql_sandbox, false) do
+    plug Phoenix.Ecto.SQL.Sandbox
+  end
+
+  @doc "The cookie session options, exposed so tests can mint real session cookies."
+  def session_options, do: @session_options
 
   # Serve at "/" the static files from "priv/static" directory.
   #

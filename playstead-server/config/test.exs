@@ -16,12 +16,45 @@ config :playstead, Playstead.Repo,
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: System.schedulers_online() * 2
 
-# We don't run a server during test. If one is required,
-# you can enable the server option below.
+# The test endpoint runs a real HTTP server so the Wallaby browser suite
+# (test/playstead_web/browser/) can drive headless Chrome against it. The
+# port is offset by MIX_TEST_PARTITION so partitioned CI runs don't collide.
 config :playstead, PlaysteadWeb.Endpoint,
-  http: [ip: {127, 0, 0, 1}, port: 4002],
+  http: [
+    ip: {127, 0, 0, 1},
+    port: 4002 + String.to_integer(System.get_env("MIX_TEST_PARTITION", "0"))
+  ],
   secret_key_base: "64CRN9kJz6+vSE1TtjV3XAwR1vnhNP8+wQcreYNJSKSHIJu9/MWBKAd4LbntFdrL",
-  server: false
+  server: true
+
+# Browser requests carry the Ecto sandbox owner in their User-Agent so
+# `Phoenix.Ecto.SQL.Sandbox` (endpoint plug + LiveView on_mount hook) can
+# route them onto the test's own connection. Compile-time gated in
+# `PlaysteadWeb.Endpoint` / `PlaysteadWeb.SandboxHook` — never in prod.
+config :playstead, :sql_sandbox, true
+
+config :wallaby,
+  otp_app: :playstead,
+  driver: Wallaby.Chrome,
+  screenshot_on_failure: true,
+  screenshot_dir: "tmp/wallaby_screenshots",
+  max_wait_time: 5_000,
+  # JS exceptions fail the test; routine console output (LiveView debug
+  # diffs on localhost) is not echoed into the ExUnit log.
+  js_errors: true,
+  js_logger: nil,
+  chromedriver:
+    [headless: true] ++
+      (case System.get_env("WALLABY_CHROME_BINARY") do
+         nil -> []
+         binary -> [binary: binary]
+       end)
+
+# Every Wallaby request comes from 127.0.0.1; don't let the wizard's per-IP
+# defense-in-depth limits throttle the browser suite itself.
+config :playstead, PlaysteadWeb.SetupLive,
+  verify_token_limit: 100_000,
+  create_owner_limit: 100_000
 
 # Oban jobs run manually in tests, never on a background schedule
 config :playstead, Oban, testing: :manual
