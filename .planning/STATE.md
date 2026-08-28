@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 current_phase: 02
 current_phase_name: Explainable Import and Exact Export
 status: executing
-stopped_at: Phase 2 context gathered
-last_updated: "2026-08-28T17:29:05.923Z"
+stopped_at: Completed 02-01-PLAN.md
+last_updated: "2026-08-28T18:04:21.259Z"
 last_activity: 2026-08-28
-last_activity_desc: Phase 01 complete, transitioned to Phase 2
-state_head: 7a625101ebfb28762ca56a36c52b67c3b166341e
+last_activity_desc: Phase 02 execution started
+state_head: 8af425b353f4b00a7197bdaa78e170cc33c60d55
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 16
-  completed_plans: 8
+  completed_plans: 9
   percent: 20
 ---
 
@@ -23,16 +23,16 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-08-28)
 
 **Core value:** A locally available game and its progress remain effortless to play, safe, understandable, synchronized, and fully under the user's control.
-**Current focus:** Phase 2 — Explainable Import and Exact Export
+**Current focus:** Phase 02 — Explainable Import and Exact Export
 
 ## Current Position
 
-Phase: 02 (Explainable Import and Exact Export) — READY TO EXECUTE
-Plan: Not started
+Phase: 02 (Explainable Import and Exact Export) — EXECUTING
+Plan: 2 of 8
 Status: Ready to execute
-Last activity: 2026-08-28 — Phase 01 complete, transitioned to Phase 2
+Last activity: 2026-08-28 — Phase 02 execution started
 
-Progress: [████████████████████] 8/8 plans (100%) — Phase 1 complete; Phase 2 not yet planned
+Progress: [████████████████████] 8/8 plans ([██░░░░░░░░] 20%) — Phase 1 complete; Phase 2 not yet planned
 
 ## Performance Metrics
 
@@ -66,6 +66,7 @@ Progress: [████████████████████] 8/8 pla
 | Phase 01 P06 | 80min | 3 tasks | 28 files |
 | Phase 01 P07 | 65min | 3 tasks | 17 files |
 | Phase 01 P08 | 33min | 3 tasks | 5 files |
+| Phase 02 P01 | 70 min | 3 tasks | 22 files |
 
 ## Accumulated Context
 
@@ -89,6 +90,8 @@ Progress: [████████████████████] 8/8 pla
 - [Phase 01]: Stage docs/ in the Docker builder stage before RUN mix compile (not relocating RECOVERY.md under priv/, not reading it at runtime) to fix OPER-01's docker compose build failure
 - [Phase 01]: Added a generic ExUnit build-context guard (Playstead.DockerBuildContextTest) deriving required staged resources from Application.spec(:playstead, :modules) so any future compile-time embed is covered without hardcoding
 - [Phase 01]: Runner-stage /app/blobs must be mkdir+chown'd to nobody before USER nobody, since Docker creates named-volume mount points root:root; scripts/compose-smoke.sh now asserts blob writability
+- [Phase 02]: [Phase 02]: Escalated the Readiness :exports row to a new :error state (alongside existing :ok/:warning) since D-33 requires the export mount to be genuinely writable before any export job can run
+- [Phase 02]: [Phase 02]: free_bytes/1 shells out to df -Pk (portable across the Linux release container and macOS dev) instead of adding a NIF for a raw statvfs call; required_bytes/2's margin arithmetic stays pure integer math
 
 ### Pending Todos
 
@@ -119,6 +122,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-28T16:45:34.847Z
-Stopped at: Phase 2 context gathered
-Resume file: .planning/phases/02-explainable-import-and-exact-export/02-CONTEXT.md
+Last session: 2026-08-28T18:04:21.227Z
+Stopped at: Completed 02-01-PLAN.md
+Resume file: None

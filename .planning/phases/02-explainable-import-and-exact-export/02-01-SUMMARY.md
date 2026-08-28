@@ -197,3 +197,7 @@ No blockers.
 ---
 *Phase: 02-explainable-import-and-exact-export*
 *Completed: 2026-08-28*
+
+## Self-Check: PASSED
+
+All created/modified key files verified present on disk; all four commit hashes (`f52c37c`, `189e7cd`, `bcb59c1`, `8af425b`) verified present in `git log`.

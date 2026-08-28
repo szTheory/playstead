@@ -85,12 +85,12 @@ Plans:
   5. A user can export exact original game bytes into deterministic ordinary folders with a readable hash manifest, verify the export, and reimport it without byte changes, missing relationships, or duplicate logical records.
 
 **Research / spike flags**: Required archive-security gate before enabling ZIP/7z/CUE extraction or deep inspection: adversarial corpus plus isolated CPU, memory, path, recursion, and expanded-size limits. Until it passes, accept only narrow magic-byte-validated formats and retain archives opaque.
-**Plans**: 8 plans
+**Plans**: 1/8 plans executed
 
 Plans:
 **Wave 0**
 
-- [ ] 02-01-PLAN.md — Import problem-code registry, inbox/export/same-volume readiness, container and compose mounts, and the phase test scaffolding
+- [x] 02-01-PLAN.md — Import problem-code registry, inbox/export/same-volume readiness, container and compose mounts, and the phase test scaffolding
 
 **Wave 1** *(blocked on Wave 0)*
 
@@ -177,7 +177,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Private Custody and Durable Protocol | 8/8 | Complete    | 2026-08-28 |
-| 2. Explainable Import and Exact Export | 0/8 | Planned | - |
+| 2. Explainable Import and Exact Export | 1/8 | In Progress|  |
 | 3. Mac Offline Play Vertical Slice | 0/TBD | Not started | - |
 | 4. Persistent Save Continuity | 0/TBD | Not started | - |
 | 5. Recovery and Release Proof | 0/TBD | Not started | - |
