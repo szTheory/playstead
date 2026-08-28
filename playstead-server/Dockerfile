@@ -58,6 +58,8 @@ COPY priv priv
 
 COPY lib lib
 
+COPY docs docs
+
 # Compile the release
 RUN mix compile
 

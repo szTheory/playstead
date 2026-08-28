@@ -8,8 +8,12 @@ defmodule PlaysteadWeb.RecoveryDocsController do
 
   # Compiled directly into the module so this route works unchanged from a
   # release, where `docs/` (unlike `priv/`) isn't necessarily copied
-  # alongside the release's own file layout.
-  @recovery_doc File.read!(Path.join(File.cwd!(), "docs/RECOVERY.md"))
+  # alongside the release's own file layout. The Dockerfile's builder stage
+  # stages the repository's `docs` directory (COPY docs docs) before this
+  # module compiles, so the file below is guaranteed to exist at build time.
+  @recovery_doc_path Path.join(File.cwd!(), "docs/RECOVERY.md")
+  @external_resource @recovery_doc_path
+  @recovery_doc File.read!(@recovery_doc_path)
 
   def show(conn, _params) do
     conn
