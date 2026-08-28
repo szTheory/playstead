@@ -44,7 +44,10 @@ defmodule Playstead.Protocol.NegotiationTest do
 
     test "no-overlap on the required protocol namespace, client too old, is incompatible" do
       hello = full_hello(%{min: "0.1.0", max: "0.5.0"})
-      assert %{verdict: :incompatible, remedy: remedy} = Negotiation.verdict(hello, @server_ranges)
+
+      assert %{verdict: :incompatible, remedy: remedy} =
+               Negotiation.verdict(hello, @server_ranges)
+
       assert remedy.side_too_old == :client
       assert remedy.who_must_act == "user"
       assert remedy.minimum_required == "1.0.0"
@@ -53,7 +56,10 @@ defmodule Playstead.Protocol.NegotiationTest do
 
     test "no-overlap on the required protocol namespace, server too old, is incompatible" do
       hello = full_hello(%{min: "2.0.0", max: "2.5.0"})
-      assert %{verdict: :incompatible, remedy: remedy} = Negotiation.verdict(hello, @server_ranges)
+
+      assert %{verdict: :incompatible, remedy: remedy} =
+               Negotiation.verdict(hello, @server_ranges)
+
       assert remedy.side_too_old == :server
       assert remedy.who_must_act == "server_admin"
       assert remedy.minimum_required == "2.0.0"

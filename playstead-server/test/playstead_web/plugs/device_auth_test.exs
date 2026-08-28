@@ -53,7 +53,9 @@ defmodule PlaysteadWeb.Plugs.DeviceAuthTest do
       scope = user_scope_fixture()
       %{device: device, credential_plaintext: token} = device_fixture(scope)
 
-      Repo.update!(Device.revoke_changeset(device, DateTime.utc_now() |> DateTime.truncate(:second)))
+      Repo.update!(
+        Device.revoke_changeset(device, DateTime.utc_now() |> DateTime.truncate(:second))
+      )
 
       conn = token |> conn_with_auth_header() |> DeviceAuth.call(DeviceAuth.init([]))
 

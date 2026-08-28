@@ -6,6 +6,7 @@ defmodule Playstead.Readiness do
   """
 
   alias Playstead.Repo
+  alias Playstead.TlsTrust
 
   # Evaluated at compile time and embedded as a literal atom — `Mix` is
   # not available at runtime inside a compiled release (same technique
@@ -15,10 +16,15 @@ defmodule Playstead.Readiness do
   @type state :: :ok | :warning
   @type row :: %{id: :database | :volumes | :https, state: state, message: String.t()}
 
-  @doc "Returns the fixed, ordered three-row readiness summary."
-  @spec summary() :: [row()]
-  def summary do
-    [database_check(), volumes_check(), https_check()]
+  @doc """
+  Returns the fixed, ordered three-row readiness summary. `env` is the
+  environment map the volumes/https rows are decided against — defaults to
+  `Playstead.TlsTrust.runtime_env/0` (OS env + `:env_overrides`), so tests
+  can pass an explicit map instead of mutating the process-global OS env.
+  """
+  @spec summary(TlsTrust.env()) :: [row()]
+  def summary(env \\ TlsTrust.runtime_env()) do
+    [database_check(), volumes_check(env), https_check(env)]
   end
 
   # --- database -------------------------------------------------------
@@ -71,8 +77,8 @@ defmodule Playstead.Readiness do
   @default_blob_path "/app/blobs"
   @anonymous_volume_id ~r/\/volumes\/([0-9a-f]{64})\/_data(\s|$)/
 
-  defp volumes_check do
-    path = System.get_env(@blob_path_env, @default_blob_path)
+  defp volumes_check(env) do
+    path = env[@blob_path_env] || @default_blob_path
 
     case writable_check(path) do
       :ok ->
@@ -140,12 +146,11 @@ defmodule Playstead.Readiness do
   # collapse them into a single boolean, and never call plain-HTTP or an
   # external proxy "secure".
 
-  defp https_check do
-    proxy = System.get_env("PLAYSTEAD_PROXY")
-    domain = System.get_env("PLAYSTEAD_DOMAIN")
-
-    cond do
-      proxy == "external" ->
+  # The proxy/domain decision itself lives in `TlsTrust.transport_state/1`
+  # so the wizard and the Devices page can never disagree about it.
+  defp https_check(env) do
+    case TlsTrust.transport_state(env) do
+      :external_proxy ->
         %{
           id: :https,
           state: :warning,
@@ -154,14 +159,14 @@ defmodule Playstead.Readiness do
               "Playstead cannot verify its own TLS — make sure your proxy terminates HTTPS."
         }
 
-      is_binary(domain) and domain != "" ->
+      :letsencrypt ->
         %{
           id: :https,
           state: :ok,
-          message: "Automatic HTTPS via Let's Encrypt for #{domain}."
+          message: "Automatic HTTPS via Let's Encrypt for #{env["PLAYSTEAD_DOMAIN"]}."
         }
 
-      @env == :prod ->
+      _internal_ca_or_plain_http when @env == :prod ->
         %{
           id: :https,
           state: :ok,
@@ -170,7 +175,7 @@ defmodule Playstead.Readiness do
               "with no PLAYSTEAD_DOMAIN configured)."
         }
 
-      true ->
+      _internal_ca_or_plain_http ->
         %{
           id: :https,
           state: :warning,

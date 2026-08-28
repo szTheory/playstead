@@ -53,7 +53,11 @@ defmodule PlaysteadWeb.Plugs.DeviceAuth do
 
   defp revoked(conn) do
     conn
-    |> PlaysteadWeb.Problem.send_problem(401, :device_revoked, "This device's access was revoked.")
+    |> PlaysteadWeb.Problem.send_problem(
+      401,
+      :device_revoked,
+      "This device's access was revoked."
+    )
     |> halt()
   end
 end

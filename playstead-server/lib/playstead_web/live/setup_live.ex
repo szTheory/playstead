@@ -319,7 +319,9 @@ defmodule PlaysteadWeb.SetupLive do
 
       {:deny, _} ->
         {:noreply,
-         assign(socket, create_owner_error: "Too many attempts. Please wait a moment and try again.")}
+         assign(socket,
+           create_owner_error: "Too many attempts. Please wait a moment and try again."
+         )}
     end
   end
 
@@ -339,15 +341,21 @@ defmodule PlaysteadWeb.SetupLive do
 
   defp rate_limit_verify_token(socket) do
     case socket.assigns[:connect_ip] do
-      nil -> {:allow, 0}
-      ip -> RateLimiter.hit("setup:verify_token:ip:#{ip}", @verify_token_scale, verify_token_limit())
+      nil ->
+        {:allow, 0}
+
+      ip ->
+        RateLimiter.hit("setup:verify_token:ip:#{ip}", @verify_token_scale, verify_token_limit())
     end
   end
 
   defp rate_limit_create_owner(socket) do
     case socket.assigns[:connect_ip] do
-      nil -> {:allow, 0}
-      ip -> RateLimiter.hit("setup:create_owner:ip:#{ip}", @create_owner_scale, create_owner_limit())
+      nil ->
+        {:allow, 0}
+
+      ip ->
+        RateLimiter.hit("setup:create_owner:ip:#{ip}", @create_owner_scale, create_owner_limit())
     end
   end
 

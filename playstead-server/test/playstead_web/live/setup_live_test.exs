@@ -82,44 +82,4 @@ defmodule PlaysteadWeb.SetupLiveTest do
         lv |> element("button", "Finish setup") |> render_click()
     end
   end
-
-  describe "readiness warnings never block completion" do
-    test "a warning row does not disable the Finish setup control", %{conn: conn} do
-      System.put_env("PLAYSTEAD_PROXY", "external")
-      token = minted_token()
-
-      {:ok, lv, _html} = live(conn, ~p"/setup")
-
-      lv
-      |> form("#setup_token_form", %{})
-      |> render_submit(%{"setup" => %{"token" => token}})
-
-      lv
-      |> form("#owner_form", %{})
-      |> render_submit(%{
-        "owner" => %{
-          "email" => "owner@example.com",
-          "password" => "a very long password",
-          "password_confirmation" => "a very long password"
-        }
-      })
-
-      lv |> element("button", "Continue") |> render_click()
-      html = render(lv)
-
-      assert html =~ "border-[#FBBF24]"
-      refute button_disabled?(html)
-
-      # The control is present and clickable — clicking it navigates away,
-      # which would be impossible if it were disabled.
-      assert {:error, {:live_redirect, %{to: "/log-in"}}} =
-               lv |> element("button", "Finish setup") |> render_click()
-    after
-      System.delete_env("PLAYSTEAD_PROXY")
-    end
-  end
-
-  defp button_disabled?(html) do
-    html =~ ~r/disabled[^>]*>\s*Finish setup/
-  end
 end

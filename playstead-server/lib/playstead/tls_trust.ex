@@ -5,31 +5,51 @@ defmodule Playstead.TlsTrust do
   instead of any Keychain Access surgery — this module is what makes
   that fingerprint computable and honestly labeled.
 
-  `transport_state/0` mirrors `Playstead.Readiness`'s https-check env-var
-  logic (`PLAYSTEAD_PROXY`, `PLAYSTEAD_DOMAIN`) but returns one of four
-  raw states rather than a readiness row, since the Devices page needs
-  the state itself to decide whether a fingerprint even applies.
+  `transport_state/1` is the single source of truth for the
+  `PLAYSTEAD_PROXY` / `PLAYSTEAD_DOMAIN` / `PLAYSTEAD_CADDY_CA_PATH`
+  decision — `Playstead.Readiness` delegates to it. It is a pure function
+  over an env *map* (defaulting to `runtime_env/0`) so tests can pass an
+  explicit map and stay `async: true` without touching the OS
+  environment, which is process-global across the whole BEAM.
   """
 
   @default_ca_path "/caddy_data/caddy/pki/authorities/local/root.crt"
   @ca_path_env "PLAYSTEAD_CADDY_CA_PATH"
 
   @type transport_state :: :letsencrypt | :internal_ca | :external_proxy | :plain_http
+  @type env :: %{optional(String.t()) => String.t()}
+
+  @doc """
+  The environment the transport decision is made against: the OS
+  environment, overlaid with `config :playstead, :env_overrides` (a
+  keyword/map of string keys). The override layer exists so tests that
+  drive a LiveView (which calls the 0-arity forms) can inject transport
+  state without `System.put_env/2`.
+  """
+  @spec runtime_env() :: env()
+  def runtime_env do
+    overrides =
+      :playstead
+      |> Application.get_env(:env_overrides, [])
+      |> Map.new(fn {k, v} -> {to_string(k), v} end)
+
+    Map.merge(System.get_env(), overrides)
+  end
 
   @doc """
   Which of the four honestly-distinct transport states is active. Never
   collapsed into a boolean, and `:external_proxy`/`:plain_http` are never
-  described as secure (D-13, mirrors `Playstead.Readiness.summary/0`).
+  described as secure (D-13; `Playstead.Readiness.summary/1` delegates here).
   """
-  @spec transport_state() :: transport_state()
-  def transport_state do
-    proxy = System.get_env("PLAYSTEAD_PROXY")
-    domain = System.get_env("PLAYSTEAD_DOMAIN")
+  @spec transport_state(env()) :: transport_state()
+  def transport_state(env \\ runtime_env()) do
+    proxy = env["PLAYSTEAD_PROXY"]
+    domain = env["PLAYSTEAD_DOMAIN"]
 
     cond do
       proxy == "external" -> :external_proxy
       is_binary(domain) and domain != "" -> :letsencrypt
-      true -> plain_http_or_internal_ca()
+      true -> plain_http_or_internal_ca(env)
     end
   end
 
@@ -39,8 +59,8 @@ defmodule Playstead.TlsTrust do
   # We report `:plain_http` only when there truly is nothing to pin
   # (no internal CA root has been provisioned at all); once Caddy has
   # minted one, the state is `:internal_ca`.
-  defp plain_http_or_internal_ca do
-    if File.exists?(ca_path()), do: :internal_ca, else: :plain_http
+  defp plain_http_or_internal_ca(env) do
+    if File.exists?(ca_path(env)), do: :internal_ca, else: :plain_http
   end
 
   @doc """
@@ -55,15 +75,15 @@ defmodule Playstead.TlsTrust do
   CA hasn't minted its root certificate yet (Caddy does this on its own
   first boot) rather than raising or crashing the page.
   """
-  @spec ca_fingerprint() ::
+  @spec ca_fingerprint(env()) ::
           {:ok, String.t()} | {:error, :not_applicable | :not_found | :invalid_certificate}
-  def ca_fingerprint do
-    case transport_state() do
+  def ca_fingerprint(env \\ runtime_env()) do
+    case transport_state(env) do
       state when state in [:letsencrypt, :external_proxy] ->
         {:error, :not_applicable}
 
       _plain_http_or_internal_ca ->
-        read_fingerprint(ca_path())
+        read_fingerprint(ca_path(env))
     end
   end
 
@@ -91,5 +111,5 @@ defmodule Playstead.TlsTrust do
     |> Enum.join(":")
   end
 
-  defp ca_path, do: System.get_env(@ca_path_env, @default_ca_path)
+  defp ca_path(env), do: env[@ca_path_env] || @default_ca_path
 end

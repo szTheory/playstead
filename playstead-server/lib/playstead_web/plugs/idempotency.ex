@@ -38,7 +38,9 @@ defmodule PlaysteadWeb.Plugs.Idempotency do
 
   defp classify(conn, key) do
     device = conn.assigns.current_device
-    fp = Idempotency.fingerprint(%{method: conn.method, path: conn.request_path, body: conn.params})
+
+    fp =
+      Idempotency.fingerprint(%{method: conn.method, path: conn.request_path, body: conn.params})
 
     case Idempotency.fetch(device.id, key, fp) do
       {:ok, :fresh} ->

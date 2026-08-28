@@ -85,9 +85,11 @@ defmodule Playstead.Idempotency do
   `{:error, :conflict}` so the caller can render 409 + `Retry-After`
   instead of running the effect twice.
   """
-  @spec execute(binary(), String.t(), String.t(), (-> {:ok, pos_integer(), term()} | {:error, term()})) ::
+  @spec execute(binary(), String.t(), String.t(), (-> {:ok, pos_integer(), term()}
+                                                      | {:error, term()})) ::
           {:ok, pos_integer(), term()} | {:error, :conflict} | {:error, term()}
-  def execute(device_id, idempotency_key, fingerprint, effect_fun) when is_function(effect_fun, 0) do
+  def execute(device_id, idempotency_key, fingerprint, effect_fun)
+      when is_function(effect_fun, 0) do
     Ecto.Multi.new()
     |> Ecto.Multi.insert(:receipt, fn _changes ->
       Receipt.create_changeset(%Receipt{}, %{
@@ -116,7 +118,9 @@ defmodule Playstead.Idempotency do
   end
 
   defp classify_receipt_error(%Ecto.Changeset{errors: errors} = changeset) do
-    if Enum.any?(errors, fn {_field, {_msg, opts}} -> Keyword.get(opts, :constraint) == :unique end) do
+    if Enum.any?(errors, fn {_field, {_msg, opts}} ->
+         Keyword.get(opts, :constraint) == :unique
+       end) do
       {:error, :conflict}
     else
       {:error, changeset}

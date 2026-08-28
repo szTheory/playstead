@@ -16,7 +16,9 @@ defmodule Playstead.IdempotencyFixtures do
       idempotency_key: attrs[:idempotency_key] || unique_idempotency_key(),
       request_fingerprint: attrs[:request_fingerprint] || "fp",
       expires_at:
-        DateTime.utc_now() |> DateTime.add(90 * 24 * 60 * 60, :second) |> DateTime.truncate(:second)
+        DateTime.utc_now()
+        |> DateTime.add(90 * 24 * 60 * 60, :second)
+        |> DateTime.truncate(:second)
     }
 
     %Receipt{}
@@ -36,7 +38,9 @@ defmodule Playstead.IdempotencyFixtures do
       idempotency_key: attrs[:idempotency_key] || unique_idempotency_key(),
       request_fingerprint: attrs[:request_fingerprint] || "fp",
       expires_at:
-        DateTime.utc_now() |> DateTime.add(90 * 24 * 60 * 60, :second) |> DateTime.truncate(:second)
+        DateTime.utc_now()
+        |> DateTime.add(90 * 24 * 60 * 60, :second)
+        |> DateTime.truncate(:second)
     }
 
     %Receipt{}

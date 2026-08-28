@@ -43,7 +43,12 @@ defmodule Playstead.IdempotencyTest do
       device: device
     } do
       key = unique_idempotency_key()
-      in_flight_receipt_fixture(device_id: device.id, idempotency_key: key, request_fingerprint: "fp")
+
+      in_flight_receipt_fixture(
+        device_id: device.id,
+        idempotency_key: key,
+        request_fingerprint: "fp"
+      )
 
       assert {:error, :conflict} =
                Idempotency.execute(device.id, key, "fp", fn -> {:ok, 200, %{}} end)
@@ -80,7 +85,9 @@ defmodule Playstead.IdempotencyTest do
 
     test "returns a replay for a complete receipt with a matching fingerprint", %{device: device} do
       receipt = complete_receipt_fixture(device_id: device.id, request_fingerprint: "fp")
-      assert {:ok, :replay, ^receipt} = Idempotency.fetch(device.id, receipt.idempotency_key, "fp")
+
+      assert {:ok, :replay, ^receipt} =
+               Idempotency.fetch(device.id, receipt.idempotency_key, "fp")
     end
 
     test "returns :mismatch for a complete receipt with a different fingerprint", %{

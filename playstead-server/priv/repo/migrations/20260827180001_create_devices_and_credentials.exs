@@ -40,7 +40,8 @@ defmodule Playstead.Repo.Migrations.CreateDevicesAndCredentials do
 
       # Use-activated rotation handoff: the old row stays valid, marked
       # superseded, until the new one is first used.
-      add :superseded_by_id, references(:device_credentials, type: :binary_id, on_delete: :nilify_all)
+      add :superseded_by_id,
+          references(:device_credentials, type: :binary_id, on_delete: :nilify_all)
 
       timestamps(type: :utc_datetime)
     end

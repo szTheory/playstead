@@ -29,7 +29,9 @@ defmodule Playstead.PairingTest do
 
     test "records the requesting IP taken from the passed-in trusted value" do
       {:ok, request} =
-        Pairing.create_request(valid_pairing_request_attributes(%{"requesting_ip" => "203.0.113.9"}))
+        Pairing.create_request(
+          valid_pairing_request_attributes(%{"requesting_ip" => "203.0.113.9"})
+        )
 
       assert request.requesting_ip == "203.0.113.9"
     end

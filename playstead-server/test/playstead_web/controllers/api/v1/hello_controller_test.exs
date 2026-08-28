@@ -45,7 +45,14 @@ defmodule PlaysteadWeb.Api.V1.HelloControllerTest do
 
       body = assert_problem(conn, 422, :capability_incompatible)
       remedy = body["remedy"]
-      assert Enum.sort(Map.keys(remedy)) == ["detail_url", "minimum_required", "side_too_old", "who_must_act"]
+
+      assert Enum.sort(Map.keys(remedy)) == [
+               "detail_url",
+               "minimum_required",
+               "side_too_old",
+               "who_must_act"
+             ]
+
       assert remedy["side_too_old"] == "client"
       assert remedy["who_must_act"] == "user"
     end
@@ -80,7 +87,11 @@ defmodule PlaysteadWeb.Api.V1.HelloControllerTest do
       scope = user_scope_fixture()
       %{credential_plaintext: token} = device_fixture(scope)
 
-      with_unknown = Map.put(@compatible_capabilities, "quantum_teleport", %{"min" => "9.9.9", "max" => "9.9.9"})
+      with_unknown =
+        Map.put(@compatible_capabilities, "quantum_teleport", %{
+          "min" => "9.9.9",
+          "max" => "9.9.9"
+        })
 
       conn =
         conn
