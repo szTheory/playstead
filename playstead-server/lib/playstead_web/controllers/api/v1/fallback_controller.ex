@@ -35,4 +35,21 @@ defmodule PlaysteadWeb.Api.V1.FallbackController do
     status = PlaysteadWeb.ErrorCodes.status_for(code)
     PlaysteadWeb.Problem.send_problem(conn, status, code, detail)
   end
+
+  # WR-03 (01-REVIEW.md): `Idempotency.execute/4` passes through whatever
+  # reason an effect function's `Repo.rollback/1` carries verbatim. Any
+  # shape not matched by a clause above (e.g. a bare atom outside the
+  # `{atom, binary}` convention) previously fell through with no matching
+  # clause, raising a FunctionClauseError that `ApiProblemHandler` caught
+  # and turned into a generic 500 — losing the specific error code/status
+  # the caller intended. This renders a generic :internal_error 500
+  # directly instead of relying on that exception path.
+  def call(conn, {:error, _reason}) do
+    PlaysteadWeb.Problem.send_problem(
+      conn,
+      500,
+      :internal_error,
+      "An unexpected error occurred."
+    )
+  end
 end
