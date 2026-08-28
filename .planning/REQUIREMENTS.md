@@ -24,7 +24,7 @@ Requirements for the first complete Mac-to-server custody and continuity release
 
 ### Import, Identity, and Provenance
 
-- [ ] **IMPT-01**: A user can select one supported file and see before confirmation that Playstead will copy it into managed storage, leave the source untouched, and consume a stated amount of storage.
+- [x] **IMPT-01**: A user can select one supported file and see before confirmation that Playstead will copy it into managed storage, leave the source untouched, and consume a stated amount of storage.
 - [x] **IMPT-02**: After import, a user can verify the SHA-256 and byte size of the exact original bytes and inspect their source provenance.
 - [x] **IMPT-03**: A user receives a durable import receipt that distinguishes a new asset, exact duplicate, alias or variant, incomplete set, unrecognized or patched content, quarantined input, and safely failed input.
 - [x] **IMPT-04**: A user can import a supported multi-file game as an ordered asset manifest whose required members and readiness remain explicit.
@@ -124,7 +124,7 @@ Which phases cover which requirements. This table is populated by roadmap creati
 | PROT-03 | Phase 1 | Complete |
 | PROT-04 | Phase 1 | Complete |
 | PROT-05 | Phase 1 | Complete |
-| IMPT-01 | Phase 2 | Pending |
+| IMPT-01 | Phase 2 | Complete |
 | IMPT-02 | Phase 2 | Complete |
 | IMPT-03 | Phase 2 | Complete |
 | IMPT-04 | Phase 2 | Complete |
