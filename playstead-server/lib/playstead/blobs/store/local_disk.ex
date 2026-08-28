@@ -58,7 +58,17 @@ defmodule Playstead.Blobs.Store.LocalDisk do
     end
   end
 
-  defp capacity_bytes(path) do
+  @doc """
+  Total capacity, in bytes, of the filesystem backing `path` (defaults
+  to the blob volume). Exported for `Playstead.Import.Preview`, which
+  needs the same `df`-derived figure `Playstead.Readiness.required_bytes/2`
+  uses to compute the IMPT-01 storage-cost preview before a single byte
+  moves.
+  """
+  @spec capacity_bytes(String.t()) :: non_neg_integer() | :unknown
+  def capacity_bytes(path \\ blob_path())
+
+  def capacity_bytes(path) do
     case System.cmd("df", ["-Pk", path], stderr_to_stdout: true) do
       {output, 0} ->
         output
@@ -146,6 +156,17 @@ defmodule Playstead.Blobs.Store.LocalDisk do
     else
       {:error, _reason} = err ->
         File.rm(ref.tmp_path)
+        err
+    end
+  end
+
+  @impl true
+  def adopt_temp_file(tmp_path, %{sha256: sha256, size_bytes: size_bytes} = digest_map) do
+    with :ok <- verify_on_disk(tmp_path, sha256) do
+      place_and_record(%WriteRef{tmp_path: tmp_path, blob_path: blob_path(), size: size_bytes}, digest_map)
+    else
+      {:error, _reason} = err ->
+        File.rm(tmp_path)
         err
     end
   end

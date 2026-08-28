@@ -55,6 +55,16 @@ defmodule Playstead.Blobs do
   @spec stream(String.t(), Range.t() | nil) :: {:ok, Enumerable.t()} | {:error, :not_found}
   def stream(sha256, range \\ nil), do: store().stream(sha256, range)
 
+  @doc """
+  Adopts an already-written, already-hashed temporary file — the
+  completed output of `Playstead.Import.HashingWriter`'s streaming
+  hash-while-write (D-01a) — into the CAS without re-streaming its
+  bytes. See `Playstead.Blobs.Store.adopt_temp_file/2`.
+  """
+  @spec adopt_temp_file(String.t(), map()) ::
+          {:ok, :stored | :existing, map()} | {:error, term()}
+  def adopt_temp_file(tmp_path, digest_map), do: store().adopt_temp_file(tmp_path, digest_map)
+
   @doc "Bytes currently free on the configured store's volume."
   @spec free_bytes() :: non_neg_integer() | :unknown
   def free_bytes, do: store().free_bytes()

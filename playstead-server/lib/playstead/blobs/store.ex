@@ -65,4 +65,17 @@ defmodule Playstead.Blobs.Store do
   ever being able to touch a committed blob.
   """
   @callback delete(path :: String.t()) :: :ok | {:error, term()}
+
+  @doc """
+  Adopts an already-written, already-hashed temporary file — the
+  completed output of `Playstead.Import.HashingWriter`'s own streaming
+  hash-while-write (D-01a) — into the CAS without re-streaming its
+  bytes: re-hashes on disk for verification (same as `commit/2`), then
+  renames atomically into the content-addressed path. `digest_map` must
+  include `:size_bytes`. Returns `{:ok, :stored, digest_map}` or
+  `{:ok, :existing, digest_map}` under the same collision authority as
+  `commit/2` (the database's unique constraint on `sha256`).
+  """
+  @callback adopt_temp_file(path :: String.t(), digest_map()) ::
+              {:ok, :stored | :existing, digest_map()} | {:error, term()}
 end
