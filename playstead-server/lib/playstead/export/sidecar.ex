@@ -51,7 +51,7 @@ defmodule Playstead.Export.Sidecar do
       "members" =>
         Enum.map(set_plan.members, fn m ->
           %{
-            "path" => m.relative,
+            "path" => Path.join("data", m.relative),
             "original_name" => m.original_name,
             "exported_name" => m.exported_name,
             "sha256" => m.sha256,

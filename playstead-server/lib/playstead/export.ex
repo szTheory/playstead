@@ -68,6 +68,7 @@ defmodule Playstead.Export do
       status: asset_set.status,
       member_fingerprint: asset_set.member_fingerprint,
       excluded: not is_nil(asset_set.excluded_at),
+      provenance: asset_set.provenance || %{},
       members:
         Enum.map(asset_set.asset_members, fn m ->
           %{

@@ -21,6 +21,7 @@ defmodule Playstead.Catalogue.AssetSet do
     field :status, :string, default: "active"
     field :member_fingerprint, :string
     field :excluded_at, :utc_datetime
+    field :provenance, :map, default: %{}
 
     has_many :asset_members, Playstead.Catalogue.AssetMember
 
@@ -38,7 +39,8 @@ defmodule Playstead.Catalogue.AssetSet do
       :title_source,
       :status,
       :member_fingerprint,
-      :excluded_at
+      :excluded_at,
+      :provenance
     ])
     |> validate_required([:user_id, :member_fingerprint])
     |> unique_constraint([:user_id, :member_fingerprint],

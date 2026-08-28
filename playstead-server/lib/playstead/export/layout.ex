@@ -118,6 +118,7 @@ defmodule Playstead.Export.Layout do
       display_title: set.display_title,
       status: set.status,
       member_fingerprint: set.member_fingerprint,
+      provenance: Map.get(set, :provenance, %{}),
       sidecar_path: Path.join(relative_dir, "playstead-set.json"),
       saves_path: Path.join(relative_dir, "saves"),
       members: members
