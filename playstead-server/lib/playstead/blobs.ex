@@ -128,7 +128,12 @@ defmodule Playstead.Blobs do
   def release(user_id, blob_id, resolution) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
-    attrs = %{user_id: user_id, blob_id: blob_id, resolution: to_string(resolution), released_at: now}
+    attrs = %{
+      user_id: user_id,
+      blob_id: blob_id,
+      resolution: to_string(resolution),
+      released_at: now
+    }
 
     %Release{}
     |> Release.create_changeset(attrs)

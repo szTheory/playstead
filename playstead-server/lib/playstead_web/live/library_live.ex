@@ -20,7 +20,7 @@ defmodule PlaysteadWeb.LibraryLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, page_title: "Library", hint_dismissed: false)}
+    {:ok, assign(socket, page_title: "Library", hint_dismissed: false, attention_count: 0)}
   end
 
   @impl true
@@ -43,7 +43,11 @@ defmodule PlaysteadWeb.LibraryLive do
 
   defp load_assets(socket) do
     scope = socket.assigns.current_scope
-    assign(socket, assets: Catalogue.list_assets(scope))
+
+    assign(socket,
+      assets: Catalogue.list_assets(scope),
+      attention_count: Playstead.Attention.count(scope.user.id)
+    )
   end
 
   @impl true
@@ -80,8 +84,16 @@ defmodule PlaysteadWeb.LibraryLive do
     <div class="min-h-screen bg-[#0F172A] px-8 py-12 font-sans">
       <Layouts.flash_group flash={@flash} />
       <div class="mx-auto max-w-3xl space-y-8">
-        <div>
+        <div class="flex items-center justify-between">
           <h1 class="text-display font-semibold text-[#F1F5F9]">Library</h1>
+          <.link
+            :if={@attention_count > 0}
+            navigate={~p"/attention"}
+            id="attention-nav-link"
+            class="text-sm font-semibold text-[#94A3B8] hover:text-[#F1F5F9]"
+          >
+            Needs attention ({@attention_count})
+          </.link>
         </div>
 
         <div

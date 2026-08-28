@@ -64,7 +64,10 @@ defmodule PlaysteadWeb.Api.V1.AttentionController do
     end
   end
 
-  defp apply_resolution(item, user_id, %{"resolution" => "correct_system", "system_id" => system_id}) do
+  defp apply_resolution(item, user_id, %{
+         "resolution" => "correct_system",
+         "system_id" => system_id
+       }) do
     Resolutions.correct_system(item, user_id, system_id)
   end
 

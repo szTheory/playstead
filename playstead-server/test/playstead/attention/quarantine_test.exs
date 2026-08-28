@@ -60,7 +60,9 @@ defmodule Playstead.Attention.QuarantineTest do
       user = owner_fixture()
 
       {:ok, receipt} =
-        import_bytes(user, "big.bin", :crypto.strong_rand_bytes(64), quarantine_size_cap_bytes: 10)
+        import_bytes(user, "big.bin", :crypto.strong_rand_bytes(64),
+          quarantine_size_cap_bytes: 10
+        )
 
       assert receipt.outcome == "quarantined"
       assert receipt.reason == "size_over_cap"

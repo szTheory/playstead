@@ -57,6 +57,7 @@ defmodule Playstead.Attention.ResolutionsTest do
       assert updated_set.system_source == "user"
 
       still_present = from(e in Evidence, where: e.blob_id == ^receipt.blob_id) |> Repo.all()
+
       assert Enum.map(prior_evidence, & &1.id) |> MapSet.new() ==
                Enum.map(still_present, & &1.id) |> MapSet.new()
 
@@ -176,8 +177,11 @@ defmodule Playstead.Attention.ResolutionsTest do
   describe "retain_as_custom/2 (D-27, D-28)" do
     test "releases policy-quarantined bytes as opaque content only" do
       user = owner_fixture()
+
       receipt =
-        import_bytes(user, "big.bin", :crypto.strong_rand_bytes(64), quarantine_size_cap_bytes: 10)
+        import_bytes(user, "big.bin", :crypto.strong_rand_bytes(64),
+          quarantine_size_cap_bytes: 10
+        )
 
       item = open_item(user, "quarantined")
 
@@ -201,7 +205,11 @@ defmodule Playstead.Attention.ResolutionsTest do
       refute is_nil(excluded_set.excluded_at)
 
       entries = Playstead.Sync.ChangeJournal.read_after(user.id, before_seq, 10)
-      assert Enum.any?(entries, &(&1.operation == "tombstone" and &1.entity_id == excluded_set.id))
+
+      assert Enum.any?(
+               entries,
+               &(&1.operation == "tombstone" and &1.entity_id == excluded_set.id)
+             )
 
       blob = Repo.get!(Playstead.Blobs.Blob, receipt.blob_id)
       assert {:ok, _stat} = Blobs.stat(blob.sha256)

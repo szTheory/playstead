@@ -25,7 +25,8 @@ defmodule PlaysteadWeb.BrowserScreens do
     :import,
     :import_sessions,
     :library,
-    :library_detail
+    :library_detail,
+    :attention
   ]
 
   def screens, do: @screens
@@ -40,6 +41,7 @@ defmodule PlaysteadWeb.BrowserScreens do
   def path(:import_sessions), do: "/import/sessions"
   def path(:library), do: "/library"
   def path(:library_detail), do: "/library/:id"
+  def path(:attention), do: "/attention"
 
   @doc "Console routes that are deliberately NOT screens (no UI-SPEC element)."
   def excluded_paths,
@@ -168,6 +170,29 @@ defmodule PlaysteadWeb.BrowserScreens do
       |> visit_live("/library/#{receipt.asset_set_id}")
 
     {session, %{user: user, receipt: receipt}}
+  end
+
+  def open(session, :attention) do
+    user = owner_fixture()
+    File.mkdir_p!(Playstead.Blobs.Store.LocalDisk.blob_path())
+    bytes = :crypto.strong_rand_bytes(64)
+    {:ok, status, meta} = Playstead.Blobs.put_stream([bytes], byte_size(bytes))
+
+    {:ok, _receipt} =
+      Import.import_single(
+        user.id,
+        %{original_name: "big.bin", origin: "upload", size_bytes: byte_size(bytes)},
+        {status, meta},
+        format_bytes: bytes,
+        quarantine_size_cap_bytes: 10
+      )
+
+    session =
+      session
+      |> log_in_via_cookie(user, token_authenticated_at: DateTime.utc_now(:second))
+      |> visit_live(path(:attention))
+
+    {session, %{user: user}}
   end
 
   def open(session, :sessions) do

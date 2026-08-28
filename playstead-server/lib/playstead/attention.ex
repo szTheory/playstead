@@ -157,7 +157,10 @@ defmodule Playstead.Attention do
       end
 
     rows = Repo.all(query)
-    {page, has_more} = if length(rows) > limit, do: {Enum.take(rows, limit), true}, else: {rows, false}
+
+    {page, has_more} =
+      if length(rows) > limit, do: {Enum.take(rows, limit), true}, else: {rows, false}
+
     next_cursor = if has_more, do: encode_cursor(List.last(page)), else: nil
 
     %{entries: page, next_cursor: next_cursor}

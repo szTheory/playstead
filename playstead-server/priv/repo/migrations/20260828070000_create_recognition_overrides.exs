@@ -8,6 +8,7 @@ defmodule Playstead.Repo.Migrations.CreateRecognitionOverrides do
     create table(:recognition_overrides, primary_key: false) do
       add :id, :binary_id, primary_key: true
       add :user_id, references(:users, on_delete: :delete_all), null: false
+
       add :asset_set_id, references(:asset_sets, type: :binary_id, on_delete: :delete_all),
         null: false
 

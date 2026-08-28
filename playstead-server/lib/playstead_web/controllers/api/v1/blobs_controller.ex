@@ -46,8 +46,12 @@ defmodule PlaysteadWeb.Api.V1.BlobsController do
   # verdict on the shared bytes is never enough on its own.
   defp playable?(user_id, sha256) do
     case Playstead.Blobs.get_by_sha256(sha256) do
-      nil -> false
-      blob -> not Playstead.Blobs.quarantined?(blob) or Playstead.Blobs.released_for_user?(user_id, blob.id)
+      nil ->
+        false
+
+      blob ->
+        not Playstead.Blobs.quarantined?(blob) or
+          Playstead.Blobs.released_for_user?(user_id, blob.id)
     end
   end
 

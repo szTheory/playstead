@@ -172,7 +172,9 @@ defmodule Playstead.Import do
 
     extension_guess = Catalogue.extension_guess(original_name)
     system_assignment = Catalogue.assign_system(extension_guess, format_result, nil)
-    unrecognized_reason = unrecognized_reason_for(extension_guess, format_result, recognition_result)
+
+    unrecognized_reason =
+      unrecognized_reason_for(extension_guess, format_result, recognition_result)
 
     base_outcome = determine_outcome(user_id, blob_meta.blob_id, origin, recognition_result)
 
@@ -208,8 +210,12 @@ defmodule Playstead.Import do
   # first is a container detected by magic (never a quarantine
   # trigger, D-28); the second is a Tier A extension (D-14) whose bytes
   # failed that system's own signature validation.
-  defp unrecognized_reason_for(_extension_guess, {_system, :container, %{reason: :archive_not_opened}}, _result),
-    do: "archive_not_opened"
+  defp unrecognized_reason_for(
+         _extension_guess,
+         {_system, :container, %{reason: :archive_not_opened}},
+         _result
+       ),
+       do: "archive_not_opened"
 
   defp unrecognized_reason_for(extension_guess, {system, _tier, _evidence}, recognition_result)
        when extension_guess in @tier_a_systems and system == :unknown do

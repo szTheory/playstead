@@ -47,7 +47,10 @@ defmodule Playstead.Attention.Resolutions do
           # which writes its own audit entry) so exactly one audit entry
           # is written per resolution, as every resolution promises.
           changeset =
-            Ecto.Changeset.change(asset_set, system_id: to_string(system_id), system_source: "user")
+            Ecto.Changeset.change(asset_set,
+              system_id: to_string(system_id),
+              system_source: "user"
+            )
 
           with {:ok, updated_set} <- Repo.update(changeset),
                {:ok, entry} <-
@@ -205,7 +208,12 @@ defmodule Playstead.Attention.Resolutions do
     Repo.transaction(fn ->
       blob = Repo.get!(Playstead.Blobs.Blob, item.blob_id)
 
-      facts = %{blob_id: blob.id, sha256: blob.sha256, exclude_source_file_id: item.source_file_id}
+      facts = %{
+        blob_id: blob.id,
+        sha256: blob.sha256,
+        exclude_source_file_id: item.source_file_id
+      }
+
       {_result, evidence} = Recognition.recognize_and_record(user_id, facts, nil)
 
       {:ok, _entry} = AuditLog.record(user_id, :attention_retried, %{subject: item.id})

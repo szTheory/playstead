@@ -335,6 +335,15 @@ defmodule PlaysteadWeb.Router do
     end
   end
 
+  ## Needs Attention console (D-26, D-31).
+  scope "/", PlaysteadWeb do
+    pipe_through [:browser, :require_authenticated]
+
+    live_session :attention,
+      on_mount: [{PlaysteadWeb.UserAuth, :mount_current_scope}] do
+      live "/attention", AttentionLive, :index
+    end
+  end
 
   scope "/", PlaysteadWeb do
     pipe_through [:browser, :require_authenticated, :require_sudo]

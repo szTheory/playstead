@@ -36,7 +36,9 @@ defmodule PlaysteadWeb.Api.V1.AttentionControllerTest do
         quarantine_size_cap_bytes: 10
       )
 
-    Attention.list_items(scope.user.id) |> Map.fetch!("quarantined") |> hd()
+    Attention.list_items(scope.user.id)
+    |> Map.fetch!("quarantined")
+    |> hd()
     |> Map.put(:receipt, receipt)
   end
 
