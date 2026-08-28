@@ -52,6 +52,20 @@ defmodule PlaysteadWeb.Router do
     plug PlaysteadWeb.Plugs.Idempotency
   end
 
+  # D-02: header-only digest/length verification for the upload route.
+  # Must run before :idempotency -- it overwrites conn.params with a
+  # small synthetic map (digest + declared length) that Idempotency's
+  # generic fingerprint calculation consumes unchanged.
+  pipeline :repr_digest do
+    plug PlaysteadWeb.Plugs.ReprDigest
+  end
+
+  # D-10: at most two simultaneous uploads per device. Must run after
+  # :idempotency so a replayed request never consumes a slot.
+  pipeline :upload_concurrency do
+    plug PlaysteadWeb.Plugs.UploadConcurrency
+  end
+
   # D-03: `/setup` renders only while no owner exists, and 404s
   # permanently — never a redirect — the moment one does.
   pipeline :setup_open do
@@ -153,6 +167,30 @@ defmodule PlaysteadWeb.Router do
     pipe_through [:api, :device_auth]
 
     post "/hello", HelloController, :create
+  end
+
+  # D-01c, D-02, D-10: single-file upload, digest-verified, dedup'd
+  # within the calling user, at most two concurrent uploads per device.
+  scope "/api/v1/imports", PlaysteadWeb.Api.V1 do
+    pipe_through [:api, :device_auth, :repr_digest, :idempotency, :upload_concurrency]
+
+    put "/uploads/:command_id", ImportsController, :create
+  end
+
+  # D-10: read-only precheck, scoped strictly to the calling user (D-13)
+  # -- not itself mutating, so no Idempotency-Key is required.
+  scope "/api/v1/imports", PlaysteadWeb.Api.V1 do
+    pipe_through [:api, :device_auth]
+
+    post "/precheck", ImportsController, :precheck
+  end
+
+  # D-10: byte-serving, authorised by the caller's own source_file
+  # rather than by hash alone (D-13).
+  scope "/api/v1/blobs", PlaysteadWeb.Api.V1 do
+    pipe_through [:api, :device_auth]
+
+    get "/:sha256", BlobsController, :show
   end
 
   # D-21, PROT-05: the resumable change feed and its transactional

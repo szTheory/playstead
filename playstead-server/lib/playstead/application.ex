@@ -34,6 +34,9 @@ defmodule Playstead.Application do
       # D-06: fixed per-IP/per-account throttling for login, sudo, and
       # recovery-code submission (PlaysteadWeb.Plugs.Throttle).
       Playstead.RateLimiter,
+      # D-10: per-device concurrent-upload accounting (distinct from the
+      # fixed-window RateLimiter above -- see UploadSlots's moduledoc).
+      Playstead.Import.UploadSlots,
       # D-29: clears leftover temporary files under the blob volume's
       # tmp/ at boot; never touches objects/.
       Playstead.Import.OrphanSweeper,

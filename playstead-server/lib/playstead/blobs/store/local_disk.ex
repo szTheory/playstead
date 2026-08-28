@@ -133,21 +133,33 @@ defmodule Playstead.Blobs.Store.LocalDisk do
   @impl true
   def commit(ref, opts \\ [])
 
-  def commit(%WriteRef{} = ref, _opts) do
+  def commit(%WriteRef{} = ref, opts) do
     :ok = :file.sync(ref.io_device)
     :ok = :file.close(ref.io_device)
 
     digests = MultiHash.finalize(ref.hash_ctx)
+    expected_sha256 = Keyword.get(opts, :expected_sha256)
 
-    case verify_on_disk(ref.tmp_path, digests.sha256) do
-      :ok ->
-        place_and_record(ref, digests)
-
-      {:error, :hash_mismatch} = err ->
+    with :ok <- verify_declared_digest(digests.sha256, expected_sha256),
+         :ok <- verify_on_disk(ref.tmp_path, digests.sha256) do
+      place_and_record(ref, digests)
+    else
+      {:error, _reason} = err ->
         File.rm(ref.tmp_path)
         err
     end
   end
+
+  # A caller-declared digest (e.g. the client's RFC 9530 Repr-Digest,
+  # decoded and hex-encoded by PlaysteadWeb.Plugs.ReprDigest) that does
+  # not match what the server itself streamed refuses the commit before
+  # any bytes are ever renamed into place or any row is written — the
+  # bytes are never trusted to be what the client claimed.
+  defp verify_declared_digest(_streamed_sha256, nil), do: :ok
+
+  defp verify_declared_digest(streamed_sha256, streamed_sha256), do: :ok
+
+  defp verify_declared_digest(_streamed_sha256, _expected_sha256), do: {:error, :digest_mismatch}
 
   defp verify_on_disk(tmp_path, expected_sha256) do
     if import_verify?() do
@@ -215,33 +227,41 @@ defmodule Playstead.Blobs.Store.LocalDisk do
     end
   end
 
+  # Repo.insert_all/3 with on_conflict: :nothing, not Repo.insert/2 +
+  # catching a unique_constraint error: a failed constrained
+  # Repo.insert leaves the ambient Postgres transaction aborted for
+  # every later query in that same transaction whenever this call is
+  # itself nested inside another one (e.g. Playstead.Idempotency.execute/4's
+  # Ecto.Multi) — insert_all with on_conflict never raises, so there is
+  # nothing to recover from. The affected-row count (0 vs 1) is what
+  # tells `stored` from `existing` apart; the database's unique index
+  # on sha256 remains the sole collision authority either way (D-11,
+  # RESEARCH Pitfall 4).
   defp insert_blob_row(digests, size) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
     attrs = %{
+      id: Ecto.UUID.generate(),
       sha256: digests.sha256,
       size_bytes: size,
       crc32: digests.crc32,
       md5: digests.md5,
-      sha1: digests.sha1
+      sha1: digests.sha1,
+      scan_state: "clean",
+      inserted_at: now,
+      updated_at: now
     }
 
-    case Repo.insert(Blob.create_changeset(%Blob{}, attrs)) do
-      {:ok, blob} ->
-        {:ok, :stored, digest_result(blob)}
+    {count, _} =
+      Repo.insert_all(Blob, [attrs], on_conflict: :nothing, conflict_target: [:sha256])
 
-      {:error, changeset} ->
-        if unique_sha256_violation?(changeset) do
-          blob = Repo.get_by!(Blob, sha256: digests.sha256)
-          {:ok, :existing, digest_result(blob)}
-        else
-          {:error, changeset}
-        end
+    blob = Repo.get_by!(Blob, sha256: digests.sha256)
+
+    if count == 1 do
+      {:ok, :stored, digest_result(blob)}
+    else
+      {:ok, :existing, digest_result(blob)}
     end
-  end
-
-  defp unique_sha256_violation?(%Ecto.Changeset{errors: errors}) do
-    Enum.any?(errors, fn {field, {_msg, opts}} ->
-      field == :sha256 and Keyword.get(opts, :constraint) == :unique
-    end)
   end
 
   defp digest_result(%Blob{} = blob) do

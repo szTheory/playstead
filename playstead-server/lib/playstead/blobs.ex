@@ -17,14 +17,14 @@ defmodule Playstead.Blobs do
   configured store, hashing and writing as it goes. Aborts and cleans
   up on any write failure.
   """
-  @spec put_stream(Enumerable.t(), non_neg_integer()) ::
+  @spec put_stream(Enumerable.t(), non_neg_integer(), keyword()) ::
           {:ok, :stored, map()} | {:ok, :existing, map()} | {:error, term()}
-  def put_stream(chunk_stream, byte_size_hint) do
+  def put_stream(chunk_stream, byte_size_hint, opts \\ []) do
     store = store()
 
     with {:ok, ref} <- store.open_write(byte_size_hint) do
       case reduce_chunks(store, ref, chunk_stream) do
-        {:ok, ref} -> store.commit(ref, [])
+        {:ok, ref} -> store.commit(ref, opts)
         {:error, reason} -> {:error, reason}
       end
     end
