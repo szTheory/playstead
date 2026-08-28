@@ -98,7 +98,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 02-03-PLAN.md — Frozen system registry, six bounded never-raising format validators, opaque archive detection, header-evidence recognition, honest titles, and ordered multi-file manifests
+- [x] 02-03-PLAN.md — Frozen system registry, six bounded never-raising format validators, opaque archive detection, header-evidence recognition, honest titles, and ordered multi-file manifests
 
 **Wave 3** *(blocked on Wave 2)*
 
