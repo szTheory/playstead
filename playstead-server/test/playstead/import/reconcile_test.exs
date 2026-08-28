@@ -11,7 +11,10 @@ defmodule Playstead.Import.ReconcileTest do
     File.mkdir_p!(Playstead.Blobs.Store.LocalDisk.blob_path())
 
     root =
-      Path.join(System.tmp_dir!(), "playstead-reconcile-test-#{System.unique_integer([:positive])}")
+      Path.join(
+        System.tmp_dir!(),
+        "playstead-reconcile-test-#{System.unique_integer([:positive])}"
+      )
 
     File.mkdir_p!(root)
     on_exit(fn -> File.rm_rf!(root) end)

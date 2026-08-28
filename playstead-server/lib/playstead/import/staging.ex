@@ -26,7 +26,11 @@ defmodule Playstead.Import.Staging do
 
   @magic_read_bytes 65_536
 
-  @type histogram :: %{recognized: non_neg_integer(), unknown: non_neg_integer(), archive: non_neg_integer()}
+  @type histogram :: %{
+          recognized: non_neg_integer(),
+          unknown: non_neg_integer(),
+          archive: non_neg_integer()
+        }
 
   @type preview :: %{
           file_count: non_neg_integer(),

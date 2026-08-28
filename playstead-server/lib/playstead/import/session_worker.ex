@@ -41,7 +41,7 @@ defmodule Playstead.Import.SessionWorker do
   alias Playstead.Blobs
   alias Playstead.Blobs.Blob
   alias Playstead.Import
-  alias Playstead.Import.{OrphanSweeper, Session, SourceFile}
+  alias Playstead.Import.{OrphanSweeper, Progress, Session, SourceFile}
   alias Playstead.Repo
 
   @chunk_size 1_048_576
@@ -77,7 +77,7 @@ defmodule Playstead.Import.SessionWorker do
   defp ensure_running(session) do
     session =
       if session.state in ["staged", "paused"] do
-        session |> Session.state_changeset("running") |> Repo.update!()
+        Import.transition_session_state(session, "running")
       else
         session
       end
@@ -97,8 +97,12 @@ defmodule Playstead.Import.SessionWorker do
 
       batch ->
         case process_batch(session, batch, mode) do
-          :ok -> continue_or_stop(session, mode)
-          {:disk_full, source_file} -> handle_disk_full(session, source_file)
+          :ok ->
+            Repo.get!(Session, session.id) |> Progress.checkpoint()
+            continue_or_stop(session, mode)
+
+          {:disk_full, source_file} ->
+            handle_disk_full(session, source_file)
         end
     end
   end
@@ -146,7 +150,7 @@ defmodule Playstead.Import.SessionWorker do
     source_file = source_file |> SourceFile.increment_attempt_changeset() |> Repo.update!()
 
     case reconcile_match(session.user_id, source_file, mode) do
-      %SourceFile{} = prior -> reuse_prior_content(session.user_id, source_file, prior)
+      %SourceFile{} = prior -> reuse_prior_content(session, source_file, prior)
       nil -> hash_and_commit(session, source_file)
     end
   end
@@ -173,9 +177,13 @@ defmodule Playstead.Import.SessionWorker do
     |> Repo.one()
   end
 
-  defp reuse_prior_content(user_id, source_file, %SourceFile{blob_id: blob_id}) do
+  defp reuse_prior_content(session, source_file, %SourceFile{blob_id: blob_id}) do
     blob = Repo.get!(Blob, blob_id)
-    {:ok, _receipt} = Import.complete_staged_file(user_id, source_file, {:existing, blob_meta(blob)})
+
+    {:ok, receipt} =
+      Import.complete_staged_file(session.user_id, source_file, {:existing, blob_meta(blob)})
+
+    Import.bump_session_progress(session, receipt.outcome, source_file.size_bytes)
     :ok
   end
 
@@ -206,7 +214,8 @@ defmodule Playstead.Import.SessionWorker do
   defp commit_stream(session, source_file, size, path) do
     case Blobs.put_stream(File.stream!(path, [], @chunk_size), size) do
       {:ok, status, meta} ->
-        {:ok, _receipt} = Import.complete_staged_file(session.user_id, source_file, {status, meta})
+        {:ok, receipt} = Import.complete_staged_file(session.user_id, source_file, {status, meta})
+        Import.bump_session_progress(session, receipt.outcome, source_file.size_bytes)
         :ok
 
       {:error, :insufficient_space} ->
@@ -224,21 +233,21 @@ defmodule Playstead.Import.SessionWorker do
 
   defp handle_disk_full(session, source_file) do
     Import.record_failed_file(session.user_id, source_file, "disk_full")
-    session |> Session.state_changeset("paused") |> Repo.update!()
+    Import.transition_session_state(session, "paused")
     :ok
   end
 
   defp pause(session) do
     if session.state not in ["completed", "cancelled"] do
-      session |> Session.state_changeset("paused") |> Repo.update!()
+      Import.transition_session_state(session, "paused")
     end
   end
 
   defp complete(session) do
     session
     |> Ecto.Changeset.change(finished_at: DateTime.utc_now())
-    |> Session.state_changeset("completed")
     |> Repo.update!()
+    |> Import.transition_session_state("completed")
   end
 
   @doc """
@@ -260,11 +269,13 @@ defmodule Playstead.Import.SessionWorker do
 
     AuditLog.record(session.user_id, :import_session_cancelled, %{subject: session.id})
 
-    {:ok,
-     session
-     |> Ecto.Changeset.change(finished_at: DateTime.utc_now())
-     |> Session.state_changeset("cancelled")
-     |> Repo.update!()}
+    session =
+      session
+      |> Ecto.Changeset.change(finished_at: DateTime.utc_now())
+      |> Repo.update!()
+      |> Import.transition_session_state("cancelled")
+
+    {:ok, session}
   end
 
   @doc "Whether `source_file` has exhausted its bounded retry attempts."

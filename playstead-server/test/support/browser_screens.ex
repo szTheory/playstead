@@ -23,6 +23,7 @@ defmodule PlaysteadWeb.BrowserScreens do
     :devices,
     :sessions,
     :import,
+    :import_sessions,
     :library,
     :library_detail
   ]
@@ -36,6 +37,7 @@ defmodule PlaysteadWeb.BrowserScreens do
   def path(:devices), do: "/devices"
   def path(:sessions), do: "/settings/sessions"
   def path(:import), do: "/import"
+  def path(:import_sessions), do: "/import/sessions"
   def path(:library), do: "/library"
   def path(:library_detail), do: "/library/:id"
 
@@ -116,6 +118,34 @@ defmodule PlaysteadWeb.BrowserScreens do
       |> visit_live(path(:import))
 
     {session, %{user: user}}
+  end
+
+  def open(session, :import_sessions) do
+    user = owner_fixture()
+
+    root =
+      Path.join(
+        System.tmp_dir!(),
+        "playstead-browser-screens-inbox-#{System.unique_integer([:positive])}"
+      )
+
+    File.mkdir_p!(root)
+    File.write!(Path.join(root, "game.bin"), :crypto.strong_rand_bytes(64))
+    previous_inbox = Application.get_env(:playstead, :inbox_path)
+    Application.put_env(:playstead, :inbox_path, root)
+
+    ExUnit.Callbacks.on_exit(fn ->
+      Application.put_env(:playstead, :inbox_path, previous_inbox)
+    end)
+
+    {:ok, import_session} = Import.Staging.stage(user.id, root, Ecto.UUID.generate())
+
+    session =
+      session
+      |> log_in_via_cookie(user, token_authenticated_at: DateTime.utc_now(:second))
+      |> visit_live(path(:import_sessions))
+
+    {session, %{user: user, import_session: import_session}}
   end
 
   def open(session, :library) do

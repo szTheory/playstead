@@ -4,7 +4,9 @@ defmodule Playstead.Import.InboxTest do
   alias Playstead.Import.Inbox
 
   setup do
-    root = Path.join(System.tmp_dir!(), "playstead-inbox-test-#{System.unique_integer([:positive])}")
+    root =
+      Path.join(System.tmp_dir!(), "playstead-inbox-test-#{System.unique_integer([:positive])}")
+
     File.mkdir_p!(root)
     on_exit(fn -> File.rm_rf!(root) end)
     {:ok, root: root}
@@ -26,10 +28,16 @@ defmodule Playstead.Import.InboxTest do
     assert %DateTime{} = game.mtime
   end
 
-  test "a symbolic link inside the inbox is not followed and is reported rather than traversed", %{
-    root: root
-  } do
-    outside = Path.join(System.tmp_dir!(), "playstead-inbox-outside-#{System.unique_integer([:positive])}")
+  test "a symbolic link inside the inbox is not followed and is reported rather than traversed",
+       %{
+         root: root
+       } do
+    outside =
+      Path.join(
+        System.tmp_dir!(),
+        "playstead-inbox-outside-#{System.unique_integer([:positive])}"
+      )
+
     File.mkdir_p!(outside)
     File.write!(Path.join(outside, "secret.bin"), "should never be read")
     on_exit(fn -> File.rm_rf!(outside) end)
@@ -52,9 +60,10 @@ defmodule Playstead.Import.InboxTest do
     refute Enum.any?(files, &(&1.relative_path == "a_fifo"))
   end
 
-  test "the scanned tree is byte-for-byte unchanged after a scan, including modification times", %{
-    root: root
-  } do
+  test "the scanned tree is byte-for-byte unchanged after a scan, including modification times",
+       %{
+         root: root
+       } do
     path = Path.join(root, "game.gba")
     File.write!(path, "abc")
     before_stat = File.stat!(path, time: :posix)

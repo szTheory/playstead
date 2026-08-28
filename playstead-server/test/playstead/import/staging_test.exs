@@ -8,7 +8,10 @@ defmodule Playstead.Import.StagingTest do
 
   setup do
     File.mkdir_p!(Playstead.Blobs.Store.LocalDisk.blob_path())
-    root = Path.join(System.tmp_dir!(), "playstead-staging-test-#{System.unique_integer([:positive])}")
+
+    root =
+      Path.join(System.tmp_dir!(), "playstead-staging-test-#{System.unique_integer([:positive])}")
+
     File.mkdir_p!(root)
     on_exit(fn -> File.rm_rf!(root) end)
     user = owner_fixture()
@@ -50,7 +53,10 @@ defmodule Playstead.Import.StagingTest do
   end
 
   describe "stage/3" do
-    test "stages an empty folder as a completed session with zero files", %{root: root, user: user} do
+    test "stages an empty folder as a completed session with zero files", %{
+      root: root,
+      user: user
+    } do
       {:ok, session} = Staging.stage(user.id, root, "session-empty")
 
       assert session.file_count == 0
@@ -67,7 +73,10 @@ defmodule Playstead.Import.StagingTest do
       {:ok, session} = Staging.stage(user.id, root, "session-order")
 
       rows =
-        from(sf in SourceFile, where: sf.import_session_id == ^session.id, order_by: sf.inserted_at)
+        from(sf in SourceFile,
+          where: sf.import_session_id == ^session.id,
+          order_by: sf.inserted_at
+        )
         |> Repo.all()
 
       assert Enum.map(rows, & &1.relative_path) == ["a.bin", "b.bin"]
@@ -84,7 +93,9 @@ defmodule Playstead.Import.StagingTest do
       File.write!(Path.join(root, "a.bin"), "a")
       File.write!(Path.join(root, "b.bin"), "b")
 
-      assert {:error, :import_session_too_large} = Staging.stage(user.id, root, "session-too-large")
+      assert {:error, :import_session_too_large} =
+               Staging.stage(user.id, root, "session-too-large")
+
       assert Repo.aggregate(Playstead.Import.Session, :count) == 0
     end
   end

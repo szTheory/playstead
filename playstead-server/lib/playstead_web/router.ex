@@ -204,6 +204,15 @@ defmodule PlaysteadWeb.Router do
     get "/snapshot", SnapshotController, :show
   end
 
+  # D-13/T-02-38: read-only, strictly user-scoped session/receipt reads.
+  scope "/api/v1", PlaysteadWeb.Api.V1 do
+    pipe_through [:api, :device_auth]
+
+    get "/import-sessions", ImportSessionsController, :index
+    get "/import-sessions/:id", ImportSessionsController, :show
+    get "/import-sessions/:id/receipts", ImportSessionsController, :receipts
+  end
+
   # Dev/test-only target for the forced-500 problem+json contract test
   # (D-22). Gated at compile time so it never ships in a production
   # release.
@@ -296,6 +305,7 @@ defmodule PlaysteadWeb.Router do
     live_session :import,
       on_mount: [{PlaysteadWeb.UserAuth, :mount_current_scope}] do
       live "/import", ImportLive, :index
+      live "/import/sessions", ImportSessionsLive, :index
     end
   end
 

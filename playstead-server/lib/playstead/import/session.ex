@@ -36,6 +36,8 @@ defmodule Playstead.Import.Session do
     field :enumeration_completed_at, :utc_datetime_usec
     field :started_at, :utc_datetime_usec
     field :finished_at, :utc_datetime_usec
+    field :last_checkpoint_at, :utc_datetime_usec
+    field :last_checkpointed_bytes, :integer
 
     timestamps(type: :utc_datetime_usec)
   end

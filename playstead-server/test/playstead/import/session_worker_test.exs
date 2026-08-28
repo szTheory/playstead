@@ -227,6 +227,8 @@ defmodule Playstead.Import.SessionWorkerTest do
     assert session.state == "paused"
 
     receipts = Import.list_session_receipts(user.id, session.id).entries
-    assert Enum.count(receipts, &(&1.outcome == "failed_safely" and &1.reason == "disk_full")) == 1
+
+    assert Enum.count(receipts, &(&1.outcome == "failed_safely" and &1.reason == "disk_full")) ==
+             1
   end
 end

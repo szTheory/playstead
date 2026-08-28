@@ -521,7 +521,12 @@ defmodule Playstead.Import do
   updated in place with `store_result`'s blob id, in the same
   transaction as the asset-set/receipt/change-journal writes.
   """
-  @spec complete_staged_file(pos_integer(), SourceFile.t(), {:stored | :existing, map()}, keyword()) ::
+  @spec complete_staged_file(
+          pos_integer(),
+          SourceFile.t(),
+          {:stored | :existing, map()},
+          keyword()
+        ) ::
           {:ok, Receipt.t()} | {:error, term()}
   def complete_staged_file(user_id, %SourceFile{} = source_file, {_status, blob_meta}, opts \\ []) do
     format_bytes = Keyword.get(opts, :format_bytes)
@@ -582,6 +587,42 @@ defmodule Playstead.Import do
         {:error, changeset} -> Repo.rollback(changeset)
       end
     end)
+  end
+
+  @doc """
+  Transitions a session to `state` and appends exactly one `:job`
+  change-journal entry in the same transaction (D-30) — never a
+  per-file entry, only ever once per session state transition.
+  """
+  @spec transition_session_state(Session.t(), String.t()) :: Session.t()
+  def transition_session_state(%Session{} = session, state) do
+    {:ok, session} =
+      Repo.transaction(fn ->
+        session = session |> Session.state_changeset(state) |> Repo.update!()
+        {:ok, _entry} = ChangeJournal.append(session.user_id, :job, session.id, %{})
+        session
+      end)
+
+    session
+  end
+
+  @doc """
+  Records one file's progress against its session — bytes and files
+  completed, and the running tally by outcome code. Called once per
+  successfully processed row; a failed or skipped row does not advance
+  bytes/files completed.
+  """
+  @spec bump_session_progress(Session.t(), atom() | String.t(), non_neg_integer()) :: Session.t()
+  def bump_session_progress(%Session{} = session, outcome, bytes) do
+    counts = Map.update(session.counts_by_outcome || %{}, to_string(outcome), 1, &(&1 + 1))
+
+    session
+    |> Ecto.Changeset.change(
+      files_completed: session.files_completed + 1,
+      bytes_completed: session.bytes_completed + bytes,
+      counts_by_outcome: counts
+    )
+    |> Repo.update!()
   end
 
   @doc "Fetches a session strictly scoped to its owning user (D-13/T-02-38), or `nil`."
@@ -726,7 +767,9 @@ defmodule Playstead.Import do
       end
 
     rows = Repo.all(query)
-    {page, has_more} = if length(rows) > limit, do: {Enum.take(rows, limit), true}, else: {rows, false}
+
+    {page, has_more} =
+      if length(rows) > limit, do: {Enum.take(rows, limit), true}, else: {rows, false}
 
     next_cursor =
       if has_more do

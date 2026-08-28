@@ -49,6 +49,7 @@ defmodule Playstead.Sync.Snapshot do
 
   alias Playstead.Catalogue.AssetSet
   alias Playstead.Catalogue.Payload, as: CataloguePayload
+  alias Playstead.Import.Session
   alias Playstead.Repo
   alias Playstead.Pairing.Device
   alias Playstead.Sync.{ChangeJournal, Cursor}
@@ -103,7 +104,8 @@ defmodule Playstead.Sync.Snapshot do
           cursor: Cursor.encode(as_of_seq),
           has_more: has_more,
           next_after_id: next_after_id(rows, has_more),
-          catalogue: fetch_catalogue(user_id, as_of_time)
+          catalogue: fetch_catalogue(user_id, as_of_time),
+          job: fetch_jobs(user_id, as_of_time)
         }
       end)
 
@@ -161,6 +163,32 @@ defmodule Playstead.Sync.Snapshot do
     |> Repo.all()
     |> Repo.preload(asset_members: :blob)
     |> Enum.map(&CataloguePayload.build/1)
+  end
+
+  # D-30: the `job` branch (one row per import session, D-05/D-06/D-08)
+  # read from the same transaction and as-of position as the device
+  # page and the catalogue branch above, so a resuming client's
+  # snapshot and its as-of cursor never disagree about session state.
+  defp fetch_jobs(user_id, as_of_time) do
+    from(s in Session,
+      where: s.user_id == ^user_id,
+      where: s.inserted_at <= ^as_of_time,
+      order_by: [asc: s.id]
+    )
+    |> Repo.all()
+    |> Enum.map(&job_view/1)
+  end
+
+  defp job_view(%Session{} = session) do
+    %{
+      id: session.id,
+      state: session.state,
+      file_count: session.file_count,
+      files_completed: session.files_completed,
+      total_bytes: session.total_bytes,
+      bytes_completed: session.bytes_completed,
+      counts_by_outcome: session.counts_by_outcome
+    }
   end
 
   defp next_after_id(_rows, false), do: nil
