@@ -1,8 +1,8 @@
 ---
 phase: 01-private-custody-and-durable-protocol
-reviewed: 2026-08-27T00:00:00Z
+reviewed: 2026-08-28T00:00:00Z
 depth: standard
-files_reviewed: 55
+files_reviewed: 58
 files_reviewed_list:
   - playstead-server/lib/playstead.ex
   - playstead-server/lib/playstead/accounts.ex
@@ -86,19 +86,22 @@ files_reviewed_list:
   - playstead-server/priv/repo/migrations/20260827200000_create_idempotency_receipts.exs
   - playstead-server/priv/repo/migrations/20260827180001_create_devices_and_credentials.exs
   - playstead-server/priv/repo/migrations/20260827210000_add_command_id_to_device_credentials.exs
+  - playstead-server/scripts/compose-smoke.sh
+  - playstead-server/test/playstead/docker_build_context_test.exs
+  - playstead-server/test/playstead_web/controllers/recovery_docs_controller_test.exs
 findings:
   critical: 1
-  warning: 5
-  info: 3
-  total: 9
+  warning: 6
+  info: 4
+  total: 11
 status: issues_found
 ---
 
 # Phase 01: Code Review Report
 
-**Reviewed:** 2026-08-27
+**Reviewed:** 2026-08-28
 **Depth:** standard
-**Files Reviewed:** 55 (lib/ source files prioritized; config, migrations, and deploy files spot-checked; tests treated as lower-priority context)
+**Files Reviewed:** 58 (lib/ source files prioritized; config, migrations, and deploy files spot-checked; tests treated as lower-priority context; +3 files added by the 01-08 gap-closure incremental review)
 **Status:** issues_found
 
 ## Summary
@@ -108,6 +111,8 @@ This phase implements owner auth, device pairing, capability negotiation, idempo
 The one concrete gap found is a genuine cross-cutting issue: the Phoenix parameter-log filter (`config/config.exs`) discards `password`, `device_code`, and `credential`, but not the recovery-code (`code`) or password-reset/setup token (`token`) parameter keys, both of which are single-use authentication secrets that flow through controller actions whose params Phoenix logs by default. This directly contradicts this codebase's own stated discipline (`Playstead.AuditLog`'s doc comment: "metadata must never carry credential material or a plaintext token") and has no test coverage guarding it, unlike the mailer-removal regression guard the project takes care to test elsewhere.
 
 The remaining findings are lower-severity gaps in defense-in-depth (missing rate limiting on a couple of unauthenticated endpoints) and a few small correctness/robustness nits. No SQL injection, XSS, insecure deserialization, or authorization-bypass vulnerabilities were found; the multi-tenant partitioning boundaries (`ChangeJournal.read_after/3`, `owned_device/2`, `Scope`-gated queries) are consistently enforced at the query level rather than trusted from caller state.
+
+A follow-up incremental review of the 01-08 gap-closure plan (Dockerfile `docs` staging fix, the `/app/blobs` ownership fix, the new build-context regression guard, and the recovery-docs route) found no new Critical or exploitable issues, but did surface one Warning (the new regression-guard test's directory-level matching is coarser than the bug class it's meant to catch) and one Info item (the `/app/blobs` ownership fix has no documented remediation path for volumes provisioned before the fix). See the addendum below.
 
 ## Critical Issues
 
@@ -186,8 +191,36 @@ Both `device_code` and the setup token are 256-bit values, so brute force is not
 **Issue:** Recovery codes are drawn from a 20-character alphabet, 8 characters total (`log2(20) * 8 ≈ 34.6 bits`), hashed with bcrypt and rate-limited via `:throttle_recovery` — reasonable for a bcrypt-verified, throttled, single-use human-entered code, and not a bug. Flagging only because the module doc's framing ("shares one visual language" with the pairing display code) could read as implying equivalent security properties with the 256-bit `device_code`/credential material elsewhere in the same file set; a reader skimming for "is this a strong secret" could be misled without checking the actual `Enum.map(1..8, ...)` cardinality.
 **Fix:** None required; consider a one-line comment on `Codes.random_code/2`'s default arguments noting the resulting ~34.6-bit space is intentional given bcrypt + throttle + single-use, to preempt this exact question in future review.
 
+## Gap-closure addendum (plan 01-08)
+
+Incremental review of the five files changed by the 01-08 gap-closure plan (commits `b6af64e`, `830ab8b`, `c1b2c02`): `playstead-server/Dockerfile`, `playstead-server/lib/playstead_web/controllers/recovery_docs_controller.ex`, `playstead-server/scripts/compose-smoke.sh`, `playstead-server/test/playstead/docker_build_context_test.exs`, `playstead-server/test/playstead_web/controllers/recovery_docs_controller_test.exs`. No new Critical issues. Two new findings below; everything else checked out: the `COPY docs docs` staging order is correct relative to `RUN mix compile`, the `@external_resource`/`File.read!/1` embed in `RecoveryDocsController` fails loudly at compile time if the file is missing (no silent fallback), the route is intentionally unauthenticated and serves static content with no injection surface, the `/app/blobs` mkdir+chown runs before `USER nobody` in the runner stage (correct ordering for the intended fix), and the smoke script's new blob-writability assertion correctly runs as the container's actual runtime user (`nobody`) via `$COMPOSE exec -T app`.
+
+### WR-06: The new build-context regression guard matches only the top-level path segment, not the actual required file path
+
+**File:** `playstead-server/test/playstead/docker_build_context_test.exs:77-83, 87-102`
+**Issue:** `top_segment/1` reduces both the required `@external_resource` path and every `COPY` source to just their first path component (`Path.split(path) |> hd()`), and `staged_top_segments/0` builds a `MapSet` of only those first components. The comparison in the main test is then set membership on that single top-level segment (lines 21-24), not a path-prefix or exact-path check against the real required resource.
+
+This is coarser than the regression class the test's own moduledoc says it exists to catch. Today `COPY docs docs` genuinely stages the whole `docs/` tree so this happens to be correct, but the guard would equally report "staged" (false green) for a Dockerfile line like `COPY docs/some-other-file.txt docs/some-other-file.txt` or `COPY docs/images docs/images` — both reduce to top segment `"docs"` — even though neither actually copies `docs/RECOVERY.md` into the builder stage. Since `@recovery_doc_path` is read at compile time with `File.read!/1`, that specific failure mode (a Dockerfile edit that narrows the `docs` COPY to a subset of the directory) would break `docker build` while this test still passes, silently defeating the guard it was written to be.
+**Fix:** Compare on the actual relative resource path rather than only its top segment, e.g.:
+```elixir
+defp staged?(resource_relative, staged_sources) do
+  Enum.any?(staged_sources, fn source ->
+    source == resource_relative or String.starts_with?(resource_relative, source <> "/")
+  end)
+end
+```
+and build `staged_sources` from the full (non-reduced) `copy_sources/1` output rather than `Enum.map(&(&1 |> Path.split() |> hd()))`. Keep the top-segment reduction only as a fallback/diagnostic in the failure message, not as the actual pass/fail predicate.
+
+### IN-04: `/app/blobs` ownership fix has no documented remediation path for volumes provisioned before the fix
+
+**File:** `playstead-server/Dockerfile:102-106`
+**Issue:** `docker-compose.yml`'s `playstead_blobs` named volume was introduced in an earlier commit (`bcadf3b`, phase 01-01), predating this fix (`c1b2c02`). Docker only populates a named volume's initial ownership/contents from the image directory it shadows the *first* time that volume is used against a given image path; a volume that was already initialized against an older image build (without this `mkdir -p /app/blobs && chown nobody /app/blobs` step) would already exist as a root-owned empty directory, and pulling this fixed image alone will not retroactively `chown` an already-provisioned volume — Docker does not re-run that population step for a volume that already has content (even zero files, since the directory entry itself already exists).
+
+In practice this is self-diagnosing rather than silently broken: `Playstead.Readiness` checks blob-directory writability and would surface `"/app/blobs is not writable"` on the setup wizard (as it did during this same plan's human-verification walkthrough, per `01-08-SUMMARY.md`). But `docs/UPGRADE.md` (read as supporting context) documents backup/restore and image-tag bump steps and says nothing about this specific failure mode or how to fix it (e.g. `docker compose exec -u root app chown nobody /app/blobs`), so an affected self-hoster gets a correct-but-unexplained readiness error with no in-repo pointer to the fix.
+**Fix:** Add a short troubleshooting note to `docs/UPGRADE.md` (or `docs/DEPLOY.md`) covering this exact symptom and the one-line remediation (`docker compose exec -u root app chown nobody /app/blobs`, or delete-and-recreate the volume from a fresh backup if it's still empty).
+
 ---
 
-_Reviewed: 2026-08-27_
+_Reviewed: 2026-08-28_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
