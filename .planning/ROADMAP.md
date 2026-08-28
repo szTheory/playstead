@@ -94,7 +94,7 @@ Plans:
 
 **Wave 1** *(blocked on Wave 0)*
 
-- [ ] 02-02-PLAN.md — Tracer: content-addressed write path and store seam, API upload with digest verification, durable receipt, blob serving, and a one-set export/reimport round trip
+- [x] 02-02-PLAN.md — Tracer: content-addressed write path and store seam, API upload with digest verification, durable receipt, blob serving, and a one-set export/reimport round trip
 
 **Wave 2** *(blocked on Wave 1)*
 

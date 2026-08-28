@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 current_phase: 02
 current_phase_name: Explainable Import and Exact Export
 status: executing
-stopped_at: Completed 02-01-PLAN.md
-last_updated: "2026-08-28T18:04:21.259Z"
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-08-28T18:55:03.114Z"
 last_activity: 2026-08-28
 last_activity_desc: Phase 02 execution started
-state_head: 8af425b353f4b00a7197bdaa78e170cc33c60d55
+state_head: dc11aeb0c1a24695140d5f4b11b291c6c5a32931
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 16
-  completed_plans: 9
+  completed_plans: 10
   percent: 20
 ---
 
@@ -28,7 +28,7 @@ See: `.planning/PROJECT.md` (updated 2026-08-28)
 ## Current Position
 
 Phase: 02 (Explainable Import and Exact Export) — EXECUTING
-Plan: 2 of 8
+Plan: 3 of 8
 Status: Ready to execute
 Last activity: 2026-08-28 — Phase 02 execution started
 
@@ -67,6 +67,7 @@ Progress: [████████████████████] 8/8 pla
 | Phase 01 P07 | 65min | 3 tasks | 17 files |
 | Phase 01 P08 | 33min | 3 tasks | 5 files |
 | Phase 02 P01 | 70 min | 3 tasks | 22 files |
+| Phase 02-explainable-import-and-exact-export P02 | 4h30min | 3 tasks | 37 files |
 
 ## Accumulated Context
 
@@ -92,6 +93,8 @@ Progress: [████████████████████] 8/8 pla
 - [Phase 01]: Runner-stage /app/blobs must be mkdir+chown'd to nobody before USER nobody, since Docker creates named-volume mount points root:root; scripts/compose-smoke.sh now asserts blob writability
 - [Phase 02]: [Phase 02]: Escalated the Readiness :exports row to a new :error state (alongside existing :ok/:warning) since D-33 requires the export mount to be genuinely writable before any export job can run
 - [Phase 02]: [Phase 02]: free_bytes/1 shells out to df -Pk (portable across the Linux release container and macOS dev) instead of adding a NIF for a raw statvfs call; required_bytes/2's margin arithmetic stays pure integer math
+- [Phase 02]: Repo.insert_all/on_conflict replaces Repo.insert+catch for lookup-or-create under a unique constraint nested inside Idempotency.execute's Ecto.Multi — A failed constrained Repo.insert aborts the ambient Postgres transaction for any later query in that same transaction once nested one level deeper
+- [Phase 02]: Upload concurrency uses a dedicated ETS counter (UploadSlots), not Hammer/RateLimiter — Hammer's fixed-window limiter has no decrement and cannot represent how many uploads are in flight right now
 
 ### Pending Todos
 
@@ -122,6 +125,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-28T18:04:21.227Z
-Stopped at: Completed 02-01-PLAN.md
+Last session: 2026-08-28T18:55:03.081Z
+Stopped at: Completed 02-02-PLAN.md
 Resume file: None
