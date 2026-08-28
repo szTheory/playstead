@@ -162,31 +162,14 @@ defmodule PlaysteadWeb.Api.V1.ConvergenceTest do
     assert Repo.aggregate(Playstead.Pairing.Device, :count) == device_count_before
   end
 
-  test "best-effort: a write interleaved with a snapshot read does not appear twice when the feed is resumed" do
-    # This is the closest this suite can get, under Ecto's Sandbox test
-    # harness, to the plan's "interleave a write with a multi-page
-    # snapshot read" cursor-gap case. It is NOT a proof of true
-    # concurrent-transaction safety: `Ecto.Adapters.SQL.Sandbox.allow/3`
-    # (the same mechanism plan 01-04's own concurrent-redemption test
-    # uses) grants a second Elixir process permission to use the SAME
-    # underlying database connection/transaction as the test's owner —
-    # it does not give two independent Postgres backend transactions
-    # that can genuinely race and commit out of order. What IS asserted
-    # here deterministically: a write that lands strictly after
-    # `Snapshot.read/2`'s pinned `as_of` position is not duplicated when
-    # the feed is resumed from that snapshot's cursor.
-    #
-    # What remains unproven by an automated test in this environment:
-    # true interleaved-commit safety of the transactional as-of read —
-    # i.e. a write whose commit genuinely races the snapshot
-    # transaction's own commit — and multi-page consistency specifically
-    # (this suite's fixtures never produce more than one page's worth of
-    # devices). Both properties are asserted by design instead: the
-    # as-of `seq` and the page query run inside one
-    # `Repo.transaction/2` at `:repeatable_read` (`Playstead.Sync.Snapshot.read/2`),
-    # and later pages of one logical read reuse the same pinned `as_of`
-    # position via `Device.inserted_at`/`revoked_at` bounding rather
-    # than re-deriving it per page.
+  test "a write that lands after the snapshot's pinned as-of is not duplicated when the feed is resumed" do
+    # Sandboxed, single-connection variant. The genuinely concurrent cases
+    # — a competing commit *inside* the snapshot transaction, and a
+    # multi-page read with writes interleaved between pages — run against
+    # real, independent Postgres transactions in
+    # `Playstead.Sync.SnapshotConcurrencyTest` (async: false, sandbox
+    # `:auto` mode), which `Ecto.Adapters.SQL.Sandbox.allow/3` cannot
+    # produce here.
     scope = user_scope_fixture()
     %{device: device, credential_plaintext: token} = device_fixture(scope)
 

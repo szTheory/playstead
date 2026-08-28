@@ -50,6 +50,11 @@ config :wallaby,
          binary -> [binary: binary]
        end)
 
+# Sandboxed tests run inside one already-started transaction, where Postgres
+# refuses SET TRANSACTION. Playstead.Sync.SnapshotConcurrencyTest re-enables
+# it for its own real transactions. See Playstead.Sync.Snapshot's moduledoc.
+config :playstead, Playstead.Sync.Snapshot, set_isolation: false
+
 # Every Wallaby request comes from 127.0.0.1; don't let the wizard's per-IP
 # defense-in-depth limits throttle the browser suite itself.
 config :playstead, PlaysteadWeb.SetupLive,

@@ -9,9 +9,22 @@ defmodule Playstead.Sync.Snapshot do
   the page query's transaction can land before or after the data,
   producing either a duplicate or — far worse — a permanently skipped
   change once the client resumes `/changes` from it. Both reads run
-  inside one `Repo.transaction/2` at the `:repeatable_read` isolation
-  level, so the returned cursor is exactly the position the returned
-  data reflects.
+  inside one `Repo.transaction/2` at REPEATABLE READ, so the returned
+  cursor is exactly the position the returned data reflects.
+
+  The isolation level is set with an explicit `SET TRANSACTION` as the
+  first statement of the transaction: Ecto/Postgrex silently ignore an
+  `isolation_level:` option to `Repo.transaction/2`, leaving the default
+  READ COMMITTED — which `Playstead.Sync.SnapshotConcurrencyTest` proved
+  lets a commit that lands between the two reads leak into the page.
+
+  Postgres refuses to change the level once a transaction has run any
+  statement (or inside a savepoint), so under the Ecto sandbox — where a
+  whole test is one already-started transaction — the statement cannot be
+  issued. `config :playstead, Playstead.Sync.Snapshot, set_isolation: false`
+  (config/test.exs) turns it off there; the sandbox's single transaction
+  gives every sandboxed test the same-snapshot property trivially, and the
+  concurrency test re-enables it for its own real, top-level transactions.
 
   ## Scope of this snapshot (Claude's Discretion, per plan 01-07)
 
@@ -38,7 +51,7 @@ defmodule Playstead.Sync.Snapshot do
   alias Playstead.Pairing.Device
   alias Playstead.Sync.{ChangeJournal, Cursor}
 
-  @page_size 200
+  @default_page_size 200
 
   @doc """
   Reads a page of the owner's current state plus its as-of cursor.
@@ -49,6 +62,14 @@ defmodule Playstead.Sync.Snapshot do
     page of one logical multi-page read is pinned to the same position
     (a page fetched later must not silently include a write later pages
     missed). Omit on the first page.
+  - `:page_size` — rows per page; defaults to
+    `config :playstead, Playstead.Sync.Snapshot, page_size:` or #{@default_page_size}.
+    The API never passes this — it exists so tests can exercise multi-page
+    reads without hundreds of fixture rows.
+  - `:between_reads` — a zero-arity function invoked *inside* the
+    transaction, after the as-of position is read and before the page
+    query runs. A no-op by default; the concurrency contract test uses it
+    as a barrier to commit a competing write at exactly that moment.
   """
   @spec read(pos_integer(), keyword()) ::
           {:ok,
@@ -61,24 +82,27 @@ defmodule Playstead.Sync.Snapshot do
   def read(user_id, opts \\ []) do
     after_id = Keyword.get(opts, :after_id)
     pinned_as_of = Keyword.get(opts, :as_of)
+    page_size = Keyword.get(opts, :page_size, configured_page_size())
+    between_reads = Keyword.get(opts, :between_reads, fn -> :ok end)
 
     {:ok, result} =
-      Repo.transaction(
-        fn ->
-          as_of_seq = pinned_as_of || ChangeJournal.max_seq(user_id)
-          as_of_time = as_of_time_for(as_of_seq)
+      Repo.transaction(fn ->
+        if set_isolation?(), do: Repo.query!("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
 
-          {rows, has_more} = fetch_page(user_id, as_of_time, after_id)
+        as_of_seq = pinned_as_of || ChangeJournal.max_seq(user_id)
+        as_of_time = as_of_time_for(as_of_seq)
 
-          %{
-            entries: Enum.map(rows, &to_entry_view/1),
-            cursor: Cursor.encode(as_of_seq),
-            has_more: has_more,
-            next_after_id: next_after_id(rows, has_more)
-          }
-        end,
-        isolation_level: :repeatable_read
-      )
+        between_reads.()
+
+        {rows, has_more} = fetch_page(user_id, as_of_time, after_id, page_size)
+
+        %{
+          entries: Enum.map(rows, &to_entry_view/1),
+          cursor: Cursor.encode(as_of_seq),
+          has_more: has_more,
+          next_after_id: next_after_id(rows, has_more)
+        }
+      end)
 
     {:ok, result}
   end
@@ -89,22 +113,34 @@ defmodule Playstead.Sync.Snapshot do
   defp as_of_time_for(0), do: DateTime.utc_now() |> DateTime.truncate(:second)
   defp as_of_time_for(seq), do: ChangeJournal.inserted_at_for(seq) || DateTime.utc_now()
 
-  defp fetch_page(user_id, as_of_time, after_id) do
+  defp configured_page_size do
+    :playstead
+    |> Application.get_env(__MODULE__, [])
+    |> Keyword.get(:page_size, @default_page_size)
+  end
+
+  defp set_isolation? do
+    :playstead
+    |> Application.get_env(__MODULE__, [])
+    |> Keyword.get(:set_isolation, true)
+  end
+
+  defp fetch_page(user_id, as_of_time, after_id, page_size) do
     query =
       from(d in Device,
         where: d.user_id == ^user_id,
         where: d.inserted_at <= ^as_of_time,
         where: is_nil(d.revoked_at) or d.revoked_at > ^as_of_time,
         order_by: [asc: d.id],
-        limit: ^(@page_size + 1)
+        limit: ^(page_size + 1)
       )
 
     query = if after_id, do: where(query, [d], d.id > ^after_id), else: query
 
     rows = Repo.all(query)
 
-    if length(rows) > @page_size do
-      {Enum.take(rows, @page_size), true}
+    if length(rows) > page_size do
+      {Enum.take(rows, page_size), true}
     else
       {rows, false}
     end
