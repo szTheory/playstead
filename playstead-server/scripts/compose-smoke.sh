@@ -68,6 +68,11 @@ wait_for_healthy
 curl_ok "${BASE_URL}/healthz"
 curl_ok "${BASE_URL}/api/v1/capabilities"
 
+log "asserting /app/blobs is writable by the app container's runtime user"
+$COMPOSE exec -T app sh -c 'touch /app/blobs/.smoke-write-test && rm /app/blobs/.smoke-write-test' \
+  || fail "/app/blobs is not writable inside the app container"
+log "/app/blobs is writable"
+
 log "recording a marker row so we can prove the volume survives a restart"
 $COMPOSE exec -T db psql -U "${POSTGRES_USER:-playstead}" -d "${POSTGRES_DB:-playstead}" \
   -c "CREATE TABLE IF NOT EXISTS compose_smoke_marker (id serial primary key, created_at timestamptz default now());" \

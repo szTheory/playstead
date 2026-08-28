@@ -99,6 +99,12 @@ ENV MIX_ENV="prod"
 # Only copy the final release from the build stage
 COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/playstead ./
 
+# The named volume mount point for blob storage is created by Docker at
+# container start owned by root:root before the app ever runs as `nobody`;
+# create it here, owned by `nobody`, so the mount point that gets shadowed
+# by the volume is already writable by the runtime user.
+RUN mkdir -p /app/blobs && chown nobody /app/blobs
+
 USER nobody
 
 # If using an environment that doesn't automatically reap zombie processes, it is
