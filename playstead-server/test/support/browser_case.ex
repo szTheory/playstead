@@ -58,6 +58,24 @@ defmodule PlaysteadWeb.BrowserCase do
     |> Browser.visit(path)
     |> assert_has(css("[data-phx-main].phx-connected"))
     |> fonts_ready()
+    |> initial_focus_settled()
+  end
+
+  # `phx-mounted={JS.focus()}` runs on a requestAnimationFrame after the
+  # connected render. Typing before it lands lets it steal focus mid-keystroke
+  # (the rest of the text goes into the newly focused field). Wait for it.
+  defp initial_focus_settled(session) do
+    wait_until(
+      session,
+      fn s ->
+        js(
+          s,
+          "const auto = document.querySelector('[phx-mounted]'); " <>
+            "return !auto || document.activeElement !== document.body;"
+        )
+      end,
+      "the phx-mounted focus to settle"
+    )
   end
 
   @doc """
