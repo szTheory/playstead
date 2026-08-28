@@ -54,13 +54,17 @@ defmodule Playstead.Export.BagitWriter do
       root_sidecar_content = Sidecar.encode(Sidecar.root())
       write_file_durably!(Path.join(target_dir, "playstead-bag.json"), root_sidecar_content)
 
+      readme_content = readme_text()
+      write_file_durably!(Path.join(target_dir, "README.txt"), readme_content)
+
       tagmanifest_content =
         tagmanifest_lines(
           [
             {"bagit.txt", bagit_txt},
             {"bag-info.txt", bag_info_txt},
             {"manifest-sha256.txt", manifest_content},
-            {"playstead-bag.json", root_sidecar_content}
+            {"playstead-bag.json", root_sidecar_content},
+            {"README.txt", readme_content}
           ] ++ tag_entries
         )
 
@@ -75,6 +79,17 @@ defmodule Playstead.Export.BagitWriter do
 
   defp marker_content(%{sets: [%{set_id: set_id}]}), do: set_id
   defp marker_content(_layout), do: "playstead-export"
+
+  # The written material accompanying every export (D-40): read from a
+  # static asset rather than a string literal in this module, so its
+  # exact wording — including the explicit "not a backup" statement —
+  # lives once, in one file, instead of being duplicated (and risking
+  # drift) across every writer.
+  defp readme_text do
+    :playstead
+    |> Application.app_dir("priv/static/export-readme.txt")
+    |> File.read!()
+  end
 
   defp check_target(target_dir) do
     File.mkdir_p!(target_dir)
@@ -143,30 +158,55 @@ defmodule Playstead.Export.BagitWriter do
     end)
   end
 
+  # Resumable by construction (D-36): a file already present at
+  # `dest_path` whose content already re-hashes to `sha256` is left
+  # completely untouched — not opened for writing, not renamed over
+  # itself — so re-running `write_bag/2` against a partially-written
+  # target only rewrites what is actually missing or mismatched.
   defp write_payload!(dest_path, sha256) do
-    File.mkdir_p!(Path.dirname(dest_path))
-    tmp_path = tmp_sibling(dest_path)
+    if matches_hash?(dest_path, sha256) do
+      :ok
+    else
+      File.mkdir_p!(Path.dirname(dest_path))
+      tmp_path = tmp_sibling(dest_path)
 
-    {:ok, stream} = Blobs.stream(sha256)
-    {:ok, io} = File.open(tmp_path, [:write, :binary, :raw])
+      {:ok, stream} = Blobs.stream(sha256)
+      {:ok, io} = File.open(tmp_path, [:write, :binary, :raw])
 
-    Enum.each(stream, fn chunk -> :file.write(io, chunk) end)
+      Enum.each(stream, fn chunk -> :file.write(io, chunk) end)
 
-    :file.sync(io)
-    File.close(io)
-    File.rename!(tmp_path, dest_path)
+      :file.sync(io)
+      File.close(io)
+      File.rename!(tmp_path, dest_path)
+    end
   end
 
+  defp matches_hash?(path, expected_sha256) do
+    case File.read(path) do
+      {:ok, content} ->
+        :crypto.hash(:sha256, content) |> Base.encode16(case: :lower) == expected_sha256
+
+      {:error, _reason} ->
+        false
+    end
+  end
+
+  # Same resume rule as `write_payload!/2`: an already-present tag file
+  # whose bytes already match `content` exactly is left untouched.
   defp write_file_durably!(path, content) do
-    File.mkdir_p!(Path.dirname(path))
-    tmp_path = tmp_sibling(path)
-    File.write!(tmp_path, content)
+    if File.regular?(path) and File.read!(path) == content do
+      :ok
+    else
+      File.mkdir_p!(Path.dirname(path))
+      tmp_path = tmp_sibling(path)
+      File.write!(tmp_path, content)
 
-    {:ok, io} = File.open(tmp_path, [:read, :write])
-    :file.sync(io)
-    File.close(io)
+      {:ok, io} = File.open(tmp_path, [:read, :write])
+      :file.sync(io)
+      File.close(io)
 
-    File.rename!(tmp_path, path)
+      File.rename!(tmp_path, path)
+    end
   end
 
   defp tmp_sibling(path) do

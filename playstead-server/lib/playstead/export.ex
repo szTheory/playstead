@@ -9,8 +9,9 @@ defmodule Playstead.Export do
 
   import Ecto.Query, warn: false
 
+  alias Playstead.AuditLog
   alias Playstead.Catalogue.{AssetMember, AssetSet}
-  alias Playstead.Export.{BagitWriter, Layout, Sanitize}
+  alias Playstead.Export.{BagitWriter, ExportRecord, Layout, Sanitize, Worker}
   alias Playstead.Repo
 
   @doc "The configured export root (D-33's PLAYSTEAD_EXPORT_PATH, never a free-form absolute path)."
@@ -103,5 +104,73 @@ defmodule Playstead.Export do
     from(a in AssetSet, where: a.user_id == ^user_id)
     |> Repo.all()
     |> Repo.preload(asset_members: {from(m in AssetMember, order_by: m.ordinal), [:blob]})
+  end
+
+  @doc "The full filesystem directory `target_name` resolves to under `export_root/0`."
+  @spec target_dir(String.t()) :: String.t()
+  def target_dir(target_name), do: Path.join(export_root(), target_name)
+
+  @doc """
+  Creates a durable export record (D-33, D-38) and enqueues
+  `Playstead.Export.Worker` to write and verify it. Writes an audit
+  entry. `scope` is `:set` (with `asset_set_id`) or `:library`.
+  """
+  @spec create_export(pos_integer(), :set | :library, keyword()) ::
+          {:ok, ExportRecord.t()} | {:error, :invalid_target | Ecto.Changeset.t()}
+  def create_export(user_id, scope, opts) do
+    target_name = Keyword.fetch!(opts, :target_name)
+    asset_set_id = Keyword.get(opts, :asset_set_id)
+
+    with {:ok, _target_dir} <- resolve_target(target_name) do
+      Repo.transaction(fn ->
+        attrs = %{
+          id: Ecto.UUID.generate(),
+          user_id: user_id,
+          scope: to_string(scope),
+          scope_asset_set_id: asset_set_id,
+          target_name: target_name
+        }
+
+        with {:ok, export} <- Repo.insert(ExportRecord.create_changeset(%ExportRecord{}, attrs)),
+             {:ok, _job} <- Worker.enqueue(export.id),
+             {:ok, _entry} <-
+               AuditLog.record(user_id, :export_created, %{
+                 subject: export.id,
+                 scope: to_string(scope)
+               }) do
+          export
+        else
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end)
+    end
+  end
+
+  @doc "Lists `user_id`'s exports, most recently started first."
+  @spec list_exports(pos_integer()) :: [ExportRecord.t()]
+  def list_exports(user_id) do
+    from(e in ExportRecord, where: e.user_id == ^user_id, order_by: [desc: e.inserted_at])
+    |> Repo.all()
+  end
+
+  @doc "Fetches an export strictly scoped to its owning user, or `nil`."
+  @spec get_export(pos_integer(), binary()) :: ExportRecord.t() | nil
+  def get_export(user_id, export_id) do
+    Repo.get_by(ExportRecord, id: export_id, user_id: user_id)
+  end
+
+  @doc "Re-verifies a past export at any time, without rewriting anything."
+  @spec verify_again(pos_integer(), binary()) :: {:ok, ExportRecord.t()} | {:error, :not_found}
+  def verify_again(user_id, export_id), do: Worker.verify_again(user_id, export_id)
+
+  @doc "The manifest file content for `export`, byte-identical to the written file."
+  @spec manifest_content(ExportRecord.t()) :: {:ok, String.t()} | {:error, :not_found}
+  def manifest_content(%ExportRecord{} = export) do
+    path = Path.join(target_dir(export.target_name), "manifest-sha256.txt")
+
+    case File.read(path) do
+      {:ok, content} -> {:ok, content}
+      {:error, _reason} -> {:error, :not_found}
+    end
   end
 end

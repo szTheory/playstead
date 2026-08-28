@@ -26,7 +26,8 @@ defmodule PlaysteadWeb.BrowserScreens do
     :import_sessions,
     :library,
     :library_detail,
-    :attention
+    :attention,
+    :exports
   ]
 
   def screens, do: @screens
@@ -42,6 +43,7 @@ defmodule PlaysteadWeb.BrowserScreens do
   def path(:library), do: "/library"
   def path(:library_detail), do: "/library/:id"
   def path(:attention), do: "/attention"
+  def path(:exports), do: "/exports"
 
   @doc "Console routes that are deliberately NOT screens (no UI-SPEC element)."
   def excluded_paths,
@@ -193,6 +195,17 @@ defmodule PlaysteadWeb.BrowserScreens do
       |> visit_live(path(:attention))
 
     {session, %{user: user}}
+  end
+
+  def open(session, :exports) do
+    {user, receipt} = seed_library_asset()
+
+    session =
+      session
+      |> log_in_via_cookie(user, token_authenticated_at: DateTime.utc_now(:second))
+      |> visit_live(path(:exports))
+
+    {session, %{user: user, receipt: receipt}}
   end
 
   def open(session, :sessions) do

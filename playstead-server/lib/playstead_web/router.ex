@@ -193,6 +193,21 @@ defmodule PlaysteadWeb.Router do
     get "/:sha256", BlobsController, :show
   end
 
+  # D-33: durable exports. Creating an export is mutating and requires
+  # an Idempotency-Key; reading the record or its manifest does not.
+  scope "/api/v1/exports", PlaysteadWeb.Api.V1 do
+    pipe_through [:api, :device_auth, :idempotency]
+
+    post "/", ExportsController, :create
+  end
+
+  scope "/api/v1/exports", PlaysteadWeb.Api.V1 do
+    pipe_through [:api, :device_auth]
+
+    get "/:id", ExportsController, :show
+    get "/:id/manifest", ExportsController, :manifest
+  end
+
   # D-21, PROT-05: the resumable change feed and its transactional
   # snapshot counterpart. Both are read-only — never mutating, never
   # Idempotency-Key gated — so they stay on the plain device_auth
@@ -332,6 +347,16 @@ defmodule PlaysteadWeb.Router do
       on_mount: [{PlaysteadWeb.UserAuth, :mount_current_scope}] do
       live "/library", LibraryLive, :index
       live "/library/:id", LibraryLive, :show
+    end
+  end
+
+  ## Exports console (D-33, D-38, D-40).
+  scope "/", PlaysteadWeb do
+    pipe_through [:browser, :require_authenticated]
+
+    live_session :exports,
+      on_mount: [{PlaysteadWeb.UserAuth, :mount_current_scope}] do
+      live "/exports", ExportsLive, :index
     end
   end
 
