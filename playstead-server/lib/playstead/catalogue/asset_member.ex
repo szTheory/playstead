@@ -8,6 +8,11 @@ defmodule Playstead.Catalogue.AssetMember do
   use Ecto.Schema
   import Ecto.Changeset
 
+  # D-15: the frozen member-role vocabulary. `parent` and multi-disc
+  # `companion` resolution are not proven in this phase but exist in
+  # the vocabulary now so a later phase does not need a schema change.
+  @roles ~w(descriptor track primary disc patch parent companion)
+
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
   schema "asset_members" do
@@ -35,6 +40,8 @@ defmodule Playstead.Catalogue.AssetMember do
       :export_path
     ])
     |> validate_required([:asset_set_id, :ordinal, :role])
+    |> validate_inclusion(:role, @roles)
+    |> unique_constraint([:asset_set_id, :ordinal])
   end
 
   @type t :: %__MODULE__{}

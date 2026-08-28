@@ -47,6 +47,8 @@ defmodule Playstead.Sync.Snapshot do
 
   import Ecto.Query, warn: false
 
+  alias Playstead.Catalogue.AssetSet
+  alias Playstead.Catalogue.Payload, as: CataloguePayload
   alias Playstead.Repo
   alias Playstead.Pairing.Device
   alias Playstead.Sync.{ChangeJournal, Cursor}
@@ -100,7 +102,8 @@ defmodule Playstead.Sync.Snapshot do
           entries: Enum.map(rows, &to_entry_view/1),
           cursor: Cursor.encode(as_of_seq),
           has_more: has_more,
-          next_after_id: next_after_id(rows, has_more)
+          next_after_id: next_after_id(rows, has_more),
+          catalogue: fetch_catalogue(user_id, as_of_time)
         }
       end)
 
@@ -144,6 +147,20 @@ defmodule Playstead.Sync.Snapshot do
     else
       {rows, false}
     end
+  end
+
+  # D-23: the catalogue branch, read from the same transaction as the
+  # device page above so a resuming client sees a catalogue snapshot
+  # and an as-of cursor with no gap and no overlap.
+  defp fetch_catalogue(user_id, as_of_time) do
+    from(a in AssetSet,
+      where: a.user_id == ^user_id,
+      where: a.inserted_at <= ^as_of_time,
+      order_by: [asc: a.id]
+    )
+    |> Repo.all()
+    |> Repo.preload(asset_members: :blob)
+    |> Enum.map(&CataloguePayload.build/1)
   end
 
   defp next_after_id(_rows, false), do: nil

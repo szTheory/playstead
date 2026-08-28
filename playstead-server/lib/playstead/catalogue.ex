@@ -161,4 +161,55 @@ defmodule Playstead.Catalogue do
 
     :crypto.hash(:sha256, canonical) |> Base.encode16(case: :lower)
   end
+
+  @doc """
+  Recomputes `asset_set`'s `member_fingerprint` and `status` from its
+  current members (D-15, D-37) — called inside the same transaction as
+  any membership change, so the fingerprint the reimport identity
+  depends on is never stale. A set is `"complete"` when every required
+  member carries a blob, `"incomplete"` otherwise.
+  """
+  @spec recompute_member_state(AssetSet.t()) :: {:ok, AssetSet.t()} | {:error, term()}
+  def recompute_member_state(%AssetSet{} = asset_set) do
+    rows =
+      from(m in Playstead.Catalogue.AssetMember,
+        left_join: b in Playstead.Blobs.Blob,
+        on: b.id == m.blob_id,
+        where: m.asset_set_id == ^asset_set.id,
+        select: %{role: m.role, sha256: b.sha256, required: m.required}
+      )
+      |> Repo.all()
+
+    fingerprint = member_fingerprint(Enum.map(rows, &Map.take(&1, [:role, :sha256])))
+
+    status =
+      if Enum.all?(rows, &(not &1.required or not is_nil(&1.sha256))),
+        do: "complete",
+        else: "incomplete"
+
+    asset_set
+    |> Ecto.Changeset.change(member_fingerprint: fingerprint, status: status)
+    |> Repo.update()
+  end
+
+  @doc """
+  Excludes `asset_set` (D-27): sets `excluded_at`, then appends a
+  `catalogue` tombstone entry inside the same transaction. Bytes are
+  never touched — exclusion is a visibility change only.
+  """
+  @spec exclude_set(AssetSet.t(), pos_integer()) :: {:ok, AssetSet.t()} | {:error, term()}
+  def exclude_set(%AssetSet{} = asset_set, user_id) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    Repo.transaction(fn ->
+      with {:ok, updated} <-
+             asset_set |> Ecto.Changeset.change(excluded_at: now) |> Repo.update(),
+           {:ok, _entry} <-
+             Playstead.Sync.ChangeJournal.tombstone(user_id, :catalogue, updated.id) do
+        updated
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
 end

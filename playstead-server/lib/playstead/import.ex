@@ -22,10 +22,10 @@ defmodule Playstead.Import do
   alias Playstead.Repo
   alias Playstead.Sync.ChangeJournal
 
-  # D-25: this plan produces a single-member set with one fixed role.
-  # Multi-member sets and role vocabularies beyond this are format
-  # recognition's job (plan 02-03).
-  @tracer_member_role "rom"
+  # D-15: a single-file import is a one-member set whose sole member is
+  # the game's primary content — "primary" is in the frozen role
+  # vocabulary `Playstead.Catalogue.AssetMember` validates against.
+  @tracer_member_role "primary"
 
   @doc """
   Imports one already-committed blob as a source file for `user_id`,
@@ -193,7 +193,7 @@ defmodule Playstead.Import do
     )
   end
 
-  defp insert_receipt(user_id, source_file, asset_set, blob_meta, outcome) do
+  defp insert_receipt(user_id, source_file, asset_set, blob_meta, outcome, reason \\ nil) do
     Repo.insert(
       Receipt.create_changeset(%Receipt{}, %{
         user_id: user_id,
@@ -201,10 +201,251 @@ defmodule Playstead.Import do
         blob_id: blob_meta.blob_id,
         asset_set_id: asset_set && asset_set.id,
         outcome: to_string(outcome),
+        reason: reason,
         sha256: blob_meta.sha256,
         size_bytes: blob_meta.size_bytes
       })
     )
+  end
+
+  @doc """
+  Imports a PSX CUE descriptor and any of its referenced binary
+  companions submitted alongside it, as one ordered multi-file asset
+  set (IMPT-04, D-15). `track_names` is the parsed CUE track table
+  (`Playstead.Formats.Validators.PsxCue`'s `evidence.files`, in
+  declared order); `companions` maps a declared name present in
+  `track_names` to the `{status, blob_meta}` `Playstead.Blobs.put_stream/3`
+  returned for it. A name in `track_names` absent from `companions`
+  becomes a required member with no blob and the whole set's receipt
+  reports `:incomplete_set`, naming the missing member.
+
+  Two concurrent imports of the identical descriptor (same fingerprint
+  because both compute it over the same known bytes and the same
+  still-missing members) converge on one asset set via the same
+  `on_conflict` pattern `import_single/4` uses.
+  """
+  @spec import_descriptor_set(pos_integer(), map(), {:stored | :existing, map()}, [String.t()], %{
+          optional(String.t()) => {:stored | :existing, map()}
+        }) :: {:ok, %{asset_set: AssetSet.t(), receipts: [Receipt.t()]}} | {:error, term()}
+  def import_descriptor_set(
+        user_id,
+        descriptor_attrs,
+        {_status, descriptor_meta},
+        track_names,
+        companions \\ %{}
+      ) do
+    Repo.transaction(fn ->
+      with {:ok, descriptor_source_file} <-
+             insert_source_file(user_id, descriptor_attrs, descriptor_meta),
+           companion_files <- insert_companion_source_files(user_id, companions),
+           asset_set <-
+             find_or_create_descriptor_set(
+               user_id,
+               descriptor_attrs,
+               descriptor_meta,
+               track_names,
+               companion_files
+             ),
+           missing <- Enum.reject(track_names, &Map.has_key?(companion_files, &1)),
+           outcome <- if(missing == [], do: :new_asset, else: :incomplete_set),
+           reason <- if(missing == [], do: nil, else: "missing: " <> Enum.join(missing, ", ")),
+           {:ok, descriptor_receipt} <-
+             insert_receipt(
+               user_id,
+               descriptor_source_file,
+               asset_set,
+               descriptor_meta,
+               outcome,
+               reason
+             ),
+           {:ok, _entry} <- ChangeJournal.append(user_id, :catalogue, asset_set.id, %{}),
+           {:ok, companion_receipts} <-
+             insert_companion_receipts(user_id, asset_set, companion_files) do
+        %{asset_set: asset_set, receipts: [descriptor_receipt | companion_receipts]}
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
+
+  defp insert_companion_source_files(user_id, companions) do
+    Map.new(companions, fn {name, {_status, meta}} ->
+      attrs = %{original_name: name, origin: "upload", size_bytes: meta.size_bytes}
+      {:ok, source_file} = insert_source_file(user_id, attrs, meta)
+      {name, {source_file, meta}}
+    end)
+  end
+
+  defp insert_companion_receipts(user_id, asset_set, companion_files) do
+    receipts =
+      Enum.map(companion_files, fn {_name, {source_file, meta}} ->
+        {:ok, receipt} = insert_receipt(user_id, source_file, asset_set, meta, :new_asset)
+        receipt
+      end)
+
+    {:ok, receipts}
+  end
+
+  defp find_or_create_descriptor_set(
+         user_id,
+         descriptor_attrs,
+         descriptor_meta,
+         track_names,
+         companion_files
+       ) do
+    fingerprint_members =
+      [%{role: "descriptor", sha256: descriptor_meta.sha256}] ++
+        Enum.map(track_names, fn name ->
+          case Map.get(companion_files, name) do
+            {_source_file, meta} -> %{role: "track", sha256: meta.sha256}
+            nil -> %{role: "track", sha256: nil}
+          end
+        end)
+
+    fingerprint = Catalogue.member_fingerprint(fingerprint_members)
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    {display_title, title_source, _tags} =
+      Catalogue.display_title(descriptor_attrs[:original_name])
+
+    status = if track_names -- Map.keys(companion_files) == [], do: "complete", else: "incomplete"
+
+    attrs = %{
+      id: Ecto.UUID.generate(),
+      user_id: user_id,
+      member_fingerprint: fingerprint,
+      display_title: display_title,
+      title_source: to_string(title_source),
+      system_id: "psx",
+      system_source: "extension",
+      status: status,
+      inserted_at: now,
+      updated_at: now
+    }
+
+    {count, _} =
+      Repo.insert_all(AssetSet, [attrs],
+        on_conflict: :nothing,
+        conflict_target: [:user_id, :member_fingerprint]
+      )
+
+    asset_set = Repo.get_by!(AssetSet, user_id: user_id, member_fingerprint: fingerprint)
+
+    if count == 1 do
+      insert_descriptor_members(
+        asset_set,
+        descriptor_attrs,
+        descriptor_meta,
+        track_names,
+        companion_files
+      )
+    end
+
+    asset_set
+  end
+
+  defp insert_descriptor_members(
+         asset_set,
+         descriptor_attrs,
+         descriptor_meta,
+         track_names,
+         companion_files
+       ) do
+    Repo.insert!(
+      AssetMember.create_changeset(%AssetMember{}, %{
+        asset_set_id: asset_set.id,
+        ordinal: 0,
+        role: "descriptor",
+        required: true,
+        blob_id: descriptor_meta.blob_id,
+        declared_name: descriptor_attrs[:original_name]
+      })
+    )
+
+    track_names
+    |> Enum.with_index(1)
+    |> Enum.each(fn {name, ordinal} ->
+      blob_id =
+        case Map.get(companion_files, name) do
+          {_source_file, meta} -> meta.blob_id
+          nil -> nil
+        end
+
+      Repo.insert!(
+        AssetMember.create_changeset(%AssetMember{}, %{
+          asset_set_id: asset_set.id,
+          ordinal: ordinal,
+          role: "track",
+          required: true,
+          blob_id: blob_id,
+          declared_name: name
+        })
+      )
+    end)
+  end
+
+  @doc """
+  Attaches a previously-missing companion to whichever of `user_id`'s
+  incomplete asset sets has a required member named `declared_name`
+  with no blob yet (D-15). Uses a guarded `UPDATE ... WHERE blob_id IS
+  NULL` as its collision authority rather than a read-then-write check,
+  so two concurrent attach attempts for the same member converge on
+  one row: the loser's guarded update affects zero rows, and if the
+  bytes it was attaching are the same ones the winner already attached,
+  it reports success without creating a second row. Recomputes the
+  set's member fingerprint and status inside the same transaction.
+  """
+  @spec attach_companion(pos_integer(), String.t(), map(), {:stored | :existing, map()}) ::
+          {:ok, Receipt.t()} | {:error, term()}
+  def attach_companion(user_id, declared_name, source_file_attrs, {_status, meta}) do
+    Repo.transaction(fn ->
+      with {:ok, source_file} <- insert_source_file(user_id, source_file_attrs, meta),
+           {:ok, member} <- find_and_attach_member(user_id, declared_name, meta),
+           asset_set <- Repo.get!(AssetSet, member.asset_set_id),
+           {:ok, updated_set} <- Catalogue.recompute_member_state(asset_set),
+           {:ok, receipt} <- insert_receipt(user_id, source_file, updated_set, meta, :new_asset),
+           {:ok, _entry} <- ChangeJournal.append(user_id, :catalogue, updated_set.id, %{}) do
+        receipt
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
+
+  defp find_and_attach_member(user_id, declared_name, meta) do
+    query =
+      from(m in AssetMember,
+        join: s in AssetSet,
+        on: s.id == m.asset_set_id,
+        where: s.user_id == ^user_id and m.declared_name == ^declared_name and is_nil(m.blob_id),
+        select: m
+      )
+
+    case Repo.one(query) do
+      nil ->
+        {:error, :no_matching_incomplete_member}
+
+      member ->
+        now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+        {affected, _} =
+          Repo.update_all(
+            from(m in AssetMember, where: m.id == ^member.id and is_nil(m.blob_id)),
+            set: [blob_id: meta.blob_id, updated_at: now]
+          )
+
+        if affected == 1 do
+          {:ok, %{member | blob_id: meta.blob_id}}
+        else
+          current = Repo.get!(AssetMember, member.id)
+
+          if current.blob_id == meta.blob_id do
+            {:ok, current}
+          else
+            {:error, :already_attached_different_blob}
+          end
+        end
+    end
   end
 
   @doc """
