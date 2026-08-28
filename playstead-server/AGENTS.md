@@ -162,6 +162,51 @@ Controllers automatically have the `current_scope` available if they use the `:b
       assert_receive {:DOWN, ^ref, :process, ^pid, :normal}
 
    - Instead of sleeping to synchronize before the next call, **always** use `_ = :sys.get_state/1` to ensure the process has handled prior messages
+
+## Playstead verification contract (no human UAT)
+
+Every deliverable must be deterministically covered by an automated test.
+A `coverage:` entry in a plan SUMMARY may not carry `human_judgment: true`
+unless it links the gap that will automate it — the end-of-phase
+`/gsd-verify-work` pass is expected to produce zero human checkpoints.
+
+- `mix precommit` is the single gate (warnings-as-errors, `format
+  --check-formatted`, full `mix test`). CI (`.github/workflows/ci.yml`) runs
+  exactly that on every push/PR; the docker cold-start smoke runs on `main`
+  and on PRs touching the deployment surface.
+- **Browser contract suite** (`test/playstead_web/browser/`, `@moduletag
+  :browser`, Wallaby + headless Chrome) proves the UI-SPEC on the *rendered*
+  page: palette and its exclusivity rules, loaded webfonts, size/weight
+  budget, the 40px display code, 44px icon targets + exact `aria-label`s,
+  initial focus, no horizontal scroll at 1280/390, the element × state
+  matrix (incl. the spec's backstops), the copywriting contract, and the
+  end-to-end journeys. It runs inside `mix test` whenever `chromedriver` is
+  on PATH (`brew install --cask chromedriver`, then
+  `xattr -d com.apple.quarantine /opt/homebrew/bin/chromedriver` on macOS;
+  `WALLABY_CHROME_BINARY` overrides the Chrome binary). Without it the
+  suite is skipped with a notice — never silently.
+- Browser tests: `use PlaysteadWeb.BrowserCase, async: false`, write with
+  `feature`, land on LiveViews with `visit_live/2` (waits for
+  `phx-connected` + fonts), assert disappearance with `assert_gone/2`
+  (Wallaby's `refute_has` retries until the element *appears*), drive time
+  through fixtures (`expires_at`, `token_authenticated_at`), and never
+  `Process.sleep`. New console screens must be added to
+  `PlaysteadWeb.BrowserScreens` — `coherence_test` fails otherwise.
+- `mix test` runs `assets.build` first so the browser sees the CSS/JS of the
+  code under test.
+- Environment-dependent behaviour (`PLAYSTEAD_PROXY`, `PLAYSTEAD_DOMAIN`,
+  `PLAYSTEAD_CADDY_CA_PATH`, `PLAYSTEAD_BLOB_PATH`) flows through
+  `Playstead.TlsTrust.runtime_env/0`: pure functions take an env map (tests
+  pass one and stay `async: true`); LiveView-driven tests inject
+  `config :playstead, :env_overrides` via `Playstead.TlsFixtures.put_env_overrides!/1`
+  from an `async: false` module. **Never** `System.put_env/2` in an async test.
+- Real-concurrency properties live in `async: false` modules that switch
+  the sandbox to `:auto` (see `Playstead.Sync.SnapshotConcurrencyTest`) and
+  truncate what they wrote.
+- Deployment: `scripts/compose-smoke.sh` (warm) and `--fresh` (cold start,
+  destroys volumes — refused without `CI=true`/`SMOKE_ALLOW_FRESH=1`; use
+  `COMPOSE_PROJECT_NAME=playstead-smoke-ci` locally so only throwaway
+  volumes are touched).
 <!-- phoenix:elixir-end -->
 
 <!-- phoenix:phoenix-start -->

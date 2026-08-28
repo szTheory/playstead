@@ -1,0 +1,145 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: playstead-server
+
+jobs:
+  # Every push and PR: the same gate as `mix precommit` locally — compile
+  # with warnings as errors, formatting, and the full test suite including
+  # the headless-Chrome browser contract suite and the real-transaction
+  # sync tests. ~3-4 minutes.
+  test:
+    name: mix precommit (unit + LiveView + browser + integration)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17.2
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: playstead_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      MIX_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        with:
+          version-file: playstead-server/.tool-versions
+          version-type: strict
+
+      - id: chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+          install-chromedriver: true
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            playstead-server/deps
+            playstead-server/_build
+          key: mix-${{ runner.os }}-${{ hashFiles('playstead-server/.tool-versions') }}-${{ hashFiles('playstead-server/mix.lock') }}
+          restore-keys: |
+            mix-${{ runner.os }}-${{ hashFiles('playstead-server/.tool-versions') }}-
+
+      - run: mix deps.get
+      - run: mix assets.setup
+
+      - run: mix precommit
+        env:
+          WALLABY_CHROME_BINARY: ${{ steps.chrome.outputs.chrome-path }}
+
+      - name: Upload browser failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wallaby-screenshots
+          path: playstead-server/tmp/wallaby_screenshots
+          if-no-files-found: ignore
+
+      - name: Working tree is clean after the build
+        run: |
+          git status --porcelain
+          test -z "$(git status --porcelain)"
+
+  # Cold-start deployment proof (docker build + compose up from destroyed
+  # volumes + restart). It is slow (~5 min) and only changes when the
+  # deployment surface does, so it runs on main and on PRs that touch it.
+  # This path has already caught two real Dockerfile regressions.
+  compose-smoke:
+    name: docker compose cold start
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            infra:
+              - 'playstead-server/Dockerfile'
+              - 'playstead-server/docker-compose.yml'
+              - 'playstead-server/docker-compose.ci.yml'
+              - 'playstead-server/Caddyfile'
+              - 'playstead-server/mix.lock'
+              - 'playstead-server/rel/**'
+              - 'playstead-server/config/**'
+              - 'playstead-server/scripts/**'
+              - 'playstead-server/priv/repo/migrations/**'
+              - '.github/workflows/ci.yml'
+
+      - if: github.ref == 'refs/heads/main' || steps.changes.outputs.infra == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - if: github.ref == 'refs/heads/main' || steps.changes.outputs.infra == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: playstead-server
+          load: true
+          tags: playstead-app:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - if: github.ref == 'refs/heads/main' || steps.changes.outputs.infra == 'true'
+        name: Cold-start smoke (fresh volumes, restart, volume survival)
+        env:
+          CI: "true"
+          COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
+          PLAYSTEAD_HTTP_PORT: "8080"
+          PLAYSTEAD_HTTPS_PORT: "8443"
+        run: |
+          # A throwaway .env with real (non-placeholder) secrets: the release
+          # refuses to boot on the .env.example placeholders by design.
+          POSTGRES_PASSWORD="ci-$(openssl rand -hex 12)"
+          cat > .env <<ENV
+          POSTGRES_USER=playstead
+          POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+          POSTGRES_DB=playstead
+          DATABASE_URL=ecto://playstead:${POSTGRES_PASSWORD}@db/playstead
+          SECRET_KEY_BASE=$(openssl rand -base64 64 | tr -d '\n')
+          PHX_HOST=localhost
+          PLAYSTEAD_SETUP_TOKEN=
+          ENV
+          bash scripts/compose-smoke.sh --fresh

@@ -1,0 +1,7 @@
+# CI override: run the compose smoke against the image the workflow just
+# built (with the GitHub Actions layer cache) instead of rebuilding.
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.ci.yml scripts/compose-smoke.sh --fresh
+services:
+  app:
+    image: ${PLAYSTEAD_APP_IMAGE:-playstead-app:ci}
+    build: !reset null

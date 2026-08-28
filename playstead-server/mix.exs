@@ -100,7 +100,15 @@ defmodule Playstead.MixProject do
         "esbuild playstead --minify",
         "phx.digest"
       ],
-      precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"]
+      # The single gate, locally and in CI: warnings are errors, formatting is
+      # checked (not rewritten), and `test` covers unit, LiveView, browser
+      # (when chromedriver is present) and real-transaction suites.
+      precommit: [
+        "compile --warnings-as-errors",
+        "deps.unlock --unused",
+        "format --check-formatted",
+        "test"
+      ]
     ]
   end
 end

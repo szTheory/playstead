@@ -4,6 +4,17 @@
 # /healthz and /api/v1/capabilities through Caddy, restarts the stack,
 # and re-asserts that the playstead_db volume still holds data.
 #
+# `--fresh` turns this into the cold-start test (UAT "Cold Start Smoke
+# Test"): the named volumes are destroyed first, so the run proves a
+# from-scratch boot — migrations at boot, the single-use setup token
+# printed to the app's stdout, /setup open before and after a restart.
+# Because `docker compose down -v` destroys a real library, `--fresh` is
+# refused unless CI=true or SMOKE_ALLOW_FRESH=1 is set.
+#
+# Env: PLAYSTEAD_HTTP_PORT / PLAYSTEAD_HTTPS_PORT (host ports), SMOKE_TIMEOUT,
+# COMPOSE_FILE (e.g. "docker-compose.yml:docker-compose.ci.yml" to reuse a
+# prebuilt image), POSTGRES_USER / POSTGRES_DB.
+#
 # Exits non-zero on any failure. Run from playstead-server/.
 set -euo pipefail
 
@@ -14,6 +25,25 @@ TIMEOUT_SECS="${SMOKE_TIMEOUT:-120}"
 INTERVAL_SECS=3
 HTTPS_PORT="${PLAYSTEAD_HTTPS_PORT:-443}"
 BASE_URL="https://localhost:${HTTPS_PORT}"
+FRESH=0
+
+for arg in "$@"; do
+  case "$arg" in
+    --fresh) FRESH=1 ;;
+    *) echo "usage: $0 [--fresh]" >&2; exit 2 ;;
+  esac
+done
+
+if [ "$FRESH" = "1" ] && [ "${CI:-}" != "true" ] && [ "${SMOKE_ALLOW_FRESH:-}" != "1" ]; then
+  echo "[compose-smoke] REFUSED: --fresh runs 'docker compose down -v', which destroys the" >&2
+  echo "[compose-smoke] playstead_db and playstead_blobs volumes — THIS IS YOUR LIBRARY." >&2
+  echo "[compose-smoke] Set SMOKE_ALLOW_FRESH=1 (or CI=true) if this really is a throwaway stack." >&2
+  exit 2
+fi
+
+if [ "${CI:-}" = "true" ]; then
+  trap 'status=$?; if [ $status -ne 0 ]; then docker compose logs --no-color || true; fi; docker compose down --remove-orphans || true' EXIT
+fi
 
 log() {
   echo "[compose-smoke] $*"
@@ -48,10 +78,19 @@ wait_for_healthy() {
   done
 }
 
+# Caddy reports healthy the moment its process is up, a beat before it
+# accepts TLS connections; retry briefly instead of failing on that race.
 curl_ok() {
   local url="$1"
-  local status
-  status=$(curl -k -s -o /dev/null -w '%{http_code}' "$url") || fail "curl to $url failed"
+  local status="000"
+  local attempt=0
+
+  while [ "$attempt" -lt 10 ]; do
+    status=$(curl -k -s -o /dev/null -w '%{http_code}' "$url" || echo "000")
+    [ "$status" = "200" ] && break
+    attempt=$((attempt + 1))
+    sleep 1
+  done
 
   if [ "$status" != "200" ]; then
     fail "$url returned status $status, expected 200"
@@ -60,6 +99,27 @@ curl_ok() {
   log "$url -> 200"
 }
 
+assert_setup_token_banner() {
+  # A fresh install (no owner) prints exactly one single-use setup token to
+  # the app's stdout at boot; the wizard at /setup must be open.
+  local token
+  token=$($COMPOSE logs --no-color app 2>/dev/null \
+    | sed -n '/Playstead setup token (use once, in the setup wizard at \/setup):/{n;n;p;}' \
+    | tr -d ' \r' | head -1)
+
+  if [ -z "$token" ] || [ "${#token}" -lt 32 ]; then
+    fail "expected the single-use setup token banner in 'docker compose logs app' on a fresh install"
+  fi
+
+  log "setup token banner present (${#token} chars)"
+  curl_ok "${BASE_URL}/setup"
+}
+
+if [ "$FRESH" = "1" ]; then
+  log "--fresh: destroying named volumes for a true cold start"
+  $COMPOSE down -v --remove-orphans
+fi
+
 log "bringing the stack up"
 $COMPOSE up -d
 
@@ -67,6 +127,10 @@ wait_for_healthy
 
 curl_ok "${BASE_URL}/healthz"
 curl_ok "${BASE_URL}/api/v1/capabilities"
+
+if [ "$FRESH" = "1" ]; then
+  assert_setup_token_banner
+fi
 
 log "asserting /app/blobs is writable by the app container's runtime user"
 $COMPOSE exec -T app sh -c 'touch /app/blobs/.smoke-write-test && rm /app/blobs/.smoke-write-test' \
@@ -97,4 +161,11 @@ if [ "${MARKER_COUNT:-0}" -lt 1 ]; then
 fi
 
 log "playstead_db volume survived restart with $MARKER_COUNT marker row(s)"
+
+if [ "$FRESH" = "1" ]; then
+  # No owner was ever created, so the wizard must still be open after the
+  # restart (re-minting the setup token at boot must not have broken boot).
+  curl_ok "${BASE_URL}/setup"
+fi
+
 log "SUCCESS"
