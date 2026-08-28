@@ -39,7 +39,10 @@ config :playstead, Oban,
   engine: Oban.Engines.Basic,
   notifier: Oban.Notifiers.Postgres,
   repo: Playstead.Repo,
-  queues: [default: 10],
+  # D-05/D-06: the import session queue is concurrency 1 and jobs are
+  # unique per session id -- one job per session, never per-file
+  # fan-out, so pausing one user's session can never touch another's.
+  queues: [default: 10, import: 1],
   plugins: [
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
     # D-12: housekeeping-only sweep of stale pending pairing requests.

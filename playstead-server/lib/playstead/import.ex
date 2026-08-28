@@ -18,7 +18,7 @@ defmodule Playstead.Import do
   alias Playstead.Catalogue
   alias Playstead.Catalogue.{AssetMember, AssetSet}
   alias Playstead.Formats
-  alias Playstead.Import.{Outcome, Receipt, SourceFile}
+  alias Playstead.Import.{Outcome, Receipt, Session, SessionWorker, SourceFile}
   alias Playstead.Recognition
   alias Playstead.Repo
   alias Playstead.Sync.ChangeJournal
@@ -511,6 +511,249 @@ defmodule Playstead.Import do
 
   @doc "The frozen outcome-code module, re-exported for callers that only need `Playstead.Import`."
   defdelegate outcome_codes(), to: Outcome, as: :all
+
+  # --- session import (plan 02-05, D-05, D-06, D-08) --------------------
+
+  @doc """
+  Completes a source-file row already inserted at staging time (task 1)
+  — the session worker's per-file commit path. Unlike `import_single/4`,
+  no new `source_files` row is created; the existing staged row is
+  updated in place with `store_result`'s blob id, in the same
+  transaction as the asset-set/receipt/change-journal writes.
+  """
+  @spec complete_staged_file(pos_integer(), SourceFile.t(), {:stored | :existing, map()}, keyword()) ::
+          {:ok, Receipt.t()} | {:error, term()}
+  def complete_staged_file(user_id, %SourceFile{} = source_file, {_status, blob_meta}, opts \\ []) do
+    format_bytes = Keyword.get(opts, :format_bytes)
+    format_result = identify_format(format_bytes, source_file.original_name)
+
+    Repo.transaction(fn ->
+      with {:ok, source_file} <-
+             Repo.update(SourceFile.complete_changeset(source_file, blob_meta.blob_id)),
+           recognition_facts <- %{
+             blob_id: blob_meta.blob_id,
+             sha256: blob_meta.sha256,
+             bytes: format_bytes,
+             exclude_source_file_id: source_file.id
+           },
+           {recognition_result, _evidence} <-
+             Recognition.recognize_and_record(user_id, recognition_facts, format_result),
+           outcome <-
+             determine_outcome(user_id, blob_meta.blob_id, source_file.origin, recognition_result),
+           {:ok, asset_set} <-
+             find_or_create_asset_set(
+               user_id,
+               blob_meta,
+               %{original_name: source_file.original_name},
+               format_result
+             ),
+           {:ok, receipt} <- insert_receipt(user_id, source_file, asset_set, blob_meta, outcome),
+           {:ok, _entry} <- ChangeJournal.append(user_id, :catalogue, receipt.id, %{}) do
+        receipt
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
+
+  @doc """
+  Records a session file that could not be safely copied — a disk-full
+  condition (the whole session pauses rather than continuing into
+  thousands of failures) or an I/O error reading the source — as a
+  `:failed_safely` receipt, and marks the row `"failed"`.
+  """
+  @spec record_failed_file(pos_integer(), SourceFile.t(), String.t()) ::
+          {:ok, Receipt.t()} | {:error, term()}
+  def record_failed_file(user_id, %SourceFile{} = source_file, reason) do
+    Repo.transaction(fn ->
+      with {:ok, source_file} <-
+             Repo.update(SourceFile.staging_state_changeset(source_file, "failed", reason)),
+           {:ok, receipt} <-
+             insert_receipt(
+               user_id,
+               source_file,
+               nil,
+               %{blob_id: nil, sha256: nil, size_bytes: source_file.size_bytes},
+               :failed_safely,
+               reason
+             ) do
+        receipt
+      else
+        {:error, changeset} -> Repo.rollback(changeset)
+      end
+    end)
+  end
+
+  @doc "Fetches a session strictly scoped to its owning user (D-13/T-02-38), or `nil`."
+  @spec get_owned_session(pos_integer(), String.t()) :: Session.t() | nil
+  def get_owned_session(user_id, session_id) do
+    Repo.get_by(Session, id: session_id, user_id: user_id)
+  end
+
+  @doc "Starts (or restarts) processing a staged session — enqueues the unique per-session job."
+  @spec start_session(pos_integer(), String.t()) :: {:ok, Oban.Job.t()} | {:error, :not_found}
+  def start_session(user_id, session_id) do
+    case get_owned_session(user_id, session_id) do
+      nil ->
+        {:error, :not_found}
+
+      session ->
+        session |> Session.control_changeset("run") |> Repo.update!()
+        SessionWorker.enqueue(session_id, "run")
+    end
+  end
+
+  @doc """
+  Requests a cooperative pause (D-06). The control decision lives on
+  the session row and is re-read by the worker between files — it is
+  never the global Oban queue pause, which would freeze every other
+  session sharing the queue.
+  """
+  @spec pause_session(pos_integer(), String.t()) :: {:ok, Session.t()} | {:error, :not_found}
+  def pause_session(user_id, session_id) do
+    case get_owned_session(user_id, session_id) do
+      nil -> {:error, :not_found}
+      session -> session |> Session.control_changeset("pause") |> Repo.update()
+    end
+  end
+
+  @doc "Resumes a paused session by re-enqueuing the same unique per-session job."
+  @spec resume_session(pos_integer(), String.t()) :: {:ok, Session.t()} | {:error, :not_found}
+  def resume_session(user_id, session_id) do
+    case get_owned_session(user_id, session_id) do
+      nil ->
+        {:error, :not_found}
+
+      session ->
+        {:ok, session} = session |> Session.control_changeset("run") |> Repo.update()
+        SessionWorker.enqueue(session_id, "run")
+        {:ok, session}
+    end
+  end
+
+  @doc """
+  Re-queues only the rows whose last attempt failed and are still under
+  the bounded retry limit, then re-enqueues the session job.
+  """
+  @spec retry_failed(pos_integer(), String.t()) :: {:ok, Session.t()} | {:error, :not_found}
+  def retry_failed(user_id, session_id) do
+    case get_owned_session(user_id, session_id) do
+      nil ->
+        {:error, :not_found}
+
+      session ->
+        requeue_failed_rows(session_id)
+        {:ok, session} = session |> Session.control_changeset("run") |> Repo.update()
+        SessionWorker.enqueue(session_id, "run")
+        {:ok, session}
+    end
+  end
+
+  defp requeue_failed_rows(session_id) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    from(sf in SourceFile,
+      where:
+        sf.import_session_id == ^session_id and sf.staging_state == "failed" and
+          sf.attempt_count < 3
+    )
+    |> Repo.update_all(set: [staging_state: "pending", updated_at: now])
+  end
+
+  @doc """
+  Cancels a session (D-07): keeps every copy already made, marks the
+  remaining rows skipped, and records an audit entry. Applied
+  immediately when no job is currently running; otherwise requests the
+  cooperative control the running worker honours between files.
+  """
+  @spec cancel_session(pos_integer(), String.t()) :: {:ok, Session.t()} | {:error, :not_found}
+  def cancel_session(user_id, session_id) do
+    case get_owned_session(user_id, session_id) do
+      nil ->
+        {:error, :not_found}
+
+      %Session{state: "running"} = session ->
+        session |> Session.control_changeset("cancel") |> Repo.update()
+
+      session ->
+        SessionWorker.apply_cancel(session)
+    end
+  end
+
+  @doc "The session's current requested control value."
+  @spec control(Session.t()) :: String.t()
+  def control(%Session{requested_control: control}), do: control
+
+  @doc "Lists `user_id`'s import sessions, most recently updated first."
+  @spec list_sessions(pos_integer()) :: [Session.t()]
+  def list_sessions(user_id) do
+    from(s in Session, where: s.user_id == ^user_id, order_by: [desc: s.updated_at])
+    |> Repo.all()
+  end
+
+  @doc """
+  Cursor-paginated receipts for one session (D-13/T-02-38), ordered by
+  insertion timestamp with the row id as a deterministic tiebreak so
+  two receipts written in the same microsecond still have exactly one
+  correct order.
+  """
+  @spec list_session_receipts(pos_integer(), String.t(), keyword()) :: %{
+          entries: [Receipt.t()],
+          next_cursor: String.t() | nil
+        }
+  def list_session_receipts(user_id, session_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 100)
+    after_cursor = Keyword.get(opts, :after_cursor)
+
+    base =
+      from(r in Receipt,
+        join: sf in SourceFile,
+        on: sf.id == r.source_file_id,
+        where: r.user_id == ^user_id and sf.import_session_id == ^session_id,
+        order_by: [asc: r.inserted_at, asc: r.id],
+        limit: ^(limit + 1)
+      )
+
+    query =
+      case decode_receipt_cursor(after_cursor) do
+        {:ok, {inserted_at, id}} ->
+          from(r in base,
+            where: r.inserted_at > ^inserted_at or (r.inserted_at == ^inserted_at and r.id > ^id)
+          )
+
+        :error ->
+          base
+      end
+
+    rows = Repo.all(query)
+    {page, has_more} = if length(rows) > limit, do: {Enum.take(rows, limit), true}, else: {rows, false}
+
+    next_cursor =
+      if has_more do
+        last = List.last(page)
+        encode_receipt_cursor(last.inserted_at, last.id)
+      else
+        nil
+      end
+
+    %{entries: page, next_cursor: next_cursor}
+  end
+
+  defp encode_receipt_cursor(inserted_at, id) do
+    Base.url_encode64("#{DateTime.to_iso8601(inserted_at)}|#{id}", padding: false)
+  end
+
+  defp decode_receipt_cursor(nil), do: :error
+
+  defp decode_receipt_cursor(cursor) do
+    with {:ok, decoded} <- Base.url_decode64(cursor, padding: false),
+         [iso, id] <- String.split(decoded, "|", parts: 2),
+         {:ok, inserted_at, _offset} <- DateTime.from_iso8601(iso) do
+      {:ok, {inserted_at, id}}
+    else
+      _ -> :error
+    end
+  end
 
   @doc """
   Reads a bag directory's `manifest-sha256.txt` and imports every listed

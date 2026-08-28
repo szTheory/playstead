@@ -81,6 +81,11 @@ defmodule Playstead.Import.SourceFile do
   end
 
   @doc false
+  def complete_changeset(source_file, blob_id) do
+    change(source_file, blob_id: blob_id, staging_state: "completed")
+  end
+
+  @doc false
   def increment_attempt_changeset(source_file) do
     change(source_file, attempt_count: source_file.attempt_count + 1)
   end
