@@ -70,7 +70,7 @@ defmodule PlaysteadWeb.UserAuth do
     conn
     |> renew_session(nil)
     |> delete_resp_cookie(@remember_me_cookie, @remember_me_options)
-    |> redirect(to: ~p"/")
+    |> redirect(to: ~p"/log-in")
   end
 
   @doc """
@@ -318,7 +318,7 @@ defmodule PlaysteadWeb.UserAuth do
   end
 
   @doc "Returns the path to redirect to after log in."
-  def signed_in_path(_conn), do: ~p"/"
+  def signed_in_path(_conn), do: ~p"/devices"
 
   @doc """
   Plug for routes that require the user to be authenticated.

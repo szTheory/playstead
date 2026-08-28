@@ -25,7 +25,7 @@ defmodule PlaysteadWeb.BrowserCase do
       use Wallaby.Feature
       use PlaysteadWeb, :verified_routes
 
-      import Wallaby.Query
+      import Wallaby.Query, except: [text: 1, text: 2]
       import PlaysteadWeb.BrowserCase
       import Playstead.AccountsFixtures
       import Playstead.PairingFixtures
@@ -58,6 +58,15 @@ defmodule PlaysteadWeb.BrowserCase do
     |> Browser.visit(path)
     |> assert_has(css("[data-phx-main].phx-connected"))
     |> fonts_ready()
+  end
+
+  @doc """
+  Wait (retrying) until nothing matches `query`. Wallaby's `refute_has/2`
+  retries until the element *appears* — the inverse of what a post-mutation
+  check needs — so every "it went away" assertion in this suite uses this.
+  """
+  def assert_gone(session, %Wallaby.Query{} = query) do
+    assert_has(session, %{query | conditions: Keyword.put(query.conditions, :count, 0)})
   end
 
   @doc "Wait for `document.fonts.ready` (see app.js)."
@@ -108,8 +117,8 @@ defmodule PlaysteadWeb.BrowserCase do
   def log_in_via_browser(session, email, password) do
     session
     |> visit_live("/log-in")
-    |> Browser.fill_in(css("#user_email"), with: email)
-    |> Browser.fill_in(css("#user_password"), with: password)
+    |> Browser.fill_in(css("#login_form_email"), with: email)
+    |> Browser.fill_in(css("#login_form_password"), with: password)
     |> Browser.click(css("#login_submit"))
   end
 
@@ -167,28 +176,47 @@ defmodule PlaysteadWeb.BrowserCase do
     )
   end
 
-  @style_walk """
-  const ctx = document.createElement('canvas').getContext('2d');
-  // Canvas fillStyle round-trips any CSS color (incl. Tailwind v4's
-  // color-mix()/oklab output for opacity modifiers) to #rrggbb or rgba().
-  const norm = (v) => { ctx.fillStyle = '#000'; ctx.fillStyle = v; return ctx.fillStyle; };
-  const describe = (e) => e.id ? '#' + e.id : e.tagName.toLowerCase() + (e.className && typeof e.className === 'string' ? '.' + e.className.trim().split(/\\s+/).slice(0, 3).join('.') : '');
-  return Array.from(document.querySelectorAll(arguments[0]))
-    .filter(e => e.getClientRects().length > 0)
-    .map(e => {
-      const s = getComputedStyle(e);
-      const ownText = Array.from(e.childNodes).some(n => n.nodeType === 3 && n.textContent.trim() !== '');
-      return {
-        sel: describe(e), tag: e.tagName.toLowerCase(), id: e.id || null,
-        color: norm(s.color), bg: norm(s.backgroundColor),
-        border: norm(s.borderTopColor), outline: norm(s.outlineColor),
-        borderWidth: s.borderTopWidth, outlineWidth: s.outlineWidth,
-        fontSize: s.fontSize, fontWeight: s.fontWeight, fontFamily: s.fontFamily,
-        letterSpacing: s.letterSpacing, lineHeight: s.lineHeight,
-        ownText: ownText, text: (e.innerText || '').trim().slice(0, 60)
-      };
-    });
+  # Any CSS color (incl. Tailwind v4's color-mix()/oklab output for opacity
+  # modifiers) is rasterised into one canvas pixel and read back as sRGB
+  # RGBA — the only serialisation that is stable across color spaces.
+  @norm_js """
+  const cv = document.createElement('canvas'); cv.width = 1; cv.height = 1;
+  const ctx = cv.getContext('2d', {willReadFrequently: true});
+  const norm = (v) => {
+    ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = '#000000'; ctx.fillStyle = v;
+    ctx.fillRect(0, 0, 1, 1);
+    const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+    return 'rgba(' + r + ', ' + g + ', ' + b + ', ' + (a / 255).toFixed(3) + ')';
+  };
   """
+
+  @style_walk @norm_js <>
+                """
+                const describe = (e) => e.id ? '#' + e.id : e.tagName.toLowerCase() + (e.className && typeof e.className === 'string' ? '.' + e.className.trim().split(/\\s+/).slice(0, 3).join('.') : '');
+                return Array.from(document.querySelectorAll(arguments[0]))
+                  .filter(e => e.getClientRects().length > 0)
+                  .map(e => {
+                    const s = getComputedStyle(e);
+                    const ownText = Array.from(e.childNodes).some(n => n.nodeType === 3 && n.textContent.trim() !== '');
+                    const idHost = e.closest('[id]');
+                    const stateHost = e.closest('[data-state]');
+                    const roleHost = e.closest('[data-role]');
+                    return {
+                      sel: describe(e), tag: e.tagName.toLowerCase(), id: e.id || null,
+                      closestId: idHost ? idHost.id : null,
+                      dataRole: roleHost ? roleHost.dataset.role : null,
+                      closestState: stateHost ? stateHost.dataset.state : null,
+                      focused: document.activeElement === e,
+                      color: norm(s.color), bg: norm(s.backgroundColor),
+                      border: norm(s.borderTopColor), outline: norm(s.outlineColor),
+                      borderWidth: s.borderTopWidth, borderStyle: s.borderTopStyle,
+                      outlineWidth: s.outlineWidth, outlineStyle: s.outlineStyle,
+                      fontSize: s.fontSize, fontWeight: s.fontWeight, fontFamily: s.fontFamily,
+                      letterSpacing: s.letterSpacing, lineHeight: s.lineHeight,
+                      ownText: ownText, text: (e.innerText || '').trim().slice(0, 60)
+                    };
+                  });
+                """
 
   @doc """
   Every visible element under `scope` with its normalized computed colors
@@ -220,6 +248,10 @@ defmodule PlaysteadWeb.BrowserCase do
       "#{family} to load"
     )
   end
+
+  @doc "Normalise any CSS color string to `rgba(r, g, b, a)` through the canvas."
+  def normalize_color(session, color),
+    do: js(session, @norm_js <> "return norm(arguments[0]);", [color])
 
   @doc "The document's FontFace list as `[family, weight, status]` triples."
   def font_faces(session) do
@@ -315,10 +347,16 @@ defmodule PlaysteadWeb.BrowserCase do
     match?({_, _, _, a} when a < 0.01, parse_color(color))
   end
 
-  @doc "True when `color`'s RGB is within ±`tolerance` per channel of a palette hex."
-  def same_color?(color, "#" <> _ = hex, tolerance \\ 1) do
-    {r1, g1, b1, _} = parse_color(color)
+  @doc """
+  True when `color`'s RGB is within tolerance of a palette hex. Opaque colors
+  must match within ±1 per channel; translucent ones (opacity modifiers such
+  as `/40`) are read back from premultiplied canvas bytes, so the tolerance
+  widens with transparency (≤ ±8 at 10% alpha).
+  """
+  def same_color?(color, "#" <> _ = hex, tolerance \\ nil) do
+    {r1, g1, b1, a} = parse_color(color)
     {r2, g2, b2, _} = parse_color(String.downcase(hex))
+    tolerance = tolerance || if(a >= 0.99, do: 1, else: min(8, round(1 / max(a, 0.125))))
     abs(r1 - r2) <= tolerance and abs(g1 - g2) <= tolerance and abs(b1 - b2) <= tolerance
   end
 

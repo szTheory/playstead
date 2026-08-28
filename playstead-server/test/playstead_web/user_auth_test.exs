@@ -26,7 +26,7 @@ defmodule PlaysteadWeb.UserAuthTest do
       conn = UserAuth.log_in_user(conn, user)
       assert token = get_session(conn, :user_token)
       assert get_session(conn, :live_socket_id) == "users_sessions:#{Base.url_encode64(token)}"
-      assert redirected_to(conn) == ~p"/"
+      assert redirected_to(conn) == ~p"/devices"
       assert Accounts.get_user_by_session_token(token)
     end
 
@@ -92,7 +92,7 @@ defmodule PlaysteadWeb.UserAuthTest do
         |> assign(:current_scope, Scope.for_user(user))
         |> UserAuth.log_in_user(user)
 
-      assert redirected_to(conn) == ~p"/"
+      assert redirected_to(conn) == ~p"/devices"
     end
 
     test "writes a cookie if remember_me was set in previous session", %{conn: conn, user: user} do
@@ -132,7 +132,7 @@ defmodule PlaysteadWeb.UserAuthTest do
       refute get_session(conn, :user_token)
       refute conn.cookies[@remember_me_cookie]
       assert %{max_age: 0} = conn.resp_cookies[@remember_me_cookie]
-      assert redirected_to(conn) == ~p"/"
+      assert redirected_to(conn) == ~p"/log-in"
       refute Accounts.get_user_by_session_token(user_token)
     end
 
@@ -151,7 +151,7 @@ defmodule PlaysteadWeb.UserAuthTest do
       conn = conn |> fetch_cookies() |> UserAuth.log_out_user()
       refute get_session(conn, :user_token)
       assert %{max_age: 0} = conn.resp_cookies[@remember_me_cookie]
-      assert redirected_to(conn) == ~p"/"
+      assert redirected_to(conn) == ~p"/log-in"
     end
   end
 

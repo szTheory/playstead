@@ -28,6 +28,7 @@ defmodule PlaysteadWeb.SessionsLive do
   def render(assigns) do
     ~H"""
     <div class="min-h-screen bg-[#0F172A] px-8 py-12 font-sans">
+      <Layouts.flash_group flash={@flash} />
       <div class="mx-auto max-w-2xl">
         <h1 class="text-display font-semibold text-[#F1F5F9]">Sessions</h1>
         <p class="mt-2 text-sm text-[#94A3B8]">

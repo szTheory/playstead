@@ -90,7 +90,9 @@ defmodule Playstead.MixProject do
       setup: ["deps.get", "ecto.setup", "assets.setup", "assets.build"],
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
-      test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
+      # assets.build runs first so the browser suite always renders against
+      # the CSS/JS for the code under test (Wallaby loads priv/static/assets).
+      test: ["assets.build", "ecto.create --quiet", "ecto.migrate --quiet", "test"],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
       "assets.build": ["compile", "tailwind playstead", "esbuild playstead"],
       "assets.deploy": [

@@ -78,7 +78,7 @@ defmodule PlaysteadWeb.SetupLiveTest do
       assert html =~ "Set up a backup destination soon"
 
       # Finish setup navigates to /log-in.
-      {:error, {:live_redirect, %{to: "/log-in"}}} =
+      {:error, {:redirect, %{to: "/log-in"}}} =
         lv |> element("button", "Finish setup") |> render_click()
     end
   end

@@ -47,7 +47,7 @@ defmodule PlaysteadWeb.SetupLiveEnvTest do
 
       # The control is present and clickable — clicking it navigates away,
       # which would be impossible if it were disabled.
-      assert {:error, {:live_redirect, %{to: "/log-in"}}} =
+      assert {:error, {:redirect, %{to: "/log-in"}}} =
                lv |> element("button", "Finish setup") |> render_click()
     end
   end

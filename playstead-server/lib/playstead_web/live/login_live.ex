@@ -75,7 +75,7 @@ defmodule PlaysteadWeb.LoginLive do
             <p id="no-mail-helper" class="mt-2 text-sm text-[#94A3B8]">
               No email will ever be sent — this server never sends mail.
             </p>
-            <p :if={@error} id="login_error" class="mt-2 text-sm text-[#EF4444]">
+            <p :if={@error} id="login_error" data-role="error" class="mt-2 text-sm text-[#EF4444]">
               {@error}
             </p>
           </div>

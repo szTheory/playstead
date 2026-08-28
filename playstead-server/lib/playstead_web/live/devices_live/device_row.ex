@@ -94,7 +94,7 @@ defmodule PlaysteadWeb.DevicesLive.DeviceRow do
           :if={@fingerprint}
           id={"device-#{@device.id}-fingerprint"}
           data-role="fingerprint"
-          class="mt-1 font-mono text-label text-[#94A3B8]"
+          class="mt-1 break-all font-mono text-label text-[#94A3B8]"
         >
           {@fingerprint}
         </p>

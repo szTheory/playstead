@@ -57,6 +57,7 @@ defmodule PlaysteadWeb.SetupLive do
   def render(assigns) do
     ~H"""
     <div class="min-h-screen flex items-center justify-center bg-[#0F172A] font-sans py-12">
+      <Layouts.flash_group flash={@flash} />
       <div class="w-full max-w-md rounded-lg bg-[#1E293B] p-8 shadow-xl">
         <h1 class="text-display font-semibold text-[#F1F5F9]">Set up Playstead</h1>
 
@@ -82,7 +83,7 @@ defmodule PlaysteadWeb.SetupLive do
   defp render_step_1(assigns) do
     ~H"""
     <p class="text-sm text-[#94A3B8]">
-      Find your setup token by running <code class="text-[#F1F5F9]">docker compose logs</code>
+      Find your setup token by running <span class="text-[#F1F5F9]">docker compose logs</span>
       and looking for the banner printed at boot. Paste it below.
     </p>
 
@@ -108,7 +109,12 @@ defmodule PlaysteadWeb.SetupLive do
           phx-mounted={JS.focus()}
           class="mt-1 block w-full truncate rounded-md border border-[#334155] bg-[#0F172A] px-3 py-2 font-mono text-code text-[#F1F5F9] focus:border-[#38BDF8] focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
         />
-        <p :if={@token_error} id="setup_token_error" class="mt-2 text-sm text-[#EF4444]">
+        <p
+          :if={@token_error}
+          id="setup_token_error"
+          data-role="error"
+          class="mt-2 text-sm text-[#EF4444]"
+        >
           {@token_error}
         </p>
       </div>
@@ -130,7 +136,12 @@ defmodule PlaysteadWeb.SetupLive do
   defp render_step_2(assigns) do
     ~H"""
     <p class="text-sm text-[#94A3B8]">Create your owner account.</p>
-    <p :if={@create_owner_error} id="owner_error" class="mt-2 text-sm text-[#EF4444]">
+    <p
+      :if={@create_owner_error}
+      id="owner_error"
+      data-role="error"
+      class="mt-2 text-sm text-[#EF4444]"
+    >
       {@create_owner_error}
     </p>
 
@@ -154,7 +165,11 @@ defmodule PlaysteadWeb.SetupLive do
           phx-mounted={JS.focus()}
           class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0F172A] px-3 py-2 text-base text-[#F1F5F9] focus:border-[#38BDF8] focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
         />
-        <p :for={msg <- @credentials_form[:email].errors || []} class="mt-1 text-sm text-[#EF4444]">
+        <p
+          :for={msg <- @credentials_form[:email].errors || []}
+          data-role="error"
+          class="mt-1 text-sm text-[#EF4444]"
+        >
           {translate_form_error(msg)}
         </p>
       </div>
@@ -173,7 +188,11 @@ defmodule PlaysteadWeb.SetupLive do
           class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0F172A] px-3 py-2 text-base text-[#F1F5F9] focus:border-[#38BDF8] focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
         />
         <p class="mt-1 text-sm text-[#94A3B8]">At least 12 characters.</p>
-        <p :for={msg <- @credentials_form[:password].errors || []} class="mt-1 text-sm text-[#EF4444]">
+        <p
+          :for={msg <- @credentials_form[:password].errors || []}
+          data-role="error"
+          class="mt-1 text-sm text-[#EF4444]"
+        >
           {translate_form_error(msg)}
         </p>
       </div>
@@ -193,6 +212,8 @@ defmodule PlaysteadWeb.SetupLive do
         />
         <p
           :for={msg <- @credentials_form[:password_confirmation].errors || []}
+          data-role="error"
+          data-role="error"
           class="mt-1 text-sm text-[#EF4444]"
         >
           {translate_form_error(msg)}
@@ -352,7 +373,9 @@ defmodule PlaysteadWeb.SetupLive do
   end
 
   def handle_event("finish_setup", _params, socket) do
-    {:noreply, push_navigate(socket, to: ~p"/log-in")}
+    # `/log-in` is in a different live_session, so this is a full redirect
+    # (a push_navigate would fall back to one with a warning).
+    {:noreply, redirect(socket, to: ~p"/log-in")}
   end
 
   @impl true

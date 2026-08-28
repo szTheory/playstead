@@ -63,7 +63,7 @@ defmodule PlaysteadWeb.CoreComponents do
       id={@id}
       phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}")}
       role="alert"
-      class="fixed top-4 right-4 z-50 w-80 max-w-[calc(100vw-2rem)] sm:w-96 font-sans"
+      class="fixed top-16 right-4 z-50 w-80 max-w-[calc(100vw-2rem)] sm:w-96 font-sans"
       {@rest}
     >
       <div class={[

@@ -60,6 +60,7 @@ defmodule PlaysteadWeb.DevicesLive do
   def render(assigns) do
     ~H"""
     <div class="min-h-screen bg-[#0F172A] px-8 py-12 font-sans">
+      <Layouts.flash_group flash={@flash} />
       <div class="mx-auto max-w-4xl space-y-8">
         <div>
           <h1 class="text-display font-semibold text-[#F1F5F9]">Devices</h1>
@@ -267,7 +268,7 @@ defmodule PlaysteadWeb.DevicesLive do
         :if={match?({:ok, _}, @ca_fingerprint)}
         id="ca-fingerprint"
         data-role="fingerprint"
-        class="mt-1 font-mono text-label text-[#94A3B8]"
+        class="mt-1 break-all font-mono text-label text-[#94A3B8]"
       >
         {elem(@ca_fingerprint, 1)}
       </p>

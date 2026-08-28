@@ -18,11 +18,15 @@ defmodule PlaysteadWeb.UserSessionController do
     already_authenticated_user = conn.assigns[:current_scope] && conn.assigns.current_scope.user
 
     if user = Accounts.get_user_by_password(email, password) do
+      # A `return_to` from the sudo form wins; an absent/empty one must not
+      # clobber the target `PlaysteadWeb.Plugs.SudoMode` already stored.
       conn =
-        if return_to = user_params["return_to"] do
-          put_session(conn, :user_return_to, return_to)
-        else
-          conn
+        case user_params["return_to"] do
+          return_to when is_binary(return_to) and return_to != "" ->
+            put_session(conn, :user_return_to, return_to)
+
+          _ ->
+            conn
         end
 
       if already_authenticated_user && already_authenticated_user.id == user.id do
