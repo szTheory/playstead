@@ -360,6 +360,17 @@ defmodule PlaysteadWeb.Router do
     end
   end
 
+  ## Reference packs console: administrator-supplied reference data,
+  ## its provenance, and the library upgrade it produces (D-18).
+  scope "/", PlaysteadWeb do
+    pipe_through [:browser, :require_authenticated]
+
+    live_session :reference_packs,
+      on_mount: [{PlaysteadWeb.UserAuth, :mount_current_scope}] do
+      live "/reference-packs", ReferencePacksLive, :index
+    end
+  end
+
   ## Needs Attention console (D-26, D-31).
   scope "/", PlaysteadWeb do
     pipe_through [:browser, :require_authenticated]

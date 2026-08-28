@@ -17,7 +17,7 @@ defmodule PlaysteadWeb.Browser.PaletteTest do
   # Where the accent may appear: primary CTAs, the display code, code-role
   # text, the "(this device)" marker, the info flash, and the focus ring
   # (any focused element).
-  @accent_ids ~w(login_submit sudo_submit recovery_submit setup_token_submit owner_submit continue_to_readiness finish_setup flash-info)
+  @accent_ids ~w(login_submit sudo_submit recovery_submit setup_token_submit owner_submit continue_to_readiness finish_setup flash-info import-pack-submit)
   @accent_prefixes ~r/^(display-code-|approve-|recovery-code-|confirm-import-)/
   @accent_suffixes ~r/(-rename-save|-current)$/
 

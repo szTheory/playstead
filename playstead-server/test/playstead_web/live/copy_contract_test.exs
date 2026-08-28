@@ -208,6 +208,28 @@ defmodule PlaysteadWeb.CopyContractTest do
     end
   end
 
+  describe "reference packs console" do
+    setup :register_and_log_in_user
+
+    test "primary action and no-acquisition-path copy", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/reference-packs")
+
+      assert has_element?(lv, "#import-pack-submit", "Import pack")
+
+      assert render(lv) =~ ~r/Playstead\s+never retrieves or bundles one on its own/
+    end
+
+    test "no wording anywhere offers to download, fetch, or browse a catalogue of packs", %{
+      conn: conn
+    } do
+      {:ok, _lv, html} = live(conn, ~p"/reference-packs")
+
+      refute html =~ ~r/download/i
+      refute html =~ ~r/fetch pack/i
+      refute html =~ ~r/browse packs/i
+    end
+  end
+
   describe "recovery codes" do
     test "regenerate confirmation copy is the documented D-06 string", %{conn: conn} do
       # The regenerate action is a sudo-gated POST; the confirmation copy is

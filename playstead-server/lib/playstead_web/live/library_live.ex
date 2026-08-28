@@ -104,7 +104,13 @@ defmodule PlaysteadWeb.LibraryLive do
           class="rounded-lg border border-[#334155] bg-[#1E293B] p-4"
         >
           <p class="text-sm text-[#94A3B8]">
-            Install a reference pack to identify games.
+            <.link
+              navigate={~p"/reference-packs"}
+              id="reference-pack-hint-link"
+              class="font-semibold text-[#F1F5F9] hover:underline"
+            >
+              Install a reference pack to identify games.
+            </.link>
             <button
               id="dismiss-reference-pack-hint"
               type="button"

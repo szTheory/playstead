@@ -27,7 +27,8 @@ defmodule PlaysteadWeb.BrowserScreens do
     :library,
     :library_detail,
     :attention,
-    :exports
+    :exports,
+    :reference_packs
   ]
 
   def screens, do: @screens
@@ -44,6 +45,7 @@ defmodule PlaysteadWeb.BrowserScreens do
   def path(:library_detail), do: "/library/:id"
   def path(:attention), do: "/attention"
   def path(:exports), do: "/exports"
+  def path(:reference_packs), do: "/reference-packs"
 
   @doc "Console routes that are deliberately NOT screens (no UI-SPEC element)."
   def excluded_paths,
@@ -206,6 +208,29 @@ defmodule PlaysteadWeb.BrowserScreens do
       |> visit_live(path(:exports))
 
     {session, %{user: user, receipt: receipt}}
+  end
+
+  def open(session, :reference_packs) do
+    user = owner_fixture()
+
+    {:ok, _pack} =
+      Playstead.Recognition.DatPackImporter.import_pack(
+        user.id,
+        Path.join([__DIR__, "fixtures", "dat", "valid.dat"]),
+        %{
+          source: "https://example.com/no-intro.dat",
+          upstream_version: "2026-08-01",
+          license_claim: :unstated,
+          license_note: "No published licence for this pack."
+        }
+      )
+
+    session =
+      session
+      |> log_in_via_cookie(user, token_authenticated_at: DateTime.utc_now(:second))
+      |> visit_live(path(:reference_packs))
+
+    {session, %{user: user}}
   end
 
   def open(session, :sessions) do
