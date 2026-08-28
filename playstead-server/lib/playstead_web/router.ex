@@ -287,6 +287,29 @@ defmodule PlaysteadWeb.Router do
     end
   end
 
+  ## Import console: the browser single-file upload surface (IMPT-01,
+  ## D-01a, D-04). Requires only routine authentication — the same
+  ## posture as the device list.
+  scope "/", PlaysteadWeb do
+    pipe_through [:browser, :require_authenticated]
+
+    live_session :import,
+      on_mount: [{PlaysteadWeb.UserAuth, :mount_current_scope}] do
+      live "/import", ImportLive, :index
+    end
+  end
+
+  ## Library console: asset sets and the IMPT-02 evidence detail view.
+  scope "/", PlaysteadWeb do
+    pipe_through [:browser, :require_authenticated]
+
+    live_session :library,
+      on_mount: [{PlaysteadWeb.UserAuth, :mount_current_scope}] do
+      live "/library", LibraryLive, :index
+      live "/library/:id", LibraryLive, :show
+    end
+  end
+
   scope "/", PlaysteadWeb do
     pipe_through [:browser, :require_authenticated, :require_sudo]
 

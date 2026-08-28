@@ -45,6 +45,20 @@
     >
       <%= if @current_scope do %>
         <.link
+          id="nav-import"
+          navigate={~p"/import"}
+          class="text-[#94A3B8] hover:text-[#F1F5F9]"
+        >
+          Import
+        </.link>
+        <.link
+          id="nav-library"
+          navigate={~p"/library"}
+          class="text-[#94A3B8] hover:text-[#F1F5F9]"
+        >
+          Library
+        </.link>
+        <.link
           id="nav-devices"
           navigate={~p"/devices"}
           class="text-[#94A3B8] hover:text-[#F1F5F9]"

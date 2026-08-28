@@ -8,6 +8,7 @@ import Config
 System.put_env("PLAYSTEAD_BLOB_PATH", Path.join(System.tmp_dir!(), "playstead-test-blobs"))
 System.put_env("PLAYSTEAD_EXPORT_PATH", Path.join(System.tmp_dir!(), "playstead-test-exports"))
 System.put_env("PLAYSTEAD_MAX_UPLOAD_BYTES", "104857600")
+System.put_env("PLAYSTEAD_MAX_BROWSER_UPLOAD_BYTES", "1048576")
 
 # Only in tests, remove the complexity from the password hashing algorithm
 config :bcrypt_elixir, :log_rounds, 1

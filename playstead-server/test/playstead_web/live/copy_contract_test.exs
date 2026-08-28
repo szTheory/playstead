@@ -154,6 +154,60 @@ defmodule PlaysteadWeb.CopyContractTest do
     end
   end
 
+  describe "import console" do
+    setup :register_and_log_in_user
+
+    setup do
+      File.mkdir_p!(Playstead.Blobs.Store.LocalDisk.blob_path())
+      :ok
+    end
+
+    test "copy-into-my-library primary action and untouched-original supporting text", %{
+      conn: conn
+    } do
+      {:ok, lv, _html} = live(conn, ~p"/import")
+
+      upload =
+        file_input(lv, "#import-form", :file, [
+          %{
+            name: "game.gba",
+            content: :crypto.strong_rand_bytes(64),
+            type: "application/octet-stream"
+          }
+        ])
+
+      html = render_upload(upload, "game.gba")
+
+      assert html =~ "Copy into my library"
+
+      assert html =~
+               "Your original file stays where it is. A verified copy will be stored by your server and available to your devices."
+    end
+
+    test "no wording anywhere implies the source is moved, relocated, tidied, or cleaned up", %{
+      conn: conn
+    } do
+      {:ok, lv, _html} = live(conn, ~p"/import")
+
+      upload =
+        file_input(lv, "#import-form", :file, [
+          %{
+            name: "game.gba",
+            content: :crypto.strong_rand_bytes(64),
+            type: "application/octet-stream"
+          }
+        ])
+
+      html = render_upload(upload, "game.gba")
+
+      refute html =~ ~r/move your file/i
+      refute html =~ ~r/moves your file/i
+      refute html =~ ~r/relocate/i
+      refute html =~ ~r/tidy up/i
+      refute html =~ ~r/clean up your/i
+    end
+  end
+
   describe "recovery codes" do
     test "regenerate confirmation copy is the documented D-06 string", %{conn: conn} do
       # The regenerate action is a sudo-gated POST; the confirmation copy is

@@ -14,6 +14,7 @@ defmodule Playstead.Import do
 
   import Ecto.Query, warn: false
 
+  alias Playstead.Blobs
   alias Playstead.Catalogue
   alias Playstead.Catalogue.{AssetMember, AssetSet}
   alias Playstead.Formats
@@ -206,6 +207,30 @@ defmodule Playstead.Import do
         size_bytes: blob_meta.size_bytes
       })
     )
+  end
+
+  @doc """
+  Adopts a browser upload's already-hashed, already-written temporary
+  file into the blob store and imports it exactly like any other
+  already-committed blob (D-01a). `writer_meta` is the map
+  `Playstead.Import.HashingWriter.meta/1` returned on a successful
+  close: `%{path: tmp_path, digests: digest_map}`. Reads the source
+  bytes' declared origin as `"browser"`, distinguishing it from the
+  API path's `"api_upload"` and the reimport path's `"reimport"`.
+  """
+  @spec import_upload(pos_integer(), String.t(), map(), keyword()) ::
+          {:ok, Receipt.t()} | {:error, term()}
+  def import_upload(user_id, original_name, writer_meta, opts \\ []) do
+    with {:ok, status, blob_meta} <-
+           Blobs.adopt_temp_file(writer_meta.path, writer_meta.digests) do
+      source_file_attrs = %{
+        original_name: original_name,
+        origin: "browser",
+        size_bytes: writer_meta.digests.size_bytes
+      }
+
+      import_single(user_id, source_file_attrs, {status, blob_meta}, opts)
+    end
   end
 
   @doc """
@@ -446,6 +471,26 @@ defmodule Playstead.Import do
           end
         end
     end
+  end
+
+  @doc """
+  Lists `user_id`'s import receipts, newest first (the console's
+  receipt list, D-24/D-25). Every receipt read back here is exactly
+  what was written at import time — the receipt's own `outcome` never
+  changes even if the asset's current recognition state later improves
+  (D-25's terminal-outcome guarantee).
+  """
+  @spec list_receipts(pos_integer(), keyword()) :: [Receipt.t()]
+  def list_receipts(user_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 100)
+
+    from(r in Receipt,
+      where: r.user_id == ^user_id,
+      order_by: [desc: r.inserted_at],
+      limit: ^limit,
+      preload: [:source_file, :asset_set]
+    )
+    |> Repo.all()
   end
 
   @doc """
