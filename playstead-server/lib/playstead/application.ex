@@ -21,6 +21,8 @@ defmodule Playstead.Application do
       Playstead.Release.assert_no_placeholder_secrets!()
       Playstead.Release.assert_minimum_upgradable_version!()
       Playstead.Release.migrate()
+      # WR-02 (01-REVIEW.md): warns, never refuses to boot.
+      Playstead.Release.warn_if_proxy_trust_unacknowledged!()
     end
 
     children = [

@@ -74,6 +74,15 @@ if config_env() == :prod do
 
   config :playstead, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
+  # WR-02 (01-REVIEW.md): PLAYSTEAD_PROXY defaults to trusting
+  # `x-forwarded-for` (matching the documented Caddy-only-published-port
+  # compose topology). Operators running this app with its port directly
+  # published, or without Caddy in front of it, must set
+  # `PLAYSTEAD_PROXY=false` — otherwise any external client can forge the
+  # header. See `Playstead.Release.warn_if_proxy_trust_unacknowledged!/0`
+  # for the boot-time reminder when this variable is left unset.
+  config :playstead, :trust_proxy_headers, System.get_env("PLAYSTEAD_PROXY", "true") == "true"
+
   config :playstead, PlaysteadWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
     http: [

@@ -3,7 +3,7 @@ defmodule Playstead.Release do
   Used for executing DB release tasks when run in production without Mix
   installed.
 
-  Also owns the three boot-time safety gates (D-15, D-17), invoked from
+  Also owns the boot-time safety gates (D-15, D-17), invoked from
   `Playstead.Application.start/2` before the endpoint starts serving:
 
     * `assert_no_placeholder_secrets!/0` — refuse to boot with a
@@ -12,6 +12,9 @@ defmodule Playstead.Release do
       schema older than this release can safely migrate.
     * `migrate/0` — run pending migrations, failing loudly rather than
       entering a silent crash loop.
+    * `warn_if_proxy_trust_unacknowledged!/0` — warn (not refuse) when
+      `x-forwarded-for` trust (WR-02, 01-REVIEW.md) is left at its
+      default with no explicit operator acknowledgment.
   """
   @app :playstead
 
@@ -225,6 +228,39 @@ defmodule Playstead.Release do
             """
           end
       end
+    end
+
+    :ok
+  end
+
+  @doc """
+  Boot-time reminder (WR-02, 01-REVIEW.md) for `PlaysteadWeb.Plugs.ClientIp`'s
+  `x-forwarded-for` trust. Warns (never refuses to boot — this is a
+  defense-in-depth reminder, not a hard safety gate like the other two
+  `Playstead.Release` checks) when `PLAYSTEAD_PROXY` is left unset in a
+  production release, since trusting the header unconditionally is only
+  safe when the deployment topology guarantees this app is unreachable
+  except through Caddy (D-15).
+  """
+  @spec warn_if_proxy_trust_unacknowledged!() :: :ok
+  def warn_if_proxy_trust_unacknowledged! do
+    if is_nil(System.get_env("PLAYSTEAD_PROXY")) and
+         Application.get_env(:playstead, :trust_proxy_headers, true) do
+      IO.puts(:stderr, """
+      ============================================================
+      WARNING: PLAYSTEAD_PROXY is unset — this app trusts the
+      `x-forwarded-for` header from any connection it receives.
+
+      This is only safe if this app is unreachable except through a
+      trusted reverse proxy (e.g. the Caddy container, which is the
+      only service publishing host ports in docker-compose.yml).
+
+      If this app's port is published directly, or you're running
+      without Caddy in front of it, set PLAYSTEAD_PROXY=false — an
+      external client can otherwise forge its own IP and evade
+      per-IP throttling.
+      ============================================================
+      """)
     end
 
     :ok

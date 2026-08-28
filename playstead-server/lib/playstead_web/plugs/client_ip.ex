@@ -9,6 +9,14 @@ defmodule PlaysteadWeb.Plugs.ClientIp do
   header here — an external client cannot reach this plug directly to
   forge the header, only Caddy can set it.
 
+  WR-02 (01-REVIEW.md): that guarantee is external to this module and not
+  verified at runtime, so trusting `x-forwarded-for` is gated behind the
+  `:playstead, :trust_proxy_headers` config flag (`PLAYSTEAD_PROXY` env
+  var in production, defaults to `true`). Operators who run this app with
+  its port directly published, or without Caddy in front of it, must set
+  `PLAYSTEAD_PROXY=false` so this plug falls back to `conn.remote_ip`
+  instead of trusting a client-controllable header.
+
   Assigns `:client_ip` onto the conn as a string.
   """
 
@@ -25,16 +33,24 @@ defmodule PlaysteadWeb.Plugs.ClientIp do
   end
 
   defp trusted_ip(conn) do
-    case get_req_header(conn, "x-forwarded-for") do
-      [value | _] when is_binary(value) and value != "" ->
-        value
-        |> String.split(",")
-        |> List.first()
-        |> String.trim()
+    if trust_proxy_headers?() do
+      case get_req_header(conn, "x-forwarded-for") do
+        [value | _] when is_binary(value) and value != "" ->
+          value
+          |> String.split(",")
+          |> List.first()
+          |> String.trim()
 
-      _ ->
-        remote_ip_string(conn)
+        _ ->
+          remote_ip_string(conn)
+      end
+    else
+      remote_ip_string(conn)
     end
+  end
+
+  defp trust_proxy_headers? do
+    Application.get_env(:playstead, :trust_proxy_headers, true)
   end
 
   defp remote_ip_string(conn) do

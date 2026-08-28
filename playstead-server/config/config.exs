@@ -24,6 +24,17 @@ config :playstead,
   ecto_repos: [Playstead.Repo],
   generators: [timestamp_type: :utc_datetime]
 
+# WR-02 (01-REVIEW.md): whether PlaysteadWeb.Plugs.ClientIp is allowed to
+# trust the `x-forwarded-for` header. Safety depends entirely on the
+# deployment-level guarantee that only a trusted reverse proxy (Caddy, per
+# D-15) can reach this app directly — see the plug's own moduledoc.
+# Defaults to `true` to preserve the documented compose topology; prod
+# overrides this from `PLAYSTEAD_PROXY` in config/runtime.exs, and
+# `Playstead.Release.warn_if_proxy_trust_unacknowledged!/0` logs a boot-time
+# warning (not a hard refusal, to avoid breaking existing deployments) when
+# this is left at its default with no explicit operator acknowledgment.
+config :playstead, :trust_proxy_headers, true
+
 config :playstead, Oban,
   engine: Oban.Engines.Basic,
   notifier: Oban.Notifiers.Postgres,
