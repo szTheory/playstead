@@ -36,7 +36,9 @@ defmodule Playstead.RomFixtures do
   def bad_checksum_gba do
     valid = valid_gba()
     bad_byte = Bitwise.bxor(:binary.at(valid, 0xBD), 0xFF)
-    binary_part(valid, 0, 0xBD) <> <<bad_byte>> <> binary_part(valid, 0xBE, byte_size(valid) - 0xBE)
+
+    binary_part(valid, 0, 0xBD) <>
+      <<bad_byte>> <> binary_part(valid, 0xBE, byte_size(valid) - 0xBE)
   end
 
   @doc "A valid Game Boy header (0x150 bytes) with correct logo and checksum."

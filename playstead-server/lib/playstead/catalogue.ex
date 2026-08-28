@@ -4,7 +4,145 @@ defmodule Playstead.Catalogue do
   and `Playstead.Catalogue.AssetMember`. `member_fingerprint/1` is the
   natural key that makes "no duplicate logical record" a database
   guarantee via the unique index on the user/fingerprint pair (D-37).
+
+  Also owns display-title derivation (D-22) and system assignment with
+  recorded provenance (D-19).
   """
+
+  import Ecto.Query, warn: false
+
+  alias Playstead.AuditLog
+  alias Playstead.Catalogue.AssetSet
+  alias Playstead.Formats.SystemId
+  alias Playstead.Recognition.NoIntroName
+  alias Playstead.Repo
+
+  # D-22: control, bidirectional-override, and zero-width characters —
+  # stripped from every display title regardless of source.
+  @unsafe_chars ~r/[\x00-\x1F\x7F\x{200B}-\x{200F}\x{202A}-\x{202E}\x{2060}-\x{2064}\x{FEFF}]/u
+  @max_title_length 200
+
+  @extension_systems %{
+    ".gba" => :gba,
+    ".gb" => :gb,
+    ".gbc" => :gbc,
+    ".nes" => :nes,
+    ".sfc" => :snes,
+    ".smc" => :snes,
+    ".md" => :md,
+    ".gen" => :md,
+    ".cue" => :psx
+  }
+
+  @doc """
+  D-19's precedence for the initial extension-based guess: a
+  recognized ROM extension maps to its system, anything else (unknown
+  extension, no extension) returns `nil` — an honest "no guess" rather
+  than a default to `unknown`.
+  """
+  @spec extension_guess(String.t() | nil) :: atom() | nil
+  def extension_guess(nil), do: nil
+
+  def extension_guess(filename) do
+    filename |> Path.extname() |> String.downcase() |> then(&Map.get(@extension_systems, &1))
+  end
+
+  @doc """
+  D-19's full precedence: an extension guess is upgraded or
+  contradicted by a header confirmation, and a user override beats
+  both. Returns `{:ok, system_id, source}` when a single answer is
+  reachable, or `{:confirmation_needed, %{extension: _, header: _}}`
+  when the extension and the header disagree and no user override is
+  present — a contradiction never silently picks a winner.
+  """
+  @spec assign_system(atom() | nil, {atom(), atom(), map()} | nil, atom() | nil) ::
+          {:ok, atom(), :extension | :header | :user}
+          | {:confirmation_needed, %{extension: atom(), header: atom()}}
+  def assign_system(_extension_guess, _format_result, user_override)
+      when not is_nil(user_override) do
+    {:ok, user_override, :user}
+  end
+
+  def assign_system(extension_guess, {header_system, _tier, _evidence}, nil)
+      when header_system != :unknown do
+    cond do
+      is_nil(extension_guess) -> {:ok, header_system, :header}
+      extension_guess == header_system -> {:ok, header_system, :header}
+      true -> {:confirmation_needed, %{extension: extension_guess, header: header_system}}
+    end
+  end
+
+  def assign_system(extension_guess, _format_result, nil) when not is_nil(extension_guess) do
+    {:ok, extension_guess, :extension}
+  end
+
+  def assign_system(nil, _format_result, nil), do: {:ok, :unknown, :extension}
+
+  @doc """
+  Writes a user-supplied system correction — always wins over any
+  machine guess (D-19) — and records an audit entry. Never touches the
+  append-only `recognitions` evidence table.
+  """
+  @spec override_system(AssetSet.t(), atom() | String.t(), pos_integer()) ::
+          {:ok, AssetSet.t()} | {:error, term()}
+  def override_system(%AssetSet{} = asset_set, system_id, user_id) when not is_nil(system_id) do
+    system_id_str = to_string(system_id)
+
+    unless SystemId.valid?(system_id_str) do
+      raise ArgumentError, "not a registered system identifier: #{inspect(system_id)}"
+    end
+
+    Repo.transaction(fn ->
+      changeset =
+        Ecto.Changeset.change(asset_set, system_id: system_id_str, system_source: "user")
+
+      with {:ok, updated} <- Repo.update(changeset),
+           {:ok, _entry} <-
+             AuditLog.record(user_id, :asset_set_system_overridden, %{
+               subject: asset_set.id,
+               system_id: system_id_str
+             }) do
+        updated
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
+
+  @doc """
+  D-22's display-title derivation: the parsed No-Intro release title
+  when `original_name` parses, otherwise the sanitized filename stem.
+  A cartridge header title (if any) is never consulted here — it stays
+  in recognition evidence only. Returns
+  `{display_title, title_source, tags}`.
+  """
+  @spec display_title(String.t()) :: {String.t(), :filename_parsed | :filename_stem, map()}
+  def display_title(original_name) when is_binary(original_name) do
+    case NoIntroName.parse(original_name) do
+      {:ok, %{title: title, tags: tags}} -> {sanitize_title(title), :filename_parsed, tags}
+      :no_match -> {sanitize_title(filename_stem(original_name)), :filename_stem, %{}}
+    end
+  end
+
+  @doc "The filename with its extension removed."
+  @spec filename_stem(String.t()) :: String.t()
+  def filename_stem(original_name) do
+    original_name |> Path.basename() |> Path.rootname()
+  end
+
+  @doc """
+  Normalizes `title` to NFC, strips control, bidirectional-override,
+  and zero-width characters, and caps it at 200 code points (D-22).
+  Rendering escaping is the caller's responsibility (framework HEEx
+  escaping) — this function only shapes the stored value.
+  """
+  @spec sanitize_title(String.t()) :: String.t()
+  def sanitize_title(title) when is_binary(title) do
+    title
+    |> String.normalize(:nfc)
+    |> String.replace(@unsafe_chars, "")
+    |> String.slice(0, @max_title_length)
+  end
 
   @doc """
   D-37's natural key: the SHA-256 over the canonical sorted list of

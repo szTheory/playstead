@@ -16,7 +16,9 @@ defmodule Playstead.Import do
 
   alias Playstead.Catalogue
   alias Playstead.Catalogue.{AssetMember, AssetSet}
+  alias Playstead.Formats
   alias Playstead.Import.{Outcome, Receipt, SourceFile}
+  alias Playstead.Recognition
   alias Playstead.Repo
   alias Playstead.Sync.ChangeJournal
 
@@ -36,14 +38,43 @@ defmodule Playstead.Import do
   `:size_bytes`. `store_result` is the `{status, blob_meta}` tuple
   `Playstead.Blobs.put_stream/3` returned (`status` is `:stored` or
   `:existing`; `blob_meta` carries `:blob_id`, `:sha256`, `:size_bytes`).
+
+  `opts[:format_bytes]` is the leading bytes of the file (plan 02-03's
+  recognition seam): when provided, `Playstead.Formats.identify/2` and
+  `Playstead.Recognition.recognize_and_record/3` run against them and
+  their result informs the asset set's system assignment, display
+  title, and (for `:patched`/`:possible_variant`/recognition-detected
+  `:alias`) the receipt outcome. Omitted, the pipeline behaves exactly
+  as plan 02-02 left it — no format identification and no recognition
+  evidence row.
   """
-  @spec import_single(pos_integer(), map(), {:stored | :existing, map()}) ::
+  @spec import_single(pos_integer(), map(), {:stored | :existing, map()}, keyword()) ::
           {:ok, Receipt.t()} | {:error, term()}
-  def import_single(user_id, source_file_attrs, {_status, blob_meta}) do
+  def import_single(user_id, source_file_attrs, store_result, opts \\ [])
+
+  def import_single(user_id, source_file_attrs, {_status, blob_meta}, opts) do
+    format_bytes = Keyword.get(opts, :format_bytes)
+    format_result = identify_format(format_bytes, source_file_attrs[:original_name])
+
     Repo.transaction(fn ->
       with {:ok, source_file} <- insert_source_file(user_id, source_file_attrs, blob_meta),
-           outcome <- determine_outcome(user_id, blob_meta.blob_id, source_file_attrs[:origin]),
-           {:ok, asset_set} <- find_or_create_asset_set(user_id, blob_meta, source_file_attrs),
+           recognition_facts <- %{
+             blob_id: blob_meta.blob_id,
+             sha256: blob_meta.sha256,
+             bytes: format_bytes,
+             exclude_source_file_id: source_file.id
+           },
+           {recognition_result, _evidence} <-
+             Recognition.recognize_and_record(user_id, recognition_facts, format_result),
+           outcome <-
+             determine_outcome(
+               user_id,
+               blob_meta.blob_id,
+               source_file_attrs[:origin],
+               recognition_result
+             ),
+           {:ok, asset_set} <-
+             find_or_create_asset_set(user_id, blob_meta, source_file_attrs, format_result),
            {:ok, receipt} <- insert_receipt(user_id, source_file, asset_set, blob_meta, outcome),
            {:ok, _entry} <- ChangeJournal.append(user_id, :catalogue, receipt.id, %{}) do
         receipt
@@ -52,6 +83,9 @@ defmodule Playstead.Import do
       end
     end)
   end
+
+  defp identify_format(nil, _filename), do: nil
+  defp identify_format(bytes, filename), do: Formats.identify(bytes, filename)
 
   defp insert_source_file(user_id, attrs, blob_meta) do
     attrs =
@@ -65,15 +99,25 @@ defmodule Playstead.Import do
   # D-13: duplicate status is evaluated within the calling user's own
   # records only. A `source_files` row referencing this blob owned by
   # a *different* user must never change this user's outcome.
-  defp determine_outcome(user_id, blob_id, origin) do
+  #
+  # `recognition_result` (D-17, plan 02-03) refines the outcome for the
+  # cases the byte-duplicate check alone cannot see: a patch file, or a
+  # possible-variant/alias header match. Absent format bytes (plan
+  # 02-02 callers), `recognition_result` reports `:no_reference_installed`
+  # and this falls through to the original duplicate-count logic
+  # unchanged.
+  defp determine_outcome(user_id, blob_id, origin, recognition_result) do
     count =
       from(sf in SourceFile, where: sf.user_id == ^user_id and sf.blob_id == ^blob_id)
       |> Repo.aggregate(:count)
 
     cond do
-      count <= 1 -> :new_asset
-      origin == "reimport" -> :alias
-      true -> :exact_duplicate
+      count > 1 and origin == "reimport" -> :alias
+      count > 1 -> :exact_duplicate
+      recognition_result && recognition_result.status == :patched -> :patched
+      recognition_result && recognition_result.status == :possible_variant -> :variant
+      recognition_result && recognition_result.status == :alias -> :alias
+      true -> :new_asset
     end
   end
 
@@ -86,18 +130,25 @@ defmodule Playstead.Import do
   # raises, so there is nothing to recover from. `conflict_target`
   # names the exact index; the affected-row count (0 vs 1) is how we
   # learn whether this call created the set or found an existing one.
-  defp find_or_create_asset_set(user_id, blob_meta, source_file_attrs) do
+  defp find_or_create_asset_set(user_id, blob_meta, source_file_attrs, format_result) do
     fingerprint =
       Catalogue.member_fingerprint([%{role: @tracer_member_role, sha256: blob_meta.sha256}])
 
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
+    {display_title, title_source, _tags} =
+      Catalogue.display_title(source_file_attrs[:original_name])
+
+    {system_id, system_source} = resolve_system(source_file_attrs[:original_name], format_result)
+
     attrs = %{
       id: Ecto.UUID.generate(),
       user_id: user_id,
       member_fingerprint: fingerprint,
-      display_title: source_file_attrs[:original_name],
-      title_source: "filename",
+      display_title: display_title,
+      title_source: to_string(title_source),
+      system_id: system_id,
+      system_source: system_source,
       status: "active",
       inserted_at: now,
       updated_at: now
@@ -116,6 +167,17 @@ defmodule Playstead.Import do
     end
 
     {:ok, asset_set}
+  end
+
+  defp resolve_system(_filename, nil), do: {nil, nil}
+
+  defp resolve_system(filename, format_result) do
+    extension_guess = Catalogue.extension_guess(filename)
+
+    case Catalogue.assign_system(extension_guess, format_result, nil) do
+      {:ok, system_id, source} -> {to_string(system_id), to_string(source)}
+      {:confirmation_needed, _detail} -> {nil, nil}
+    end
   end
 
   defp insert_tracer_member(asset_set, blob_meta, source_file_attrs) do
