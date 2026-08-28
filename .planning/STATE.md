@@ -20,10 +20,10 @@ progress:
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-08-26)
+See: `.planning/PROJECT.md` (updated 2026-08-28)
 
 **Core value:** A locally available game and its progress remain effortless to play, safe, understandable, synchronized, and fully under the user's control.
-**Current focus:** Phase 01 — Private Custody and Durable Protocol
+**Current focus:** Phase 2 — Explainable Import and Exact Export
 
 ## Current Position
 
@@ -32,7 +32,7 @@ Plan: Not started
 Status: Ready to plan
 Last activity: 2026-08-28 — Phase 01 complete, transitioned to Phase 2
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [████████████████████] 8/8 plans (100%) — Phase 1 complete; Phase 2 not yet planned
 
 ## Performance Metrics
 
@@ -98,6 +98,10 @@ None yet.
 
 - Phase 3 must pass the Mac adapter spike (signing/notarization or sandbox posture, controller, BIOS, launch/recovery, and safe save flush) before a supported adapter is promised.
 - Phase 2 must pass an adversarial archive-security gate before enabling archive extraction or deep inspection.
+- ⚠️ [Phase 01] Open code-review findings (01-REVIEW.md, status issues_found): CR-01 recovery codes / reset & setup tokens not in Phoenix's parameter log filter; WR-01/05 no throttle on pairing redemption, setup-token verification, or password reset; WR-02 X-Forwarded-For trusted unconditionally; WR-06 build-context guard compares only top-level path segments. Address before exposing the server beyond a trusted LAN.
+- ⚠️ [Phase 01] `mix test` is intermittently flaky (~1 in 3 full runs): `System.put_env("PLAYSTEAD_PROXY", ...)` in tls_trust_test.exs / setup_live_test.exs races async tests in devices_live_test.exs. Fix test isolation before relying on CI as a gate.
+- ⚠️ [Phase 01] Volumes provisioned against a pre-01-08 image keep a root-owned /app/blobs; docs/UPGRADE.md has no note on the symptom or the one-line remediation (`docker compose exec -u root app chown nobody /app/blobs`).
+- ⚠️ [Phase 01] Readiness panel is only visible inside the one-shot setup wizard; recovery codes cannot be regenerated from the console (both added to PROJECT.md Active requirements).
 
 ### Quick Tasks Completed
 
@@ -115,6 +119,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-28T13:09:39.280Z
+Last session: 2026-08-28T13:19:18Z
 Stopped at: Phase 01 complete, ready to plan Phase 2
 Resume file: None

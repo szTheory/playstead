@@ -21,14 +21,13 @@ A locally available game and its progress remain effortless to play, safe, under
 
 ### Validated
 
-(None yet — ship to validate)
+- ✓ A user can deploy a private server through one opinionated, documented container path with persistent data, health, and upgrade/recovery guidance — Phase 1 (verified backup/restore tooling remains Active below)
+- ✓ Native and future constrained clients use a durable, versioned HTTPS API with capability negotiation, idempotent mutations, resumable state, and no requirement for a persistent WebSocket — Phase 1 (server side; first native consumer lands in Phase 3)
 
 ### Active
 
-- [ ] A user can deploy a private server through one opinionated, documented container path with persistent data, health, backup, restore, and upgrade guidance.
-- [ ] A Mac client can securely pair with the server and declare its protocol and emulator capabilities.
+- [ ] A Mac client can securely pair with the server and declare its protocol and emulator capabilities. (Server-side pairing ceremony, device credentials, and capability negotiation shipped in Phase 1; the Mac client half is pending.)
 - [ ] The Phoenix application exposes a polished LiveView setup, administration, import, library, pairing, and job-status console without making LiveView the native-client protocol.
-- [ ] Native and future constrained clients use a durable, versioned HTTPS API with capability negotiation, idempotent mutations, resumable state, and no requirement for a persistent WebSocket.
 - [ ] A user can drop a supported ROM into the Mac client and see, before confirmation, that the product will copy it into managed storage while leaving the source untouched.
 - [ ] Import streams, hashes, stores, and records provenance for the exact original bytes without destructive normalization.
 - [ ] Exact duplicates, aliases, variants, unknown files, patched files, malformed files, and incomplete multi-file sets receive explicit, recoverable outcomes.
@@ -47,6 +46,8 @@ A locally available game and its progress remain effortless to play, safe, under
 - [ ] Server and client updates preserve known-playable configurations through compatibility checks, migration preflight, atomicity where possible, and rollback.
 - [ ] Import supports both single-file immediacy and large staged collections through incremental, resumable, observable background work that can pause, resume, retry, and reconcile without duplicating unchanged content.
 - [ ] The server reports repository protection honestly and supports verified full and incremental backup/restore to user-controlled storage; one server copy is never described as a backup.
+- [ ] A self-hoster can see server readiness (database, storage volumes, HTTPS) after first-run setup, not only inside the one-shot setup wizard.
+- [ ] An owner who did not save their recovery codes has a discoverable, sudo-gated way to regenerate them.
 - [ ] Failures are observable and actionable without turning normal operation into an alert stream; expert diagnostics remain available on demand.
 - [ ] The codebase has automated tests, CI/CD, secure defaults, dependency boundaries, observability, and release engineering appropriate for trustworthy user data.
 
@@ -165,7 +166,7 @@ The intended delivery boundary is API-first Phoenix with LiveView as the first-p
 | Use managed copy as the initial import contract | It makes server availability, dedupe, backup, and export semantics reliable while leaving the source untouched | — Pending |
 | Address immutable game bytes separately from mutable saves | Their identity, transfer, caching, conflict, and compatibility properties are fundamentally different | — Pending |
 | Keep emulator adapters client-side | Local paths, process control, BIOS, controllers, and saves are platform/emulator concerns; the server protocol stays neutral | — Pending |
-| API-first Phoenix with a LiveView web console | LiveView provides a superb turnkey browser/admin experience while a durable API supports offline native and constrained-device clients | — Pending |
+| API-first Phoenix with a LiveView web console | LiveView provides a superb turnkey browser/admin experience while a durable API supports offline native and constrained-device clients | ✓ Phase 1: `/api/v1` with RFC 9457 errors, capability negotiation, idempotent mutations, change journal + snapshot; LiveView setup/login/sessions/devices console |
 | Native SwiftUI/AppKit Mac reference client | It most directly tests macOS filesystem, controller, Keychain, process, accessibility, signing, notarization, and offline requirements | — Pending |
 | Treat browser emulation as a separate later client | WebAssembly play can be a major convenience win, but browser storage, threading, controller, lifecycle, core maturity, and licensing are matrix-specific | — Pending |
 | Sync proven persistent saves before save states | Persistent saves have a more realistic portability contract; save states remain core/build/config bound | — Pending |
@@ -175,6 +176,9 @@ The intended delivery boundary is API-first Phoenix with LiveView as the first-p
 | Optional services never gate play | Metadata, artwork, achievements, storefronts, and recommendations must fail independently from local launch and saves | — Pending |
 | Polish outranks breadth | The project exists to remove friction; features that destabilize or fragment the happy path are deferred | — Pending |
 | Use Playstead as the project and ecosystem family name | The owner selected it after iterative naming tournaments; it is short, memorable, and extends coherently to server and client names without constraining the protocol | ✓ Selected 2026-08-26; public clearance pending |
+| No email anywhere in the system; setup token + single-use recovery codes + host-shell reset instead | Self-hosters should not need an SMTP relay to own their server; recovery must work precisely when the operator is locked out | ✓ Phase 1 (D-02, D-05) |
+| RFC 8628-shaped two-code pairing where a human compares one code on two screens | The security property is human verification, not a shared secret over the wire; devices get revocable credentials | ✓ Phase 1 (PROT-01/02) |
+| Release runs as `nobody`; every named-volume mount point is pre-created and chowned in the image; compile-time embeds are guarded by a build-context test | Docker seeds volume ownership from the image only on first use, and `mix test` passes against a git checkout that a Docker build context may not match | ✓ Phase 1 gap closure (01-08) |
 | Defer repository extraction until boundaries are proven | Stable contracts and multiple consumers should determine package boundaries; the Playstead family name does not require premature multi-repo architecture | — Pending |
 
 ## Open Questions for Phase Planning
@@ -204,4 +208,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-26 after initialization and preliminary ecosystem research*
+*Last updated: 2026-08-28 after Phase 1 (Private Custody and Durable Protocol)*
