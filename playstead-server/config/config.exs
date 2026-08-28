@@ -94,8 +94,13 @@ config :phoenix, :json_library, Jason
 
 # D-10: the device_code and the issued credential must never appear in
 # Phoenix's own request-parameter logging, alongside the pre-existing
-# password filter.
-config :phoenix, :filter_parameters, {:discard, ~w(password device_code credential)}
+# password filter. `code` covers the recovery-code login param
+# (POST /log-in/recovery) and `token` covers the password-reset/setup
+# single-use tokens (GET/POST /reset/:token, setup-token verification) —
+# both are single-use authentication secrets per Playstead.AuditLog's
+# "metadata must never carry credential material or a plaintext token"
+# discipline (see CR-01 in 01-REVIEW.md).
+config :phoenix, :filter_parameters, {:discard, ~w(password device_code credential code token)}
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
