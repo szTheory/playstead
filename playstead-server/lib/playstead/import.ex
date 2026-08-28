@@ -14,6 +14,8 @@ defmodule Playstead.Import do
 
   import Ecto.Query, warn: false
 
+  alias Playstead.Attention
+  alias Playstead.Attention.QuarantinePolicy
   alias Playstead.Blobs
   alias Playstead.Catalogue
   alias Playstead.Catalogue.{AssetMember, AssetSet}
@@ -27,6 +29,17 @@ defmodule Playstead.Import do
   # the game's primary content — "primary" is in the frozen role
   # vocabulary `Playstead.Catalogue.AssetMember` validates against.
   @tracer_member_role "primary"
+
+  # D-06: bounded per-row retry budget. Only a failure that has spent
+  # this many attempts raises an attention item (D-26) — a failure
+  # still within budget is quietly retried instead.
+  @max_attempts_per_row 3
+
+  # D-14: the four systems whose formats are signature-validated
+  # (magic + checksum/complement). An extension that claims one of
+  # these systems while the bytes fail that validation is a signature
+  # mismatch (D-25) — never a quarantine trigger (D-28).
+  @tier_a_systems ~w(gba gb gbc nes md)a
 
   @doc """
   Imports one already-committed blob as a source file for `user_id`,
@@ -56,28 +69,31 @@ defmodule Playstead.Import do
   def import_single(user_id, source_file_attrs, {_status, blob_meta}, opts) do
     format_bytes = Keyword.get(opts, :format_bytes)
     format_result = identify_format(format_bytes, source_file_attrs[:original_name])
+    quarantine_cap = Keyword.get(opts, :quarantine_size_cap_bytes)
 
     Repo.transaction(fn ->
       with {:ok, source_file} <- insert_source_file(user_id, source_file_attrs, blob_meta),
-           recognition_facts <- %{
-             blob_id: blob_meta.blob_id,
-             sha256: blob_meta.sha256,
-             bytes: format_bytes,
-             exclude_source_file_id: source_file.id
-           },
-           {recognition_result, _evidence} <-
-             Recognition.recognize_and_record(user_id, recognition_facts, format_result),
-           outcome <-
-             determine_outcome(
+           classification <-
+             classify(
                user_id,
-               blob_meta.blob_id,
-               source_file_attrs[:origin],
-               recognition_result
+               blob_meta,
+               source_file,
+               source_file_attrs,
+               format_result,
+               format_bytes,
+               quarantine_cap
              ),
-           {:ok, asset_set} <-
-             find_or_create_asset_set(user_id, blob_meta, source_file_attrs, format_result),
-           {:ok, receipt} <- insert_receipt(user_id, source_file, asset_set, blob_meta, outcome),
-           {:ok, _entry} <- ChangeJournal.append(user_id, :catalogue, receipt.id, %{}) do
+           {:ok, receipt} <-
+             insert_receipt(
+               user_id,
+               source_file,
+               classification.asset_set,
+               blob_meta,
+               classification.outcome,
+               classification.reason
+             ),
+           {:ok, _entry} <- ChangeJournal.append(user_id, :catalogue, receipt.id, %{}),
+           {:ok, _item} <- raise_attention(user_id, source_file, receipt, classification) do
         receipt
       else
         {:error, reason} -> Repo.rollback(reason)
@@ -87,6 +103,149 @@ defmodule Playstead.Import do
 
   defp identify_format(nil, _filename), do: nil
   defp identify_format(bytes, filename), do: Formats.identify(bytes, filename)
+
+  # D-26: the single classification step every import call site funnels
+  # its outcome through before deciding whether a human is needed
+  # (`Playstead.Attention.Derive.needs_attention?/1`). Quarantine is
+  # checked first and, when triggered, short-circuits recognition and
+  # catalogue membership entirely — a quarantined blob is not inspected
+  # further (D-28).
+  defp classify(
+         user_id,
+         blob_meta,
+         source_file,
+         source_file_attrs,
+         format_result,
+         format_bytes,
+         quarantine_cap
+       ) do
+    original_name = source_file_attrs[:original_name] || source_file.original_name
+    origin = source_file_attrs[:origin] || source_file.origin
+    size_bytes = source_file_attrs[:size_bytes] || blob_meta.size_bytes
+
+    case QuarantinePolicy.evaluate(size_bytes, original_name, quarantine_cap) do
+      quarantine_reason when not is_nil(quarantine_reason) ->
+        {:ok, _blob} = Blobs.quarantine_by_id(blob_meta.blob_id, quarantine_reason)
+
+        %{
+          outcome: :quarantined,
+          reason: to_string(quarantine_reason),
+          asset_set: nil,
+          system_confirmation_needed?: false,
+          unknown_system?: false,
+          evidence: %{}
+        }
+
+      nil ->
+        classify_recognized(
+          user_id,
+          blob_meta,
+          source_file,
+          source_file_attrs,
+          format_result,
+          format_bytes,
+          origin,
+          original_name
+        )
+    end
+  end
+
+  defp classify_recognized(
+         user_id,
+         blob_meta,
+         source_file,
+         source_file_attrs,
+         format_result,
+         format_bytes,
+         origin,
+         original_name
+       ) do
+    recognition_facts = %{
+      blob_id: blob_meta.blob_id,
+      sha256: blob_meta.sha256,
+      bytes: format_bytes,
+      exclude_source_file_id: source_file.id
+    }
+
+    {recognition_result, _evidence} =
+      Recognition.recognize_and_record(user_id, recognition_facts, format_result)
+
+    extension_guess = Catalogue.extension_guess(original_name)
+    system_assignment = Catalogue.assign_system(extension_guess, format_result, nil)
+    unrecognized_reason = unrecognized_reason_for(extension_guess, format_result, recognition_result)
+
+    base_outcome = determine_outcome(user_id, blob_meta.blob_id, origin, recognition_result)
+
+    {outcome, reason} =
+      if base_outcome == :new_asset and unrecognized_reason do
+        {:unrecognized, unrecognized_reason}
+      else
+        {base_outcome, nil}
+      end
+
+    {:ok, asset_set} =
+      find_or_create_asset_set(user_id, blob_meta, source_file_attrs, format_result)
+
+    %{
+      outcome: outcome,
+      reason: reason,
+      asset_set: asset_set,
+      system_confirmation_needed?: match?({:confirmation_needed, _}, system_assignment),
+      # D-26's exclusion side is the higher-priority guarantee: an
+      # unmapped extension with no header match is also the ordinary
+      # "content with no reference installed" quiet state, and the two
+      # are indistinguishable from the bytes alone. `unknown_system?`
+      # is not raised from this pipeline to avoid flooding the inbox
+      # with the single most common no-reference case; the flag and
+      # `Playstead.Attention.Derive`'s handling of it stay available
+      # for a future, more discriminating call site.
+      unknown_system?: false,
+      evidence: confirmation_evidence(system_assignment)
+    }
+  end
+
+  # D-25's `archive_not_opened` and `signature_mismatch` reasons: the
+  # first is a container detected by magic (never a quarantine
+  # trigger, D-28); the second is a Tier A extension (D-14) whose bytes
+  # failed that system's own signature validation.
+  defp unrecognized_reason_for(_extension_guess, {_system, :container, %{reason: :archive_not_opened}}, _result),
+    do: "archive_not_opened"
+
+  defp unrecognized_reason_for(extension_guess, {system, _tier, _evidence}, recognition_result)
+       when extension_guess in @tier_a_systems and system == :unknown do
+    if recognition_result.status == :no_reference_installed, do: "signature_mismatch"
+  end
+
+  defp unrecognized_reason_for(_extension_guess, _format_result, _recognition_result), do: nil
+
+  defp confirmation_evidence({:confirmation_needed, %{extension: extension, header: header}}) do
+    %{"extension" => to_string(extension), "header" => to_string(header)}
+  end
+
+  defp confirmation_evidence(_system_assignment), do: %{}
+
+  # D-26: raises an item inside the same transaction as the outcome
+  # that caused it, or does nothing for a quiet exclusion.
+  defp raise_attention(user_id, source_file, receipt, classification) do
+    ctx = %{
+      user_id: user_id,
+      outcome: classification.outcome,
+      reason: classification.reason,
+      system_confirmation_needed?: classification.system_confirmation_needed?,
+      unknown_system?: classification.unknown_system?,
+      grouping_key: attention_grouping_key(source_file),
+      source_file_id: source_file.id,
+      asset_set_id: classification.asset_set && classification.asset_set.id,
+      blob_id: receipt.blob_id,
+      import_session_id: source_file.import_session_id,
+      evidence: classification.evidence
+    }
+
+    Attention.raise_item(ctx)
+  end
+
+  defp attention_grouping_key(%SourceFile{import_session_id: nil, id: id}), do: "single:#{id}"
+  defp attention_grouping_key(%SourceFile{import_session_id: session_id}), do: session_id
 
   defp insert_source_file(user_id, attrs, blob_meta) do
     attrs =
@@ -285,7 +444,18 @@ defmodule Playstead.Import do
              ),
            {:ok, _entry} <- ChangeJournal.append(user_id, :catalogue, asset_set.id, %{}),
            {:ok, companion_receipts} <-
-             insert_companion_receipts(user_id, asset_set, companion_files) do
+             insert_companion_receipts(user_id, asset_set, companion_files),
+           {:ok, _item} <-
+             Attention.raise_item(%{
+               user_id: user_id,
+               outcome: outcome,
+               reason: reason,
+               grouping_key: "single:#{descriptor_source_file.id}",
+               source_file_id: descriptor_source_file.id,
+               asset_set_id: asset_set.id,
+               blob_id: descriptor_meta.blob_id,
+               evidence: %{"missing_members" => missing}
+             }) do
         %{asset_set: asset_set, receipts: [descriptor_receipt | companion_receipts]}
       else
         {:error, reason} -> Repo.rollback(reason)
@@ -531,29 +701,32 @@ defmodule Playstead.Import do
   def complete_staged_file(user_id, %SourceFile{} = source_file, {_status, blob_meta}, opts \\ []) do
     format_bytes = Keyword.get(opts, :format_bytes)
     format_result = identify_format(format_bytes, source_file.original_name)
+    quarantine_cap = Keyword.get(opts, :quarantine_size_cap_bytes)
 
     Repo.transaction(fn ->
       with {:ok, source_file} <-
              Repo.update(SourceFile.complete_changeset(source_file, blob_meta.blob_id)),
-           recognition_facts <- %{
-             blob_id: blob_meta.blob_id,
-             sha256: blob_meta.sha256,
-             bytes: format_bytes,
-             exclude_source_file_id: source_file.id
-           },
-           {recognition_result, _evidence} <-
-             Recognition.recognize_and_record(user_id, recognition_facts, format_result),
-           outcome <-
-             determine_outcome(user_id, blob_meta.blob_id, source_file.origin, recognition_result),
-           {:ok, asset_set} <-
-             find_or_create_asset_set(
+           classification <-
+             classify(
                user_id,
                blob_meta,
+               source_file,
                %{original_name: source_file.original_name},
-               format_result
+               format_result,
+               format_bytes,
+               quarantine_cap
              ),
-           {:ok, receipt} <- insert_receipt(user_id, source_file, asset_set, blob_meta, outcome),
-           {:ok, _entry} <- ChangeJournal.append(user_id, :catalogue, receipt.id, %{}) do
+           {:ok, receipt} <-
+             insert_receipt(
+               user_id,
+               source_file,
+               classification.asset_set,
+               blob_meta,
+               classification.outcome,
+               classification.reason
+             ),
+           {:ok, _entry} <- ChangeJournal.append(user_id, :catalogue, receipt.id, %{}),
+           {:ok, _item} <- raise_attention(user_id, source_file, receipt, classification) do
         receipt
       else
         {:error, reason} -> Repo.rollback(reason)
@@ -562,26 +735,48 @@ defmodule Playstead.Import do
   end
 
   @doc """
+  Whether `source_file` has exhausted its bounded per-row retry budget
+  (D-06). Only an exhausted failure raises an attention item (D-26) —
+  a failure still within budget is retried quietly instead.
+  """
+  @spec retries_exhausted?(SourceFile.t()) :: boolean()
+  def retries_exhausted?(%SourceFile{attempt_count: count}), do: count >= @max_attempts_per_row
+
+  @doc """
   Records a session file that could not be safely copied — a disk-full
   condition (the whole session pauses rather than continuing into
   thousands of failures) or an I/O error reading the source — as a
-  `:failed_safely` receipt, and marks the row `"failed"`.
+  `:failed_safely` receipt, and marks the row `"failed"`. Raises an
+  attention item only once this row's bounded retry budget is spent
+  (D-06, D-26); a failure still within budget produces a receipt but
+  no item, since it will be quietly retried.
   """
   @spec record_failed_file(pos_integer(), SourceFile.t(), String.t()) ::
           {:ok, Receipt.t()} | {:error, term()}
   def record_failed_file(user_id, %SourceFile{} = source_file, reason) do
     Repo.transaction(fn ->
-      with {:ok, source_file} <-
+      with {:ok, updated_file} <-
              Repo.update(SourceFile.staging_state_changeset(source_file, "failed", reason)),
            {:ok, receipt} <-
              insert_receipt(
                user_id,
-               source_file,
+               updated_file,
                nil,
                %{blob_id: nil, sha256: nil, size_bytes: source_file.size_bytes},
                :failed_safely,
                reason
-             ) do
+             ),
+           ctx <- %{
+             user_id: user_id,
+             outcome: :failed_safely,
+             reason: reason,
+             retries_exhausted?: retries_exhausted?(source_file),
+             grouping_key: attention_grouping_key(updated_file),
+             source_file_id: updated_file.id,
+             import_session_id: updated_file.import_session_id,
+             evidence: %{}
+           },
+           {:ok, _item} <- Attention.raise_item(ctx) do
         receipt
       else
         {:error, changeset} -> Repo.rollback(changeset)

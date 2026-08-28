@@ -20,6 +20,7 @@ defmodule PlaysteadWeb.Api.V1.BlobsController do
     device = conn.assigns.current_device
 
     with true <- authorized?(device.user_id, sha256),
+         true <- playable?(device.user_id, sha256),
          {:ok, stream} <- Playstead.Blobs.stream(sha256) do
       conn
       |> put_resp_header("etag", sha256)
@@ -38,6 +39,16 @@ defmodule PlaysteadWeb.Api.V1.BlobsController do
       where: sf.user_id == ^user_id and b.sha256 == ^sha256
     )
     |> Repo.exists?()
+  end
+
+  # D-28: a quarantined blob is never served as playable content until
+  # this user has their own release decision recorded — the machine
+  # verdict on the shared bytes is never enough on its own.
+  defp playable?(user_id, sha256) do
+    case Playstead.Blobs.get_by_sha256(sha256) do
+      nil -> false
+      blob -> not Playstead.Blobs.quarantined?(blob) or Playstead.Blobs.released_for_user?(user_id, blob.id)
+    end
   end
 
   defp stream_chunks(conn, stream) do

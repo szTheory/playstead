@@ -6,6 +6,11 @@ defmodule Playstead.Blobs do
   `Playstead.Blobs.Store` or `Playstead.Blobs.Store.LocalDisk` directly.
   """
 
+  import Ecto.Query, warn: false
+
+  alias Playstead.Blobs.{Blob, Release}
+  alias Playstead.Repo
+
   @default_store Playstead.Blobs.Store.LocalDisk
 
   defp store do
@@ -72,4 +77,74 @@ defmodule Playstead.Blobs do
   @doc "Whether the configured store's volume is writable."
   @spec writable?() :: boolean()
   def writable?, do: store().writable?()
+
+  @doc "Fetches a committed blob's row by its content hash, or `nil`."
+  @spec get_by_sha256(String.t()) :: Blob.t() | nil
+  def get_by_sha256(sha256), do: Repo.get_by(Blob, sha256: sha256)
+
+  @doc """
+  Sets `blob`'s shared quarantine state and reason (D-28). Never moves
+  or copies the underlying bytes — quarantine is a state on the
+  existing CAS row, not a second store.
+  """
+  @spec quarantine(Blob.t() | String.t(), atom() | String.t()) ::
+          {:ok, Blob.t()} | {:error, term()}
+  def quarantine(%Blob{} = blob, reason) do
+    blob |> Blob.quarantine_changeset(to_string(reason)) |> Repo.update()
+  end
+
+  def quarantine(sha256, reason) when is_binary(sha256) do
+    case get_by_sha256(sha256) do
+      nil -> {:error, :not_found}
+      blob -> quarantine(blob, reason)
+    end
+  end
+
+  @doc "Quarantines the blob identified by its primary key (D-28) — never by its content hash."
+  @spec quarantine_by_id(binary(), atom() | String.t()) :: {:ok, Blob.t()} | {:error, term()}
+  def quarantine_by_id(blob_id, reason) do
+    case Repo.get(Blob, blob_id) do
+      nil -> {:error, :not_found}
+      blob -> quarantine(blob, reason)
+    end
+  end
+
+  @doc """
+  Whether `blob` is currently quarantined — a policy state on the
+  bytes themselves, shared across every user who happens to reference
+  them (D-28).
+  """
+  @spec quarantined?(Blob.t()) :: boolean()
+  def quarantined?(%Blob{} = blob), do: Blob.quarantined?(blob)
+
+  @doc """
+  Records `user_id`'s own release decision over `blob_id` (D-28). The
+  machine verdict on the shared bytes never changes; only this user's
+  own record of having released them does. Idempotent: releasing
+  twice for the same user/blob updates the existing row rather than
+  raising a unique-constraint error.
+  """
+  @spec release(pos_integer(), binary(), String.t()) :: {:ok, Release.t()} | {:error, term()}
+  def release(user_id, blob_id, resolution) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    attrs = %{user_id: user_id, blob_id: blob_id, resolution: to_string(resolution), released_at: now}
+
+    %Release{}
+    |> Release.create_changeset(attrs)
+    |> Repo.insert(
+      on_conflict: {:replace, [:resolution, :released_at, :updated_at]},
+      conflict_target: [:user_id, :blob_id]
+    )
+  end
+
+  @doc """
+  Whether `user_id` has released `blob_id` for their own use (D-28).
+  Scoped strictly to this user's own release row — never influenced by
+  another user's release of the same shared bytes.
+  """
+  @spec released_for_user?(pos_integer(), binary()) :: boolean()
+  def released_for_user?(user_id, blob_id) do
+    from(r in Release, where: r.user_id == ^user_id and r.blob_id == ^blob_id) |> Repo.exists?()
+  end
 end

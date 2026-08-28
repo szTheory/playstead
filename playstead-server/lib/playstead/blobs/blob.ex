@@ -33,5 +33,16 @@ defmodule Playstead.Blobs.Blob do
     |> unique_constraint(:sha256)
   end
 
+  @doc "D-28: sets the shared quarantine state and reason on the bytes. Never moves them."
+  @spec quarantine_changeset(t(), String.t()) :: Ecto.Changeset.t()
+  def quarantine_changeset(blob, reason) do
+    change(blob, scan_state: "quarantined", scan_reason: reason)
+  end
+
+  @doc "Whether this blob is currently in the quarantine processing state."
+  @spec quarantined?(t()) :: boolean()
+  def quarantined?(%__MODULE__{scan_state: "quarantined"}), do: true
+  def quarantined?(%__MODULE__{}), do: false
+
   @type t :: %__MODULE__{}
 end
