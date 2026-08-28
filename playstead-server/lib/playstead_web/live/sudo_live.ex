@@ -30,9 +30,9 @@ defmodule PlaysteadWeb.SudoLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen flex items-center justify-center bg-[#0F172A] font-[Inter]">
+    <div class="min-h-screen flex items-center justify-center bg-[#0F172A] font-sans">
       <div class="w-full max-w-md rounded-lg bg-[#1E293B] p-8 shadow-xl">
-        <h1 class="text-2xl font-semibold text-[#F1F5F9]">
+        <h1 class="text-display font-semibold text-[#F1F5F9]">
           Confirm it's you — enter your password to continue.
         </h1>
 
@@ -62,13 +62,14 @@ defmodule PlaysteadWeb.SudoLive do
               phx-mounted={JS.focus()}
               class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0F172A] px-3 py-2 text-base text-[#F1F5F9] focus:border-[#38BDF8] focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
             />
-            <p :if={@error} class="mt-2 text-sm text-red-400">
+            <p :if={@error} id="sudo_error" class="mt-2 text-sm text-[#EF4444]">
               {@error}
             </p>
           </div>
 
           <button
             type="submit"
+            id="sudo_submit"
             phx-disable-with="Confirming..."
             class="w-full rounded-md bg-[#38BDF8] px-4 py-2 text-base font-semibold text-[#0F172A] hover:opacity-90 disabled:opacity-60"
           >

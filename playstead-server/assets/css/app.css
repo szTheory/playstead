@@ -9,6 +9,64 @@
 /* Required for Tailwind to automatically pick up changes in colocated CSS files in dev */
 @source "../../_build/dev/phoenix-colocated/playstead/*/";
 
+/* ---------------------------------------------------------------------
+   Playstead console design contract (01-UI-SPEC.md).
+   Self-hosted webfonts: the UI-SPEC makes JetBrains Mono a *correctness*
+   requirement (character-by-character code comparison, D-07/D-09), so the
+   fonts ship with the server rather than depending on the viewer's system
+   or a third-party CDN. `font-display: block` keeps rendering deterministic
+   (no fallback frame) — the browser contract tests assert on the loaded
+   faces. Files + licenses live in priv/static/fonts/.
+   ------------------------------------------------------------------- */
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/InterVariable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/JetBrainsMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/JetBrainsMono-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: block;
+}
+
+/* Color roles stay as arbitrary-value classes (`bg-[#0F172A]` …) in HEEx:
+   daisyUI (still used by the stock home page) defines its own
+   `--color-accent`/`--color-warning`… on :root, so role-named tokens would
+   collide. The nine hexes are enumerated and enforced by the browser
+   palette contract test instead. */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
+
+
+  /* Typography — four roles plus the two code sizes; weights 400/600 only. */
+  --text-body: 16px;
+  --text-body--line-height: 1.5;
+  --text-label: 14px;
+  --text-label--line-height: 1.5;
+  --text-heading: 20px;
+  --text-heading--line-height: 1.2;
+  --text-display: 28px;
+  --text-display--line-height: 1.2;
+  --text-code: 20px;
+  --text-code--line-height: 1.5;
+  --text-code--letter-spacing: 0.04em;
+  --text-code-display: 40px;
+  --text-code-display--line-height: 1.2;
+  --text-code-display--letter-spacing: 0.08em;
+}
+
 /* A Tailwind plugin that makes "hero-#{ICON}" classes available.
    The heroicons installation itself is managed by your mix.exs */
 @plugin "../vendor/heroicons";

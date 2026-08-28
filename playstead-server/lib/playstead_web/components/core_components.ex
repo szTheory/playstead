@@ -63,23 +63,34 @@ defmodule PlaysteadWeb.CoreComponents do
       id={@id}
       phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}")}
       role="alert"
-      class="toast toast-top toast-end z-50"
+      class="fixed top-4 right-4 z-50 w-80 max-w-[calc(100vw-2rem)] sm:w-96 font-sans"
       {@rest}
     >
       <div class={[
-        "alert w-80 sm:w-96 max-w-80 sm:max-w-96 text-wrap",
-        @kind == :info && "alert-info",
-        @kind == :error && "alert-error"
+        "flex items-start gap-3 rounded-lg border bg-[#1E293B] p-4 text-[#F1F5F9] shadow-xl",
+        @kind == :info && "border-[#38BDF8]",
+        @kind == :error && "border-[#EF4444]"
       ]}>
-        <.icon :if={@kind == :info} name="hero-information-circle" class="size-5 shrink-0" />
-        <.icon :if={@kind == :error} name="hero-exclamation-circle" class="size-5 shrink-0" />
-        <div>
-          <p :if={@title} class="font-semibold">{@title}</p>
-          <p>{msg}</p>
+        <.icon
+          :if={@kind == :info}
+          name="hero-information-circle"
+          class="mt-0.5 size-5 shrink-0 text-[#38BDF8]"
+        />
+        <.icon
+          :if={@kind == :error}
+          name="hero-exclamation-circle"
+          class="mt-0.5 size-5 shrink-0 text-[#EF4444]"
+        />
+        <div class="min-w-0 flex-1 break-words">
+          <p :if={@title} class="text-sm font-semibold">{@title}</p>
+          <p id={"#{@id}-message"} class="text-sm">{msg}</p>
         </div>
-        <div class="flex-1" />
-        <button type="button" class="group self-start cursor-pointer" aria-label={gettext("close")}>
-          <.icon name="hero-x-mark" class="size-5 opacity-40 group-hover:opacity-70" />
+        <button
+          type="button"
+          class="-m-2 flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-md text-[#94A3B8] hover:bg-[#334155] hover:text-[#F1F5F9]"
+          aria-label={gettext("Dismiss")}
+        >
+          <.icon name="hero-x-mark" class="size-5" />
         </button>
       </div>
     </div>
@@ -482,15 +493,19 @@ defmodule PlaysteadWeb.CoreComponents do
   0.04em letter-spacing (D-07/D-09: the owner must be able to visually
   compare these character-by-character).
   """
+  attr :id, :string, default: nil
   attr :class, :any, default: nil
+  attr :rest, :global
   slot :inner_block, required: true
 
   def code_display(assigns) do
     ~H"""
-    <span class={[
-      "font-['JetBrains_Mono'] text-[20px] font-semibold tracking-[0.04em] text-[#38BDF8]",
-      @class
-    ]}>
+    <span
+      id={@id}
+      data-role="code"
+      class={["font-mono text-code font-semibold text-[#38BDF8]", @class]}
+      {@rest}
+    >
       {render_slot(@inner_block)}
     </span>
     """

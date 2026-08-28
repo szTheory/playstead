@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />
-    <.live_title default="Playstead" suffix=" · Phoenix Framework" phx-no-format>{assigns[:page_title]}</.live_title>
+    <.live_title default="Playstead" suffix=" · Playstead" phx-no-format>{assigns[:page_title]}</.live_title>
     <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}>
     </script>
@@ -37,21 +37,52 @@
       })();
     </script>
   </head>
-  <body>
-    <ul class="menu menu-horizontal w-full relative z-10 flex items-center gap-4 px-4 sm:px-6 lg:px-8 justify-end">
+  <body class="bg-[#0F172A] font-sans text-[#F1F5F9]">
+    <nav
+      id="console-nav"
+      aria-label="Console"
+      class="relative z-10 flex w-full items-center justify-end gap-6 border-b border-[#334155] bg-[#0F172A] px-4 py-3 text-sm sm:px-6 lg:px-8"
+    >
       <%= if @current_scope do %>
-        <li>
+        <.link
+          id="nav-devices"
+          navigate={~p"/devices"}
+          class="text-[#94A3B8] hover:text-[#F1F5F9]"
+        >
+          Devices
+        </.link>
+        <.link
+          id="nav-sessions"
+          navigate={~p"/settings/sessions"}
+          class="text-[#94A3B8] hover:text-[#F1F5F9]"
+        >
+          Sessions
+        </.link>
+        <span
+          id="nav-account"
+          class="max-w-[24ch] truncate text-[#94A3B8]"
+          title={@current_scope.user.email}
+        >
           {@current_scope.user.email}
-        </li>
-        <li>
-          <.link href={~p"/log-out"} method="delete">Log out</.link>
-        </li>
+        </span>
+        <.link
+          id="log-out"
+          href={~p"/log-out"}
+          method="delete"
+          class="font-semibold text-[#F1F5F9] hover:text-[#38BDF8]"
+        >
+          Log out
+        </.link>
       <% else %>
-        <li>
-          <.link href={~p"/log-in"}>Log in</.link>
-        </li>
+        <.link
+          id="nav-log-in"
+          navigate={~p"/log-in"}
+          class="font-semibold text-[#F1F5F9] hover:text-[#38BDF8]"
+        >
+          Log in
+        </.link>
       <% end %>
-    </ul>
+    </nav>
     {@inner_content}
   </body>
 </html>

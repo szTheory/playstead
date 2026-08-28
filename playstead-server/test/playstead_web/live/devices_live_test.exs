@@ -201,15 +201,34 @@ defmodule PlaysteadWeb.DevicesLiveTest do
   end
 
   describe "static UI-SPEC contracts" do
-    test "the 40px display-code size appears only in approval_card.ex" do
+    test "the 40px display-code size (text-code-display) appears only in approval_card.ex" do
       files = Path.wildcard("lib/playstead_web/**/*.ex")
 
       matches =
-        for file <- files, contents = File.read!(file), contents =~ "text-[40px]" do
+        for file <- files,
+            contents = File.read!(file),
+            contents =~ "text-code-display" or contents =~ "text-[40px]" do
           file
         end
 
       assert matches == ["lib/playstead_web/live/devices_live/approval_card.ex"]
+    end
+
+    test "no console view uses an off-budget Tailwind size, weight, or off-palette color" do
+      # 01-UI-SPEC: sizes are body 16 / label 14 / heading 20 / display 28 (+ the
+      # one 40px code exception); weights are 400 and 600 only; every color is
+      # one of the nine palette hexes. The browser suite proves this on the
+      # rendered page — this is the cheap, always-on source-level tripwire.
+      offenders =
+        for file <- Path.wildcard("lib/playstead_web/live/**/*.ex"),
+            {line, n} <- File.read!(file) |> String.split("\n") |> Enum.with_index(1),
+            Regex.match?(
+              ~r/\btext-(xs|lg|xl|2xl|3xl|4xl)\b|\bfont-(thin|light|medium|bold|extrabold|black)\b|\btext-(red|blue|green|amber|sky|slate|gray)-\d{3}\b/,
+              line
+            ),
+            do: "#{file}:#{n}: #{String.trim(line)}"
+
+      assert offenders == []
     end
 
     test "the router mounts /devices behind the authenticated pipeline" do

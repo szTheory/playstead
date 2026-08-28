@@ -40,6 +40,13 @@ window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 // connect if there are any LiveViews on the page
 liveSocket.connect()
 
+// Flag the document once every declared @font-face has finished loading, so
+// the browser contract tests can wait on `html[data-fonts-ready]` instead of
+// sleeping (01-UI-SPEC: JetBrains Mono is a correctness requirement).
+document.fonts.ready.then(() => {
+  document.documentElement.dataset.fontsReady = "1"
+})
+
 // expose liveSocket on window for web console debug logs and latency simulation:
 // >> liveSocket.enableDebug()
 // >> liveSocket.enableLatencySim(1000)  // enabled for duration of browser session

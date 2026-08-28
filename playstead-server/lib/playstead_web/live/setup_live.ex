@@ -56,20 +56,20 @@ defmodule PlaysteadWeb.SetupLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen flex items-center justify-center bg-[#0F172A] font-[Inter] py-12">
+    <div class="min-h-screen flex items-center justify-center bg-[#0F172A] font-sans py-12">
       <div class="w-full max-w-md rounded-lg bg-[#1E293B] p-8 shadow-xl">
-        <h1 class="text-2xl font-semibold text-[#F1F5F9]">Set up Playstead</h1>
+        <h1 class="text-display font-semibold text-[#F1F5F9]">Set up Playstead</h1>
 
-        <div :if={@step == 1} class="mt-6">
+        <div :if={@step == 1} id="setup-step-1" class="mt-6">
           {render_step_1(assigns)}
         </div>
-        <div :if={@step == 2} class="mt-6">
+        <div :if={@step == 2} id="setup-step-2" class="mt-6">
           {render_step_2(assigns)}
         </div>
-        <div :if={@step == 3} class="mt-6">
+        <div :if={@step == 3} id="setup-step-3" class="mt-6">
           {render_step_3(assigns)}
         </div>
-        <div :if={@step == 4} class="mt-6">
+        <div :if={@step == 4} id="setup-step-4" class="mt-6">
           {render_step_4(assigns)}
         </div>
       </div>
@@ -106,14 +106,18 @@ defmodule PlaysteadWeb.SetupLive do
           spellcheck="false"
           required
           phx-mounted={JS.focus()}
-          class="mt-1 block w-full truncate rounded-md border border-[#334155] bg-[#0F172A] px-3 py-2 font-['JetBrains_Mono'] text-[20px] tracking-[0.04em] text-[#F1F5F9] focus:border-[#38BDF8] focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
+          class="mt-1 block w-full truncate rounded-md border border-[#334155] bg-[#0F172A] px-3 py-2 font-mono text-code text-[#F1F5F9] focus:border-[#38BDF8] focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
         />
-        <p :if={@token_error} class="mt-2 text-sm text-red-400">{@token_error}</p>
+        <p :if={@token_error} id="setup_token_error" class="mt-2 text-sm text-[#EF4444]">
+          {@token_error}
+        </p>
       </div>
 
       <button
         type="submit"
-        class="w-full rounded-md bg-[#38BDF8] px-4 py-2 text-base font-semibold text-[#0F172A] hover:opacity-90"
+        id="setup_token_submit"
+        phx-disable-with="Checking..."
+        class="w-full rounded-md bg-[#38BDF8] px-4 py-2 text-base font-semibold text-[#0F172A] hover:opacity-90 disabled:opacity-60"
       >
         Continue
       </button>
@@ -126,7 +130,9 @@ defmodule PlaysteadWeb.SetupLive do
   defp render_step_2(assigns) do
     ~H"""
     <p class="text-sm text-[#94A3B8]">Create your owner account.</p>
-    <p :if={@create_owner_error} class="mt-2 text-sm text-red-400">{@create_owner_error}</p>
+    <p :if={@create_owner_error} id="owner_error" class="mt-2 text-sm text-[#EF4444]">
+      {@create_owner_error}
+    </p>
 
     <.form
       for={@credentials_form}
@@ -148,7 +154,7 @@ defmodule PlaysteadWeb.SetupLive do
           phx-mounted={JS.focus()}
           class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0F172A] px-3 py-2 text-base text-[#F1F5F9] focus:border-[#38BDF8] focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
         />
-        <p :for={msg <- @credentials_form[:email].errors || []} class="mt-1 text-sm text-red-400">
+        <p :for={msg <- @credentials_form[:email].errors || []} class="mt-1 text-sm text-[#EF4444]">
           {translate_form_error(msg)}
         </p>
       </div>
@@ -167,7 +173,7 @@ defmodule PlaysteadWeb.SetupLive do
           class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0F172A] px-3 py-2 text-base text-[#F1F5F9] focus:border-[#38BDF8] focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
         />
         <p class="mt-1 text-sm text-[#94A3B8]">At least 12 characters.</p>
-        <p :for={msg <- @credentials_form[:password].errors || []} class="mt-1 text-sm text-red-400">
+        <p :for={msg <- @credentials_form[:password].errors || []} class="mt-1 text-sm text-[#EF4444]">
           {translate_form_error(msg)}
         </p>
       </div>
@@ -187,7 +193,7 @@ defmodule PlaysteadWeb.SetupLive do
         />
         <p
           :for={msg <- @credentials_form[:password_confirmation].errors || []}
-          class="mt-1 text-sm text-red-400"
+          class="mt-1 text-sm text-[#EF4444]"
         >
           {translate_form_error(msg)}
         </p>
@@ -195,7 +201,9 @@ defmodule PlaysteadWeb.SetupLive do
 
       <button
         type="submit"
-        class="w-full rounded-md bg-[#38BDF8] px-4 py-2 text-base font-semibold text-[#0F172A] hover:opacity-90"
+        id="owner_submit"
+        phx-disable-with="Creating..."
+        class="w-full rounded-md bg-[#38BDF8] px-4 py-2 text-base font-semibold text-[#0F172A] hover:opacity-90 disabled:opacity-60"
       >
         Continue
       </button>
@@ -212,15 +220,25 @@ defmodule PlaysteadWeb.SetupLive do
       are never shown again after this screen.
     </p>
 
-    <div class="mt-4 grid grid-cols-2 gap-2 rounded-md border border-[#334155] bg-[#0F172A] p-4">
-      <.code_display :for={code <- @recovery_codes}>{code}</.code_display>
+    <div
+      id="recovery-codes"
+      class="mt-4 grid grid-cols-2 gap-2 rounded-md border border-[#334155] bg-[#0F172A] p-4"
+    >
+      <.code_display
+        :for={{code, index} <- Enum.with_index(@recovery_codes)}
+        id={"recovery-code-#{index}"}
+        class="min-w-0 truncate"
+      >
+        {code}
+      </.code_display>
     </div>
 
     <button
       type="button"
+      id="continue_to_readiness"
       phx-click="continue_to_readiness"
       phx-mounted={JS.focus()}
-      class="mt-4 w-full rounded-md bg-[#38BDF8] px-4 py-2 text-base font-semibold text-[#0F172A] hover:opacity-90"
+      class="mt-4 w-full rounded-md bg-[#38BDF8] px-4 py-2 text-base font-semibold text-[#0F172A] hover:opacity-90 phx-click-loading:opacity-60"
     >
       Continue
     </button>
@@ -233,12 +251,14 @@ defmodule PlaysteadWeb.SetupLive do
     ~H"""
     <p class="text-sm text-[#94A3B8]">Here's how your server is doing.</p>
 
-    <ul class="mt-4 space-y-2">
-      <li :if={@readiness == :loading} class="text-sm text-[#94A3B8]">
+    <ul id="readiness" class="mt-4 space-y-2">
+      <li :if={@readiness == :loading} id="readiness-loading" class="text-sm text-[#94A3B8]">
         Checking…
       </li>
       <li
         :for={row <- (@readiness == :loading && []) || @readiness}
+        id={"readiness-#{row.id}"}
+        data-state={row.state}
         class={[
           "rounded-md border px-3 py-2 text-sm",
           row.state == :ok && "border-[#4ADE80]/40 text-[#4ADE80]",
@@ -249,15 +269,16 @@ defmodule PlaysteadWeb.SetupLive do
       </li>
     </ul>
 
-    <p class="mt-4 text-sm text-[#94A3B8]">
+    <p id="backup-nudge" class="mt-4 text-sm text-[#94A3B8]">
       Your library lives in this server's storage. Set up a backup destination soon — a copy
       on the same disk is not a backup.
     </p>
 
     <button
       type="button"
+      id="finish_setup"
       phx-click="finish_setup"
-      class="mt-4 w-full rounded-md bg-[#38BDF8] px-4 py-2 text-base font-semibold text-[#0F172A] hover:opacity-90"
+      class="mt-4 w-full rounded-md bg-[#38BDF8] px-4 py-2 text-base font-semibold text-[#0F172A] hover:opacity-90 phx-click-loading:opacity-60"
     >
       Finish setup
     </button>

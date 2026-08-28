@@ -28,7 +28,7 @@ defmodule PlaysteadWeb.RecoveryCodesController do
     <body style="background:#0F172A;color:#F1F5F9;font-family:Inter,sans-serif;">
       <h1>Your new recovery codes</h1>
       <p>Save these somewhere safe — they are shown only once. Your old codes no longer work.</p>
-      <ul style="font-family:'JetBrains Mono',monospace;">#{items}</ul>
+      <ul id="new-recovery-codes" style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:600;letter-spacing:0.04em;color:#38BDF8;">#{items}</ul>
       <p><a href="/settings/sessions" style="color:#38BDF8;">Back to Sessions</a></p>
     </body></html>
     """

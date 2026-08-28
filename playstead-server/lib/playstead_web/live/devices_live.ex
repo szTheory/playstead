@@ -59,21 +59,26 @@ defmodule PlaysteadWeb.DevicesLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen bg-[#0F172A] px-8 py-12 font-[Inter]">
+    <div class="min-h-screen bg-[#0F172A] px-8 py-12 font-sans">
       <div class="mx-auto max-w-4xl space-y-8">
         <div>
-          <h1 class="text-2xl font-semibold text-[#F1F5F9]">Devices</h1>
+          <h1 class="text-display font-semibold text-[#F1F5F9]">Devices</h1>
           <.ca_fingerprint_panel ca_fingerprint={@ca_fingerprint} transport_state={@transport_state} />
         </div>
 
-        <section>
-          <h2 class="text-lg font-semibold text-[#F1F5F9]">Pairing requests</h2>
-          <p :if={@pending_count >= @pending_cap} class="mt-2 text-sm text-[#FBBF24]">
+        <section id="pairing-requests">
+          <h2 class="text-heading font-semibold text-[#F1F5F9]">Pairing requests</h2>
+          <p
+            :if={@pending_count >= @pending_cap}
+            id="queue-full-notice"
+            class="mt-2 text-sm text-[#FBBF24]"
+          >
             {@pending_count} pending — queue full — oldest request will be evicted.
           </p>
 
           <div
             :if={@requests == []}
+            id="requests-empty"
             class="mt-4 rounded-lg border border-[#334155] bg-[#1E293B] p-6"
           >
             <p class="text-base text-[#F1F5F9]">No pairing requests</p>
@@ -87,14 +92,15 @@ defmodule PlaysteadWeb.DevicesLive do
           </div>
         </section>
 
-        <section class="border-t border-[#334155] pt-8">
-          <h2 class="text-lg font-semibold text-[#F1F5F9]">Paired devices</h2>
+        <section id="paired-devices" class="border-t border-[#334155] pt-8">
+          <h2 class="text-heading font-semibold text-[#F1F5F9]">Paired devices</h2>
           <p class="mt-1 text-sm text-[#94A3B8]">
             A revoked Mac keeps its downloaded games and saves and can pair again from its Settings screen.
           </p>
 
           <div
             :if={@active_devices == [] and @revoked_devices == []}
+            id="devices-empty"
             class="mt-4 rounded-lg border border-[#334155] bg-[#1E293B] p-6"
           >
             <p class="text-base text-[#F1F5F9]">No devices paired yet</p>
@@ -105,6 +111,7 @@ defmodule PlaysteadWeb.DevicesLive do
 
           <div
             :if={@active_devices != []}
+            id="active-devices"
             class="mt-4 rounded-lg border border-[#334155] bg-[#1E293B] divide-y divide-[#334155]"
           >
             <.device_row
@@ -116,7 +123,7 @@ defmodule PlaysteadWeb.DevicesLive do
             />
           </div>
 
-          <div :if={@revoked_devices != []} class="mt-6">
+          <div :if={@revoked_devices != []} id="revoked-devices" class="mt-6">
             <h3 class="text-sm font-semibold text-[#94A3B8]">Revoked</h3>
             <div class="mt-2 divide-y divide-[#334155] rounded-lg border border-[#334155] bg-[#1E293B]">
               <.device_row
@@ -250,11 +257,17 @@ defmodule PlaysteadWeb.DevicesLive do
 
   defp ca_fingerprint_panel(%{transport_state: :internal_ca} = assigns) do
     ~H"""
-    <div class="mt-2 rounded-lg border border-[#334155] bg-[#1E293B] p-4">
+    <div
+      id="server-certificate"
+      data-transport-state="internal_ca"
+      class="mt-2 rounded-lg border border-[#334155] bg-[#1E293B] p-4"
+    >
       <p class="text-sm font-semibold text-[#F1F5F9]">Server certificate</p>
       <p
         :if={match?({:ok, _}, @ca_fingerprint)}
-        class="mt-1 font-['JetBrains_Mono'] text-[14px] text-[#94A3B8]"
+        id="ca-fingerprint"
+        data-role="fingerprint"
+        class="mt-1 font-mono text-label text-[#94A3B8]"
       >
         {elem(@ca_fingerprint, 1)}
       </p>
@@ -270,7 +283,11 @@ defmodule PlaysteadWeb.DevicesLive do
 
   defp ca_fingerprint_panel(%{transport_state: :letsencrypt} = assigns) do
     ~H"""
-    <div class="mt-2 rounded-lg border border-[#334155] bg-[#1E293B] p-4">
+    <div
+      id="server-certificate"
+      data-transport-state="letsencrypt"
+      class="mt-2 rounded-lg border border-[#334155] bg-[#1E293B] p-4"
+    >
       <p class="text-sm font-semibold text-[#F1F5F9]">Server certificate</p>
       <p class="mt-1 text-sm text-[#94A3B8]">
         This server has a publicly-trusted certificate. Pinning is unnecessary.
@@ -281,7 +298,11 @@ defmodule PlaysteadWeb.DevicesLive do
 
   defp ca_fingerprint_panel(%{transport_state: :external_proxy} = assigns) do
     ~H"""
-    <div class="mt-2 rounded-lg border border-[#334155] bg-[#1E293B] p-4">
+    <div
+      id="server-certificate"
+      data-transport-state="external_proxy"
+      class="mt-2 rounded-lg border border-[#334155] bg-[#1E293B] p-4"
+    >
       <p class="text-sm font-semibold text-[#F1F5F9]">Server certificate</p>
       <p class="mt-1 text-sm text-[#94A3B8]">
         This server is reached through an external reverse proxy. Playstead does not manage that
@@ -293,7 +314,11 @@ defmodule PlaysteadWeb.DevicesLive do
 
   defp ca_fingerprint_panel(%{transport_state: :plain_http} = assigns) do
     ~H"""
-    <div class="mt-2 rounded-lg border border-[#334155] bg-[#1E293B] p-4">
+    <div
+      id="server-certificate"
+      data-transport-state="plain_http"
+      class="mt-2 rounded-lg border border-[#334155] bg-[#1E293B] p-4"
+    >
       <p class="text-sm font-semibold text-[#F1F5F9]">Server certificate</p>
       <p class="mt-1 text-sm text-[#94A3B8]">
         This server is running over plain HTTP right now. There is no certificate to pin.

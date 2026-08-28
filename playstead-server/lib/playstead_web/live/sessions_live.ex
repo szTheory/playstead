@@ -27,22 +27,27 @@ defmodule PlaysteadWeb.SessionsLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen bg-[#0F172A] px-8 py-12 font-[Inter]">
+    <div class="min-h-screen bg-[#0F172A] px-8 py-12 font-sans">
       <div class="mx-auto max-w-2xl">
-        <h1 class="text-2xl font-semibold text-[#F1F5F9]">Sessions</h1>
+        <h1 class="text-display font-semibold text-[#F1F5F9]">Sessions</h1>
         <p class="mt-2 text-sm text-[#94A3B8]">
           Every device currently signed in. Revoking a session ends it immediately — the
           other sessions are unaffected.
         </p>
 
-        <div class="mt-6 rounded-lg border border-[#334155] bg-[#1E293B] divide-y divide-[#334155]">
+        <div
+          id="sessions"
+          class="mt-6 rounded-lg border border-[#334155] bg-[#1E293B] divide-y divide-[#334155]"
+        >
           <div
             :for={session <- @sessions}
             id={"session-#{session.id}"}
+            data-current={to_string(session.token == @current_token)}
             class="flex items-center justify-between gap-4 px-4 py-4"
           >
             <div class="min-w-0">
               <p
+                id={"session-#{session.id}-label"}
                 class="max-w-xs truncate text-base text-[#F1F5F9]"
                 title={session.client_label || "Browser session"}
                 tabindex="0"
@@ -50,24 +55,26 @@ defmodule PlaysteadWeb.SessionsLive do
                 {session.client_label || "Browser session"}
                 <span
                   :if={session.token == @current_token}
-                  class="ml-2 text-xs font-semibold text-[#38BDF8]"
+                  id={"session-#{session.id}-current"}
+                  class="ml-2 text-label font-semibold text-[#38BDF8]"
                 >
                   (this device)
                 </span>
               </p>
-              <p class="mt-1 text-sm text-[#94A3B8]">
+              <p id={"session-#{session.id}-signed-in"} class="mt-1 text-sm text-[#94A3B8]">
                 Signed in {Calendar.strftime(session.inserted_at, "%Y-%m-%d %H:%M UTC")}
               </p>
             </div>
 
             <button
               :if={session.token != @current_token}
+              id={"session-#{session.id}-revoke"}
               type="button"
               phx-click="revoke"
               phx-value-id={session.id}
               disabled={@revoking_id == session.id}
               aria-label={"Revoke #{session.client_label || "Browser session"}"}
-              class="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-[#EF4444] hover:bg-[#334155] disabled:opacity-60"
+              class="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-[#EF4444] hover:bg-[#334155] disabled:opacity-60 phx-click-loading:opacity-60"
             >
               <span :if={@revoking_id == session.id} class="motion-safe:animate-spin">
                 <.icon name="hero-arrow-path" class="size-5" />
