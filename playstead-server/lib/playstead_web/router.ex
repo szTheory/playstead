@@ -77,6 +77,14 @@ defmodule PlaysteadWeb.Router do
     plug PlaysteadWeb.Plugs.Throttle, action: :recovery
   end
 
+  # WR-05 (01-REVIEW.md): the reset token is high-entropy and single-use,
+  # but its failure path re-renders the form with the same token still
+  # valid, so an attacker holding a leaked token could otherwise try many
+  # password payloads unthrottled.
+  pipeline :throttle_reset do
+    plug PlaysteadWeb.Plugs.Throttle, action: :reset
+  end
+
   get "/healthz", PlaysteadWeb.HealthController, :show
 
   scope "/", PlaysteadWeb do
@@ -261,7 +269,12 @@ defmodule PlaysteadWeb.Router do
     pipe_through [:browser]
 
     get "/reset/:token", ResetPasswordController, :edit
-    post "/reset/:token", ResetPasswordController, :update
     get "/docs/recovery", RecoveryDocsController, :show
+  end
+
+  scope "/", PlaysteadWeb do
+    pipe_through [:browser, :throttle_reset]
+
+    post "/reset/:token", ResetPasswordController, :update
   end
 end

@@ -24,6 +24,11 @@ defmodule PlaysteadWeb.SetupLive do
   @verify_token_scale :timer.minutes(1)
   @verify_token_limit 20
 
+  # WR-05 (01-REVIEW.md): `create_owner` is likewise reachable over the
+  # socket with no throttle. Defense-in-depth only, same rationale.
+  @create_owner_scale :timer.minutes(1)
+  @create_owner_limit 20
+
   @impl true
   def mount(_params, _session, socket) do
     {:ok,
@@ -34,6 +39,7 @@ defmodule PlaysteadWeb.SetupLive do
        token_error: nil,
        credentials_form:
          to_form(%{"email" => "", "password" => "", "password_confirmation" => ""}, as: "owner"),
+       create_owner_error: nil,
        recovery_codes: [],
        readiness: :loading,
        connect_ip: connect_ip(socket)
@@ -120,6 +126,7 @@ defmodule PlaysteadWeb.SetupLive do
   defp render_step_2(assigns) do
     ~H"""
     <p class="text-sm text-[#94A3B8]">Create your owner account.</p>
+    <p :if={@create_owner_error} class="mt-2 text-sm text-red-400">{@create_owner_error}</p>
 
     <.form
       for={@credentials_form}
@@ -284,24 +291,35 @@ defmodule PlaysteadWeb.SetupLive do
   end
 
   def handle_event("create_owner", %{"owner" => attrs}, socket) do
-    case Setup.claim(socket.assigns.token, attrs) do
-      {:ok, %{recovery_codes: codes}} ->
-        {:noreply, assign(socket, step: 3, recovery_codes: codes)}
+    case rate_limit_create_owner(socket) do
+      {:allow, _} ->
+        case Setup.claim(socket.assigns.token, attrs) do
+          {:ok, %{recovery_codes: codes}} ->
+            {:noreply, assign(socket, step: 3, recovery_codes: codes)}
 
-      {:error, %Ecto.Changeset{} = changeset} ->
-        {:noreply, assign(socket, credentials_form: to_form(changeset, as: "owner"))}
+          {:error, %Ecto.Changeset{} = changeset} ->
+            {:noreply, assign(socket, credentials_form: to_form(changeset, as: "owner"))}
 
-      {:error, :token_already_used} ->
+          {:error, :token_already_used} ->
+            {:noreply,
+             assign(socket,
+               step: 1,
+               token: nil,
+               token_error: "This token was already used. Ask the host operator for a fresh one."
+             )}
+
+          {:error, :invalid_or_expired} ->
+            {:noreply,
+             assign(socket,
+               step: 1,
+               token: nil,
+               token_error: "This token is invalid or has expired."
+             )}
+        end
+
+      {:deny, _} ->
         {:noreply,
-         assign(socket,
-           step: 1,
-           token: nil,
-           token_error: "This token was already used. Ask the host operator for a fresh one."
-         )}
-
-      {:error, :invalid_or_expired} ->
-        {:noreply,
-         assign(socket, step: 1, token: nil, token_error: "This token is invalid or has expired.")}
+         assign(socket, create_owner_error: "Too many attempts. Please wait a moment and try again.")}
     end
   end
 
@@ -324,6 +342,18 @@ defmodule PlaysteadWeb.SetupLive do
       nil -> {:allow, 0}
       ip -> RateLimiter.hit("setup:verify_token:ip:#{ip}", @verify_token_scale, verify_token_limit())
     end
+  end
+
+  defp rate_limit_create_owner(socket) do
+    case socket.assigns[:connect_ip] do
+      nil -> {:allow, 0}
+      ip -> RateLimiter.hit("setup:create_owner:ip:#{ip}", @create_owner_scale, create_owner_limit())
+    end
+  end
+
+  defp create_owner_limit do
+    Application.get_env(:playstead, __MODULE__, [])
+    |> Keyword.get(:create_owner_limit, @create_owner_limit)
   end
 
   defp verify_token_limit do
