@@ -12,8 +12,17 @@ defmodule PlaysteadWeb.SetupLive do
 
   use PlaysteadWeb, :live_view
 
+  alias Playstead.RateLimiter
   alias Playstead.Readiness
   alias Playstead.Setup
+
+  # WR-01 (01-REVIEW.md): `verify_token` runs over the LiveView socket
+  # with no HTTP-pipeline throttle, unlike every other credential-checking
+  # endpoint in this app. Fixed per-connect-IP limit, defense-in-depth
+  # only — the setup token is a 256-bit value so brute force isn't
+  # practically feasible on its own.
+  @verify_token_scale :timer.minutes(1)
+  @verify_token_limit 20
 
   @impl true
   def mount(_params, _session, socket) do
@@ -26,8 +35,16 @@ defmodule PlaysteadWeb.SetupLive do
        credentials_form:
          to_form(%{"email" => "", "password" => "", "password_confirmation" => ""}, as: "owner"),
        recovery_codes: [],
-       readiness: :loading
+       readiness: :loading,
+       connect_ip: connect_ip(socket)
      )}
+  end
+
+  defp connect_ip(socket) do
+    case Phoenix.LiveView.get_connect_info(socket, :peer_data) do
+      %{address: address} -> address |> :inet.ntoa() |> to_string()
+      _ -> nil
+    end
   end
 
   @impl true
@@ -249,12 +266,20 @@ defmodule PlaysteadWeb.SetupLive do
 
   @impl true
   def handle_event("verify_token", %{"setup" => %{"token" => token}}, socket) do
-    case Setup.verify_token(token) do
-      :ok ->
-        {:noreply, assign(socket, step: 2, token: token, token_error: nil)}
+    case rate_limit_verify_token(socket) do
+      {:allow, _} ->
+        case Setup.verify_token(token) do
+          :ok ->
+            {:noreply, assign(socket, step: 2, token: token, token_error: nil)}
 
-      {:error, :invalid_or_expired} ->
-        {:noreply, assign(socket, token_error: "This token is invalid or has already been used.")}
+          {:error, :invalid_or_expired} ->
+            {:noreply,
+             assign(socket, token_error: "This token is invalid or has already been used.")}
+        end
+
+      {:deny, _} ->
+        {:noreply,
+         assign(socket, token_error: "Too many attempts. Please wait a moment and try again.")}
     end
   end
 
@@ -292,5 +317,17 @@ defmodule PlaysteadWeb.SetupLive do
   @impl true
   def handle_info(:run_readiness_checks, socket) do
     {:noreply, assign(socket, readiness: Readiness.summary())}
+  end
+
+  defp rate_limit_verify_token(socket) do
+    case socket.assigns[:connect_ip] do
+      nil -> {:allow, 0}
+      ip -> RateLimiter.hit("setup:verify_token:ip:#{ip}", @verify_token_scale, verify_token_limit())
+    end
+  end
+
+  defp verify_token_limit do
+    Application.get_env(:playstead, __MODULE__, [])
+    |> Keyword.get(:verify_token_limit, @verify_token_limit)
   end
 end

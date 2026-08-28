@@ -18,9 +18,13 @@ defmodule PlaysteadWeb.Endpoint do
     http_only: true
   ]
 
+  # WR-01 (01-REVIEW.md): `:peer_data` is included so `SetupLive` can rate
+  # limit the `verify_token` event per connect IP — the setup wizard's
+  # token-verification step runs entirely over the LiveView socket with no
+  # HTTP-pipeline throttle to fall back on.
   socket "/live", Phoenix.LiveView.Socket,
-    websocket: [connect_info: [session: @session_options]],
-    longpoll: [connect_info: [session: @session_options]]
+    websocket: [connect_info: [:peer_data, session: @session_options]],
+    longpoll: [connect_info: [:peer_data, session: @session_options]]
 
   # Serve at "/" the static files from "priv/static" directory.
   #

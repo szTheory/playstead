@@ -29,6 +29,16 @@ defmodule PlaysteadWeb.Router do
     plug PlaysteadWeb.Plugs.Throttle, action: :pairing_request
   end
 
+  # WR-01 (01-REVIEW.md): defense-in-depth per-IP rate limit on
+  # unauthenticated redemption. device_code is a 256-bit value so brute
+  # force isn't practical, but this keeps redemption consistent with the
+  # throttling discipline applied everywhere else a credential is
+  # checked (login, sudo, recovery). Distinct action name from
+  # :pairing_request so the two buckets don't share a limit.
+  pipeline :throttle_pairing_redeem do
+    plug PlaysteadWeb.Plugs.Throttle, action: :pairing_redeem
+  end
+
   # D-10: header-only device credential authentication for paired
   # clients. Plans 01-06/01-07 attach their endpoints to this pipeline.
   pipeline :device_auth do
@@ -98,7 +108,15 @@ defmodule PlaysteadWeb.Router do
   scope "/api/v1/device-pairing", PlaysteadWeb.Api.V1 do
     pipe_through :api
 
+    # WR-01: the poll endpoint already has its own request-scoped rate
+    # limit (Pairing.check_poll_rate/1), so it is deliberately not
+    # wrapped in :throttle_pairing_redeem here.
     get "/requests/:id", PairingController, :show
+  end
+
+  scope "/api/v1/device-pairing", PlaysteadWeb.Api.V1 do
+    pipe_through [:api, :throttle_pairing_redeem]
+
     # D-08: the client has no credential yet at redemption time, only
     # its self-generated device_code — this stays unauthenticated.
     post "/requests/:id/redeem", PairingController, :redeem
