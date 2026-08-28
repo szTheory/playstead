@@ -33,7 +33,7 @@ This MVP proves one trustworthy Mac-to-server custody and continuity journey: de
   4. After a disconnection, a client can retry a mutation without creating another effect and reconstruct catalogue, job, transfer, and save state through HTTPS snapshot-and-cursor reads without a WebSocket.
 
 **Research / spike flags**: Contract gate: prove idempotency receipts, authorization, and missed-notification cursor reset/convergence with HTTP contract tests. Preserve the API-first boundary; LiveView is console delivery only.
-**Plans**: 7/7 plans executed
+**Plans**: 8 plans (7/7 executed; 1 gap-closure plan pending from verification)
 
 Plans:
 **Wave 1**
@@ -63,6 +63,10 @@ Plans:
 **Wave 7** *(blocked on Wave 6 completion)*
 
 - [x] 01-07-PLAN.md — Change journal with tombstones, HMAC-signed opaque cursor, 410 resync, transactional snapshot, and the convergence proof
+
+**Wave 8** *(gap closure — OPER-01 blocker from 01-VERIFICATION.md)*
+
+- [ ] 01-08-PLAN.md — Stage `docs/` in the Docker builder stage before compile, guard the compile-time-resource class with an ExUnit build-context test, and re-run the OPER-01 compose smoke plus the deferred UI-SPEC walkthrough
 
 **UI hint**: yes
 
