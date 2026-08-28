@@ -20,6 +20,60 @@ if System.get_env("PHX_SERVER") do
   config :playstead, PlaysteadWeb.Endpoint, server: true
 end
 
+# --- Import / export (Phase 2): D-01/D-03/D-05/D-10/D-11/D-33 ---------
+# Every value below is parsed as an integer or boolean where applicable
+# and fails loudly at boot on a malformed value, rather than silently
+# defaulting -- the same "raise on bad required config" convention this
+# file already uses for DATABASE_URL/SECRET_KEY_BASE below.
+
+parse_integer_env = fn var, default ->
+  case System.get_env(var) do
+    nil ->
+      default
+
+    "" ->
+      default
+
+    value ->
+      case Integer.parse(value) do
+        {int, ""} ->
+          int
+
+        _ ->
+          raise "environment variable #{var} must be an integer, got: #{inspect(value)}"
+      end
+  end
+end
+
+parse_boolean_env = fn var, default ->
+  case System.get_env(var) do
+    nil ->
+      default
+
+    "" ->
+      default
+
+    "true" ->
+      true
+
+    "false" ->
+      false
+
+    value ->
+      raise "environment variable #{var} must be \"true\" or \"false\", got: #{inspect(value)}"
+  end
+end
+
+config :playstead,
+  inbox_path: System.get_env("PLAYSTEAD_INBOX_PATH", "/app/inbox"),
+  export_path: System.get_env("PLAYSTEAD_EXPORT_PATH", "/app/exports"),
+  import_concurrency: parse_integer_env.("PLAYSTEAD_IMPORT_CONCURRENCY", 2),
+  import_verify: parse_boolean_env.("PLAYSTEAD_IMPORT_VERIFY", true),
+  max_browser_upload_bytes:
+    parse_integer_env.("PLAYSTEAD_MAX_BROWSER_UPLOAD_BYTES", 4_294_967_296),
+  max_upload_bytes: parse_integer_env.("PLAYSTEAD_MAX_UPLOAD_BYTES", 8_589_934_592),
+  max_session_files: parse_integer_env.("PLAYSTEAD_MAX_SESSION_FILES", 250_000)
+
 config :playstead, PlaysteadWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 

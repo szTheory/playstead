@@ -68,6 +68,28 @@ Visit `https://localhost/setup` (or `https://<PLAYSTEAD_DOMAIN>/setup`
 if you set a domain), paste in the setup token, and follow the wizard
 to create your owner account.
 
+## Import and export folders
+
+Two more host folders appear alongside the named volumes, starting in
+Phase 2:
+
+```
+./inbox/     # stage files here to import a collection
+./exports/   # exported game folders are written here
+```
+
+Copy files into `./inbox` to stage a "Stage a collection" import from
+the console. Playstead never modifies or removes anything under
+`./inbox` — the folder is mounted read-only inside the container, so
+that is a guarantee your operating system enforces, not just something
+the application promises to do.
+
+`./exports` is where exported folders are written when you export your
+library as ordinary files. **A copy in `./exports` on the same disk is
+not a backup.** If the disk fails, the live library and the exported
+copy are gone together — see `docs/UPGRADE.md` for the backup
+procedure before any upgrade.
+
 ## Named volumes — this is your library
 
 ```

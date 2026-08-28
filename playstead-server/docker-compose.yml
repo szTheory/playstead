@@ -24,6 +24,13 @@ services:
       PHX_HOST: ${PHX_HOST}
       PHX_SERVER: "true"
       PLAYSTEAD_SETUP_TOKEN: ${PLAYSTEAD_SETUP_TOKEN}
+      PLAYSTEAD_INBOX_PATH: /app/inbox
+      PLAYSTEAD_EXPORT_PATH: /app/exports
+      PLAYSTEAD_IMPORT_CONCURRENCY: ${PLAYSTEAD_IMPORT_CONCURRENCY:-2}
+      PLAYSTEAD_IMPORT_VERIFY: ${PLAYSTEAD_IMPORT_VERIFY:-true}
+      PLAYSTEAD_MAX_BROWSER_UPLOAD_BYTES: ${PLAYSTEAD_MAX_BROWSER_UPLOAD_BYTES:-4294967296}
+      PLAYSTEAD_MAX_UPLOAD_BYTES: ${PLAYSTEAD_MAX_UPLOAD_BYTES:-8589934592}
+      PLAYSTEAD_MAX_SESSION_FILES: ${PLAYSTEAD_MAX_SESSION_FILES:-250000}
       PORT: "4000"
     depends_on:
       db:
@@ -43,6 +50,14 @@ services:
       # for pairing-time client pinning. The app never writes into this
       # volume — Caddy owns it exclusively.
       - caddy_data:/caddy_data:ro
+      # D-01: a self-hoster stages files for import by copying them into
+      # this host folder. `:ro` is load-bearing, not decorative — it
+      # makes "your source file stays where it is" a kernel guarantee
+      # rather than an application-code promise.
+      - ./inbox:/app/inbox:ro
+      # D-33: where exported folders are written. Genuinely writable —
+      # unlike the inbox, export jobs cannot proceed without it.
+      - ./exports:/app/exports
     restart: unless-stopped
 
   caddy:

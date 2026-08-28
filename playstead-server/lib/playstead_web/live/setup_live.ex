@@ -378,9 +378,17 @@ defmodule PlaysteadWeb.SetupLive do
     {:noreply, redirect(socket, to: ~p"/log-in")}
   end
 
+  # The one-shot setup wizard only ever asked about database/volumes/https
+  # readiness (D-04) -- Phase 2 extended `Readiness.summary/1` with
+  # import/export-mount rows for a future console readiness page, not
+  # this step, so this filters back down to the original three ids
+  # rather than growing the wizard's own scope.
+  @wizard_readiness_ids [:database, :volumes, :https]
+
   @impl true
   def handle_info(:run_readiness_checks, socket) do
-    {:noreply, assign(socket, readiness: Readiness.summary())}
+    rows = Enum.filter(Readiness.summary(), &(&1.id in @wizard_readiness_ids))
+    {:noreply, assign(socket, readiness: rows)}
   end
 
   defp rate_limit_verify_token(socket) do

@@ -5,3 +5,10 @@ services:
   app:
     image: ${PLAYSTEAD_APP_IMAGE:-playstead-app:ci}
     build: !reset null
+    volumes:
+      # Mirrors docker-compose.yml's Phase 2 mounts so CI exercises the
+      # same inbox/exports shape as a real deploy.
+      - playstead_blobs:/app/blobs
+      - caddy_data:/caddy_data:ro
+      - ./inbox:/app/inbox:ro
+      - ./exports:/app/exports
