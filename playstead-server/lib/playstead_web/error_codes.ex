@@ -26,7 +26,14 @@ defmodule PlaysteadWeb.ErrorCodes do
     not_found: {404, "Not Found"},
     rate_limited: {429, "Rate Limited"},
     internal_error: {500, "Internal Server Error"},
-    validation_failed: {422, "Validation Failed"}
+    validation_failed: {422, "Validation Failed"},
+    import_file_too_large: {413, "Import File Too Large"},
+    storage_insufficient: {507, "Storage Insufficient"},
+    import_digest_mismatch: {422, "Import Digest Mismatch"},
+    upload_length_required: {411, "Upload Length Required"},
+    import_empty_file: {422, "Import Empty File"},
+    too_many_uploads: {429, "Too Many Uploads"},
+    import_session_too_large: {422, "Import Session Too Large"}
   }
 
   @doc "The full code-to-{status, title} mapping."

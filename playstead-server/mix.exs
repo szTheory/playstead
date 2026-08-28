@@ -52,6 +52,7 @@ defmodule Playstead.MixProject do
       {:hammer, "~> 7.4"},
       {:lazy_html, ">= 0.1.0", only: :test},
       {:wallaby, "~> 0.31.0", runtime: false, only: :test},
+      {:stream_data, "~> 1.1", only: [:test]},
       {:phoenix_live_dashboard, "~> 0.8.3"},
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
       {:tailwind, "~> 0.5", runtime: Mix.env() == :dev},
