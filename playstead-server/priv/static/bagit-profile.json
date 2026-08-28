@@ -1,0 +1,17 @@
+{
+  "BagIt-Profile-Info": {
+    "BagIt-Profile-Identifier": "https://playstead.example/bagit-profile.json",
+    "Contact-Name": "Playstead",
+    "External-Description": "The Playstead export bag profile: an RFC 8493 BagIt bag whose payload manifest lists exactly the exported game bytes, verifiable with a standard sha256sum -c and no Playstead tooling at all.",
+    "Version": "1.0"
+  },
+  "Bag-Info": {
+    "Bagging-Date": { "required": true },
+    "Payload-Oxum": { "required": true },
+    "BagIt-Profile-Identifier": { "required": true }
+  },
+  "Manifests-Required": ["sha256"],
+  "Tag-Manifests-Required": ["sha256"],
+  "Serialization": "none",
+  "Accept-BagIt-Version": ["1.0"]
+}

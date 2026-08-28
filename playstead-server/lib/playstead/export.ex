@@ -1,15 +1,16 @@
 defmodule Playstead.Export do
   @moduledoc """
-  The export context (D-33, D-34): writes one asset set into an
-  ordinary, verifiable folder under the configured export root. Never
-  calls `Playstead.Blobs.Store` or `Playstead.Blobs.Store.LocalDisk`
-  directly — `Playstead.Blobs.stream/2` is how bytes are read back out.
+  The export context (D-33, D-34): writes asset sets into an ordinary,
+  verifiable folder under the configured export root. Never calls
+  `Playstead.Blobs.Store` or `Playstead.Blobs.Store.LocalDisk`
+  directly — `Playstead.Blobs.stream/2` is how bytes are read back
+  out.
   """
 
   import Ecto.Query, warn: false
 
   alias Playstead.Catalogue.{AssetMember, AssetSet}
-  alias Playstead.Export.{BagitWriter, PathSanitizer}
+  alias Playstead.Export.{BagitWriter, Layout, Sanitize}
   alias Playstead.Repo
 
   @doc "The configured export root (D-33's PLAYSTEAD_EXPORT_PATH, never a free-form absolute path)."
@@ -25,18 +26,64 @@ defmodule Playstead.Export do
   @spec export_set(pos_integer(), binary(), String.t()) ::
           {:ok, map()} | {:error, :invalid_target | :not_found | term()}
   def export_set(user_id, asset_set_id, target_name) do
-    with {:ok, _} <- PathSanitizer.sanitize(target_name),
-         {:ok, target_dir} <- PathSanitizer.resolve_under_root(export_root(), target_name),
+    with {:ok, target_dir} <- resolve_target(target_name),
          %AssetSet{} = asset_set <- fetch_asset_set(user_id, asset_set_id) do
-      BagitWriter.write_bag(target_dir, asset_set)
+      layout = Layout.plan([to_layout_input(asset_set)], include_excluded: true)
+      BagitWriter.write_bag(target_dir, layout)
     else
-      :error -> {:error, :invalid_target}
+      {:error, reason} -> {:error, reason}
       nil -> {:error, :not_found}
       other -> other
     end
   end
 
-  defp fetch_asset_set(user_id, asset_set_id) do
+  @doc """
+  Resolves and validates `target_name` under `export_root/0`. Rejects
+  a target that is an absolute path, contains a parent-directory
+  segment, or otherwise requires rewriting — an export target must be
+  supplied exactly safe, never merely made safe.
+  """
+  @spec resolve_target(String.t()) :: {:ok, String.t()} | {:error, :invalid_target}
+  def resolve_target(target_name) when is_binary(target_name) do
+    if Sanitize.safe?(target_name) do
+      case Sanitize.safe_join(export_root(), target_name) do
+        {:ok, dir} -> {:ok, dir}
+        :error -> {:error, :invalid_target}
+      end
+    else
+      {:error, :invalid_target}
+    end
+  end
+
+  def resolve_target(_target_name), do: {:error, :invalid_target}
+
+  @doc "Converts a preloaded `AssetSet` into the `Playstead.Export.Layout.plan/2` input shape."
+  @spec to_layout_input(AssetSet.t()) :: map()
+  def to_layout_input(%AssetSet{} = asset_set) do
+    %{
+      id: asset_set.id,
+      system_id: asset_set.system_id,
+      display_title: asset_set.display_title || "untitled",
+      status: asset_set.status,
+      member_fingerprint: asset_set.member_fingerprint,
+      excluded: not is_nil(asset_set.excluded_at),
+      members:
+        Enum.map(asset_set.asset_members, fn m ->
+          %{
+            ordinal: m.ordinal,
+            role: m.role,
+            required: m.required,
+            declared_name: m.declared_name,
+            sha256: m.blob && m.blob.sha256,
+            size_bytes: m.blob && m.blob.size_bytes
+          }
+        end)
+    }
+  end
+
+  @doc "Fetches `user_id`'s asset set with members and blobs preloaded, or `nil`."
+  @spec fetch_asset_set(pos_integer(), binary()) :: AssetSet.t() | nil
+  def fetch_asset_set(user_id, asset_set_id) do
     AssetSet
     |> Repo.get_by(id: asset_set_id, user_id: user_id)
     |> case do
@@ -48,5 +95,13 @@ defmodule Playstead.Export do
           asset_members: {from(m in AssetMember, order_by: m.ordinal), [:blob]}
         )
     end
+  end
+
+  @doc "Fetches every non-excluded asset set for `user_id` with members and blobs preloaded."
+  @spec fetch_all_asset_sets(pos_integer()) :: [AssetSet.t()]
+  def fetch_all_asset_sets(user_id) do
+    from(a in AssetSet, where: a.user_id == ^user_id)
+    |> Repo.all()
+    |> Repo.preload(asset_members: {from(m in AssetMember, order_by: m.ordinal), [:blob]})
   end
 end
