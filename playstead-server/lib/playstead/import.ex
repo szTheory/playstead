@@ -42,7 +42,7 @@ defmodule Playstead.Import do
   def import_single(user_id, source_file_attrs, {_status, blob_meta}) do
     Repo.transaction(fn ->
       with {:ok, source_file} <- insert_source_file(user_id, source_file_attrs, blob_meta),
-           outcome <- determine_outcome(user_id, blob_meta.blob_id),
+           outcome <- determine_outcome(user_id, blob_meta.blob_id, source_file_attrs[:origin]),
            {:ok, asset_set} <- find_or_create_asset_set(user_id, blob_meta, source_file_attrs),
            {:ok, receipt} <- insert_receipt(user_id, source_file, asset_set, blob_meta, outcome),
            {:ok, _entry} <- ChangeJournal.append(user_id, :catalogue, receipt.id, %{}) do
@@ -65,12 +65,16 @@ defmodule Playstead.Import do
   # D-13: duplicate status is evaluated within the calling user's own
   # records only. A `source_files` row referencing this blob owned by
   # a *different* user must never change this user's outcome.
-  defp determine_outcome(user_id, blob_id) do
+  defp determine_outcome(user_id, blob_id, origin) do
     count =
       from(sf in SourceFile, where: sf.user_id == ^user_id and sf.blob_id == ^blob_id)
       |> Repo.aggregate(:count)
 
-    if count > 1, do: :exact_duplicate, else: :new_asset
+    cond do
+      count <= 1 -> :new_asset
+      origin == "reimport" -> :alias
+      true -> :exact_duplicate
+    end
   end
 
   # Uses Repo.insert_all/3 with on_conflict: :nothing rather than
@@ -159,4 +163,69 @@ defmodule Playstead.Import do
 
   @doc "The frozen outcome-code module, re-exported for callers that only need `Playstead.Import`."
   defdelegate outcome_codes(), to: Outcome, as: :all
+
+  @doc """
+  Reads a bag directory's `manifest-sha256.txt` and imports every listed
+  payload file back through `import_single/3` (D-37). Identity follows
+  the member fingerprint: when the reimported member set matches an
+  existing set for this user, `determine_outcome/3` reports `:alias`
+  (new `source_file` rows only, zero new blobs, zero new asset sets);
+  otherwise a fresh set is created, restored with the same member
+  role/ordinal/required shape `find_or_create_asset_set/3` always
+  produces for this tracer's single-member sets.
+  """
+  @spec reimport_folder(pos_integer(), String.t()) :: {:ok, [Receipt.t()]} | {:error, term()}
+  def reimport_folder(user_id, bag_dir) do
+    manifest_path = Path.join(bag_dir, "manifest-sha256.txt")
+
+    case File.read(manifest_path) do
+      {:ok, content} -> reimport_entries(user_id, bag_dir, parse_manifest(content))
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp reimport_entries(user_id, bag_dir, entries) do
+    result =
+      Enum.reduce_while(entries, {:ok, []}, fn %{sha256: sha256, relative: relative},
+                                               {:ok, acc} ->
+        payload_path = Path.join(bag_dir, relative)
+
+        case import_bag_member(user_id, payload_path, sha256) do
+          {:ok, receipt} -> {:cont, {:ok, [receipt | acc]}}
+          {:error, reason} -> {:halt, {:error, reason}}
+        end
+      end)
+
+    case result do
+      {:ok, receipts} -> {:ok, Enum.reverse(receipts)}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp import_bag_member(user_id, payload_path, expected_sha256) do
+    size = File.stat!(payload_path).size
+    stream = File.stream!(payload_path, [], 1_048_576)
+
+    with {:ok, status, meta} <-
+           Playstead.Blobs.put_stream(stream, size, expected_sha256: expected_sha256) do
+      import_single(
+        user_id,
+        %{
+          original_name: Path.basename(payload_path),
+          origin: "reimport",
+          size_bytes: meta.size_bytes
+        },
+        {status, meta}
+      )
+    end
+  end
+
+  defp parse_manifest(content) do
+    content
+    |> String.split("\n", trim: true)
+    |> Enum.map(fn line ->
+      [sha256, relative] = String.split(line, "  ", parts: 2)
+      %{sha256: sha256, relative: relative}
+    end)
+  end
 end
