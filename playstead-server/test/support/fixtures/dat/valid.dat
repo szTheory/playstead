@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<datafile>
+  <header>
+    <name>Test System</name>
+    <description>Playstead test fixture DAT</description>
+    <version>1.0</version>
+  </header>
+  <game name="Test Game (USA)">
+    <description>Test Game (USA)</description>
+    <rom name="Test Game (USA).gba" size="8388608" crc="1234abcd" md5="098f6bcd4621d373cade4e832627b4f6" sha1="a94a8fe5ccb19ba61c4c0873d391e987982fbbd3"/>
+  </game>
+  <game name="Second Game (Europe)">
+    <description>Second Game (Europe)</description>
+    <rom name="Second Game (Europe).gba" size="4194304" crc="deadbeef" md5="5d41402abc4b2a76b9719d911017c592" sha1="356a192b7913b04c54574d18c28d46e6395428ab"/>
+  </game>
+</datafile>

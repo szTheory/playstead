@@ -71,6 +71,7 @@ defmodule Playstead.MixProject do
        compile: false,
        depth: 1},
       {:req, "~> 0.5"},
+      {:saxy, "~> 1.6"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 1.0"},

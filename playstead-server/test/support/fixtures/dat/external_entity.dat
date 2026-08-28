@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<!DOCTYPE datafile [
+  <!ENTITY xxe SYSTEM "file:///etc/passwd">
+]>
+<datafile>
+  <header>
+    <name>Test System</name>
+  </header>
+  <game name="&xxe;">
+    <rom name="Test Game (USA).gba" size="8388608" crc="1234abcd"/>
+  </game>
+</datafile>

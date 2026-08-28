@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<datafile>
+  <header>
+    <name>Test System</name>
+  </header>
+  <game name="Test Game (USA)">
+    <rom name="Test Game (USA).gba" size="8388608" crc="1234ab
