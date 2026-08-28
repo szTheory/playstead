@@ -33,7 +33,7 @@ This MVP proves one trustworthy Mac-to-server custody and continuity journey: de
   4. After a disconnection, a client can retry a mutation without creating another effect and reconstruct catalogue, job, transfer, and save state through HTTPS snapshot-and-cursor reads without a WebSocket.
 
 **Research / spike flags**: Contract gate: prove idempotency receipts, authorization, and missed-notification cursor reset/convergence with HTTP contract tests. Preserve the API-first boundary; LiveView is console delivery only.
-**Plans**: 8 plans (7/7 executed; 1 gap-closure plan pending from verification)
+**Plans**: 8/8 plans executed (7/7 executed; 1 gap-closure plan pending from verification)
 
 Plans:
 **Wave 1**
@@ -66,7 +66,7 @@ Plans:
 
 **Wave 8** *(gap closure — OPER-01 blocker from 01-VERIFICATION.md)*
 
-- [ ] 01-08-PLAN.md — Stage `docs/` in the Docker builder stage before compile, guard the compile-time-resource class with an ExUnit build-context test, and re-run the OPER-01 compose smoke plus the deferred UI-SPEC walkthrough
+- [x] 01-08-PLAN.md — Stage `docs/` in the Docker builder stage before compile, guard the compile-time-resource class with an ExUnit build-context test, and re-run the OPER-01 compose smoke plus the deferred UI-SPEC walkthrough
 
 **UI hint**: yes
 
@@ -143,7 +143,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Private Custody and Durable Protocol | 7/7 | In Progress|  |
+| 1. Private Custody and Durable Protocol | 8/8 | In Progress|  |
 | 2. Explainable Import and Exact Export | 0/TBD | Not started | - |
 | 3. Mac Offline Play Vertical Slice | 0/TBD | Not started | - |
 | 4. Persistent Save Continuity | 0/TBD | Not started | - |

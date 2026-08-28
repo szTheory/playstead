@@ -1,18 +1,18 @@
 ---
 gsd_state_version: 1.0
 current_phase: 01
-current_phase_name: private-custody-and-durable-protocol
+current_phase_name: Private Custody and Durable Protocol
 status: executing
-stopped_at: Completed 01-07-PLAN.md
-last_updated: "2026-08-28T02:20:44.201Z"
+stopped_at: Completed 01-08-PLAN.md
+last_updated: "2026-08-28T13:09:39.289Z"
 last_activity: 2026-08-27
 last_activity_desc: Phase 01 execution started
-state_head: 5fbbc686e70dd375bc81a023272964308be7d4a7
+state_head: 02e277d2135e40a58637c32263a17a6088d1e074
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 8
-  completed_plans: 7
+  completed_plans: 8
   percent: 0
 ---
 
@@ -27,8 +27,8 @@ See: `.planning/PROJECT.md` (updated 2026-08-26)
 
 ## Current Position
 
-Phase: 01 (private-custody-and-durable-protocol) — READY TO EXECUTE
-Plan: 7 of 7
+Phase: 01 (Private Custody and Durable Protocol) — EXECUTING
+Plan: 2 of 8
 Status: Ready to execute
 Last activity: 2026-08-27 — Phase 01 execution started
 
@@ -64,6 +64,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01 P05 | 45min | 2 tasks | 10 files |
 | Phase 01 P06 | 80min | 3 tasks | 28 files |
 | Phase 01 P07 | 65min | 3 tasks | 17 files |
+| Phase 01 P08 | 33min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -84,6 +85,9 @@ Progress: [░░░░░░░░░░] 0%
 - [Phase 01]: [Phase 01]: on_conflict convergence detection required {:replace, [:updated_at]} not :nothing, since Ecto client-generates binary_id primary keys before INSERT, making :nothing's returned struct identical between insert and no-op conflict
 - [Phase 01]: [Phase 01]: Only the protocol capability namespace is required for a compatible negotiation verdict; app/cache/transfer/adapter/save mismatches degrade to compatible_with_limits, never incompatible
 - [Phase 01]: Commit-order fencing for the change journal uses a write-side pg_advisory_xact_lock rather than read-side xact-id/snapshot-xmin filtering, since the latter is untestable under Ecto Sandbox's shared-transaction test harness
+- [Phase 01]: Stage docs/ in the Docker builder stage before RUN mix compile (not relocating RECOVERY.md under priv/, not reading it at runtime) to fix OPER-01's docker compose build failure
+- [Phase 01]: Added a generic ExUnit build-context guard (Playstead.DockerBuildContextTest) deriving required staged resources from Application.spec(:playstead, :modules) so any future compile-time embed is covered without hardcoding
+- [Phase 01]: Runner-stage /app/blobs must be mkdir+chown'd to nobody before USER nobody, since Docker creates named-volume mount points root:root; scripts/compose-smoke.sh now asserts blob writability
 
 ### Pending Todos
 
@@ -110,6 +114,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-27T19:07:18.768Z
-Stopped at: Completed 01-07-PLAN.md
+Last session: 2026-08-28T13:09:39.280Z
+Stopped at: Completed 01-08-PLAN.md
 Resume file: None
