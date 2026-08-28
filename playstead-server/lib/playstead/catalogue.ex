@@ -11,9 +11,12 @@ defmodule Playstead.Catalogue do
 
   import Ecto.Query, warn: false
 
+  alias Playstead.Accounts.Scope
   alias Playstead.AuditLog
   alias Playstead.Catalogue.AssetSet
   alias Playstead.Formats.SystemId
+  alias Playstead.Import.Receipt
+  alias Playstead.Recognition.Evidence
   alias Playstead.Recognition.NoIntroName
   alias Playstead.Repo
 
@@ -190,6 +193,102 @@ defmodule Playstead.Catalogue do
     asset_set
     |> Ecto.Changeset.change(member_fingerprint: fingerprint, status: status)
     |> Repo.update()
+  end
+
+  @doc """
+  Lists `scope`'s asset sets (D-26), newest first, excluding excluded
+  (tombstoned) sets, each paired with its quiet `:identified` /
+  `:unidentified` badge state — never an error styling for an
+  unidentified asset, since a first adopter with hundreds of
+  unrecognised files should see their library, not a wall of chores.
+  Every query is scoped through `scope.user.id`; there is no code path
+  here that can see, count, or hint at another user's holdings, even
+  though the underlying blobs may be physically shared (D-13).
+  """
+  @spec list_assets(Scope.t(), keyword()) :: [
+          %{asset_set: AssetSet.t(), identification_state: atom()}
+        ]
+  def list_assets(%Scope{user: user}, _opts \\ []) do
+    from(a in AssetSet,
+      where: a.user_id == ^user.id and is_nil(a.excluded_at),
+      order_by: [desc: a.inserted_at],
+      preload: [asset_members: :blob]
+    )
+    |> Repo.all()
+    |> Enum.map(fn set -> %{asset_set: set, identification_state: identification_state(set)} end)
+  end
+
+  @doc """
+  The IMPT-02 evidence detail for one of `scope`'s asset sets: the
+  member list (with blobs preloaded so hash/size are directly
+  readable), the latest recognition evidence per member blob (header
+  fields are only ever shown for a `:signature`-tier match), and every
+  import receipt this set's members produced — including a receipt
+  whose asset has since been re-identified, so the outcome recorded at
+  import is never silently rewritten by later evidence (D-25).
+
+  Scoped strictly through `scope.user.id`: `{:error, :not_found}` for
+  an id that does not belong to this user, indistinguishable from an
+  id that does not exist at all.
+  """
+  @spec get_asset_detail(Scope.t(), Ecto.UUID.t()) :: {:ok, map()} | {:error, :not_found}
+  def get_asset_detail(%Scope{user: user}, asset_set_id) do
+    case Repo.get_by(AssetSet, id: asset_set_id, user_id: user.id) do
+      nil ->
+        {:error, :not_found}
+
+      %AssetSet{} = asset_set ->
+        asset_set = Repo.preload(asset_set, asset_members: :blob)
+
+        blob_ids =
+          asset_set.asset_members |> Enum.map(& &1.blob_id) |> Enum.reject(&is_nil/1)
+
+        receipts =
+          from(r in Receipt,
+            where: r.asset_set_id == ^asset_set.id and r.user_id == ^user.id,
+            order_by: [asc: r.inserted_at],
+            preload: [:source_file]
+          )
+          |> Repo.all()
+
+        {:ok,
+         %{
+           asset_set: asset_set,
+           identification_state: identification_state(asset_set),
+           evidence_by_blob: latest_evidence_by_blob(blob_ids),
+           receipts: receipts
+         }}
+    end
+  end
+
+  # Quiet by design (D-26): no evidence at all, or every recorded
+  # evidence row for this set's blobs reports `no_reference_installed`,
+  # is `:unidentified` — never an error state, just a badge.
+  defp identification_state(%AssetSet{asset_members: members}) when is_list(members) do
+    blob_ids = members |> Enum.map(& &1.blob_id) |> Enum.reject(&is_nil/1)
+
+    if blob_ids == [] do
+      :unidentified
+    else
+      statuses =
+        from(e in Evidence, where: e.blob_id in ^blob_ids, select: e.status) |> Repo.all()
+
+      if Enum.any?(statuses, &(&1 != "no_reference_installed")) do
+        :identified
+      else
+        :unidentified
+      end
+    end
+  end
+
+  defp identification_state(%AssetSet{}), do: :unidentified
+
+  defp latest_evidence_by_blob([]), do: %{}
+
+  defp latest_evidence_by_blob(blob_ids) do
+    from(e in Evidence, where: e.blob_id in ^blob_ids, order_by: [desc: e.inserted_at])
+    |> Repo.all()
+    |> Enum.reduce(%{}, fn evidence, acc -> Map.put_new(acc, evidence.blob_id, evidence) end)
   end
 
   @doc """

@@ -163,7 +163,10 @@ defmodule Playstead.Blobs.Store.LocalDisk do
   @impl true
   def adopt_temp_file(tmp_path, %{sha256: sha256, size_bytes: size_bytes} = digest_map) do
     with :ok <- verify_on_disk(tmp_path, sha256) do
-      place_and_record(%WriteRef{tmp_path: tmp_path, blob_path: blob_path(), size: size_bytes}, digest_map)
+      place_and_record(
+        %WriteRef{tmp_path: tmp_path, blob_path: blob_path(), size: size_bytes},
+        digest_map
+      )
     else
       {:error, _reason} = err ->
         File.rm(tmp_path)

@@ -74,18 +74,26 @@ defmodule PlaysteadWeb.ImportLive do
           <form id="import-form" phx-change="validate" phx-submit="confirm">
             <label
               for={@uploads.file.ref}
-              class="flex h-11 w-fit cursor-pointer items-center justify-center rounded-md bg-[#38BDF8] px-4 text-base font-semibold text-[#0F172A] hover:opacity-90"
+              class="flex h-11 w-fit cursor-pointer items-center justify-center rounded-md border border-[#334155] bg-[#1E293B] px-4 text-base font-semibold text-[#F1F5F9] hover:border-[#94A3B8]"
             >
               Choose a file
             </label>
             <.live_file_input upload={@uploads.file} class="sr-only" />
 
-            <div :for={err <- upload_errors(@uploads.file)} id="upload-error" class="mt-4 text-sm text-[#EF4444]">
+            <div
+              :for={err <- upload_errors(@uploads.file)}
+              id="upload-error"
+              class="mt-4 text-sm text-[#EF4444]"
+            >
               {error_to_string(err, @ceiling)}
             </div>
 
             <div :for={entry <- @uploads.file.entries} class="mt-6">
-              <div :for={err <- upload_errors(@uploads.file, entry)} id={"entry-error-#{entry.ref}"} class="text-sm text-[#EF4444]">
+              <div
+                :for={err <- upload_errors(@uploads.file, entry)}
+                id={"entry-error-#{entry.ref}"}
+                class="text-sm text-[#EF4444]"
+              >
                 {error_to_string(err, @ceiling)}
               </div>
 

@@ -90,7 +90,10 @@ defmodule Playstead.Import.HashingWriterTest do
     # never touches the shared `PLAYSTEAD_BLOB_PATH` directory or the OS
     # environment (both would race concurrently-running async tests).
     blocking_file =
-      Path.join(System.tmp_dir!(), "playstead-hashing-writer-blocker-#{System.unique_integer([:positive])}")
+      Path.join(
+        System.tmp_dir!(),
+        "playstead-hashing-writer-blocker-#{System.unique_integer([:positive])}"
+      )
 
     File.write!(blocking_file, "not a directory")
     on_exit(fn -> File.rm(blocking_file) end)

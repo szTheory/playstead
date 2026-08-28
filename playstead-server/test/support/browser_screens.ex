@@ -13,9 +13,19 @@ defmodule PlaysteadWeb.BrowserScreens do
   import Playstead.PairingFixtures
   import Playstead.TlsFixtures
 
-  alias Playstead.{Accounts, Pairing, Repo, Setup}
+  alias Playstead.{Accounts, Import, Pairing, Repo, Setup}
 
-  @screens [:login, :recovery_login, :setup, :sudo, :devices, :sessions]
+  @screens [
+    :login,
+    :recovery_login,
+    :setup,
+    :sudo,
+    :devices,
+    :sessions,
+    :import,
+    :library,
+    :library_detail
+  ]
 
   def screens, do: @screens
 
@@ -25,6 +35,9 @@ defmodule PlaysteadWeb.BrowserScreens do
   def path(:sudo), do: "/sudo"
   def path(:devices), do: "/devices"
   def path(:sessions), do: "/settings/sessions"
+  def path(:import), do: "/import"
+  def path(:library), do: "/library"
+  def path(:library_detail), do: "/library/:id"
 
   @doc "Console routes that are deliberately NOT screens (no UI-SPEC element)."
   def excluded_paths,
@@ -94,6 +107,39 @@ defmodule PlaysteadWeb.BrowserScreens do
      }}
   end
 
+  def open(session, :import) do
+    user = owner_fixture()
+
+    session =
+      session
+      |> log_in_via_cookie(user, token_authenticated_at: DateTime.utc_now(:second))
+      |> visit_live(path(:import))
+
+    {session, %{user: user}}
+  end
+
+  def open(session, :library) do
+    {user, _receipt} = seed_library_asset()
+
+    session =
+      session
+      |> log_in_via_cookie(user, token_authenticated_at: DateTime.utc_now(:second))
+      |> visit_live(path(:library))
+
+    {session, %{user: user}}
+  end
+
+  def open(session, :library_detail) do
+    {user, receipt} = seed_library_asset()
+
+    session =
+      session
+      |> log_in_via_cookie(user, token_authenticated_at: DateTime.utc_now(:second))
+      |> visit_live("/library/#{receipt.asset_set_id}")
+
+    {session, %{user: user, receipt: receipt}}
+  end
+
   def open(session, :sessions) do
     user = owner_fixture()
     other = Accounts.generate_user_session_token(user, "Safari on another Mac")
@@ -105,6 +151,23 @@ defmodule PlaysteadWeb.BrowserScreens do
       |> visit_live(path(:sessions))
 
     {session, %{user: user, other_token: other}}
+  end
+
+  defp seed_library_asset do
+    user = owner_fixture()
+    File.mkdir_p!(Playstead.Blobs.Store.LocalDisk.blob_path())
+
+    bytes = :crypto.strong_rand_bytes(64)
+    {:ok, status, meta} = Playstead.Blobs.put_stream([bytes], byte_size(bytes))
+
+    {:ok, receipt} =
+      Import.import_single(
+        user.id,
+        %{original_name: "game.bin", origin: "upload", size_bytes: byte_size(bytes)},
+        {status, meta}
+      )
+
+    {user, receipt}
   end
 
   @doc "Mint a setup token and return the plaintext (same banner parse the wizard test uses)."

@@ -34,7 +34,9 @@ defmodule PlaysteadWeb.ImportLiveTest do
        %{conn: conn} do
     {:ok, lv, _html} = live(conn, ~p"/import")
 
-    upload = file_input(lv, "#import-form", :file, [entry("game.gba", :crypto.strong_rand_bytes(1_024))])
+    upload =
+      file_input(lv, "#import-form", :file, [entry("game.gba", :crypto.strong_rand_bytes(1_024))])
+
     html = render_upload(upload, "game.gba")
 
     assert html =~ "1.0 KB"
@@ -44,7 +46,9 @@ defmodule PlaysteadWeb.ImportLiveTest do
   test "the preview result carries no duplicate verdict before confirmation", %{conn: conn} do
     {:ok, lv, _html} = live(conn, ~p"/import")
 
-    upload = file_input(lv, "#import-form", :file, [entry("game.gba", :crypto.strong_rand_bytes(64))])
+    upload =
+      file_input(lv, "#import-form", :file, [entry("game.gba", :crypto.strong_rand_bytes(64))])
+
     html = render_upload(upload, "game.gba")
 
     refute html =~ "Already in your library"
@@ -53,7 +57,11 @@ defmodule PlaysteadWeb.ImportLiveTest do
   test "the preview's format label is marked as extension-derived", %{conn: conn} do
     {:ok, lv, _html} = live(conn, ~p"/import")
 
-    upload = file_input(lv, "#import-form", :file, [entry("Sonic (USA).gba", :crypto.strong_rand_bytes(64))])
+    upload =
+      file_input(lv, "#import-form", :file, [
+        entry("Sonic (USA).gba", :crypto.strong_rand_bytes(64))
+      ])
+
     html = render_upload(upload, "Sonic (USA).gba")
 
     assert html =~ "guess from file name"
@@ -95,7 +103,9 @@ defmodule PlaysteadWeb.ImportLiveTest do
   } do
     {:ok, lv, _html} = live(conn, ~p"/import")
 
-    upload = file_input(lv, "#import-form", :file, [entry("game.gba", :crypto.strong_rand_bytes(64))])
+    upload =
+      file_input(lv, "#import-form", :file, [entry("game.gba", :crypto.strong_rand_bytes(64))])
+
     assert render_upload(upload, "game.gba") =~ "Copy into my library"
 
     lv |> form("#import-form") |> render_submit()
@@ -112,7 +122,9 @@ defmodule PlaysteadWeb.ImportLiveTest do
   } do
     {:ok, lv, _html} = live(conn, ~p"/import")
 
-    upload = file_input(lv, "#import-form", :file, [entry("game.gba", :crypto.strong_rand_bytes(64))])
+    upload =
+      file_input(lv, "#import-form", :file, [entry("game.gba", :crypto.strong_rand_bytes(64))])
+
     assert render_upload(upload, "game.gba") =~ "Copy into my library"
 
     # Simulate a failure at commit time: sweep the writer's completed
@@ -149,7 +161,9 @@ defmodule PlaysteadWeb.ImportLiveTest do
   } do
     {:ok, lv, _html} = live(conn, ~p"/import")
 
-    upload = file_input(lv, "#import-form", :file, [entry("game.gba", :crypto.strong_rand_bytes(64))])
+    upload =
+      file_input(lv, "#import-form", :file, [entry("game.gba", :crypto.strong_rand_bytes(64))])
+
     assert render_upload(upload, "game.gba") =~ "Copy into my library"
     lv |> form("#import-form") |> render_submit()
 

@@ -21,8 +21,7 @@ defmodule PlaysteadWeb.ImportLive.ReceiptRow do
     "alias" =>
       {"Another copy of a game you have", "Same bytes, different name. Both names are kept."},
     "variant" =>
-      {"A different version of a game you have",
-       "Kept alongside the version you already had."},
+      {"A different version of a game you have", "Kept alongside the version you already had."},
     "incomplete_set" =>
       {"Some parts are missing", "This game needs more than one file. We kept what you gave us."},
     "unrecognized" =>
