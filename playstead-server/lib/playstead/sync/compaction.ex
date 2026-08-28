@@ -49,6 +49,18 @@ defmodule Playstead.Sync.Compaction do
   The lowest surviving `seq` across the whole journal, or `nil` if the
   journal is empty (nothing has ever been compacted away — every cursor
   is serviceable).
+
+  WR-04 (01-REVIEW.md): this is deliberately a global minimum across all
+  owners, not scoped per-user, even though `seq` is what `Sync.expired?/1`
+  compares a given user's cursor against. That's only correct because (a)
+  `seq` is a single monotonic `bigserial` shared by every owner's journal
+  entries, and (b) `compact/0` above deletes rows purely by age
+  (`inserted_at < cutoff`), never by owner. A future change that
+  partitions compaction per-owner (e.g. to let an under-utilized user's
+  history survive longer) would silently break `Sync.expired?/1`'s
+  boundary check unless this function is reconsidered at the same time —
+  don't "fix" this into a per-user `WHERE user_id = ...` query without
+  also revisiting the cross-owner `seq` ordering guarantee it relies on.
   """
   @spec oldest_surviving_seq() :: non_neg_integer() | nil
   def oldest_surviving_seq do
