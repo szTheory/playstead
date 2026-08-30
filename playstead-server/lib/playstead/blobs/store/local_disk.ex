@@ -359,6 +359,17 @@ defmodule Playstead.Blobs.Store.LocalDisk do
   end
 
   @impl true
+  def digest_from_offset(sha256, offset) do
+    path = object_path(blob_path(), sha256)
+
+    if File.exists?(path) do
+      MultiHash.digest_from_offset(path, offset)
+    else
+      {:error, :not_found}
+    end
+  end
+
+  @impl true
   def free_bytes, do: Playstead.Readiness.free_bytes(blob_path())
 
   @impl true

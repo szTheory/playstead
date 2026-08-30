@@ -79,6 +79,21 @@ defmodule Playstead.Blobs.Store do
   @callback delete(path :: String.t()) :: :ok | {:error, term()}
 
   @doc """
+  Computes the CRC32/MD5/SHA-1 triple over the committed object for
+  `sha256`, starting at `offset` bytes into it — a headerless-offset
+  fingerprint (D-20, plan 02-10). Read-only: this callback never
+  deletes, renames, truncates, or moves the object it reads, the same
+  guarantee `read_leading/2` carries. An `offset` at or past the
+  object's end is a caller error, not something the adapter guesses
+  about — it returns an empty-input digest triple, not an error.
+  Returns `{:error, :not_found}` when no committed object exists for
+  `sha256`. Storage-agnostic by design: an object-store adapter
+  satisfies this with a ranged GET instead of a local seek.
+  """
+  @callback digest_from_offset(hash(), offset :: non_neg_integer()) ::
+              {:ok, %{crc32: hash(), md5: hash(), sha1: hash()}} | {:error, term()}
+
+  @doc """
   Adopts an already-written, already-hashed temporary file — the
   completed output of `Playstead.Import.HashingWriter`'s own streaming
   hash-while-write (D-01a) — into the CAS without re-streaming its

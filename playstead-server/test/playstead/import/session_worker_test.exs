@@ -27,6 +27,9 @@ defmodule Playstead.Import.SessionWorkerTest.InsufficientSpaceStore do
   def read_leading(_sha256, _byte_count), do: {:error, :not_found}
 
   @impl true
+  def digest_from_offset(_sha256, _offset), do: {:error, :not_found}
+
+  @impl true
   def free_bytes, do: 0
 
   @impl true

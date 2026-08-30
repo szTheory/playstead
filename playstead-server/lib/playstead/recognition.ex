@@ -19,8 +19,10 @@ defmodule Playstead.Recognition do
   import Ecto.Query, warn: false
 
   alias Playstead.Attention
-  alias Playstead.Blobs.{Blob, BlobFingerprint}
+  alias Playstead.Blobs
+  alias Playstead.Blobs.{Blob, BlobFingerprint, Fingerprints}
   alias Playstead.Catalogue.{AssetSet, Payload}
+  alias Playstead.Formats
   alias Playstead.Import.SourceFile
   alias Playstead.Recognition.{DatPack, Evidence, HeaderEvidence, ReferenceMatch}
   alias Playstead.Repo
@@ -147,7 +149,7 @@ defmodule Playstead.Recognition do
     user_id
     |> unmatched_candidates()
     |> Enum.reduce(%{identified: 0}, fn {asset_set, blob}, acc ->
-      fingerprints = Repo.all(from(f in BlobFingerprint, where: f.blob_id == ^blob.id))
+      fingerprints = fingerprints_for(blob)
 
       case ReferenceMatch.match(blob, fingerprints) do
         {:match, entry} ->
@@ -158,6 +160,37 @@ defmodule Playstead.Recognition do
           acc
       end
     end)
+  end
+
+  # Lazy backfill (plan 02-10): a blob imported before the fingerprint
+  # writer existed has no `blob_fingerprints` rows. Computing the
+  # missing fingerprint here — only for a blob a newly installed pack
+  # is actually being checked against — back-fills precisely the set
+  # that matters, at the moment it matters, with no new job, no queue,
+  # and no scheduling. A blob nobody ever tries to identify never pays
+  # the cost. Skipped entirely when rows already exist, so installing
+  # a second pack never re-reads a blob the first pack already
+  # fingerprinted.
+  defp fingerprints_for(%Blob{} = blob) do
+    case Repo.all(from(f in BlobFingerprint, where: f.blob_id == ^blob.id)) do
+      [] ->
+        backfill_fingerprint(blob)
+        Repo.all(from(f in BlobFingerprint, where: f.blob_id == ^blob.id))
+
+      rows ->
+        rows
+    end
+  end
+
+  defp backfill_fingerprint(%Blob{id: blob_id, sha256: sha256}) do
+    case Blobs.read_leading(sha256) do
+      {:ok, bytes} ->
+        format_result = Formats.identify(bytes)
+        Fingerprints.ensure_headerless(blob_id, format_result)
+
+      {:error, :not_found} ->
+        :ok
+    end
   end
 
   # One `{asset_set, blob}` pair per member with a blob, excluding any

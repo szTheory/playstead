@@ -17,7 +17,7 @@ defmodule Playstead.Import do
   alias Playstead.Attention
   alias Playstead.Attention.QuarantinePolicy
   alias Playstead.Blobs
-  alias Playstead.Blobs.BlobFingerprint
+  alias Playstead.Blobs.{BlobFingerprint, Fingerprints}
   alias Playstead.Catalogue
   alias Playstead.Catalogue.{AssetMember, AssetSet}
   alias Playstead.Formats
@@ -191,6 +191,13 @@ defmodule Playstead.Import do
          origin,
          original_name
        ) do
+    # Plan 02-10 gap closure: writes the headerless-offset fingerprint
+    # (D-20) as soon as both the blob id and the format result are
+    # known. Idempotent by construction (unique index on
+    # {blob_id, kind}), so the CAS's `:existing` result on a repeat
+    # import needs no special case; the count is not needed here.
+    _fingerprint_count = Fingerprints.ensure_headerless(blob_meta.blob_id, format_result)
+
     recognition_facts = %{
       blob_id: blob_meta.blob_id,
       sha256: blob_meta.sha256,

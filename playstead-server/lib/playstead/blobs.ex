@@ -84,6 +84,16 @@ defmodule Playstead.Blobs do
   def read_leading(sha256, byte_count \\ @default_leading_bytes),
     do: store().read_leading(sha256, byte_count)
 
+  @doc """
+  Computes the CRC32/MD5/SHA-1 triple over the committed blob for
+  `sha256`, starting at `offset` bytes into it. See
+  `Playstead.Blobs.Store.digest_from_offset/2`; `Playstead.Blobs`
+  remains the sole caller of the configured adapter.
+  """
+  @spec digest_from_offset(String.t(), non_neg_integer()) ::
+          {:ok, %{crc32: String.t(), md5: String.t(), sha1: String.t()}} | {:error, term()}
+  def digest_from_offset(sha256, offset), do: store().digest_from_offset(sha256, offset)
+
   @doc "Bytes currently free on the configured store's volume."
   @spec free_bytes() :: non_neg_integer() | :unknown
   def free_bytes, do: store().free_bytes()
