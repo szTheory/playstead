@@ -1,6 +1,7 @@
 defmodule PlaysteadWeb.Api.V1.CurationControllerTest do
   @moduledoc """
-  Plan 03-04 task 1: the idempotent REST intent for favorites.
+  Plan 03-04 tasks 1-2: the idempotent REST intents for favorites,
+  collections, and the play queue (D-07…D-10).
   """
 
   use PlaysteadWeb.ApiCase, async: false
@@ -112,5 +113,135 @@ defmodule PlaysteadWeb.Api.V1.CurationControllerTest do
 
     body = json_response(resp, 200)
     assert body["curation"] == []
+  end
+
+  describe "collections" do
+    defp create_collection!(conn, token, name, idempotency_key) do
+      conn
+      |> put_req_header("authorization", "Bearer #{token}")
+      |> put_req_header("content-type", "application/json")
+      |> put_req_header("idempotency-key", idempotency_key)
+      |> post(~p"/api/v1/curation/collections", %{"name" => name})
+    end
+
+    test "POST creates a collection, GET lists it", %{conn: conn} do
+      {_scope, _device, token} = paired()
+
+      resp = create_collection!(conn, token, "Weekend RPGs", unique_key("col"))
+      body = json_response(resp, 201)
+      assert body["name"] == "Weekend RPGs"
+
+      list_resp =
+        conn
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> get(~p"/api/v1/curation/collections")
+
+      assert %{"collections" => [%{"name" => "Weekend RPGs"}]} = json_response(list_resp, 200)
+    end
+
+    test "PUT/DELETE members and GET the member list", %{conn: conn} do
+      {scope, _device, token} = paired()
+      asset_set = asset_set_fixture(scope.user.id)
+
+      collection_body =
+        json_response(create_collection!(conn, token, "Solo", unique_key("col")), 201)
+
+      collection_id = collection_body["id"]
+
+      add_resp =
+        conn
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("idempotency-key", unique_key("mem"))
+        |> put(~p"/api/v1/curation/collections/#{collection_id}/members/#{asset_set.id}", %{})
+
+      assert json_response(add_resp, 200)["asset_set_id"] == asset_set.id
+
+      list_resp =
+        conn
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> get(~p"/api/v1/curation/collections/#{collection_id}/members")
+
+      assert %{"members" => [%{"asset_set_id" => asset_set_id}]} = json_response(list_resp, 200)
+      assert asset_set_id == asset_set.id
+
+      del_resp =
+        conn
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("idempotency-key", unique_key("del"))
+        |> delete(~p"/api/v1/curation/collections/#{collection_id}/members/#{asset_set.id}")
+
+      assert json_response(del_resp, 200)
+
+      list_resp2 =
+        conn
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> get(~p"/api/v1/curation/collections/#{collection_id}/members")
+
+      assert %{"members" => []} = json_response(list_resp2, 200)
+    end
+
+    test "PATCH position rejects an array of ids as the ordering input", %{conn: conn} do
+      {scope, _device, token} = paired()
+      asset_set = asset_set_fixture(scope.user.id)
+
+      collection_body =
+        json_response(create_collection!(conn, token, "Reject", unique_key("col")), 201)
+
+      collection_id = collection_body["id"]
+
+      resp =
+        conn
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("idempotency-key", unique_key("move"))
+        |> patch(
+          ~p"/api/v1/curation/collections/#{collection_id}/members/#{asset_set.id}/position",
+          Jason.encode!(["a", "b", "c"])
+        )
+
+      assert_problem(resp, 422, :validation_failed)
+    end
+  end
+
+  describe "the play queue" do
+    test "PUT enqueues, GET lists, DELETE dequeues", %{conn: conn} do
+      {scope, _device, token} = paired()
+      asset_set = asset_set_fixture(scope.user.id)
+
+      enqueue_resp =
+        conn
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("idempotency-key", unique_key("enq"))
+        |> put(~p"/api/v1/curation/queue/#{asset_set.id}", %{})
+
+      assert json_response(enqueue_resp, 200)["asset_set_id"] == asset_set.id
+
+      list_resp =
+        conn
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> get(~p"/api/v1/curation/queue")
+
+      assert %{"queue" => [%{"asset_set_id" => id}]} = json_response(list_resp, 200)
+      assert id == asset_set.id
+
+      dequeue_resp =
+        conn
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("idempotency-key", unique_key("deq"))
+        |> delete(~p"/api/v1/curation/queue/#{asset_set.id}")
+
+      assert json_response(dequeue_resp, 200)
+
+      list_resp2 =
+        conn
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> get(~p"/api/v1/curation/queue")
+
+      assert %{"queue" => []} = json_response(list_resp2, 200)
+    end
   end
 end

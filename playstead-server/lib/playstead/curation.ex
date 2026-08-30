@@ -19,10 +19,17 @@ defmodule Playstead.Curation do
 
   import Ecto.Query, warn: false
 
+  alias Playstead.Catalogue
   alias Playstead.Catalogue.AssetSet
-  alias Playstead.Curation.Favorite
+  alias Playstead.Curation.{Collection, CollectionMember, Favorite, Position, QueueItem}
   alias Playstead.Repo
   alias Playstead.Sync.{ChangeJournal, CurationPayload}
+
+  # D-10's sanity caps: bound journal payload/snapshot growth, never
+  # legitimately hit by a personal library.
+  @collection_cap 500
+  @member_cap 5000
+  @queue_cap 500
 
   @doc """
   Favorites `asset_set_id` for `user_id`, using `id` as the row's
@@ -100,6 +107,358 @@ defmodule Playstead.Curation do
     |> Repo.all()
   end
 
+  ## Collections (D-10)
+
+  @doc """
+  Creates a manual collection named `name` (sanitized per
+  `Playstead.Catalogue.sanitize_title/1`) at the end of `user_id`'s
+  collection list. `id` is the row's client-supplied primary key.
+  Returns `{:error, {:curation_limit_exceeded, _}}` at the #{@collection_cap}-collection cap.
+  """
+  @spec create_collection(pos_integer(), Ecto.UUID.t(), String.t()) ::
+          {:ok, Collection.t()} | {:error, term()}
+  def create_collection(user_id, id, name) do
+    with :ok <- check_collection_cap(user_id) do
+      position = Position.last(max_position(Collection, user_id: user_id))
+
+      changeset =
+        Collection.create_changeset(%Collection{}, %{
+          id: id,
+          user_id: user_id,
+          name: Catalogue.sanitize_title(name),
+          position: position
+        })
+
+      Ecto.Multi.new()
+      |> Ecto.Multi.insert(:collection, changeset)
+      |> Ecto.Multi.run(:journal, fn _repo, %{collection: collection} ->
+        ChangeJournal.append(user_id, :curation, collection.id, CurationPayload.build(collection))
+      end)
+      |> Repo.transaction()
+      |> case do
+        {:ok, %{collection: collection}} -> {:ok, collection}
+        {:error, _step, reason, _changes} -> {:error, reason}
+      end
+    end
+  end
+
+  @doc "Renames `collection_id` (owned by `user_id`); sanitizes `name` the same way creation does."
+  @spec rename_collection(pos_integer(), Ecto.UUID.t(), String.t()) ::
+          {:ok, Collection.t()} | {:error, term()}
+  def rename_collection(user_id, collection_id, name) do
+    with {:ok, collection} <- verify_collection_ownership(user_id, collection_id) do
+      changeset = Collection.rename_changeset(collection, %{name: Catalogue.sanitize_title(name)})
+
+      Ecto.Multi.new()
+      |> Ecto.Multi.update(:collection, changeset)
+      |> Ecto.Multi.run(:journal, fn _repo, %{collection: collection} ->
+        ChangeJournal.append(user_id, :curation, collection.id, CurationPayload.build(collection))
+      end)
+      |> Repo.transaction()
+      |> case do
+        {:ok, %{collection: collection}} -> {:ok, collection}
+        {:error, _step, reason, _changes} -> {:error, reason}
+      end
+    end
+  end
+
+  @doc """
+  Deletes `collection_id` (owned by `user_id`) and every member row it
+  contains, tombstoning each. Deleting an already-deleted or
+  never-existing collection is accepted and treated as success.
+  """
+  @spec delete_collection(pos_integer(), Ecto.UUID.t()) :: {:ok, :removed} | {:error, term()}
+  def delete_collection(user_id, collection_id) do
+    case Repo.get_by(Collection, id: collection_id, user_id: user_id) do
+      nil ->
+        {:ok, :removed}
+
+      %Collection{} = collection ->
+        Repo.transaction(fn ->
+          members =
+            from(m in CollectionMember, where: m.collection_id == ^collection.id) |> Repo.all()
+
+          Enum.each(members, fn member ->
+            Repo.delete!(member)
+            {:ok, _entry} = ChangeJournal.tombstone(user_id, :curation, member.id)
+          end)
+
+          Repo.delete!(collection)
+          {:ok, _entry} = ChangeJournal.tombstone(user_id, :curation, collection.id)
+          :removed
+        end)
+        |> case do
+          {:ok, :removed} -> {:ok, :removed}
+          {:error, reason} -> {:error, reason}
+        end
+    end
+  end
+
+  @doc "Lists `user_id`'s collections in display order."
+  @spec list_collections(pos_integer()) :: [Collection.t()]
+  def list_collections(user_id) do
+    from(c in Collection, where: c.user_id == ^user_id, order_by: [asc: c.position])
+    |> Repo.all()
+  end
+
+  @doc """
+  Lists `collection_id`'s members in order, scoped to `user_id`.
+  Returns `{:error, :not_found}` if the collection is not owned by
+  `user_id`. An empty collection returns `{:ok, []}`.
+  """
+  @spec list_collection_members(pos_integer(), Ecto.UUID.t()) ::
+          {:ok, [CollectionMember.t()]} | {:error, term()}
+  def list_collection_members(user_id, collection_id) do
+    with {:ok, _collection} <- verify_collection_ownership(user_id, collection_id) do
+      members =
+        from(m in CollectionMember,
+          where: m.collection_id == ^collection_id,
+          order_by: [asc: m.position]
+        )
+        |> Repo.all()
+
+      {:ok, members}
+    end
+  end
+
+  @doc """
+  Adds `asset_set_id` to `collection_id` (owned by `user_id`) at the
+  end of its member list. Idempotent: re-adding an already-present
+  member converges on the existing row via the `(collection_id,
+  asset_set_id)` unique index. Returns `{:error, :not_found}` if
+  either the collection or the asset set is not owned by `user_id`,
+  and `{:error, {:curation_limit_exceeded, _}}` at the #{@member_cap}-member cap.
+  """
+  @spec add_collection_member(pos_integer(), Ecto.UUID.t(), Ecto.UUID.t(), Ecto.UUID.t()) ::
+          {:ok, CollectionMember.t()} | {:error, term()}
+  def add_collection_member(user_id, collection_id, id, asset_set_id) do
+    with {:ok, collection} <- verify_collection_ownership(user_id, collection_id),
+         :ok <- verify_asset_set_ownership(user_id, asset_set_id),
+         :ok <- check_member_cap(collection.id, asset_set_id) do
+      position = Position.last(max_position(CollectionMember, collection_id: collection.id))
+
+      changeset =
+        CollectionMember.create_changeset(%CollectionMember{}, %{
+          id: id,
+          user_id: user_id,
+          collection_id: collection.id,
+          asset_set_id: asset_set_id,
+          position: position
+        })
+
+      Ecto.Multi.new()
+      |> Ecto.Multi.insert(:member, changeset,
+        on_conflict: {:replace, [:updated_at]},
+        conflict_target: [:collection_id, :asset_set_id],
+        returning: true
+      )
+      |> Ecto.Multi.run(:journal, fn _repo, %{member: member} ->
+        ChangeJournal.append(user_id, :curation, member.id, CurationPayload.build(member))
+      end)
+      |> Repo.transaction()
+      |> case do
+        {:ok, %{member: member}} -> {:ok, member}
+        {:error, _step, reason, _changes} -> {:error, reason}
+      end
+    end
+  end
+
+  @doc "Removes `asset_set_id` from `collection_id` (owned by `user_id`); a no-op if absent."
+  @spec remove_collection_member(pos_integer(), Ecto.UUID.t(), Ecto.UUID.t()) ::
+          {:ok, :removed} | {:error, term()}
+  def remove_collection_member(user_id, collection_id, asset_set_id) do
+    with {:ok, _collection} <- verify_collection_ownership(user_id, collection_id) do
+      case Repo.get_by(CollectionMember, collection_id: collection_id, asset_set_id: asset_set_id) do
+        nil ->
+          {:ok, :removed}
+
+        %CollectionMember{} = member ->
+          Ecto.Multi.new()
+          |> Ecto.Multi.delete(:member, member)
+          |> Ecto.Multi.run(:journal, fn _repo, %{member: member} ->
+            ChangeJournal.tombstone(user_id, :curation, member.id)
+          end)
+          |> Repo.transaction()
+          |> case do
+            {:ok, _changes} -> {:ok, :removed}
+            {:error, _step, reason, _changes} -> {:error, reason}
+          end
+      end
+    end
+  end
+
+  @doc """
+  Moves `asset_set_id` within `collection_id` (owned by `user_id`) to
+  sit between the members named by `neighbours`'
+  `:before_asset_set_id`/`:after_asset_set_id` (either may be `nil`
+  for "start"/"end" of the list). The unit of truth is this one row's
+  position, never a submitted ordered list. Rebalances the whole
+  collection first, inside the same transaction, if the neighbours are
+  out of representable precision. A neighbour naming another user's
+  row (or a row outside this collection) returns `{:error, :not_found}`.
+  Moving to the position a member already occupies is a no-op.
+  """
+  @spec move_collection_member(pos_integer(), Ecto.UUID.t(), Ecto.UUID.t(), map()) ::
+          {:ok, CollectionMember.t()} | {:error, term()}
+  def move_collection_member(user_id, collection_id, asset_set_id, neighbours) do
+    before_id = Map.get(neighbours, :before_asset_set_id)
+    after_id = Map.get(neighbours, :after_asset_set_id)
+
+    with {:ok, _collection} <- verify_collection_ownership(user_id, collection_id),
+         {:ok, member} <- fetch_collection_member(collection_id, asset_set_id),
+         {:ok, before_pos} <- resolve_member_neighbour(collection_id, before_id),
+         {:ok, after_pos} <- resolve_member_neighbour(collection_id, after_id) do
+      if before_pos && after_pos && Position.needs_rebalance?(before_pos, after_pos) do
+        Repo.transaction(fn ->
+          with {:ok, _rebalanced} <- do_rebalance_collection(user_id, collection_id),
+               {:ok, before_pos2} <- resolve_member_neighbour(collection_id, before_id),
+               {:ok, after_pos2} <- resolve_member_neighbour(collection_id, after_id),
+               {:ok, updated} <-
+                 reposition_member(user_id, member, Position.between(before_pos2, after_pos2)) do
+            updated
+          else
+            {:error, reason} -> Repo.rollback(reason)
+          end
+        end)
+      else
+        reposition_member(user_id, member, Position.between(before_pos, after_pos))
+      end
+    end
+  end
+
+  @doc """
+  Reassigns evenly spaced positions across `collection_id`'s members
+  (owned by `user_id`), preserving the current visible order, and
+  journals one entry per row whose position actually changed.
+  """
+  @spec rebalance_collection(pos_integer(), Ecto.UUID.t()) ::
+          {:ok, [CollectionMember.t()]} | {:error, term()}
+  def rebalance_collection(user_id, collection_id) do
+    Repo.transaction(fn ->
+      case do_rebalance_collection(user_id, collection_id) do
+        {:ok, members} -> members
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
+
+  ## The play queue (D-07/D-09) — one per user, a backlog/watchlist.
+
+  @doc """
+  Enqueues `asset_set_id` for `user_id` at the end of the queue. `id`
+  is the row's client-supplied primary key. Idempotent: re-enqueuing
+  an already-queued game converges on the existing row. Returns
+  `{:error, {:curation_limit_exceeded, _}}` at the #{@queue_cap}-item cap.
+  """
+  @spec enqueue(pos_integer(), Ecto.UUID.t(), Ecto.UUID.t()) ::
+          {:ok, QueueItem.t()} | {:error, term()}
+  def enqueue(user_id, id, asset_set_id) do
+    with :ok <- verify_asset_set_ownership(user_id, asset_set_id),
+         :ok <- check_queue_cap(user_id, asset_set_id) do
+      position = Position.last(max_position(QueueItem, user_id: user_id))
+
+      changeset =
+        QueueItem.create_changeset(%QueueItem{}, %{
+          id: id,
+          user_id: user_id,
+          asset_set_id: asset_set_id,
+          position: position
+        })
+
+      Ecto.Multi.new()
+      |> Ecto.Multi.insert(:item, changeset,
+        on_conflict: {:replace, [:updated_at]},
+        conflict_target: [:user_id, :asset_set_id],
+        returning: true
+      )
+      |> Ecto.Multi.run(:journal, fn _repo, %{item: item} ->
+        ChangeJournal.append(user_id, :curation, item.id, CurationPayload.build(item))
+      end)
+      |> Repo.transaction()
+      |> case do
+        {:ok, %{item: item}} -> {:ok, item}
+        {:error, _step, reason, _changes} -> {:error, reason}
+      end
+    end
+  end
+
+  @doc "Removes `asset_set_id` from `user_id`'s queue; a no-op if absent."
+  @spec dequeue(pos_integer(), Ecto.UUID.t()) :: {:ok, :removed} | {:error, term()}
+  def dequeue(user_id, asset_set_id) do
+    case Repo.get_by(QueueItem, user_id: user_id, asset_set_id: asset_set_id) do
+      nil ->
+        {:ok, :removed}
+
+      %QueueItem{} = item ->
+        Ecto.Multi.new()
+        |> Ecto.Multi.delete(:item, item)
+        |> Ecto.Multi.run(:journal, fn _repo, %{item: item} ->
+          ChangeJournal.tombstone(user_id, :curation, item.id)
+        end)
+        |> Repo.transaction()
+        |> case do
+          {:ok, _changes} -> {:ok, :removed}
+          {:error, _step, reason, _changes} -> {:error, reason}
+        end
+    end
+  end
+
+  @doc "Lists `user_id`'s queue in order."
+  @spec list_queue(pos_integer()) :: [QueueItem.t()]
+  def list_queue(user_id) do
+    from(i in QueueItem, where: i.user_id == ^user_id, order_by: [asc: i.position])
+    |> Repo.all()
+  end
+
+  @doc """
+  Moves `asset_set_id` in `user_id`'s queue to sit between the items
+  named by `neighbours`' `:before_asset_set_id`/`:after_asset_set_id`
+  — same contract as `move_collection_member/4`.
+  """
+  @spec move_queue_item(pos_integer(), Ecto.UUID.t(), map()) ::
+          {:ok, QueueItem.t()} | {:error, term()}
+  def move_queue_item(user_id, asset_set_id, neighbours) do
+    before_id = Map.get(neighbours, :before_asset_set_id)
+    after_id = Map.get(neighbours, :after_asset_set_id)
+
+    with {:ok, item} <- fetch_queue_item(user_id, asset_set_id),
+         {:ok, before_pos} <- resolve_queue_neighbour(user_id, before_id),
+         {:ok, after_pos} <- resolve_queue_neighbour(user_id, after_id) do
+      if before_pos && after_pos && Position.needs_rebalance?(before_pos, after_pos) do
+        Repo.transaction(fn ->
+          with {:ok, _rebalanced} <- do_rebalance_queue(user_id),
+               {:ok, before_pos2} <- resolve_queue_neighbour(user_id, before_id),
+               {:ok, after_pos2} <- resolve_queue_neighbour(user_id, after_id),
+               {:ok, updated} <-
+                 reposition_queue_item(user_id, item, Position.between(before_pos2, after_pos2)) do
+            updated
+          else
+            {:error, reason} -> Repo.rollback(reason)
+          end
+        end)
+      else
+        reposition_queue_item(user_id, item, Position.between(before_pos, after_pos))
+      end
+    end
+  end
+
+  @doc """
+  Reassigns evenly spaced positions across `user_id`'s whole queue,
+  preserving the current visible order, journaling one entry per row
+  whose position actually changed.
+  """
+  @spec rebalance_queue(pos_integer()) :: {:ok, [QueueItem.t()]} | {:error, term()}
+  def rebalance_queue(user_id) do
+    Repo.transaction(fn ->
+      case do_rebalance_queue(user_id) do
+        {:ok, items} -> items
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
+
+  # --- shared internals ---
+
   # T-03-11/T-03-13: every referenced asset set is re-checked against
   # the calling user, regardless of whether the id is well-formed —
   # a guessed or reused id from another user must never resolve.
@@ -107,6 +466,225 @@ defmodule Playstead.Curation do
     case Repo.get_by(AssetSet, id: asset_set_id, user_id: user_id) do
       nil -> {:error, :not_found}
       %AssetSet{} -> :ok
+    end
+  end
+
+  defp verify_collection_ownership(user_id, collection_id) do
+    case Repo.get_by(Collection, id: collection_id, user_id: user_id) do
+      nil -> {:error, :not_found}
+      %Collection{} = collection -> {:ok, collection}
+    end
+  end
+
+  defp fetch_collection_member(collection_id, asset_set_id) do
+    case Repo.get_by(CollectionMember, collection_id: collection_id, asset_set_id: asset_set_id) do
+      nil -> {:error, :not_found}
+      %CollectionMember{} = member -> {:ok, member}
+    end
+  end
+
+  defp fetch_queue_item(user_id, asset_set_id) do
+    case Repo.get_by(QueueItem, user_id: user_id, asset_set_id: asset_set_id) do
+      nil -> {:error, :not_found}
+      %QueueItem{} = item -> {:ok, item}
+    end
+  end
+
+  defp resolve_member_neighbour(_collection_id, nil), do: {:ok, nil}
+
+  defp resolve_member_neighbour(collection_id, asset_set_id) do
+    case fetch_collection_member(collection_id, asset_set_id) do
+      {:ok, member} -> {:ok, member.position}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp resolve_queue_neighbour(_user_id, nil), do: {:ok, nil}
+
+  defp resolve_queue_neighbour(user_id, asset_set_id) do
+    case fetch_queue_item(user_id, asset_set_id) do
+      {:ok, item} -> {:ok, item.position}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp reposition_member(_user_id, %CollectionMember{position: position} = member, position) do
+    {:ok, member}
+  end
+
+  defp reposition_member(user_id, %CollectionMember{} = member, new_position) do
+    changeset = CollectionMember.reposition_changeset(member, %{position: new_position})
+
+    Ecto.Multi.new()
+    |> Ecto.Multi.update(:member, changeset)
+    |> Ecto.Multi.run(:journal, fn _repo, %{member: member} ->
+      ChangeJournal.append(user_id, :curation, member.id, CurationPayload.build(member))
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{member: member}} -> {:ok, member}
+      {:error, _step, reason, _changes} -> {:error, reason}
+    end
+  end
+
+  defp reposition_queue_item(_user_id, %QueueItem{position: position} = item, position) do
+    {:ok, item}
+  end
+
+  defp reposition_queue_item(user_id, %QueueItem{} = item, new_position) do
+    changeset = QueueItem.reposition_changeset(item, %{position: new_position})
+
+    Ecto.Multi.new()
+    |> Ecto.Multi.update(:item, changeset)
+    |> Ecto.Multi.run(:journal, fn _repo, %{item: item} ->
+      ChangeJournal.append(user_id, :curation, item.id, CurationPayload.build(item))
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{item: item}} -> {:ok, item}
+      {:error, _step, reason, _changes} -> {:error, reason}
+    end
+  end
+
+  # Reassigns evenly spaced positions in the current visible order,
+  # returning the possibly-updated members/items. Called both
+  # standalone (wrapped in its own transaction by the public
+  # `rebalance_*` functions) and inline from a move that already
+  # opened its own transaction — never opens a transaction itself.
+  defp do_rebalance_collection(user_id, collection_id) do
+    members =
+      from(m in CollectionMember,
+        where: m.collection_id == ^collection_id,
+        order_by: [asc: m.position]
+      )
+      |> Repo.all()
+
+    reassign(
+      members,
+      Position.spaced(length(members)),
+      &CollectionMember.reposition_changeset/2,
+      user_id
+    )
+  end
+
+  defp do_rebalance_queue(user_id) do
+    items =
+      from(i in QueueItem, where: i.user_id == ^user_id, order_by: [asc: i.position])
+      |> Repo.all()
+
+    reassign(items, Position.spaced(length(items)), &QueueItem.reposition_changeset/2, user_id)
+  end
+
+  defp reassign(rows, new_positions, reposition_changeset_fun, user_id) do
+    rows
+    |> Enum.zip(new_positions)
+    |> Enum.reduce_while({:ok, []}, fn {row, new_position}, {:ok, acc} ->
+      if row.position == new_position do
+        {:cont, {:ok, [row | acc]}}
+      else
+        changeset = reposition_changeset_fun.(row, %{position: new_position})
+
+        with {:ok, updated} <- Repo.update(changeset),
+             {:ok, _entry} <-
+               ChangeJournal.append(
+                 user_id,
+                 :curation,
+                 updated.id,
+                 CurationPayload.build(updated)
+               ) do
+          {:cont, {:ok, [updated | acc]}}
+        else
+          {:error, reason} -> {:halt, {:error, reason}}
+        end
+      end
+    end)
+    |> case do
+      {:ok, acc} -> {:ok, Enum.reverse(acc)}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp max_position(Collection, user_id: user_id) do
+    from(c in Collection,
+      where: c.user_id == ^user_id,
+      order_by: [desc: c.position],
+      limit: 1,
+      select: c.position
+    )
+    |> Repo.one()
+  end
+
+  defp max_position(CollectionMember, collection_id: collection_id) do
+    from(m in CollectionMember,
+      where: m.collection_id == ^collection_id,
+      order_by: [desc: m.position],
+      limit: 1,
+      select: m.position
+    )
+    |> Repo.one()
+  end
+
+  defp max_position(QueueItem, user_id: user_id) do
+    from(i in QueueItem,
+      where: i.user_id == ^user_id,
+      order_by: [desc: i.position],
+      limit: 1,
+      select: i.position
+    )
+    |> Repo.one()
+  end
+
+  defp check_collection_cap(user_id) do
+    count = Repo.aggregate(from(c in Collection, where: c.user_id == ^user_id), :count)
+
+    if count >= @collection_cap do
+      {:error, {:curation_limit_exceeded, "The collection limit has been reached."}}
+    else
+      :ok
+    end
+  end
+
+  defp check_member_cap(collection_id, asset_set_id) do
+    exists? =
+      Repo.exists?(
+        from(m in CollectionMember,
+          where: m.collection_id == ^collection_id and m.asset_set_id == ^asset_set_id
+        )
+      )
+
+    if exists? do
+      :ok
+    else
+      count =
+        Repo.aggregate(
+          from(m in CollectionMember, where: m.collection_id == ^collection_id),
+          :count
+        )
+
+      if count >= @member_cap do
+        {:error, {:curation_limit_exceeded, "The collection member limit has been reached."}}
+      else
+        :ok
+      end
+    end
+  end
+
+  defp check_queue_cap(user_id, asset_set_id) do
+    exists? =
+      Repo.exists?(
+        from(i in QueueItem, where: i.user_id == ^user_id and i.asset_set_id == ^asset_set_id)
+      )
+
+    if exists? do
+      :ok
+    else
+      count = Repo.aggregate(from(i in QueueItem, where: i.user_id == ^user_id), :count)
+
+      if count >= @queue_cap do
+        {:error, {:curation_limit_exceeded, "The queue limit has been reached."}}
+      else
+        :ok
+      end
     end
   end
 end

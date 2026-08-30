@@ -210,14 +210,41 @@ defmodule PlaysteadWeb.Router do
     get "/:id/manifest", ExportsController, :manifest
   end
 
-  # D-07…D-10: per-row idempotent curation intents (Favorites in this
-  # plan; Collections, the play queue, and play sessions are added by
-  # later tasks on this same scope).
+  # D-07…D-10: per-row idempotent curation intents (Favorites,
+  # Collections, and the play queue; play sessions are added by a
+  # later task on their own scope).
   scope "/api/v1/curation", PlaysteadWeb.Api.V1 do
     pipe_through [:api, :device_auth, :idempotency]
 
     put "/favorites/:asset_set_id", CurationController, :create_favorite
     delete "/favorites/:asset_set_id", CurationController, :delete_favorite
+
+    post "/collections", CurationController, :create_collection
+    patch "/collections/:id", CurationController, :rename_collection
+    delete "/collections/:id", CurationController, :delete_collection
+    put "/collections/:id/members/:asset_set_id", CurationController, :add_collection_member
+
+    delete "/collections/:id/members/:asset_set_id",
+           CurationController,
+           :remove_collection_member
+
+    patch "/collections/:id/members/:asset_set_id/position",
+          CurationController,
+          :move_collection_member
+
+    put "/queue/:asset_set_id", CurationController, :enqueue
+    delete "/queue/:asset_set_id", CurationController, :dequeue
+    patch "/queue/:asset_set_id/position", CurationController, :move_queue_item
+  end
+
+  # D-07…D-10: read-only curation lists, strictly user-scoped, no
+  # Idempotency-Key required.
+  scope "/api/v1/curation", PlaysteadWeb.Api.V1 do
+    pipe_through [:api, :device_auth]
+
+    get "/collections", CurationController, :list_collections
+    get "/collections/:id/members", CurationController, :list_collection_members
+    get "/queue", CurationController, :list_queue
   end
 
   # D-21, PROT-05: the resumable change feed and its transactional

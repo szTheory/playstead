@@ -15,7 +15,7 @@ defmodule Playstead.Sync.CurationPayload do
   plans/tasks that introduce their schemas).
   """
 
-  alias Playstead.Curation.Favorite
+  alias Playstead.Curation.{Collection, CollectionMember, Favorite, QueueItem}
 
   @doc "Builds the `curation` journal payload for a curation row."
   @spec build(struct()) :: map()
@@ -24,6 +24,34 @@ defmodule Playstead.Sync.CurationPayload do
       type: "favorite",
       asset_set_id: favorite.asset_set_id,
       created_at: favorite.inserted_at
+    }
+  end
+
+  def build(%Collection{} = collection) do
+    %{
+      type: "collection",
+      name: collection.name,
+      created_at: collection.inserted_at,
+      updated_at: collection.updated_at
+    }
+  end
+
+  def build(%CollectionMember{} = member) do
+    %{
+      type: "collection_member",
+      collection_id: member.collection_id,
+      asset_set_id: member.asset_set_id,
+      position: member.position,
+      added_at: member.inserted_at
+    }
+  end
+
+  def build(%QueueItem{} = item) do
+    %{
+      type: "queue_item",
+      asset_set_id: item.asset_set_id,
+      position: item.position,
+      added_at: item.inserted_at
     }
   end
 end
