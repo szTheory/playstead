@@ -21,6 +21,9 @@ defmodule Playstead.Import.SessionWorkerTest.InsufficientSpaceStore do
   def stat(_sha256), do: {:error, :not_found}
 
   @impl true
+  def byte_size_of(_sha256), do: {:error, :not_found}
+
+  @impl true
   def stream(_sha256, _range \\ nil), do: {:error, :not_found}
 
   @impl true
