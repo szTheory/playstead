@@ -191,6 +191,8 @@ defmodule PlaysteadWeb.Router do
     pipe_through [:api, :device_auth]
 
     get "/:sha256", BlobsController, :show
+    # D-19: HEAD mirrors GET's authorization + Range/ETag headers, no body.
+    head "/:sha256", BlobsController, :head_show
   end
 
   # D-33: durable exports. Creating an export is mutating and requires

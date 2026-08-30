@@ -81,6 +81,16 @@ defmodule Playstead.Protocol.NegotiationTest do
       assert Negotiation.verdict(base, @server_ranges) ==
                Negotiation.verdict(with_unknown, @server_ranges)
     end
+
+    test "D-19: a client declaring transfer 1.0.0 still overlaps the server's 1.0.0-1.1.0 range and is never incompatible on transfer alone" do
+      server_ranges = %{@server_ranges | transfer: %{min: "1.0.0", max: "1.1.0"}}
+
+      hello =
+        full_hello(%{min: "1.0.0", max: "1.2.0"})
+        |> Map.put("transfer", %{"min" => "1.0.0", "max" => "1.0.0"})
+
+      assert %{verdict: :compatible} = Negotiation.verdict(hello, server_ranges)
+    end
   end
 
   describe "store_declaration/2" do

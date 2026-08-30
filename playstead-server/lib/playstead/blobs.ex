@@ -61,6 +61,10 @@ defmodule Playstead.Blobs do
   @spec stat(String.t()) :: {:ok, map()} | {:error, :not_found}
   def stat(sha256), do: store().stat(sha256)
 
+  @doc "Total byte size of a committed blob."
+  @spec byte_size_of(String.t()) :: {:ok, non_neg_integer()} | {:error, :not_found}
+  def byte_size_of(sha256), do: store().byte_size_of(sha256)
+
   @doc "A byte stream for a committed blob."
   @spec stream(String.t(), Range.t() | nil) :: {:ok, Enumerable.t()} | {:error, :not_found}
   def stream(sha256, range \\ nil), do: store().stream(sha256, range)

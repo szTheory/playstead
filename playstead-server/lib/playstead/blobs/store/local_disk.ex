@@ -322,6 +322,14 @@ defmodule Playstead.Blobs.Store.LocalDisk do
   end
 
   @impl true
+  def byte_size_of(sha256) do
+    case File.stat(object_path(blob_path(), sha256)) do
+      {:ok, stat} -> {:ok, stat.size}
+      {:error, _reason} -> {:error, :not_found}
+    end
+  end
+
+  @impl true
   def stream(sha256, range \\ nil) do
     path = object_path(blob_path(), sha256)
 
@@ -334,10 +342,36 @@ defmodule Playstead.Blobs.Store.LocalDisk do
 
   defp build_stream(path, nil), do: File.stream!(path, [], @chunk_size)
 
+  # D-19: bounded positional reads via :file.pread/3, never a whole-object
+  # File.read! — for multi-hundred-megabyte content that would be a
+  # memory-exhaustion hazard on every ranged request regardless of the
+  # requested range's size. Peak memory here is one @chunk_size chunk.
+  # Read-only, same discipline as read_leading/2: no delete, rename, or
+  # truncate on this path.
   defp build_stream(path, first..last//_step) do
-    data = File.read!(path)
-    last = min(last, byte_size(data) - 1)
-    [binary_part(data, first, last - first + 1)]
+    size = File.stat!(path).size
+    last = min(last, size - 1)
+
+    Stream.resource(
+      fn ->
+        {:ok, io} = File.open(path, [:read, :binary, :raw])
+        {io, first}
+      end,
+      fn {io, offset} = state ->
+        if offset > last do
+          {:halt, state}
+        else
+          read_size = min(@chunk_size, last - offset + 1)
+
+          case :file.pread(io, offset, read_size) do
+            {:ok, data} -> {[data], {io, offset + byte_size(data)}}
+            :eof -> {:halt, state}
+            {:error, _reason} -> {:halt, state}
+          end
+        end
+      end,
+      fn {io, _offset} -> :file.close(io) end
+    )
   end
 
   # WR-01: only :enoent is the benign "no such object" case callers'

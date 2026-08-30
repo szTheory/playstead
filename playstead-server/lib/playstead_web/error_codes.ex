@@ -33,7 +33,8 @@ defmodule PlaysteadWeb.ErrorCodes do
     upload_length_required: {411, "Upload Length Required"},
     import_empty_file: {422, "Import Empty File"},
     too_many_uploads: {429, "Too Many Uploads"},
-    import_session_too_large: {422, "Import Session Too Large"}
+    import_session_too_large: {422, "Import Session Too Large"},
+    range_not_satisfiable: {416, "Range Not Satisfiable"}
   }
 
   @doc "The full code-to-{status, title} mapping."

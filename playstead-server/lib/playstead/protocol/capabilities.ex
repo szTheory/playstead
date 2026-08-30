@@ -10,6 +10,17 @@ defmodule Playstead.Protocol.Capabilities do
 
   Controllers render this envelope directly; they never inline a
   literal capabilities map.
+
+  ## transfer 1.1.0 (D-19)
+
+  `transfer` advertises range-resume support by version rather than by
+  adding a key to the frozen envelope shape: max `"1.1.0"` means
+  single-range resumable blob GET — `Range`, `If-Range`, `206`, `416`,
+  and `HEAD` on `/api/v1/blobs/:sha256`, per D-19. `transfer` is not in
+  `@required_namespaces`, so a client declaring a transfer max below
+  `1.1.0` negotiates `compatible_with_limits` (never `incompatible`)
+  and must fall back to whole-file downloads — the intended
+  version-skew behaviour.
   """
 
   @protocol_major 1
@@ -18,6 +29,14 @@ defmodule Playstead.Protocol.Capabilities do
   # Only the namespaces REQUIREMENTS.md names (D-19). Do not add keys
   # for unbuilt features.
   @capability_namespaces [:protocol, :app, :cache, :transfer, :adapter, :save]
+
+  # D-19: per-namespace {min, max} overrides. Any namespace not listed
+  # here defaults to {"1.0.0", "1.0.0"} — this is additive-only capacity
+  # to advertise a newer feature version within an existing namespace,
+  # never a change to envelope/0's frozen key shape.
+  @namespace_ranges %{
+    transfer: {"1.0.0", "1.1.0"}
+  }
 
   # D-19: `protocol` is the only namespace whose overlap is mandatory —
   # it is the versioning contract itself. A mismatch on any other
@@ -61,7 +80,8 @@ defmodule Playstead.Protocol.Capabilities do
   @spec supported_client_ranges() :: %{atom() => %{min: String.t(), max: String.t()}}
   def supported_client_ranges do
     Map.new(@capability_namespaces, fn namespace ->
-      {namespace, %{min: "1.0.0", max: "1.0.0"}}
+      {min, max} = Map.get(@namespace_ranges, namespace, {"1.0.0", "1.0.0"})
+      {namespace, %{min: min, max: max}}
     end)
   end
 

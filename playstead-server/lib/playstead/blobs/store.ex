@@ -48,6 +48,15 @@ defmodule Playstead.Blobs.Store do
   @doc "Filesystem stat for a committed blob, or `{:error, :not_found}`."
   @callback stat(hash()) :: {:ok, map()} | {:error, :not_found}
 
+  @doc """
+  Total byte size of a committed blob, or `{:error, :not_found}`. The
+  Range-serving controller needs this before it can compute
+  `Content-Range` or decide `416` (D-19); it reaches it through this
+  seam rather than the filesystem directly so a future object-store
+  adapter can answer with a HEAD instead.
+  """
+  @callback byte_size_of(hash()) :: {:ok, non_neg_integer()} | {:error, :not_found}
+
   @doc "A byte stream for a committed blob, optionally restricted to `range` (an inclusive `Range.t()`, or `nil` for the whole file)."
   @callback stream(hash(), range :: Range.t() | nil) ::
               {:ok, Enumerable.t()} | {:error, :not_found}

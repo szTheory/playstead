@@ -72,7 +72,19 @@ defmodule PlaysteadWeb.Endpoint do
     json_decoder: Phoenix.json_library()
 
   plug Plug.MethodOverride
+
+  # D-19: Plug.Head rewrites conn.method from "HEAD" to "GET" before the
+  # router ever sees the request, so a router-level `head` route can never
+  # match — this stashes the pre-rewrite method so BlobsController can
+  # still tell a real HEAD apart from a GET (needed to emit an explicit
+  # Content-Length instead of chunked transfer-encoding).
+  plug :stash_original_method
   plug Plug.Head
   plug Plug.Session, @session_options
   plug PlaysteadWeb.Router
+
+  @doc false
+  def stash_original_method(conn, _opts) do
+    Plug.Conn.put_private(conn, :playstead_original_method, conn.method)
+  end
 end
