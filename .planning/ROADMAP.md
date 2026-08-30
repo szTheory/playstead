@@ -143,13 +143,13 @@ Plans:
   5. A user can connect, test, assign, remap, reset, and recover a controller while retaining keyboard, pointer, screen-reader, focus, and reduced-motion fallbacks; from a signed/notarized build they can launch, exit, and relaunch one legally testable game after app or server restart.
 
 **Research / spike flags**: Required Mac adapter gate before commitment: empirically choose the first system/emulator and direct-notarized versus sandboxed distribution posture using legal homebrew content. Demonstrate Keychain, external-process launch/recovery, controller recovery, BIOS handling, and safe persistent-save location/flush; do not promise the current GBA/mGBA hypothesis until this passes.
-**Plans**: 10 plans
+**Plans**: 1/10 plans executed
 
 Plans:
 **Wave 1**
 
 - [ ] 03-01-PLAN.md — Adapter spike: notarized non-sandboxed SpikeHost, hash-pinned emulator acquisition, seven D-01 probes, SPIKE-REPORT and the machine-readable adapter pin
-- [ ] 03-02-PLAN.md — Frozen Range contract: quoted strong ETag, single-range 206 with Content-Range, 416, If-Range, HEAD, positional-read storage fix, and `transfer` 1.1.0 capability advertisement
+- [x] 03-02-PLAN.md — Frozen Range contract: quoted strong ETag, single-range 206 with Content-Range, 416, If-Range, HEAD, positional-read storage fix, and `transfer` 1.1.0 capability advertisement
 
 **Wave 2** *(blocked on Wave 1)*
 
@@ -216,6 +216,6 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Private Custody and Durable Protocol | 8/8 | Complete    | 2026-08-28 |
 | 2. Explainable Import and Exact Export | 10/10 | Complete    | 2026-08-30 |
-| 3. Mac Offline Play Vertical Slice | 0/10 | Planned | - |
+| 3. Mac Offline Play Vertical Slice | 1/10 | In Progress|  |
 | 4. Persistent Save Continuity | 0/TBD | Not started | - |
 | 5. Recovery and Release Proof | 0/TBD | Not started | - |
