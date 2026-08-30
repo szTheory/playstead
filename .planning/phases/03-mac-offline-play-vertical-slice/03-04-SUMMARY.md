@@ -256,3 +256,8 @@ None — no external service configuration required.
 ---
 *Phase: 03-mac-offline-play-vertical-slice*
 *Completed: 2026-08-30*
+
+## Self-Check: PASSED
+
+- All key-files (created/modified) verified present on disk.
+- All 4 task/docs commits (`7a6c529`, `734683e`, `847e194`, `183ced9`) verified present in `git log`.
