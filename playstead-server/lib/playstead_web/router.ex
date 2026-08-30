@@ -247,6 +247,15 @@ defmodule PlaysteadWeb.Router do
     get "/queue", CurationController, :list_queue
   end
 
+  # D-07: coarse play-session reporting, posted from the Mac outbox
+  # after the fact -- never on the launch path.
+  scope "/api/v1/play-sessions", PlaysteadWeb.Api.V1 do
+    pipe_through [:api, :device_auth, :idempotency]
+
+    post "/", PlaySessionsController, :create
+    delete "/:id", PlaySessionsController, :delete
+  end
+
   # D-21, PROT-05: the resumable change feed and its transactional
   # snapshot counterpart. Both are read-only — never mutating, never
   # Idempotency-Key gated — so they stay on the plain device_auth

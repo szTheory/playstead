@@ -15,7 +15,7 @@ defmodule Playstead.Sync.CurationPayload do
   plans/tasks that introduce their schemas).
   """
 
-  alias Playstead.Curation.{Collection, CollectionMember, Favorite, QueueItem}
+  alias Playstead.Curation.{Collection, CollectionMember, ContinueDismissal, Favorite, QueueItem}
 
   @doc "Builds the `curation` journal payload for a curation row."
   @spec build(struct()) :: map()
@@ -52,6 +52,27 @@ defmodule Playstead.Sync.CurationPayload do
       asset_set_id: item.asset_set_id,
       position: item.position,
       added_at: item.inserted_at
+    }
+  end
+
+  def build(%ContinueDismissal{} = dismissal) do
+    %{
+      type: "continue_dismissal",
+      asset_set_id: dismissal.asset_set_id
+    }
+  end
+
+  # `recent` has no schema of its own -- it's a compact per-game
+  # summary derived from `Playstead.Curation.PlaySession` rows, so
+  # shelves reconstruct from the journal alone without needing full
+  # session history. `Playstead.Curation.journal_recent/2` builds this
+  # map and re-appends it (entity_id = the game's asset_set_id) every
+  # time a session for that game is recorded or removed.
+  def build(%{type: :recent, asset_set_id: asset_set_id, last_played_at: last_played_at}) do
+    %{
+      type: "recent",
+      asset_set_id: asset_set_id,
+      last_played_at: last_played_at
     }
   end
 end

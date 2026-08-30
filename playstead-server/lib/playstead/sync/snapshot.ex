@@ -49,7 +49,16 @@ defmodule Playstead.Sync.Snapshot do
 
   alias Playstead.Catalogue.AssetSet
   alias Playstead.Catalogue.Payload, as: CataloguePayload
-  alias Playstead.Curation.Favorite
+
+  alias Playstead.Curation.{
+    Collection,
+    CollectionMember,
+    ContinueDismissal,
+    Favorite,
+    PlaySession,
+    QueueItem
+  }
+
   alias Playstead.Import.Session
   alias Playstead.Repo
   alias Playstead.Pairing.Device
@@ -194,21 +203,96 @@ defmodule Playstead.Sync.Snapshot do
   end
 
   # D-08: the `curation` branch, read from the same transaction and
-  # as-of position as the device, catalogue, and job branches above.
-  # Only favorites exist as of this plan; later plans append more
-  # curation sub-queries and concatenate their results here without
-  # changing this branch's shape or transaction boundary.
+  # as-of position as the device, catalogue, and job branches above --
+  # every curation noun's rows as of `as_of_time`, concatenated. This
+  # is the whole reason D-08 added one journal kind for all of them:
+  # a resuming client reconstructs every curation shelf from one
+  # branch at one consistent instant.
   defp fetch_curation(user_id, as_of_time) do
-    favorites =
-      from(f in Favorite,
-        where: f.user_id == ^user_id,
-        where: f.inserted_at <= ^as_of_time,
-        order_by: [asc: f.id]
-      )
-      |> Repo.all()
-      |> Enum.map(&CurationPayload.build/1)
+    fetch_favorites(user_id, as_of_time) ++
+      fetch_collections(user_id, as_of_time) ++
+      fetch_collection_members(user_id, as_of_time) ++
+      fetch_queue_items(user_id, as_of_time) ++
+      fetch_continue_dismissals(user_id, as_of_time) ++
+      fetch_recent(user_id, as_of_time)
+  end
 
-    favorites
+  defp fetch_favorites(user_id, as_of_time) do
+    from(f in Favorite,
+      where: f.user_id == ^user_id,
+      where: f.inserted_at <= ^as_of_time,
+      order_by: [asc: f.id]
+    )
+    |> Repo.all()
+    |> Enum.map(&CurationPayload.build/1)
+  end
+
+  defp fetch_collections(user_id, as_of_time) do
+    from(c in Collection,
+      where: c.user_id == ^user_id,
+      where: c.inserted_at <= ^as_of_time,
+      order_by: [asc: c.id]
+    )
+    |> Repo.all()
+    |> Enum.map(&CurationPayload.build/1)
+  end
+
+  defp fetch_collection_members(user_id, as_of_time) do
+    from(m in CollectionMember,
+      where: m.user_id == ^user_id,
+      where: m.inserted_at <= ^as_of_time,
+      order_by: [asc: m.id]
+    )
+    |> Repo.all()
+    |> Enum.map(&CurationPayload.build/1)
+  end
+
+  defp fetch_queue_items(user_id, as_of_time) do
+    from(i in QueueItem,
+      where: i.user_id == ^user_id,
+      where: i.inserted_at <= ^as_of_time,
+      order_by: [asc: i.id]
+    )
+    |> Repo.all()
+    |> Enum.map(&CurationPayload.build/1)
+  end
+
+  defp fetch_continue_dismissals(user_id, as_of_time) do
+    from(d in ContinueDismissal,
+      where: d.user_id == ^user_id,
+      where: d.inserted_at <= ^as_of_time,
+      order_by: [asc: d.id]
+    )
+    |> Repo.all()
+    |> Enum.map(&CurationPayload.build/1)
+  end
+
+  # D-07: a compact `recent` summary per game, derived from play
+  # sessions recorded as of `as_of_time` -- not the raw sessions
+  # themselves, mirroring `Playstead.Curation.journal_recent/2`.
+  #
+  # `as_of_time` comes from `Sync.Entry.inserted_at` (`:utc_datetime`,
+  # second precision), but `PlaySession.inserted_at` is
+  # `:utc_datetime_usec` (D-07's deterministic-burst-ordering
+  # requirement). A session inserted later in the *same* second as the
+  # pinning journal entry has a strictly later microsecond-precision
+  # timestamp, so a plain `<=` comparison would wrongly exclude it --
+  # comparing against the end of that second instead avoids that
+  # false exclusion (a session actually inserted a full second later
+  # genuinely belongs to the next read, so this cannot pull in
+  # anything that wasn't already committed by `as_of_time`'s instant).
+  defp fetch_recent(user_id, as_of_time) do
+    boundary = DateTime.add(as_of_time, 1, :second)
+
+    from(s in PlaySession,
+      where: s.user_id == ^user_id,
+      where: s.inserted_at < ^boundary,
+      group_by: s.asset_set_id,
+      select: %{asset_set_id: s.asset_set_id, last_played_at: max(s.started_at)},
+      order_by: [asc: s.asset_set_id]
+    )
+    |> Repo.all()
+    |> Enum.map(fn recent -> CurationPayload.build(Map.put(recent, :type, :recent)) end)
   end
 
   defp next_after_id(_rows, false), do: nil

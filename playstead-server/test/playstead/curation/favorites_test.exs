@@ -4,7 +4,13 @@ defmodule Playstead.Curation.FavoritesTest do
   journal (D-07/D-08/D-09).
   """
 
-  use Playstead.DataCase, async: true
+  # async: false -- ChangeJournal.append/4 serializes every write in
+  # the process behind one global advisory lock (a documented,
+  # deliberate single-owner-server simplicity tradeoff); running these
+  # tests' many sequential journal writes concurrently with other
+  # curation test files' async sandboxes causes real lock-wait
+  # contention that can exceed the connection ownership timeout.
+  use Playstead.DataCase, async: false
 
   import Playstead.AccountsFixtures
   import Playstead.CatalogueFixtures

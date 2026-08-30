@@ -4,7 +4,9 @@ defmodule Playstead.Curation.QueueTest do
   (D-07/D-09/D-10).
   """
 
-  use Playstead.DataCase, async: true
+  # async: false -- see favorites_test.exs for why (global ChangeJournal
+  # advisory lock + many sequential writes here).
+  use Playstead.DataCase, async: false
 
   import Playstead.AccountsFixtures
   import Playstead.CatalogueFixtures

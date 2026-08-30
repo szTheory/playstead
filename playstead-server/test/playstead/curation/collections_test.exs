@@ -3,7 +3,9 @@ defmodule Playstead.Curation.CollectionsTest do
   Plan 03-04 task 2: manual, flat, ordered collections (D-10).
   """
 
-  use Playstead.DataCase, async: true
+  # async: false -- see favorites_test.exs for why (global ChangeJournal
+  # advisory lock + many sequential writes here).
+  use Playstead.DataCase, async: false
 
   import Playstead.AccountsFixtures
   import Playstead.CatalogueFixtures

@@ -21,7 +21,17 @@ defmodule Playstead.Curation do
 
   alias Playstead.Catalogue
   alias Playstead.Catalogue.AssetSet
-  alias Playstead.Curation.{Collection, CollectionMember, Favorite, Position, QueueItem}
+
+  alias Playstead.Curation.{
+    Collection,
+    CollectionMember,
+    ContinueDismissal,
+    Favorite,
+    PlaySession,
+    Position,
+    QueueItem
+  }
+
   alias Playstead.Repo
   alias Playstead.Sync.{ChangeJournal, CurationPayload}
 
@@ -30,6 +40,7 @@ defmodule Playstead.Curation do
   @collection_cap 500
   @member_cap 5000
   @queue_cap 500
+  @default_recent_limit 50
 
   @doc """
   Favorites `asset_set_id` for `user_id`, using `id` as the row's
@@ -455,6 +466,230 @@ defmodule Playstead.Curation do
         {:error, reason} -> Repo.rollback(reason)
       end
     end)
+  end
+
+  ## Play sessions, Recent, and Continue (D-07)
+
+  @doc """
+  Records a coarse play session for `user_id`. `attrs` (string or atom
+  keys) must include `:id`/`"id"`, `:asset_set_id`/`"asset_set_id"`,
+  and `:started_at`/`"started_at"`; `:ended_at`/`"ended_at"` is
+  optional. Posting the same session `id` twice leaves one row and
+  returns success -- nothing on this path ever gates, delays, or fails
+  a launch, so the Mac outbox can post at its own pace.
+
+  Re-derives and re-journals the compact `recent` summary for the
+  session's game in the same transaction (`journal_recent/2`), keyed
+  by the game's `asset_set_id` rather than the session's own id, so a
+  resuming client reconstructs Recent from the journal alone without
+  fetching full session history.
+  """
+  @spec record_play_session(pos_integer(), map()) :: {:ok, PlaySession.t()} | {:error, term()}
+  def record_play_session(user_id, attrs) do
+    asset_set_id = Map.get(attrs, :asset_set_id) || Map.get(attrs, "asset_set_id")
+
+    with :ok <- verify_asset_set_ownership(user_id, asset_set_id) do
+      changeset =
+        PlaySession.create_changeset(
+          %PlaySession{},
+          Map.merge(attrs, %{user_id: user_id, asset_set_id: asset_set_id})
+        )
+
+      Ecto.Multi.new()
+      |> Ecto.Multi.insert(:session, changeset, on_conflict: :nothing, conflict_target: [:id])
+      |> Ecto.Multi.run(:journal, fn _repo, _changes -> journal_recent(user_id, asset_set_id) end)
+      |> Repo.transaction()
+      |> case do
+        {:ok, %{session: session}} -> {:ok, session}
+        {:error, _step, reason, _changes} -> {:error, reason}
+      end
+    end
+  end
+
+  @doc """
+  Deletes `session_id` (owned by `user_id`) and re-derives the
+  `recent` summary for its game -- tombstoning that game's `recent`
+  entity entirely if no session remains for it. A no-op if the session
+  does not exist.
+  """
+  @spec delete_play_session(pos_integer(), Ecto.UUID.t()) :: {:ok, :removed} | {:error, term()}
+  def delete_play_session(user_id, session_id) do
+    case Repo.get_by(PlaySession, id: session_id, user_id: user_id) do
+      nil ->
+        {:ok, :removed}
+
+      %PlaySession{asset_set_id: asset_set_id} = session ->
+        Repo.transaction(fn ->
+          Repo.delete!(session)
+
+          remaining? =
+            Repo.exists?(
+              from(s in PlaySession,
+                where: s.user_id == ^user_id and s.asset_set_id == ^asset_set_id
+              )
+            )
+
+          result =
+            if remaining? do
+              journal_recent(user_id, asset_set_id)
+            else
+              ChangeJournal.tombstone(user_id, :curation, asset_set_id)
+            end
+
+          case result do
+            {:ok, _entry} -> :removed
+            {:error, reason} -> Repo.rollback(reason)
+          end
+        end)
+        |> case do
+          {:ok, :removed} -> {:ok, :removed}
+          {:error, reason} -> {:error, reason}
+        end
+    end
+  end
+
+  @doc """
+  Lists `user_id`'s Recent games: one entry per distinct asset set, the
+  latest session start per game, ordered descending, limited to
+  `opts[:limit]` (default #{@default_recent_limit}).
+  """
+  @spec list_recent(pos_integer(), keyword()) :: [
+          %{asset_set_id: Ecto.UUID.t(), last_played_at: DateTime.t()}
+        ]
+  def list_recent(user_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit, @default_recent_limit)
+
+    from(s in PlaySession,
+      where: s.user_id == ^user_id,
+      group_by: s.asset_set_id,
+      select: %{asset_set_id: s.asset_set_id, last_played_at: max(s.started_at)},
+      order_by: [desc: max(s.started_at)],
+      limit: ^limit
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Lists `user_id`'s Continue games: Recent minus games explicitly
+  dismissed, except a game whose most recent session started after
+  its dismissal is restored automatically (playing a dismissed game
+  again returns it to Continue with no explicit undismiss needed).
+  """
+  @spec list_continue(pos_integer()) :: [
+          %{asset_set_id: Ecto.UUID.t(), last_played_at: DateTime.t()}
+        ]
+  def list_continue(user_id) do
+    dismissed_at_by_asset_set =
+      from(d in ContinueDismissal,
+        where: d.user_id == ^user_id,
+        select: {d.asset_set_id, d.dismissed_at}
+      )
+      |> Repo.all()
+      |> Map.new()
+
+    user_id
+    |> list_recent(limit: @default_recent_limit)
+    |> Enum.reject(fn %{asset_set_id: id, last_played_at: last_played_at} ->
+      case Map.get(dismissed_at_by_asset_set, id) do
+        nil ->
+          false
+
+        dismissed_at ->
+          not (last_played_at && DateTime.compare(last_played_at, dismissed_at) == :gt)
+      end
+    end)
+  end
+
+  @doc """
+  Dismisses `asset_set_id` from `user_id`'s Continue. `id` is the
+  dismissal row's client-supplied primary key. Idempotent: dismissing
+  an already-dismissed game converges on the existing row and leaves
+  it dismissed either way.
+  """
+  @spec dismiss_continue(pos_integer(), Ecto.UUID.t(), Ecto.UUID.t()) ::
+          {:ok, ContinueDismissal.t()} | {:error, term()}
+  def dismiss_continue(user_id, id, asset_set_id) do
+    with :ok <- verify_asset_set_ownership(user_id, asset_set_id) do
+      changeset =
+        ContinueDismissal.create_changeset(%ContinueDismissal{}, %{
+          id: id,
+          user_id: user_id,
+          asset_set_id: asset_set_id,
+          dismissed_at: DateTime.utc_now() |> DateTime.truncate(:microsecond)
+        })
+
+      Ecto.Multi.new()
+      |> Ecto.Multi.insert(:dismissal, changeset,
+        on_conflict: {:replace, [:dismissed_at, :updated_at]},
+        conflict_target: [:user_id, :asset_set_id],
+        returning: true
+      )
+      |> Ecto.Multi.run(:journal, fn _repo, %{dismissal: dismissal} ->
+        ChangeJournal.append(user_id, :curation, dismissal.id, CurationPayload.build(dismissal))
+      end)
+      |> Repo.transaction()
+      |> case do
+        {:ok, %{dismissal: dismissal}} -> {:ok, dismissal}
+        {:error, _step, reason, _changes} -> {:error, reason}
+      end
+    end
+  end
+
+  @doc """
+  Explicitly un-dismisses `asset_set_id` for `user_id` -- distinct from
+  the automatic recovery-by-replay `list_continue/1` performs. `id` is
+  accepted for interface symmetry with the rest of this module's
+  mutation functions but unused: the row being removed is identified
+  by `(user_id, asset_set_id)`, the same natural key
+  `dismiss_continue/3` converges on. A no-op if not currently
+  dismissed.
+  """
+  @spec undismiss_continue(pos_integer(), Ecto.UUID.t() | nil, Ecto.UUID.t()) ::
+          {:ok, :removed} | {:error, term()}
+  def undismiss_continue(user_id, _id, asset_set_id) do
+    case Repo.get_by(ContinueDismissal, user_id: user_id, asset_set_id: asset_set_id) do
+      nil ->
+        {:ok, :removed}
+
+      %ContinueDismissal{} = dismissal ->
+        Ecto.Multi.new()
+        |> Ecto.Multi.delete(:dismissal, dismissal)
+        |> Ecto.Multi.run(:journal, fn _repo, %{dismissal: dismissal} ->
+          ChangeJournal.tombstone(user_id, :curation, dismissal.id)
+        end)
+        |> Repo.transaction()
+        |> case do
+          {:ok, _changes} -> {:ok, :removed}
+          {:error, _step, reason, _changes} -> {:error, reason}
+        end
+    end
+  end
+
+  # Re-derives the compact `recent` summary for one game from its
+  # current play sessions and appends it under the game's asset_set_id
+  # -- called inside the same transaction as every session
+  # record/delete so Recent never drifts from the sessions it derives
+  # from.
+  defp journal_recent(user_id, asset_set_id) do
+    last_played_at =
+      from(s in PlaySession,
+        where: s.user_id == ^user_id and s.asset_set_id == ^asset_set_id,
+        order_by: [desc: s.started_at],
+        limit: 1,
+        select: s.started_at
+      )
+      |> Repo.one()
+
+    ChangeJournal.append(
+      user_id,
+      :curation,
+      asset_set_id,
+      CurationPayload.build(%{
+        type: :recent,
+        asset_set_id: asset_set_id,
+        last_played_at: last_played_at
+      })
+    )
   end
 
   # --- shared internals ---
