@@ -49,10 +49,11 @@ defmodule Playstead.Sync.Snapshot do
 
   alias Playstead.Catalogue.AssetSet
   alias Playstead.Catalogue.Payload, as: CataloguePayload
+  alias Playstead.Curation.Favorite
   alias Playstead.Import.Session
   alias Playstead.Repo
   alias Playstead.Pairing.Device
-  alias Playstead.Sync.{ChangeJournal, Cursor}
+  alias Playstead.Sync.{ChangeJournal, Cursor, CurationPayload}
 
   @default_page_size 200
 
@@ -105,7 +106,8 @@ defmodule Playstead.Sync.Snapshot do
           has_more: has_more,
           next_after_id: next_after_id(rows, has_more),
           catalogue: fetch_catalogue(user_id, as_of_time),
-          job: fetch_jobs(user_id, as_of_time)
+          job: fetch_jobs(user_id, as_of_time),
+          curation: fetch_curation(user_id, as_of_time)
         }
       end)
 
@@ -189,6 +191,24 @@ defmodule Playstead.Sync.Snapshot do
       bytes_completed: session.bytes_completed,
       counts_by_outcome: session.counts_by_outcome
     }
+  end
+
+  # D-08: the `curation` branch, read from the same transaction and
+  # as-of position as the device, catalogue, and job branches above.
+  # Only favorites exist as of this plan; later plans append more
+  # curation sub-queries and concatenate their results here without
+  # changing this branch's shape or transaction boundary.
+  defp fetch_curation(user_id, as_of_time) do
+    favorites =
+      from(f in Favorite,
+        where: f.user_id == ^user_id,
+        where: f.inserted_at <= ^as_of_time,
+        order_by: [asc: f.id]
+      )
+      |> Repo.all()
+      |> Enum.map(&CurationPayload.build/1)
+
+    favorites
   end
 
   defp next_after_id(_rows, false), do: nil

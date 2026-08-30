@@ -2,8 +2,10 @@ defmodule Playstead.Sync.SnapshotTest do
   use Playstead.DataCase, async: true
 
   import Playstead.AccountsFixtures
+  import Playstead.CatalogueFixtures
   import Playstead.PairingFixtures
 
+  alias Playstead.Curation
   alias Playstead.Sync.{Cursor, Snapshot}
 
   test "pages with page_size, reports has_more and next_after_id, and pins as_of across pages" do
@@ -45,5 +47,24 @@ defmodule Playstead.Sync.SnapshotTest do
     {:ok, page} = Snapshot.read(scope.user.id)
     assert page.entries == []
     assert {:ok, 0} = Cursor.decode(page.cursor)
+  end
+
+  test "a user with no curation rows gets an empty curation branch" do
+    scope = user_scope_fixture()
+    {:ok, page} = Snapshot.read(scope.user.id)
+    assert page.curation == []
+  end
+
+  test "the curation branch lists a favorite from the same transaction as catalogue and job" do
+    scope = user_scope_fixture()
+    asset_set = asset_set_fixture(scope.user.id)
+    {:ok, _favorite} = Curation.add_favorite(scope.user.id, Ecto.UUID.generate(), asset_set.id)
+
+    {:ok, page} = Snapshot.read(scope.user.id)
+
+    assert [%{type: "favorite", asset_set_id: id}] = page.curation
+    assert id == asset_set.id
+    assert is_list(page.catalogue)
+    assert is_list(page.job)
   end
 end

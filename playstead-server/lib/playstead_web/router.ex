@@ -210,6 +210,16 @@ defmodule PlaysteadWeb.Router do
     get "/:id/manifest", ExportsController, :manifest
   end
 
+  # D-07…D-10: per-row idempotent curation intents (Favorites in this
+  # plan; Collections, the play queue, and play sessions are added by
+  # later tasks on this same scope).
+  scope "/api/v1/curation", PlaysteadWeb.Api.V1 do
+    pipe_through [:api, :device_auth, :idempotency]
+
+    put "/favorites/:asset_set_id", CurationController, :create_favorite
+    delete "/favorites/:asset_set_id", CurationController, :delete_favorite
+  end
+
   # D-21, PROT-05: the resumable change feed and its transactional
   # snapshot counterpart. Both are read-only — never mutating, never
   # Idempotency-Key gated — so they stay on the plain device_auth

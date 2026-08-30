@@ -21,7 +21,10 @@ defmodule PlaysteadWeb.Api.V1.SnapshotController do
           entries: Enum.map(result.entries, &render_entry/1),
           cursor: result.cursor,
           has_more: result.has_more,
-          next_after_id: result.next_after_id
+          next_after_id: result.next_after_id,
+          catalogue: result.catalogue,
+          job: result.job,
+          curation: result.curation
         })
 
       :error ->
