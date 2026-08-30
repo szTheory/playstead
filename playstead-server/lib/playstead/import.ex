@@ -164,7 +164,8 @@ defmodule Playstead.Import do
           # to judge its system and must not guess — this stays a
           # literal `false`, not the computed expression below.
           unknown_system?: false,
-          evidence: %{}
+          evidence: %{},
+          attention_already_raised?: false
         }
 
       nil ->
@@ -211,26 +212,38 @@ defmodule Playstead.Import do
     extension_guess = Catalogue.extension_guess(original_name)
     system_assignment = Catalogue.assign_system(extension_guess, format_result, nil)
 
-    unrecognized_reason =
-      unrecognized_reason_for(
-        user_id,
-        blob_meta,
-        extension_guess,
-        format_result,
-        recognition_result
-      )
+    # Created before the unrecognized-reason lookup below (moved up
+    # from its former position after that lookup) because the ambiguous
+    # branch of that lookup — CR-01's fix — now needs `asset_set` in
+    # hand to call `Recognition.raise_ambiguous/4` directly, the same
+    # bookkeeping `Recognition.reidentify/2` uses.
+    {:ok, asset_set} =
+      find_or_create_asset_set(user_id, blob_meta, source_file_attrs, format_result)
 
     base_outcome = determine_outcome(user_id, blob_meta.blob_id, origin, recognition_result)
 
+    # Only consulted when the byte-duplicate/recognition-result check
+    # above already landed on :new_asset — unlike the pre-CR-01 code,
+    # this call is not made eagerly for every outcome, because its
+    # ambiguous branch now has the side effect of raising an attention
+    # item; making it conditional keeps that side effect scoped to the
+    # outcome it actually applies to.
     {outcome, reason} =
-      if base_outcome == :new_asset and unrecognized_reason do
-        {:unrecognized, unrecognized_reason}
+      if base_outcome == :new_asset do
+        case unrecognized_reason_for(
+               user_id,
+               asset_set,
+               blob_meta,
+               extension_guess,
+               format_result,
+               recognition_result
+             ) do
+          nil -> {base_outcome, nil}
+          unrecognized_reason -> {:unrecognized, unrecognized_reason}
+        end
       else
         {base_outcome, nil}
       end
-
-    {:ok, asset_set} =
-      find_or_create_asset_set(user_id, blob_meta, source_file_attrs, format_result)
 
     %{
       outcome: outcome,
@@ -242,7 +255,7 @@ defmodule Playstead.Import do
       # A file with neither claim is D-26's genuine "unknown system"
       # inclusion case, distinct from the far more common "supported
       # format, no reference pack installed" quiet exclusion (that
-      # distinction is `unrecognized_reason_for/5`'s job below). A
+      # distinction is `unrecognized_reason_for/6`'s job below). A
       # container result (an archive) must not qualify here — it is a
       # known thing kept deliberately unopened with its own reason and
       # its own grouped inbox item. The flooding concern this flag used
@@ -250,7 +263,15 @@ defmodule Playstead.Import do
       # collapsing every unknown-system file in one import/session into
       # a single counted item, not by never raising the flag at all.
       unknown_system?: unknown_system?(extension_guess, format_result),
-      evidence: confirmation_evidence(system_assignment)
+      evidence: confirmation_evidence(system_assignment),
+      # CR-01: when `reason` is "ambiguous", `reference_match_reason/3`
+      # already called `Recognition.raise_ambiguous/4`, which wrote the
+      # `reference_match`-provider evidence row and raised the
+      # `ambiguous_recognition:#{blob_id}` attention item itself — the
+      # exact bookkeeping `Recognition.reidentify/2`'s ambiguous branch
+      # uses. `raise_attention/4` below must not raise a second,
+      # differently-keyed item for the same conflict.
+      attention_already_raised?: reason == "ambiguous"
     }
   end
 
@@ -264,6 +285,7 @@ defmodule Playstead.Import do
   # specific than the two quiet reasons below and must keep winning.
   defp unrecognized_reason_for(
          _user_id,
+         _asset_set,
          _blob_meta,
          _extension_guess,
          {_system, :container, %{reason: :archive_not_opened}},
@@ -273,6 +295,7 @@ defmodule Playstead.Import do
 
   defp unrecognized_reason_for(
          _user_id,
+         _asset_set,
          _blob_meta,
          extension_guess,
          {system, _tier, _evidence},
@@ -290,21 +313,38 @@ defmodule Playstead.Import do
   # both). D-16/D-18: `Playstead.Recognition.DatPack`/`ReferenceEntry`
   # carry no system column, so "any pack installed at all" — not
   # per-system coverage — is the derivable, honest discriminator.
-  defp unrecognized_reason_for(user_id, blob_meta, _extension_guess, _format_result, _result) do
-    quiet_unrecognized_reason(user_id, blob_meta)
+  defp unrecognized_reason_for(
+         user_id,
+         asset_set,
+         blob_meta,
+         _extension_guess,
+         _format_result,
+         _result
+       ) do
+    quiet_unrecognized_reason(user_id, asset_set, blob_meta)
   end
 
-  defp quiet_unrecognized_reason(_user_id, %{sha256: nil}), do: nil
+  defp quiet_unrecognized_reason(_user_id, _asset_set, %{sha256: nil}), do: nil
 
-  defp quiet_unrecognized_reason(user_id, %{sha256: sha256}) do
+  defp quiet_unrecognized_reason(user_id, asset_set, %{sha256: sha256}) do
     if Recognition.packs_installed?(user_id) do
-      reference_match_reason(sha256)
+      reference_match_reason(user_id, asset_set, sha256)
     else
       "no_reference_installed"
     end
   end
 
-  defp reference_match_reason(sha256) do
+  # CR-01: an `{:ambiguous, entries}` result is routed through
+  # `Recognition.raise_ambiguous/4` — the same evidence-row +
+  # attention-item bookkeeping `Recognition.reidentify/2`'s ambiguous
+  # branch uses — so an import-time digest conflict and a later
+  # reidentify-time rediscovery of the same conflict converge on one
+  # `reference_match`-provider evidence row (which also excludes this
+  # blob from future `unmatched_candidates/1` scans) and one
+  # `"ambiguous_recognition:#{blob.id}"`-keyed attention item, never
+  # two. `raise_attention/4` is told not to raise a second item for
+  # this classification via `attention_already_raised?`.
+  defp reference_match_reason(user_id, asset_set, sha256) do
     case Blobs.get_by_sha256(sha256) do
       nil ->
         nil
@@ -313,9 +353,15 @@ defmodule Playstead.Import do
         fingerprints = Repo.all(from(f in BlobFingerprint, where: f.blob_id == ^blob.id))
 
         case ReferenceMatch.match(blob, fingerprints) do
-          {:match, _entry} -> nil
-          {:ambiguous, _entries} -> "ambiguous"
-          :no_match -> "no_match"
+          {:match, _entry} ->
+            nil
+
+          {:ambiguous, entries} ->
+            :ok = Recognition.raise_ambiguous(user_id, asset_set, blob, entries)
+            "ambiguous"
+
+          :no_match ->
+            "no_match"
         end
     end
   end
@@ -328,6 +374,17 @@ defmodule Playstead.Import do
 
   # D-26: raises an item inside the same transaction as the outcome
   # that caused it, or does nothing for a quiet exclusion.
+  #
+  # CR-01: when `classification.attention_already_raised?` is true,
+  # `Recognition.raise_ambiguous/4` already raised the one
+  # `ambiguous_recognition` item this blob's digest conflict gets
+  # (under its own `"ambiguous_recognition:#{blob_id}"` grouping key),
+  # so this call must not raise a second, differently-keyed item for
+  # the same conflict.
+  defp raise_attention(_user_id, _source_file, _receipt, %{attention_already_raised?: true}) do
+    {:ok, nil}
+  end
+
   defp raise_attention(user_id, source_file, receipt, classification) do
     ctx = %{
       user_id: user_id,

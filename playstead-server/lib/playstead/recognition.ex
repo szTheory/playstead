@@ -265,12 +265,32 @@ defmodule Playstead.Recognition do
     :ok
   end
 
-  # D-18: appends one evidence row, never rewrites or removes a prior
-  # one. No `promote/4` call — an ambiguous digest is a human decision
-  # (T-02-71), so this never writes a system assignment or a display
-  # title and never emits a catalogue journal entry (the asset set's
-  # state has not changed).
-  defp raise_ambiguous(user_id, asset_set, blob, entries) do
+  @doc """
+  Appends one `reference_match`-provider evidence row for `blob`
+  naming every conflicting `entries` candidate, and raises exactly one
+  `ambiguous_recognition` attention item under the
+  `"ambiguous_recognition:\#{blob.id}"` grouping key (D-18). Never
+  rewrites or removes a prior evidence row. No `promote/4` call — an
+  ambiguous digest is a human decision (T-02-71), so this never writes
+  a system assignment or a display title and never emits a catalogue
+  journal entry (the asset set's state has not changed).
+
+  This is the single bookkeeping path for "ambiguous at any point" —
+  `reidentify/2`'s scan-time detection and `Playstead.Import`'s
+  import-time detection (`Import.classify_recognized/8`) both call it,
+  so a given blob's digest conflict converges on one evidence row and
+  one attention item no matter which path finds it first. Writing the
+  evidence row here is also what excludes the blob from a later
+  `unmatched_candidates/1` pass, so a second pack installed after an
+  import-time ambiguous detection does not re-raise the same item.
+  """
+  @spec raise_ambiguous(
+          pos_integer(),
+          AssetSet.t(),
+          Blob.t(),
+          [Playstead.Recognition.ReferenceEntry.t()]
+        ) :: :ok
+  def raise_ambiguous(user_id, asset_set, blob, entries) do
     evidence = %{
       "candidates" =>
         Enum.map(entries, fn entry ->

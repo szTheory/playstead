@@ -16,9 +16,11 @@ defmodule Playstead.Recognition.AmbiguousRecognitionTest do
 
   alias Playstead.Attention
   alias Playstead.Attention.{Item, Resolutions}
+  alias Playstead.Blobs
   alias Playstead.Blobs.Blob
   alias Playstead.Catalogue.AssetMember
   alias Playstead.Catalogue.AssetSet
+  alias Playstead.Import
   alias Playstead.Recognition
   alias Playstead.Recognition.{DatPack, Evidence, ReferenceEntry}
   alias Playstead.Repo
@@ -242,5 +244,66 @@ defmodule Playstead.Recognition.AmbiguousRecognitionTest do
     assert {:ok, _result} = Resolutions.retain_as_custom(item, user.id)
     reloaded = Repo.get!(Item, item.id)
     assert reloaded.status == "resolved"
+  end
+
+  # CR-01 regression (02-REVIEW.md gap-closure pass): an import-time
+  # ambiguous determination (`Import.classify_recognized/8` ->
+  # `reference_match_reason/3`) and a later `Recognition.reidentify/2`
+  # rediscovery of the very same digest conflict must converge on
+  # exactly one `ambiguous_recognition` attention item, not two.
+  describe "import-time ambiguous detection converges with reidentify (CR-01)" do
+    setup do
+      File.mkdir_p!(Playstead.Blobs.Store.LocalDisk.blob_path())
+      :ok
+    end
+
+    test "import while two packs conflict, then reidentify/2, raises exactly one item" do
+      user = owner_fixture()
+      bytes = :crypto.strong_rand_bytes(512)
+
+      {:ok, status, meta} = Blobs.put_stream([bytes], byte_size(bytes))
+
+      {_pack_a, entry_a} = dat_pack_fixture(user, %{name: "Game A", sha1: meta.sha1})
+      {_pack_b, entry_b} = dat_pack_fixture(user, %{name: "Game B", sha1: meta.sha1})
+
+      {:ok, receipt} =
+        Import.import_single(
+          user.id,
+          %{original_name: "mystery.rom", origin: "upload", size_bytes: byte_size(bytes)},
+          {status, meta},
+          format_bytes: bytes
+        )
+
+      assert receipt.outcome == "unrecognized"
+      assert receipt.reason == "ambiguous"
+
+      assert Attention.count(user.id) == 1
+
+      items = from(i in Item, where: i.user_id == ^user.id) |> Repo.all()
+      assert [item] = items
+      assert item.reason == "ambiguous_recognition"
+      assert item.grouping_key == "ambiguous_recognition:#{receipt.blob_id}"
+
+      names = get_in(item.evidence, ["candidates"]) |> Enum.map(& &1["name"])
+      assert Enum.sort(names) == Enum.sort([entry_a.name, entry_b.name])
+
+      # The import-time path must have written the same reference_match
+      # evidence row reidentify/2's own ambiguous branch writes — that
+      # is what excludes this blob from unmatched_candidates/1 so a
+      # later pack install does not re-raise a second, differently-keyed
+      # item for the same conflict.
+      assert [%Evidence{provider_name: "reference_match", status: "ambiguous"}] =
+               from(e in Evidence,
+                 where: e.blob_id == ^receipt.blob_id and e.provider_name == "reference_match"
+               )
+               |> Repo.all()
+
+      # A third, unrelated pack triggers reidentify/2 (D-18). The same
+      # conflict is still unresolved, but must not raise a second item.
+      dat_pack_fixture(user, %{name: "Game A", sha1: meta.sha1})
+      assert %{identified: 0, ambiguous: 0} = Recognition.reidentify(user.id)
+
+      assert Attention.count(user.id) == 1
+    end
   end
 end
