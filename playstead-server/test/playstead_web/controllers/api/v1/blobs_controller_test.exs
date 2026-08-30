@@ -331,7 +331,20 @@ defmodule PlaysteadWeb.Api.V1.BlobsControllerTest do
         |> put_req_header("authorization", "Bearer #{token_b}")
         |> head(~p"/api/v1/blobs/#{sha256}")
 
-      assert_problem(resp, 404, :not_found)
+      # A true HEAD response carries no body (the test adapter strips it
+      # exactly as a real HTTP server would), so this asserts status and
+      # the problem+json content-type directly rather than via
+      # assert_problem/3, which decodes a JSON body that a HEAD response
+      # never has.
+      assert resp.status == 404
+      assert resp.resp_body == ""
+
+      content_type =
+        resp
+        |> get_resp_header("content-type")
+        |> List.first()
+
+      assert String.starts_with?(content_type, "application/problem+json")
     end
   end
 

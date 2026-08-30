@@ -28,11 +28,23 @@ defmodule PlaysteadWeb.Api.V1.BlobsController do
   action_fallback PlaysteadWeb.Api.V1.FallbackController
 
   def show(conn, %{"sha256" => sha256}) do
-    respond(conn, sha256, :get)
+    respond(conn, sha256, request_method(conn))
   end
 
   def head_show(conn, %{"sha256" => sha256}) do
     respond(conn, sha256, :head)
+  end
+
+  # Plug.Head (mounted globally in the endpoint) rewrites a HEAD request's
+  # method to "GET" before the router dispatches it, so this action is
+  # what actually runs for a HEAD request in practice — the router-level
+  # `head_show/2` route stays as a defensive path for any caller that
+  # reaches the router with the raw HEAD method intact.
+  defp request_method(conn) do
+    case conn.private[:playstead_original_method] do
+      "HEAD" -> :head
+      _ -> :get
+    end
   end
 
   defp respond(conn, sha256, method) do
