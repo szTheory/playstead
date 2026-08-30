@@ -142,19 +142,42 @@ defmodule Playstead.Recognition do
   emitted only for that asset), and resolves any open attention item a
   match can settle. Content that stays unmatched is left exactly as
   quiet as it was — no evidence row, no journal entry, no attention
-  item. Returns the count of assets newly identified in this pass.
+  item.
+
+  A digest claimed by two conflicting reference entries (plan 02-10
+  gap closure) never promotes and never picks one of the candidates —
+  it appends one evidence row naming both, without rewriting or
+  removing any prior row (D-18), and raises exactly one
+  `ambiguous_recognition` attention item. The evidence row is written
+  under `ReferenceMatch`'s own provider name, so
+  `unmatched_candidates/1`'s existing exclusion (a blob already
+  carrying a `reference_match` evidence row is never re-scanned)
+  settles the blob until a human resolves the item — a second pack
+  cannot un-conflict what the first two packs already disagreed on,
+  and re-raising the same item on every later pack install would be
+  noise.
+
+  Returns the count of assets newly identified and the count left
+  ambiguous in this pass.
   """
-  @spec reidentify(pos_integer(), keyword()) :: %{identified: non_neg_integer()}
+  @spec reidentify(pos_integer(), keyword()) :: %{
+          identified: non_neg_integer(),
+          ambiguous: non_neg_integer()
+        }
   def reidentify(user_id, _opts \\ []) do
     user_id
     |> unmatched_candidates()
-    |> Enum.reduce(%{identified: 0}, fn {asset_set, blob}, acc ->
+    |> Enum.reduce(%{identified: 0, ambiguous: 0}, fn {asset_set, blob}, acc ->
       fingerprints = fingerprints_for(blob)
 
       case ReferenceMatch.match(blob, fingerprints) do
         {:match, entry} ->
           promote(user_id, asset_set, blob, entry)
           %{acc | identified: acc.identified + 1}
+
+        {:ambiguous, entries} ->
+          raise_ambiguous(user_id, asset_set, blob, entries)
+          %{acc | ambiguous: acc.ambiguous + 1}
 
         :no_match ->
           acc
@@ -239,6 +262,47 @@ defmodule Playstead.Recognition do
 
     emit_catalogue_journal(user_id, asset_set.id)
     Attention.resolve_for_asset_set(user_id, asset_set.id)
+    :ok
+  end
+
+  # D-18: appends one evidence row, never rewrites or removes a prior
+  # one. No `promote/4` call — an ambiguous digest is a human decision
+  # (T-02-71), so this never writes a system assignment or a display
+  # title and never emits a catalogue journal entry (the asset set's
+  # state has not changed).
+  defp raise_ambiguous(user_id, asset_set, blob, entries) do
+    evidence = %{
+      "candidates" =>
+        Enum.map(entries, fn entry ->
+          %{"name" => entry.name, "dat_pack_id" => entry.dat_pack_id}
+        end)
+    }
+
+    {:ok, _evidence} =
+      %Evidence{}
+      |> Evidence.create_changeset(%{
+        blob_id: blob.id,
+        asset_set_id: asset_set.id,
+        provider_name: ReferenceMatch.name(),
+        provider_version: ReferenceMatch.version(),
+        status: "ambiguous",
+        confidence: nil,
+        reference_name: nil,
+        evidence: evidence
+      })
+      |> Repo.insert()
+
+    {:ok, _item} =
+      Attention.raise_item(%{
+        user_id: user_id,
+        outcome: :unrecognized,
+        reason: "ambiguous",
+        grouping_key: "ambiguous_recognition:#{blob.id}",
+        asset_set_id: asset_set.id,
+        blob_id: blob.id,
+        evidence: evidence
+      })
+
     :ok
   end
 

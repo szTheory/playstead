@@ -172,6 +172,63 @@ defmodule Playstead.Recognition.ReferenceMatchTest do
     assert asset_set.id != nil
   end
 
+  # --- unit-level return shape (plan 02-10 gap closure) -----------------
+
+  test "match/2 returns :no_match for a digest nothing claims" do
+    blob = blob_fixture()
+    assert :no_match = ReferenceMatch.match(blob)
+  end
+
+  test "match/2 returns {:match, entry} for a digest exactly one entry claims" do
+    user = owner_fixture()
+    blob = blob_fixture()
+    {_pack, entry} = dat_pack_fixture(user, %{name: "Solo Game", sha1: blob.sha1})
+
+    assert {:match, matched} = ReferenceMatch.match(blob)
+    assert matched.id == entry.id
+  end
+
+  test "match/2 returns {:ambiguous, entries} for a digest two conflicting entries claim" do
+    user = owner_fixture()
+    blob = blob_fixture()
+    {_pack_a, entry_a} = dat_pack_fixture(user, %{name: "Conflict A", sha1: blob.sha1})
+    {_pack_b, entry_b} = dat_pack_fixture(user, %{name: "Conflict B", sha1: blob.sha1})
+
+    assert {:ambiguous, entries} = ReferenceMatch.match(blob)
+    assert MapSet.new(Enum.map(entries, & &1.id)) == MapSet.new([entry_a.id, entry_b.id])
+  end
+
+  test "match/2 returns {:match, entry} for two rows identical in name and dat_pack_id — a duplicate, not a conflict" do
+    user = owner_fixture()
+    blob = blob_fixture()
+    {pack, entry1} = dat_pack_fixture(user, %{name: "Same Game", sha1: blob.sha1})
+
+    {:ok, entry2} =
+      %ReferenceEntry{}
+      |> ReferenceEntry.create_changeset(%{
+        dat_pack_id: pack.id,
+        name: "Same Game",
+        sha1: blob.sha1
+      })
+      |> Repo.insert()
+
+    assert {:match, matched} = ReferenceMatch.match(blob)
+    assert matched.id in [entry1.id, entry2.id]
+  end
+
+  test "an ambiguous SHA-1 stops the search rather than falling through to MD5" do
+    user = owner_fixture()
+    blob = blob_fixture()
+    dat_pack_fixture(user, %{name: "Conflict A", sha1: blob.sha1})
+    dat_pack_fixture(user, %{name: "Conflict B", sha1: blob.sha1})
+
+    # An MD5-only entry that would otherwise match must never be reached
+    # once SHA-1 has already found (and stopped on) an ambiguity.
+    dat_pack_fixture(user, %{name: "MD5 Fallback", md5: blob.md5})
+
+    assert {:ambiguous, _entries} = ReferenceMatch.match(blob)
+  end
+
   # --- appended evidence, promotion, receipts -----------------------
 
   test "a match appends an evidence row with exact confidence, reference name, provider name/version" do

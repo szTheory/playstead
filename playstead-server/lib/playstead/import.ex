@@ -314,6 +314,7 @@ defmodule Playstead.Import do
 
         case ReferenceMatch.match(blob, fingerprints) do
           {:match, _entry} -> nil
+          {:ambiguous, _entries} -> "ambiguous"
           :no_match -> "no_match"
         end
     end

@@ -147,7 +147,7 @@ defmodule Playstead.Recognition.LogiqxHandler do
     else
       entry = %{
         name: find_attr(attrs, "name") || state.current_game,
-        crc32: find_attr(attrs, "crc") |> normalize_digest(),
+        crc32: find_attr(attrs, "crc") |> normalize_crc32(),
         md5: find_attr(attrs, "md5") |> normalize_digest(),
         sha1: find_attr(attrs, "sha1") |> normalize_digest(),
         size_bytes: find_attr(attrs, "size") |> parse_size()
@@ -165,6 +165,18 @@ defmodule Playstead.Recognition.LogiqxHandler do
 
   defp normalize_digest(nil), do: nil
   defp normalize_digest(value) when is_binary(value), do: String.downcase(value)
+
+  # A DAT's `crc` attribute has had a leading zero stripped in the
+  # wild (plan 02-10 gap closure) — `Playstead.Blobs.MultiHash` always
+  # zero-pads CRC32 to eight lowercase hex characters, and digests are
+  # compared with `==`, so an unpadded value here could never match a
+  # computed one. MD5 and SHA-1 are fixed-width in every real DAT and
+  # need no padding.
+  defp normalize_crc32(nil), do: nil
+
+  defp normalize_crc32(value) when is_binary(value) do
+    value |> String.downcase() |> String.pad_leading(8, "0")
+  end
 
   # A declared size is a claim made by a file, stored as metadata only
   # (T-02-61). A value outside the storage column's representable range

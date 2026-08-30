@@ -59,10 +59,20 @@ defmodule Playstead.Recognition.ReferenceMatch do
   own stored digests, or (failing that) any of `fingerprints`'
   headerless-offset digests — the reason a headerless-offset match can
   succeed where the full-file digest alone would not. Tries the most
-  collision-resistant digest first (SHA-1), then MD5, then CRC32.
+  collision-resistant digest first (SHA-1), then MD5, then CRC32; the
+  first digest that finds anything decides — an ambiguous finding
+  stops the search rather than falling through to a weaker digest.
   Reads only `reference_entries` rows; never touches the blob store.
+
+  Returns `{:ambiguous, entries}` (plan 02-10 gap closure) when a
+  digest is claimed by two `ReferenceEntry` rows that differ in either
+  `name` or `dat_pack_id` — a real conflict a caller must not silently
+  resolve by picking one. Two rows identical in both fields are a
+  duplicate within or across packs describing the same game, not a
+  conflict, and still resolve as a single `{:match, entry}`.
   """
-  @spec match(Blob.t(), [BlobFingerprint.t()]) :: {:match, ReferenceEntry.t()} | :no_match
+  @spec match(Blob.t(), [BlobFingerprint.t()]) ::
+          {:match, ReferenceEntry.t()} | {:ambiguous, [ReferenceEntry.t()]} | :no_match
   def match(%Blob{} = blob, fingerprints \\ []) do
     digest_sets = [
       %{sha1: blob.sha1, md5: blob.md5, crc32: blob.crc32}
@@ -71,14 +81,16 @@ defmodule Playstead.Recognition.ReferenceMatch do
 
     Enum.find_value(digest_sets, :no_match, fn digests ->
       case find_entry(digests) do
-        %ReferenceEntry{} = entry -> {:match, entry}
+        {:match, %ReferenceEntry{}} = result -> result
+        {:ambiguous, _entries} = result -> result
         nil -> nil
       end
     end)
   end
 
   # Tries SHA-1, then MD5, then CRC32, in that order of collision
-  # resistance — the first present digest that finds a row wins.
+  # resistance — the first present digest that finds anything (a
+  # match or an ambiguity) wins and stops the search.
   defp find_entry(digests) when is_map(digests) do
     lookup_by(:sha1, digests[:sha1]) || lookup_by(:md5, digests[:md5]) ||
       lookup_by(:crc32, digests[:crc32])
@@ -87,14 +99,28 @@ defmodule Playstead.Recognition.ReferenceMatch do
   defp lookup_by(_field, nil), do: nil
 
   defp lookup_by(:sha1, sha1) do
-    Repo.one(from(e in ReferenceEntry, where: e.sha1 == ^sha1, limit: 1))
+    tag(Repo.all(from(e in ReferenceEntry, where: e.sha1 == ^sha1, limit: 2)))
   end
 
   defp lookup_by(:md5, md5) do
-    Repo.one(from(e in ReferenceEntry, where: e.md5 == ^md5, limit: 1))
+    tag(Repo.all(from(e in ReferenceEntry, where: e.md5 == ^md5, limit: 2)))
   end
 
   defp lookup_by(:crc32, crc32) do
-    Repo.one(from(e in ReferenceEntry, where: e.crc32 == ^crc32, limit: 1))
+    tag(Repo.all(from(e in ReferenceEntry, where: e.crc32 == ^crc32, limit: 2)))
   end
+
+  # A limit of 2 is enough to prove a conflict exists — it takes only
+  # two differing rows to know a digest is ambiguous — and caps how
+  # many rows an adversarially crafted pack can make the server
+  # enumerate for a single digest lookup, regardless of how many
+  # colliding entries it declares (T-02-72).
+  defp tag([]), do: nil
+  defp tag([entry]), do: {:match, entry}
+
+  defp tag([a, b]) do
+    if same_logical_entry?(a, b), do: {:match, a}, else: {:ambiguous, [a, b]}
+  end
+
+  defp same_logical_entry?(a, b), do: a.name == b.name and a.dat_pack_id == b.dat_pack_id
 end

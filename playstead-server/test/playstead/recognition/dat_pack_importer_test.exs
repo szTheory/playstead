@@ -4,6 +4,7 @@ defmodule Playstead.Recognition.DatPackImporterTest do
   import Playstead.AccountsFixtures
 
   alias Playstead.AuditLog
+  alias Playstead.Blobs.MultiHash
   alias Playstead.Recognition.{DatPack, DatPackImporter, ReferenceEntry}
   alias Playstead.Repo
 
@@ -94,6 +95,31 @@ defmodule Playstead.Recognition.DatPackImporterTest do
 
     events = AuditLog.list_by_subject(pack.id) |> Enum.map(& &1.event)
     assert "reference_pack_removed" in events
+  end
+
+  test "a CRC32 attribute fewer than eight characters is padded to eight lowercase hex characters equal to what MultiHash computes for the same bytes",
+       %{user: user} do
+    # crc_short.dat declares crc="79defb0" (seven characters) for
+    # <<48::32>>, whose real CRC32 is 0x079defb0 — a leading-zero case
+    # that only surfaces once the DAT's own attribute has had that
+    # zero stripped somewhere upstream. Plan 02-10 gap closure:
+    # LogiqxHandler.normalize_digest/1 downcased but never padded, so
+    # a stripped-zero CRC32 could never compare equal to a computed
+    # one via `==`.
+    bytes = <<48::32>>
+    tmp_path = Path.join(System.tmp_dir!(), "crc-pad-#{System.unique_integer([:positive])}.bin")
+    File.write!(tmp_path, bytes)
+    on_exit(fn -> File.rm(tmp_path) end)
+
+    {:ok, expected} = MultiHash.digest_from_offset(tmp_path, 0)
+    assert expected.crc32 == "079defb0"
+
+    assert {:ok, pack} =
+             DatPackImporter.import_pack(user.id, fixture("crc_short.dat"), provenance())
+
+    [entry] = Repo.all(ReferenceEntry) |> Enum.filter(&(&1.dat_pack_id == pack.id))
+    assert entry.crc32 == expected.crc32
+    assert String.length(entry.crc32) == 8
   end
 
   test "lists a user's packs newest first", %{user: user} do
