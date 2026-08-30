@@ -143,7 +143,37 @@ Plans:
   5. A user can connect, test, assign, remap, reset, and recover a controller while retaining keyboard, pointer, screen-reader, focus, and reduced-motion fallbacks; from a signed/notarized build they can launch, exit, and relaunch one legally testable game after app or server restart.
 
 **Research / spike flags**: Required Mac adapter gate before commitment: empirically choose the first system/emulator and direct-notarized versus sandboxed distribution posture using legal homebrew content. Demonstrate Keychain, external-process launch/recovery, controller recovery, BIOS handling, and safe persistent-save location/flush; do not promise the current GBA/mGBA hypothesis until this passes.
-**Plans**: TBD
+**Plans**: 10 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 03-01-PLAN.md — Adapter spike: notarized non-sandboxed SpikeHost, hash-pinned emulator acquisition, seven D-01 probes, SPIKE-REPORT and the machine-readable adapter pin
+- [ ] 03-02-PLAN.md — Frozen Range contract: quoted strong ETag, single-range 206 with Content-Range, 416, If-Range, HEAD, positional-read storage fix, and `transfer` 1.1.0 capability advertisement
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 03-03-PLAN.md — Phase tracer: Mac app skeleton, snapshot-backed catalogue, one blob range-resumed and verified into the CAS, clone-materialized launch directory, pinned emulator launched offline
+- [ ] 03-04-PLAN.md — Server curation domain: the additive `curation` journal kind and snapshot branch, six scoped tables, fractional-index ordering with rebalance, idempotent per-row REST intents, and play sessions
+
+**Wave 3** *(blocked on Wave 2)*
+
+- [ ] 03-05-PLAN.md — LiveView console parity: five curation shelves, canonical sidebar order, one status-slot component, search and filters, show-all-systems, and the web accessibility floor
+- [ ] 03-06-PLAN.md — Mac sync engine and library browse: cursor-resumed journal apply with expiry reset, local read models, typographic library shell, search and filters, offline browse
+
+**Wave 4** *(blocked on Wave 3)*
+
+- [ ] 03-07-PLAN.md — Mac cache: persistent download queue with per-item control and auto-resume, read-time six-state derivation, quota plus free-space floor, pinning, and manual LRU-ordered reclaim
+- [ ] 03-08-PLAN.md — Mac curation: durable outbox of idempotent per-row intents, all five nouns usable offline, fractional-index reorder settle commands, and play-session recording off the launch path
+
+**Wave 5** *(blocked on Wave 4)*
+
+- [ ] 03-09-PLAN.md — Adapter install and selection with an honest capability card, drag-in BIOS validation with no acquisition path, and the six-check readiness engine with a remedy per blocker and zero network calls
+
+**Wave 6** *(blocked on Wave 5)*
+
+- [ ] 03-10-PLAN.md — Controller lifecycle with non-stranding keyboard and pointer fallbacks, the accessibility and motion floor, the notarized release, launch-exit-relaunch proof, and the honest support matrix
+
 **UI hint**: yes
 
 ### Phase 4: Persistent Save Continuity
@@ -186,6 +216,6 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Private Custody and Durable Protocol | 8/8 | Complete    | 2026-08-28 |
 | 2. Explainable Import and Exact Export | 10/10 | Complete    | 2026-08-30 |
-| 3. Mac Offline Play Vertical Slice | 0/TBD | Not started | - |
+| 3. Mac Offline Play Vertical Slice | 0/10 | Planned | - |
 | 4. Persistent Save Continuity | 0/TBD | Not started | - |
 | 5. Recovery and Release Proof | 0/TBD | Not started | - |
