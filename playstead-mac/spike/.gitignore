@@ -1,0 +1,4 @@
+# Build artifacts and probe evidence are regenerated per run — not checked in.
+SpikeHost/.build/
+build/
+out/

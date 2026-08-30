@@ -1,0 +1,50 @@
+{
+  "system": "gba",
+  "emulator": "mgba",
+  "version": "0.10.5",
+  "download_url": "https://github.com/mgba-emu/mgba/releases/download/0.10.5/mGBA-0.10.5-macos.dmg",
+  "sha256": "443b490ec728293dfcde1cb9db160f73d94c457cb1864f3ce0407e60e174b09c",
+  "launch": {
+    "executable_relative_path": "Contents/MacOS/mGBA",
+    "argument_template": ["-C", "savegamePath={saveDir}", "{romPath}"]
+  },
+  "config_injection": {
+    "mechanism": "cli_config_override",
+    "keys": {
+      "save_directory": "-C savegamePath={path}",
+      "bios_path": "-b {path}",
+      "controller_mapping": "not_probed_no_hardware_available"
+    }
+  },
+  "save_contract": {
+    "artifact_glob": "{saveDir}/{romBaseName}.sav",
+    "directory_key": "savegamePath",
+    "flush_triggers": [
+      "periodic_during_play_observed_every_24s",
+      "clean_quit_but_sigterm_alone_does_not_trigger_a_graceful_flush_distinct_from_crash"
+    ],
+    "on_demand_flush_supported": false,
+    "worst_case_loss_seconds": 24
+  },
+  "exit_detection": {
+    "clean": {
+      "note": "Process.terminate() (SIGTERM) does NOT produce a distinguishable 'clean' signature from mGBA — it terminates via the raw signal exactly like a crash. There is no observed graceful-quit path from an external Process.terminate() call; the shipping adapter host must not assume SIGTERM alone triggers a save-and-quit.",
+      "terminationStatus": 15,
+      "terminationReason": "uncaughtSignal"
+    },
+    "crash": {
+      "terminationStatus": 11,
+      "terminationReason": "uncaughtSignal"
+    },
+    "killed": {
+      "terminationStatus": 9,
+      "terminationReason": "uncaughtSignal"
+    }
+  },
+  "macos_build_tested": "26.6.2 (25G83)",
+  "deferred": {
+    "probe_01_notarized_launch": "DEFERRED — requires paid Apple Developer Program membership (owner decision 2026-08-30: deferred for prototyping; revisit before plan 03-10's notarized build). See 03-SPIKE-REPORT.md and spike/out/probe-01.json.",
+    "probe_06_keychain_from_notarized_build": "DEFERRED — same reason; a dev-signed, hardened-runtime, non-sandboxed analogue passed (errSecSuccess round-trip). See spike/out/probe-06.json.",
+    "probe_05_controller_recovery": "FAIL/unproven — no physical or paired game controller hardware was available in the execution environment. Requires a follow-up manual test on real hardware before PLAY-04 is promised. See spike/out/probe-05.json."
+  }
+}
