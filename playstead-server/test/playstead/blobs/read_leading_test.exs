@@ -9,6 +9,7 @@ defmodule Playstead.Blobs.ReadLeadingTest do
   """
   use Playstead.DataCase, async: false
 
+  import ExUnit.CaptureLog
   import Playstead.ImportFixtures
 
   alias Playstead.Blobs
@@ -64,5 +65,28 @@ defmodule Playstead.Blobs.ReadLeadingTest do
 
     assert {:ok, leading} = Blobs.read_leading(meta.sha256)
     assert byte_size(leading) == 66_048
+  end
+
+  # WR-01 regression: an open failure other than :enoent (a permissions
+  # fault here) must still degrade to {:error, :not_found} for the
+  # caller's existing nil-degradation behaviour, but — unlike a
+  # genuinely missing object — it must be logged distinctly so an
+  # operational fault on the blob volume is not silently indistinguishable
+  # from "no such object."
+  test "an open failure other than :enoent still returns {:error, :not_found} but is logged distinctly" do
+    bytes = random_bytes(64)
+    meta = put(bytes)
+    path = LocalDisk.object_path(LocalDisk.blob_path(), meta.sha256)
+
+    File.chmod!(path, 0o000)
+
+    on_exit(fn -> File.chmod(path, 0o644) end)
+
+    log =
+      capture_log(fn ->
+        assert {:error, :not_found} = Blobs.read_leading(meta.sha256, 66_048)
+      end)
+
+    assert log =~ "read_leading/2 failed to open committed object #{meta.sha256}"
   end
 end

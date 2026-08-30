@@ -16,6 +16,8 @@ defmodule Playstead.Blobs.Store.LocalDisk do
 
   @behaviour Playstead.Blobs.Store
 
+  require Logger
+
   alias Playstead.Blobs.{Blob, MultiHash}
   alias Playstead.Repo
 
@@ -338,6 +340,14 @@ defmodule Playstead.Blobs.Store.LocalDisk do
     [binary_part(data, first, last - first + 1)]
   end
 
+  # WR-01: only :enoent is the benign "no such object" case callers'
+  # nil-degradation is meant for. Any other open failure (:eacces,
+  # :emfile, :eio, a stale/corrupted mount, ...) is disproportionately
+  # likely to be a real operational fault on the blob volume — this
+  # object was just written by commit/2/place_and_record/2 moments
+  # earlier in the same call chain — so it is logged distinctly rather
+  # than silently absorbed into the same path as "no format
+  # identification for this file."
   @impl true
   def read_leading(sha256, byte_count) do
     path = object_path(blob_path(), sha256)
@@ -353,7 +363,14 @@ defmodule Playstead.Blobs.Store.LocalDisk do
           :file.close(io)
         end
 
-      {:error, _reason} ->
+      {:error, :enoent} ->
+        {:error, :not_found}
+
+      {:error, reason} ->
+        Logger.error(
+          "read_leading/2 failed to open committed object #{sha256}: #{inspect(reason)}"
+        )
+
         {:error, :not_found}
     end
   end
