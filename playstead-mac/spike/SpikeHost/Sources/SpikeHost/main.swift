@@ -84,6 +84,21 @@ func runLaunch(executablePath: String, arguments: [String]) {
     }
 }
 
+func runLaunchAndTerminate(executablePath: String, terminateAfterSeconds: Double, arguments: [String]) {
+    let host = AdapterProbeHost(logURL: outDir().appendingPathComponent("exit-events.jsonl"))
+    do {
+        let proc = try host.launch(executableURL: URL(fileURLWithPath: executablePath), arguments: arguments)
+        Thread.sleep(forTimeInterval: terminateAfterSeconds)
+        host.terminate() // SIGTERM via Process.terminate() — the "clean quit" scenario
+        proc.waitUntilExit()
+        host.recordExitIfNeeded(for: proc)
+        print("terminated after \(terminateAfterSeconds)s status=\(proc.terminationStatus) reason=\(proc.terminationReason.rawValue)")
+    } catch {
+        FileHandle.standardError.write(Data("launch failed: \(error)\n".utf8))
+        exit(1)
+    }
+}
+
 func runLaunchAndKill(executablePath: String, killAfterSeconds: Double, arguments: [String]) {
     let host = AdapterProbeHost(logURL: outDir().appendingPathComponent("exit-events.jsonl"))
     do {
@@ -143,6 +158,13 @@ if args.count > 1 {
             exit(64)
         }
         runLaunch(executablePath: args[2], arguments: Array(args.dropFirst(3)))
+        exit(0)
+    case "launch-and-terminate":
+        guard args.count >= 4, let seconds = Double(args[3]) else {
+            FileHandle.standardError.write(Data("usage: SpikeHost launch-and-terminate <executable> <seconds> [args...]\n".utf8))
+            exit(64)
+        }
+        runLaunchAndTerminate(executablePath: args[2], terminateAfterSeconds: seconds, arguments: Array(args.dropFirst(4)))
         exit(0)
     case "launch-and-kill9":
         guard args.count >= 4, let seconds = Double(args[3]) else {

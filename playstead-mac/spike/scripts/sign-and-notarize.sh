@@ -27,10 +27,20 @@ APP_PATH="$BUILD_DIR/Release/SpikeHost.app"
 : "${PLAYSTEAD_TEAM_ID:?PLAYSTEAD_TEAM_ID must be set}"
 PLAYSTEAD_NOTARY_PROFILE="${PLAYSTEAD_NOTARY_PROFILE:-}"
 
-echo "==> Building SpikeHost (release)"
+echo "==> Building SpikeHost (release, universal arm64+x86_64)"
 cd "$HOST_DIR"
-swift build -c release --arch arm64 --arch x86_64 2>/dev/null || swift build -c release
-BUILT_BINARY="$(swift build -c release --show-bin-path)/SpikeHost"
+BUILD_ARCH_FLAGS=(--arch arm64 --arch x86_64)
+if ! swift build -c release "${BUILD_ARCH_FLAGS[@]}"; then
+  echo "==> Universal build failed; falling back to host-arch-only build"
+  BUILD_ARCH_FLAGS=()
+  swift build -c release
+fi
+# --show-bin-path MUST be called with the identical --arch flags used above —
+# omitting them resolves to a different (and possibly stale/non-universal)
+# .build subdirectory, silently shipping an out-of-date binary (found and
+# fixed this session: it was serving a binary built before launch-and-terminate
+# existed).
+BUILT_BINARY="$(swift build -c release "${BUILD_ARCH_FLAGS[@]}" --show-bin-path)/SpikeHost"
 
 if [ ! -f "$BUILT_BINARY" ]; then
   echo "FATAL: expected built binary not found at $BUILT_BINARY" >&2
