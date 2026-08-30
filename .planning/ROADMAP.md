@@ -85,7 +85,7 @@ Plans:
   5. A user can export exact original game bytes into deterministic ordinary folders with a readable hash manifest, verify the export, and reimport it without byte changes, missing relationships, or duplicate logical records.
 
 **Research / spike flags**: Required archive-security gate before enabling ZIP/7z/CUE extraction or deep inspection: adversarial corpus plus isolated CPU, memory, path, recursion, and expanded-size limits. Until it passes, accept only narrow magic-byte-validated formats and retain archives opaque.
-**Plans**: 8/10 plans executed (2 gap-closure plans pending from verification)
+**Plans**: 9/10 plans executed (2 gap-closure plans pending from verification)
 
 Plans:
 **Wave 0**
@@ -122,7 +122,7 @@ Plans:
 
 **Wave 8** *(gap closure — 02-VERIFICATION.md gap 1a plus the shared `format_bytes` root cause)*
 
-- [ ] 02-09-PLAN.md — Header evidence reaches production imports (bounded `Blobs.read_leading/2`, `@max_read` 66_048), live `unknown_system` inbox item grouped per session, and live `no_reference_installed` / `no_match` quiet reasons
+- [x] 02-09-PLAN.md — Header evidence reaches production imports (bounded `Blobs.read_leading/2`, `@max_read` 66_048), live `unknown_system` inbox item grouped per session, and live `no_reference_installed` / `no_match` quiet reasons
 
 **Wave 9** *(gap closure — 02-VERIFICATION.md gap 2 and gap 1b; blocked on Wave 8)*
 
@@ -185,7 +185,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Private Custody and Durable Protocol | 8/8 | Complete    | 2026-08-28 |
-| 2. Explainable Import and Exact Export | 8/10 | In Progress|  |
+| 2. Explainable Import and Exact Export | 9/10 | In Progress|  |
 | 3. Mac Offline Play Vertical Slice | 0/TBD | Not started | - |
 | 4. Persistent Save Continuity | 0/TBD | Not started | - |
 | 5. Recovery and Release Proof | 0/TBD | Not started | - |
