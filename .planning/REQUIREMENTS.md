@@ -24,11 +24,11 @@ Requirements for the first complete Mac-to-server custody and continuity release
 
 ### Import, Identity, and Provenance
 
-- [ ] **IMPT-01**: A user can select one supported file and see before confirmation that Playstead will copy it into managed storage, leave the source untouched, and consume a stated amount of storage.
-- [ ] **IMPT-02**: After import, a user can verify the SHA-256 and byte size of the exact original bytes and inspect their source provenance.
+- [x] **IMPT-01**: A user can select one supported file and see before confirmation that Playstead will copy it into managed storage, leave the source untouched, and consume a stated amount of storage.
+- [x] **IMPT-02**: After import, a user can verify the SHA-256 and byte size of the exact original bytes and inspect their source provenance.
 - [x] **IMPT-03**: A user receives a durable import receipt that distinguishes a new asset, exact duplicate, alias or variant, incomplete set, unrecognized or patched content, quarantined input, and safely failed input.
-- [ ] **IMPT-04**: A user can import a supported multi-file game as an ordered asset manifest whose required members and readiness remain explicit.
-- [ ] **IMPT-05**: A user can stage a large collection import, observe bounded progress, pause or resume it, retry interrupted work, and reconcile it without duplicating unchanged content.
+- [x] **IMPT-04**: A user can import a supported multi-file game as an ordered asset manifest whose required members and readiness remain explicit.
+- [x] **IMPT-05**: A user can stage a large collection import, observe bounded progress, pause or resume it, retry interrupted work, and reconcile it without duplicating unchanged content.
 - [x] **IMPT-06**: A user can resolve an item in a Needs Attention inbox by reviewing evidence and then correcting its system or metadata, attaching a missing companion, retaining it as custom content, excluding it, or retrying safe processing.
 
 ### Curated Library
@@ -64,7 +64,7 @@ Requirements for the first complete Mac-to-server custody and continuity release
 ### Portability and Recovery
 
 - [ ] **PORT-01**: A user can export exact original game bytes, persistent-save revisions, and a readable manifest with hashes into deterministic ordinary folders.
-- [ ] **PORT-02**: A user can verify an export and reimport it without byte changes, lost asset relationships, or duplicate logical records.
+- [x] **PORT-02**: A user can verify an export and reimport it without byte changes, lost asset relationships, or duplicate logical records.
 - [ ] **PORT-03**: A self-hoster can create full and incremental backups to an independent user-controlled destination and see exactly what each backup covers and when it was last verified.
 - [ ] **PORT-04**: A self-hoster can restore the server into a clean environment and verify database records, exact blobs, manifests, saves, and the known-playable Mac path.
 
@@ -124,11 +124,11 @@ Which phases cover which requirements. This table is populated by roadmap creati
 | PROT-03 | Phase 1 | Complete |
 | PROT-04 | Phase 1 | Complete |
 | PROT-05 | Phase 1 | Complete |
-| IMPT-01 | Phase 2 | Gaps Found |
-| IMPT-02 | Phase 2 | Gaps Found |
+| IMPT-01 | Phase 2 | Complete |
+| IMPT-02 | Phase 2 | Complete |
 | IMPT-03 | Phase 2 | Complete |
-| IMPT-04 | Phase 2 | Gaps Found |
-| IMPT-05 | Phase 2 | Gaps Found |
+| IMPT-04 | Phase 2 | Complete |
+| IMPT-05 | Phase 2 | Complete |
 | IMPT-06 | Phase 2 | Complete |
 | LIBR-01 | Phase 3 | Pending |
 | LIBR-02 | Phase 3 | Pending |
@@ -149,7 +149,7 @@ Which phases cover which requirements. This table is populated by roadmap creati
 | SAVE-03 | Phase 4 | Pending |
 | SAVE-04 | Phase 4 | Pending |
 | PORT-01 | Phase 4 | Pending |
-| PORT-02 | Phase 2 | Gaps Found |
+| PORT-02 | Phase 2 | Complete |
 | PORT-03 | Phase 5 | Pending |
 | PORT-04 | Phase 5 | Pending |
 | QUAL-01 | Phase 3 | Pending |

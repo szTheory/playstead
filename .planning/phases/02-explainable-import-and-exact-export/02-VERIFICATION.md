@@ -1,32 +1,18 @@
 ---
 phase: 02-explainable-import-and-exact-export
-verified: 2026-08-28T00:00:00Z
-status: gaps_found
-score: 4/5 roadmap success criteria fully verified; 1 partially verified with a documented, narrow gap
+verified: 2026-08-30T00:00:00Z
+status: passed
+score: 5/5 roadmap success criteria verified; both previously-open gaps closed
 behavior_unverified: 0
 overrides_applied: 0
-gaps:
-  - truth: "The attention inbox holds an item for an unknown/unassignable system and an item for ambiguous recognition (Plan 06 must-have truth #1; part of roadmap SC #2/#3's outcome taxonomy)."
-    status: partial
-    reason: "Playstead.Attention.Derive correctly maps an unknown_system?: true context and an ambiguous_recognition reason to their respective attention items, and both are unit-tested with synthetic inputs — but no live code path in Playstead.Import ever sets unknown_system?: true (hardcoded to false at two call sites in classify/7 and classify_recognized/8, with a documented rationale: an unmapped extension with no header match is indistinguishable from the far more common no-reference-installed quiet state), and no detector anywhere in the codebase ever produces the \"ambiguous\" outcome reason (grep for the literal string finds it only in the mapping function itself, never assigned by any recognition/classification code). A real import today can never land in either of these two Needs-Attention groups, even though the console UI, the API, and the resolution commands are fully built and tested for them."
-    artifacts:
-      - path: "playstead-server/lib/playstead/import.ex"
-        issue: "classify_recognized/8 always sets unknown_system?: false; no call site computes a real value"
-      - path: "playstead-server/lib/playstead/attention/derive.ex"
-        issue: "unrecognized_reason(\"ambiguous\") is reachable only from a hand-built test context, never from live classification output"
-    missing:
-      - "A discriminating signal (beyond 'unmapped extension, no header match') that distinguishes a genuinely unknown system from the ordinary no-reference-installed case, wired into Playstead.Import's classification step"
-      - "A concrete detector that can produce the unrecognized{ambiguous} reason (e.g. two DAT entries whose evidence conflicts, or two header-derived candidates of equal weight)"
-  - truth: "Reference matching uses the legacy digests and the headerless-offset fingerprints (blob_fingerprints) computed during the original import, so installing a pack never requires re-reading the stored bytes (Plan 08 must-have truth; D-20)."
-    status: partial
-    reason: "Playstead.Blobs.BlobFingerprint (the headerless NES skip-16 / SNES copier skip-512 schema) exists, and Playstead.Recognition.ReferenceMatch/Recognition.reidentify/2 fully implement and test the consumption side against a manually-inserted fingerprint row. But no code anywhere in the import write path (Playstead.Blobs.MultiHash, Playstead.Import) ever computes or inserts a blob_fingerprints row during a real import. A real NES or SNES ROM imported today gets zero headerless fingerprints, so a DAT pack that only carries headerless (no-header) reference hashes cannot match it via this path even though the matching logic itself is proven correct against synthetic data. This gap is explicitly self-reported in the 02-08 SUMMARY as \"a gap in an earlier plan's scope, not this one's.\""
-    artifacts:
-      - path: "playstead-server/lib/playstead/blobs/multi_hash.ex"
-        issue: "Computes SHA-256/SHA-1/MD5/CRC32 in one streaming pass but never computes a headerless (header-skipped) variant"
-      - path: "playstead-server/lib/playstead/blobs/blob_fingerprint.ex"
-        issue: "Schema exists with no production writer anywhere in lib/"
-    missing:
-      - "A write-path producer that detects a header (iNES/NES 2.0 16-byte header, SNES 512-byte copier header) during import and computes/stores the corresponding headerless CRC32/MD5/SHA1 into blob_fingerprints"
+re_verification:
+  previous_status: gaps_found
+  previous_score: "5/5 roadmap success criteria have their primary claim verified; success criterion #2's outcome taxonomy verified for 8/10 reason sub-codes with 2 narrow gaps"
+  gaps_closed:
+    - "unknown_system? was hardcoded false and unrecognized{ambiguous} had no producer — closed by plan 02-09 (unknown_system?) and plan 02-10 (ambiguous detector)"
+    - "blob_fingerprints had no production writer — closed by plan 02-10 (Blobs.Fingerprints.ensure_headerless/2)"
+  gaps_remaining: []
+  regressions: []
 deferred: []
 human_verification: []
 ---
@@ -34,102 +20,134 @@ human_verification: []
 # Phase 2: Explainable Import and Exact Export Verification Report
 
 **Phase Goal:** A user can safely place exact original bytes into managed custody, understand every outcome, and export or reimport them without loss.
-**Verified:** 2026-08-28
-**Status:** gaps_found
-**Re-verification:** No — initial verification.
+**Verified:** 2026-08-30
+**Status:** passed
+**Re-verification:** Yes — after gap-closure plans 02-09 and 02-10 executed.
 
 ## Goal Achievement
+
+### Gap Closure Verification (the two items this re-verification exists to check)
+
+#### Gap 1: `unknown_system?` hardcoded false / `unrecognized{ambiguous}` had no producer
+
+**Root cause claimed:** no production import entry point ever supplied `:format_bytes`, so header evidence never reached classification, and `ReferenceMatch.lookup_by/2` capped every digest query at `limit: 1`, silently picking whichever row Postgres ordered first.
+
+Verified directly against the code (not the SUMMARY's narrative):
+
+- `playstead-server/lib/playstead/blobs/store.ex:64` — `read_leading/2` callback exists on the `Store` behaviour.
+- `playstead-server/lib/playstead/blobs/store/local_disk.ex:342` — `read_leading/2` implemented, bounded raw read.
+- `playstead-server/lib/playstead/blobs.ex:83-85` — `Playstead.Blobs.read_leading/2` seam entry, sole caller of the adapter.
+- `playstead-server/lib/playstead/import.ex:120-133` — `resolve_format_bytes/2` falls back to `read_committed_format_bytes/1` → `Blobs.read_leading/1` when no caller-supplied bytes are present; degrades to `nil` (never fails the import) on `{:error, :not_found}`.
+- Both `import_single/4` (line 75) and `complete_staged_file/4` (line 804) call `resolve_format_bytes/2` before their transaction opens.
+- `PlaysteadWeb.Api.V1.ImportsController:77` calls `Import.import_single/3` with no `:format_bytes` opt — inherits the resolution.
+- `Playstead.Import.SessionWorker:184,217` calls `Import.complete_staged_file/3` with no `:format_bytes` opt — inherits the resolution.
+- `Playstead.Import.import_bag_member/3` (private, line 1136) calls `import_single/3` with no `:format_bytes` opt (confirmed by direct read of lines 1136-1150) — inherits the resolution via delegation, as claimed.
+- **All three named production entry points are confirmed reachable, not just claimed.**
+- `playstead-server/lib/playstead/formats.ex:24` — `@max_read 66_048` (raised from 65,536), clearing the SNES HiROM copier probe's `512 + 0xFFC0 + 0x20 = 66,016`-byte requirement.
+- `playstead-server/lib/playstead/import.ex:252,257-258` — `unknown_system?: unknown_system?(extension_guess, format_result)` is a computed expression (`nil` extension guess AND `{:unknown, :none, _}` format result); the only remaining literal `false` is the quarantine branch (line 166), which carries a comment naming D-28 (no evidence to judge a quarantined blob's system) — exactly the documented, deliberate exception.
+- `playstead-server/lib/playstead/recognition.ex:67-68` — `packs_installed?/1` exists; `import.ex:265-303` shows `unrecognized_reason_for/5`'s catch-all clause producing `"no_reference_installed"` (no pack) or `"no_match"` (pack installed, no match) — both are real, live producers, not hardcoded.
+- `playstead-server/lib/playstead/recognition/reference_match.ex` — `grep -n 'limit:'` shows `limit: 2` at all three digest lookups (SHA-1, MD5, CRC32); the previous `limit: 1` is gone. `match/2`'s `@spec` (line 75) names `{:match, entry} | {:ambiguous, [entry]} | :no_match`. `find_entry/1` (lines 114-122) distinguishes a genuine conflict (`{:ambiguous, [a, b]}`) from a duplicate row (`same_logical_entry?/2` collapses to `{:match, a}`).
+- `grep -rn '"ambiguous"' lib/` shows a real producer at `import.ex:317` and `recognition.ex:288,299` (evidence status/reason), in addition to the mapping clause in `attention/derive.ex:54` — the exact spot-check the prior verification ran, now returning a producer instead of only the mapping function.
+- `git diff --stat lib/playstead/attention/derive.ex lib/playstead/import/outcome.ex` against the phase-2 baseline is empty per both SUMMARYs' own verification steps, and direct read confirms `Attention.Derive` and the frozen `Outcome` vocabulary are untouched — the decision function and vocabulary were correct all along; only the missing signals were supplied.
+
+**Verdict: Gap 1 CLOSED.** Both the `unknown_system?` flag and the `ambiguous` reason now have live, reachable producers wired to all three real production entry points, not just to unit-test harnesses.
+
+#### Gap 2: `blob_fingerprints` had no production writer
+
+Verified directly against the code:
+
+- `playstead-server/lib/playstead/blobs/fingerprints.ex` — `Playstead.Blobs.Fingerprints.ensure_headerless/2` exists, fully substantive (not a stub): maps a format result to at most one kind (`nes_header_skip16`/16, `snes_copier_skip512`/512), computes digests via `Blobs.digest_from_offset/2`, writes with `Repo.insert_all(..., on_conflict: :nothing, conflict_target: [:blob_id, :kind])`, and returns `0` (never raises/fails the import) when no kind applies or the digest read errors.
+- `playstead-server/lib/playstead/import.ex:199` — `_fingerprint_count = Fingerprints.ensure_headerless(blob_meta.blob_id, format_result)` is called from `classify_recognized/8`, which is reached by both `import_single/4` and `complete_staged_file/4` (and therefore `import_bag_member/3` by delegation) — the same three production entry points verified for Gap 1.
+- `playstead-server/lib/playstead/blobs/store.ex:93` / `store/local_disk.ex:362` / `blobs.ex:90-95` — `digest_from_offset/2` exists at all three seam layers, delegating to the already-existing `MultiHash.digest_from_offset/2`; `object_path` does not leak across the seam (`grep -rn 'object_path' lib/ | grep -v 'store/local_disk.ex'` returns nothing).
+- `playstead-server/priv/repo/migrations/20260829010000_add_blob_fingerprints_unique_kind.exs` exists and is applied (`mix ecto.migrations` shows it `up`); `create unique_index(:blob_fingerprints, [:blob_id, :kind])` makes the `on_conflict: :nothing` insert idempotent under a repeated import of identical bytes.
+- `playstead-server/lib/playstead/recognition.ex:212` — the lazy backfill inside `reidentify/2` calls `Fingerprints.ensure_headerless/2` for a blob with no rows yet, before loading fingerprints for matching — covering blobs imported before this plan with no Oban worker (`grep -rn 'Fingerprints' lib/ | grep -i worker` returns nothing).
+
+**Verdict: Gap 2 CLOSED.** `blob_fingerprints` now has a real production writer reachable from every production import entry point, plus a lazy backfill for pre-existing blobs.
 
 ### Observable Truths (Roadmap Success Criteria)
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | Before importing a supported file, a user sees that it will be copied into managed storage, its source will remain untouched, and the expected storage use; afterward they can inspect the original byte size, SHA-256, and provenance. | ✓ VERIFIED | `Playstead.Import.Preview.for_upload/2` computes the pre-copy answer from what is knowable before bytes move (exact size, free space, storage cost, extension-derived format guess, no duplicate verdict); `PlaysteadWeb.ImportLive`'s "Copy into my library" primary action and copy is negative-grepped clean for move/relocate/tidy vocabulary (`test/playstead_web/live/copy_contract_test.exs`). `PlaysteadWeb.LibraryLive`'s asset detail view renders the full SHA-256 with a copy affordance, exact byte size, and source provenance explicitly labelled a client claim (`test/playstead_web/live/library_live_test.exs`, 12 tests including a two-user isolation check). Read `playstead-server/lib/playstead/import/preview.ex` and `library_live/asset_detail.ex` directly — both match the claimed behavior. |
-| 2 | An import produces a durable, recoverable receipt that clearly distinguishes new bytes, exact duplicates, aliases or variants, incomplete sets, patched or unrecognized content, quarantined input, and safe failures. | ✓ VERIFIED | `Playstead.Import.Outcome` freezes exactly the nine D-25 codes (`new_asset, exact_duplicate, alias, variant, incomplete_set, unrecognized, patched, quarantined, failed_safely`); every receipt-producing call site funnels through `determine_outcome/3`/`classify/7`, unit-proven by `test/playstead/import/outcome_test.exs`. Read `playstead-server/lib/playstead/import/outcome.ex` directly. Two narrow reason sub-codes inside this taxonomy (`unrecognized{ambiguous}` and a genuine unknown-system item) are defined and unit-tested against synthetic inputs but never produced by any live classification path — see the Gaps section; this does not affect the eight outcome codes and sub-reasons that are exercised, including `quarantined`, `patched`, `incomplete_set`, and `unrecognized{no_reference_installed\|no_match\|signature_mismatch\|archive_not_opened}`. |
-| 3 | A user can retain a supported multi-file game as an ordered manifest with explicit required members and resolve Needs Attention items using the displayed evidence and safe next actions. | ✓ VERIFIED | `Playstead.Import.import_descriptor_set/5` builds ordered `asset_member` rows with `ordinal/role/required`; a missing companion produces an `incomplete_set` receipt naming it and `attach_companion/4` completes it later via a guarded CAS update proven convergent under real concurrent Postgres connections (`test/playstead/import/multi_file_set_test.exs`). `Playstead.Attention.Resolutions` implements all five D-27 resolutions (correct_system, attach_companion, retain_as_custom, exclude, retry) plus undo, each writing one audit entry with a concurrency guard, proven by `test/playstead/attention/resolutions_test.exs` (14 tests). `PlaysteadWeb.AttentionLive`'s evidence card renders hash/size/format/header-fields/missing-members/source-provenance-as-claim, proven by `test/playstead_web/live/attention_live_test.exs` (13 tests). |
-| 4 | A user can stage a large collection, observe bounded progress, pause, resume, retry, and reconcile it after interruption without duplicating unchanged content. | ✓ VERIFIED | `Playstead.Import.SessionWorker` is a unique-per-session Oban job with a cooperative `requested_control` column re-read between batches (never the framework's global queue pause); `test/playstead/import/session_worker_test.exs` (11 tests) directly proves pause-completes-in-flight-file, resume-continues-from-first-pending-row, retry-requeues-only-failed-rows, cancel-keeps-committed-copies, and a disk-full pause. `test/playstead/import/reconcile_test.exs` (5 tests) proves the hybrid fingerprint-skip reconcile and that staging the same folder twice creates zero new blobs/asset_sets. `Playstead.Import.Progress` proves bounded byte/file progress with throttled journal checkpoints (`test/playstead/import/progress_test.exs`, 6 tests: a hundred-file session emits far fewer job entries than files). |
-| 5 | A user can export exact original game bytes into deterministic ordinary folders with a readable hash manifest, verify the export, and reimport it without byte changes, missing relationships, or duplicate logical records. | ✓ VERIFIED | `Playstead.Export.BagitWriter` writes an RFC 8493 bag with a `sha256sum -c`-compatible `manifest-sha256.txt`, manually verified with a literal `sha256sum -c` run per the 02-07 SUMMARY and proven by `test/playstead/export/bagit_writer_test.exs`/`verify_test.exs`. `Playstead.Export.Verifier` implements the write-then-verify second pass (`writing → verifying → verified\|verification_failed`), never deleting a mismatch. `Playstead.Import.FolderImport.import_folder/3` implements hash-set-first reimport identity; **all five of the PORT-02 round-trip contract assertions from 02-CONTEXT.md's `<specifics>` are present as named tests** in `test/playstead/export/round_trip_test.exs` (12 tests total, read directly: export-wipe-reimport identical set graph; same-library reimport zero new logical records; API-only writer byte-identical to server-written export; missing-member reimport yields incomplete_set with no reattachment; tampered/foreign sidecar UUID yields a fresh identifier with the claim recorded). |
+| 1 | Before importing a supported file, a user sees copy-not-move and storage cost; afterward inspects SHA-256, byte size, provenance. | ✓ VERIFIED (unchanged from prior verification) | `Playstead.Import.Preview.for_upload/2`, `ImportLive` copy-contract test, `LibraryLive.asset_detail`. Not re-examined in depth this pass — no plan 02-09/02-10 file touches this surface, and the full suite (including `test/playstead_web/live/library_live_test.exs`, which 02-09 did touch for outcome-string churn) is green. |
+| 2 | An import produces a durable, recoverable receipt that clearly distinguishes new bytes, exact duplicates, aliases/variants, incomplete sets, patched/unrecognized content, quarantined input, and safe failures — including the full sub-reason taxonomy. | ✓ VERIFIED (previously partial — now fully closed) | `Playstead.Import.Outcome`'s nine frozen codes unchanged (`git diff --stat` empty). All prior sub-reasons still produced; the two previously-dead sub-reasons (`unknown_system`, `ambiguous`) now have live producers per the Gap Closure section above. |
+| 3 | A user can retain a supported multi-file game as an ordered manifest and resolve Needs Attention items using displayed evidence and safe next actions. | ✓ VERIFIED (unchanged) | Untouched by 02-09/02-10; full suite green including `multi_file_set_test.exs`, `resolutions_test.exs`, `attention_live_test.exs`. |
+| 4 | A user can stage a large collection, observe bounded progress, pause, resume, retry, and reconcile without duplicating unchanged content. | ✓ VERIFIED (unchanged) | Untouched by 02-09/02-10 except `session_worker_test.exs`'s test-double gaining the two new `@impl true` store callbacks (`read_leading/2`, `digest_from_offset/2`) — a compile-time requirement, not a behavior change; `session_worker_test.exs` still passes. |
+| 5 | A user can export exact original game bytes, verify the export, and reimport without byte changes, missing relationships, or duplicate logical records. | ✓ VERIFIED (unchanged) | Untouched by 02-09/02-10; `round_trip_test.exs`'s five PORT-02 assertions unaffected — `import_bag_member/3` (the reimport path) inherits format-bytes resolution but its identity logic (hash-set-first) is untouched. Full suite green. |
 
-**Score:** 5/5 roadmap success criteria have their primary claim verified; success criterion #2's outcome taxonomy is verified for 8 of the taxonomy's reason sub-codes with two narrow, explicitly self-reported sub-reason gaps (below) that do not affect the eight frozen outcome codes themselves.
+**Score:** 5/5 roadmap success criteria fully verified. Success criterion #2's outcome taxonomy is now verified in full — both previously-dead sub-reasons have live producers reachable from production entry points.
 
-### Required Artifacts
+### Required Artifacts (new/changed by gap-closure plans)
 
 | Artifact | Expected | Status | Details |
 |----------|----------|--------|---------|
-| `playstead-server/lib/playstead/blobs/store.ex` + `store/local_disk.ex` | D-11/D-12 write path: temp, streaming multi-hash, fsync, read-back verify, atomic rename, DB-constraint-as-collision-authority | ✓ VERIFIED | Read directly; `test/playstead/blobs/cas_race_test.exs` proves ten genuinely concurrent commits of identical bytes converge on one row. All `File.rm` calls in `local_disk.ex` target only temp paths (`ref.tmp_path`, orphan-sweep candidates) — grepped every occurrence; none touch a committed `objects/` path. |
-| `playstead-server/lib/playstead/import/outcome.ex` | Nine frozen outcome codes | ✓ VERIFIED | Exact D-25 list present; `Outcome.valid?/1` and the three reason sub-vocabularies (`UnrecognizedReason`, `QuarantineReason`, presumably a `FailedSafelyReason`) match the decision record. |
-| `playstead-server/lib/playstead/formats/` (six validators + `SystemId` + `Archive`) | Frozen seven-plus-unknown registry, bounded never-raising validators, magic-byte archive opacity | ✓ VERIFIED | `Playstead.Formats.Archive` detects zip/7z/rar/gzip/xz/zstd by magic bytes only (read directly — no `:zip`/extract call anywhere in the module). Property tests over arbitrary binaries per validator (`test/playstead/formats/validators/*_test.exs`). |
-| `playstead-server/lib/playstead/attention/derive.ex` | Single pure in/out decision function (D-26) | ✓ VERIFIED (with the two narrow sub-reason gaps noted above) | Read directly; the exclusion side (new_asset/exact_duplicate/clean alias/clean variant/no-reference-installed) is correctly silent; the inclusion side correctly maps every documented reason to an attention reason atom — but two of those mapped reasons (`unknown_system`, `ambiguous_recognition`) are never live-triggered. |
-| `playstead-server/lib/playstead/export/{sanitize,layout,sidecar,verifier,worker}.ex` | Deterministic sorted layout, one sanitizer, versioned sidecars, resumable write-then-verify | ✓ VERIFIED | Read directly; `Sanitize.component/1`'s never-fails rewrite-and-flag contract confirmed by property test (`sanitize_test.exs`). Export pause/cancel is **not** implemented (crash-resumable only, via re-hash-before-write) — this is a documented scope narrowing against the plan's own task-level prose, but it does not violate any must-have truth in Plan 07's frontmatter and does not violate roadmap SC #5 (which requires verify/reimport, not interactive pause), so it is not counted as a gap here. |
-| `playstead-server/lib/playstead/recognition/{dat_pack,logiqx_handler,reference_match}.ex` | Streaming entity-safe capped DAT-pack parser, digest-based matching | ✓ VERIFIED | `test/playstead/recognition/logiqx_security_test.exs` proves DOCTYPE/entity/oversized/entry-flooded/truncated fixtures are all refused without raising. `test/playstead/dependency_pin_test.exs` pins `saxy` 1.6.1 with a checksum assertion. |
-| `playstead-server/test/playstead/export/round_trip_test.exs` | The five PORT-02 contract assertions | ✓ VERIFIED | All five present as distinctly named tests (confirmed by direct read, listed above). |
+| `playstead-server/lib/playstead/blobs/store.ex` + `store/local_disk.ex` + `blobs.ex` | `read_leading/2` and `digest_from_offset/2` callbacks, bounded, read-only, never decompressing | ✓ VERIFIED | Read directly; both callbacks present at all three seam layers; `Playstead.Blobs` remains sole caller of the configured adapter for these new callbacks. |
+| `playstead-server/lib/playstead/blobs/fingerprints.ex` | Production writer for headerless fingerprints | ✓ VERIFIED | Read in full — substantive, idempotent, never fails an import on error. |
+| `playstead-server/lib/playstead/import.ex` | `unknown_system?` computed; `resolve_format_bytes/2`; `unrecognized_reason_for/5`; `Fingerprints.ensure_headerless/2` call site | ✓ VERIFIED | All confirmed by direct read at cited line numbers. |
+| `playstead-server/lib/playstead/recognition.ex` | `packs_installed?/1`; lazy fingerprint backfill; `{:ambiguous, entries}` branch in `reidentify/2` | ✓ VERIFIED | All present, read directly. |
+| `playstead-server/lib/playstead/recognition/reference_match.ex` | `match/2` returns `{:ambiguous, [entry]}`; `limit: 1` removed | ✓ VERIFIED | `limit: 2` at all three lookups; `limit: 1` count is `0`. |
+| `playstead-server/priv/repo/migrations/20260829010000_add_blob_fingerprints_unique_kind.exs` | Unique index on `{blob_id, kind}` | ✓ VERIFIED | Exists, applied (`up` in `mix ecto.migrations`). |
+| `playstead-server/test/playstead/blobs/{read_leading,fingerprints}_test.exs`, `test/playstead/recognition/ambiguous_recognition_test.exs`, `test/playstead/attention/unknown_system_test.exs`, `test/playstead/formats/identify_test.exs` | Behavior proofs for both gap closures | ✓ VERIFIED | All five files exist; 27 tests across them, all passing when run in isolation. |
 
 ### Key Link Verification
 
 | From | To | Via | Status | Details |
 |------|-----|-----|--------|---------|
-| `Playstead.Blobs` | `Playstead.Blobs.Store` | sole-caller context/adapter seam | ✓ WIRED | `Playstead.Blobs` is the only module invoking the configured store adapter; import/export contexts never call `LocalDisk` directly. |
-| `Playstead.Import` | `Playstead.Attention.Derive` | classification funnels every outcome through one decision function before raising an item, same transaction | ✓ WIRED | `raise_attention/4` builds a context map and calls `Attention.raise_item/1` inside the same transaction as the outcome write. |
-| `Playstead.Export.Worker` | `Playstead.Import.Session`'s job/control model | reused verbatim per plan's own reversibility note | ✓ WIRED (partially — reused for uniqueness/resumability, not for cooperative pause) | `Export.Worker` reuses the unique-per-entity Oban pattern and re-hash-before-write resumability, but does not carry a `requested_control` column or a per-batch cooperative check — confirmed by grep (`requested_control` appears only in `import/session*.ex`, not `export/*.ex`). Documented scope narrowing, not a broken link for what it does implement. |
-| `Playstead.Import.FolderImport` | `Playstead.Catalogue.member_fingerprint/1` | identity decided from re-hashed bytes before any sidecar is consulted | ✓ WIRED | Confirmed by reading `folder_import.ex`; sidecar is consulted only for naming/reuse decisions after the fingerprint is computed. |
-| `Playstead.Recognition.ReferenceMatch` | `Playstead.Blobs.BlobFingerprint` | matching reads headerless-offset digests already stored on import | ⚠️ PARTIAL | The read side is fully wired and tested against synthetic fingerprint rows; the write side (a real import ever populating `blob_fingerprints`) does not exist anywhere in `lib/`. See Gaps. |
+| `PlaysteadWeb.Api.V1.ImportsController` | `Playstead.Formats.identify/2` | blob-resolved format bytes | ✓ WIRED | Confirmed: `imports_controller.ex:77` → `import_single/3` (no `:format_bytes`) → `resolve_format_bytes/2` → `Blobs.read_leading/1` → `identify_format/2`. |
+| `Playstead.Import.SessionWorker` | `Playstead.Formats.identify/2` | blob-resolved format bytes | ✓ WIRED | Confirmed: `session_worker.ex:184,217` → `complete_staged_file/3` (no `:format_bytes`) → same resolution path. |
+| `Playstead.Import.import_bag_member/3` | `Playstead.Formats.identify/2` | blob-resolved format bytes | ✓ WIRED | Confirmed by direct read of `import.ex:1136-1150`: calls `import_single/3` with no `:format_bytes` opt, inheriting the resolution. |
+| `Playstead.Import.classify_recognized/8` | `Playstead.Attention.Derive.attention_reason/1` | computed `unknown_system?` | ✓ WIRED | `import.ex:252` computes the flag from real evidence; `raise_attention/4` passes it into the same transaction as before. |
+| `Playstead.Import.classify_recognized/8` | `Playstead.Blobs.Fingerprints.ensure_headerless/2` | called once blob id + format result known | ✓ WIRED | `import.ex:199`, inside the same transaction, before recognition runs. |
+| `Playstead.Recognition.ReferenceMatch.match/2` | `Playstead.Blobs.BlobFingerprint` (write side) | production writer on the import path | ✓ WIRED (previously PARTIAL — now closed) | Write side confirmed via `import.ex:199` → `Fingerprints.ensure_headerless/2` → `Blobs.digest_from_offset/2` → `Repo.insert_all`. |
+| `Playstead.Recognition.ReferenceMatch.match/2` | `Playstead.Recognition.reidentify/2` → `Playstead.Attention.raise_item/1` | `{:ambiguous, entries}` path | ✓ WIRED | `recognition.ex` ambiguous branch appends evidence, refuses promotion, raises an item with both candidate names. |
 
 ### Behavioral Spot-Checks
 
 | Behavior | Command | Result | Status |
 |----------|---------|--------|--------|
-| Full regression suite | `cd playstead-server && mix test` | `131 features, 13 properties, 723 tests, 0 failures` (149.1s) | ✓ PASS |
-| No committed-blob deletion path | `grep -rn 'File.rm\|File.rm_rf' lib/playstead/blobs/ lib/playstead/import.ex` | All 7 hits are `ref.tmp_path`/orphan-sweep temp paths, none touch `objects/` | ✓ PASS |
-| Single error-code registry | `grep -rln 'defmodule.*ErrorCodes' lib/` | Exactly one file | ✓ PASS |
-| No archive decompression | `grep -n 'Zip\|:zip\|extract\|unzip' lib/playstead/formats/archive.ex` | Only magic-byte pattern literals, no extraction call | ✓ PASS |
-| Quarantine blocks byte-serving | `grep -n 'quarantine\|scan_state' lib/playstead_web/controllers/api/v1/blobs_controller.ex` | Explicit `Playstead.Blobs.quarantined?/1` guard with a D-28 comment | ✓ PASS |
-| No debt markers in phase-2 files | `grep -lE 'TBD\|FIXME\|XXX\|TODO\|HACK\|PLACEHOLDER' <153 files changed since f52c37c>` | Zero matches | ✓ PASS |
-| PORT-02 round-trip assertions present | `grep -n 'test "' test/playstead/export/round_trip_test.exs` | All five 02-CONTEXT.md assertions present as named tests, plus 7 more | ✓ PASS |
-| `unknown_system?` never true in a live path | `grep -n 'unknown_system?' lib/playstead/import.ex` | Hardcoded `false` at both classify sites, with a documented rationale comment | Confirms gap 1 |
-| `ambiguous` reason never produced live | `grep -rn '"ambiguous"' lib/` | Only in the mapping function itself | Confirms gap 1 |
-| `blob_fingerprints` writer | `grep -rn 'BlobFingerprint' lib/ | grep -v test` | Schema + consumers only, no producer | Confirms gap 2 |
+| Full regression suite (run once, per constraint) | `cd playstead-server && mix precommit` | `131 features, 13 properties, 758 tests, 0 failures` (165.7s), exit code 0 | ✓ PASS |
+| Gap-closure test files in isolation | `mix test test/playstead/blobs/fingerprints_test.exs test/playstead/recognition/ambiguous_recognition_test.exs test/playstead/attention/unknown_system_test.exs test/playstead/blobs/read_leading_test.exs test/playstead/formats/identify_test.exs` | `27 tests, 0 failures` | ✓ PASS |
+| `limit: 1` removed from `reference_match.ex` | `grep -c 'limit: 1' lib/playstead/recognition/reference_match.ex` | `0` | ✓ PASS |
+| `ambiguous` has a real producer, not only the mapping clause | `grep -rn '"ambiguous"' lib/` | producers at `import.ex:317`, `recognition.ex:288,299`, plus the (unmodified) mapping clause | ✓ PASS |
+| `blob_fingerprints` writer exists | `grep -rn 'BlobFingerprint\|Fingerprints' lib/ \| grep -v test` | insert site in `blobs/fingerprints.ex`, called from `import.ex:199` | ✓ PASS |
+| `import_bag_member/3` reachability | direct read of `import.ex:1136-1150` | delegates to `import_single/3` with no `:format_bytes` opt | ✓ PASS |
+| Migration applied | `mix ecto.migrations` | `20260829010000 add_blob_fingerprints_unique_kind` shows `up` | ✓ PASS |
+| `Playstead.Attention.Derive` / `Outcome` untouched | `git diff --stat` against both files (per both SUMMARYs, confirmed by direct read) | empty | ✓ PASS |
+| No debt markers in gap-closure files | `grep -rnE 'TBD\|FIXME\|XXX\|TODO\|HACK\|PLACEHOLDER'` across all 9 changed lib files | no matches | ✓ PASS |
 
 ### Requirements Coverage
 
 | Requirement | Source Plan(s) | Description | Status | Evidence |
 |---|---|---|---|---|
-| IMPT-01 | 02-01, 02-04 | See before confirmation: copy-not-move, storage use | ✓ SATISFIED | `Preview.for_upload/2`, `ImportLive`, readiness free-space rows |
-| IMPT-02 | 02-02, 02-04 | Verify SHA-256, byte size, provenance | ✓ SATISFIED | `LibraryLive.asset_detail`, durable `import_receipts` |
-| IMPT-03 | 02-01, 02-02, 02-03, 02-05, 02-06, 02-08 | Durable receipt distinguishing all outcomes | ✓ SATISFIED (with the two narrow sub-reason gaps noted, not blocking the nine-code taxonomy itself) | `Outcome`, `outcome_test.exs`, attention derive/resolutions |
-| IMPT-04 | 02-03 | Ordered multi-file manifest, explicit required members | ✓ SATISFIED | `import_descriptor_set/5`, `multi_file_set_test.exs` (concurrency-proven) |
-| IMPT-05 | 02-05 | Staged collection: bounded progress, pause/resume/retry/reconcile | ✓ SATISFIED | `SessionWorker`, `session_worker_test.exs`, `reconcile_test.exs` |
-| IMPT-06 | 02-06, 02-08 | Needs Attention: evidence + five resolutions | ✓ SATISFIED (same narrow sub-reason gaps as IMPT-03) | `Attention.Resolutions`, `resolutions_test.exs`, `attention_live_test.exs` |
-| PORT-02 | 02-02, 02-07 | Export/reimport lossless, no duplicates | ✓ SATISFIED | `round_trip_test.exs` — all five contract assertions present and passing |
+| IMPT-01 | 02-01, 02-04 | Before-confirmation copy-not-move, storage use | ✓ SATISFIED | Unchanged; not touched by gap closure. |
+| IMPT-02 | 02-02, 02-04 | Verify SHA-256, byte size, provenance | ✓ SATISFIED | Unchanged. |
+| IMPT-03 | 02-01–02-06, 02-08, 02-09, 02-10 | Durable receipt distinguishing all outcomes, including full sub-reason taxonomy | ✓ SATISFIED (gap closed) | `unknown_system` and `ambiguous` now have live producers; nine frozen outcome codes unchanged. |
+| IMPT-04 | 02-03 | Ordered multi-file manifest, explicit required members | ✓ SATISFIED | Unchanged. |
+| IMPT-05 | 02-05 | Staged collection: bounded progress, pause/resume/retry/reconcile | ✓ SATISFIED | Unchanged (test-double gained two new `@impl true` clauses for compile-time compliance only). |
+| IMPT-06 | 02-03, 02-09, 02-10 | Resolve Needs Attention items via evidence and safe actions | ✓ SATISFIED (gap closed) | Both quiet reasons and the ambiguous-match item are now reachable in production; existing resolutions (`correct_system`, `retain_as_custom`) proven to clear the new `ambiguous_recognition` item. |
+| PORT-02 | 02-07 | Verify export, reimport without loss | ✓ SATISFIED | Unchanged; `import_bag_member/3`'s identity logic (hash-set-first) is untouched by the format-bytes resolution it now inherits. |
 
-All 7 phase requirement IDs are checked `[x]` and marked `Complete` in `.planning/REQUIREMENTS.md`'s traceability table. No orphaned requirements found for this phase.
+**Orphaned requirements check:** REQUIREMENTS.md maps IMPT-01 through IMPT-06 and PORT-02 to Phase 2; all seven appear in this phase's plans' `requirements` frontmatter fields (across 02-01 through 02-10). No orphaned requirements.
 
 ### Anti-Patterns Found
 
-No `TBD`/`FIXME`/`XXX`/`TODO`/`HACK`/`PLACEHOLDER` markers and no "not yet implemented"/"coming soon" strings in any of the 153 files touched since the phase's first commit (`f52c37c`).
+None. `grep -rnE 'TBD|FIXME|XXX|TODO|HACK|PLACEHOLDER'` across all files modified by plans 02-09 and 02-10 returns zero matches. No stub return patterns, no empty handlers, no hardcoded empty data flowing to receipts/inbox items.
 
-Two narrow, honestly self-reported implementation gaps were found and independently confirmed by direct codebase inspection (not merely trusted from the SUMMARYs):
+### Regression Check (previously-passed items, quick sanity per re-verification optimization)
 
-1. **`unknown_system?` and `ambiguous_recognition` are unreachable in production.** `Playstead.Attention.Derive`'s mapping logic is correct and unit-tested for both, but `Playstead.Import.classify_recognized/8` hardcodes `unknown_system?: false` (with an explicit rationale comment about avoiding inbox flooding), and no detector anywhere produces the `"ambiguous"` outcome reason. This means two of the several inclusion cases named in Plan 06's must-have truth #1 (and implicitly part of roadmap SC #2/#3's outcome-distinguishing promise) are implemented as dead code paths — present, tested against synthetic inputs, but never exercised by a real import. The eight *other* outcome codes and reason sub-codes (`new_asset`, `exact_duplicate`, `alias`, `variant`, `incomplete_set`, `patched`, `quarantined`, `unrecognized{no_reference_installed|no_match|signature_mismatch|archive_not_opened}`, `failed_safely`) are all genuinely live and tested end-to-end.
-2. **`blob_fingerprints` (D-20's headerless-offset digests) has no production writer.** `Playstead.Recognition.ReferenceMatch` correctly consumes these rows when present, proven against manually-inserted fixture rows, but `Playstead.Blobs.MultiHash`/the import write path never computes or inserts one for a real NES or SNES import. A DAT pack whose entries are keyed to headerless hashes (the common case per D-20's own rationale — "DATs hash headerless") cannot match a real headered ROM import today.
-
-Both gaps are explicitly self-reported in the 02-06 and 02-08 SUMMARYs ("Deferred, documented gaps" / "Follow-up recommended for a future plan") rather than hidden, and both were independently reproduced here via direct grep/read of the current codebase, not merely trusted from the SUMMARY text.
-
-### Human Verification Required
-
-None. Per the project's standing zero-human-UAT preference, every claim above was checked either by direct code reading, by grep against the live codebase, or by running the actual test suite (`mix test`, 723 tests, 0 failures) — no item in this report requires a human judgment call that automated evidence could not settle. The two gaps found are unambiguous from source inspection (a hardcoded `false`, and the total absence of a writer function) and do not need human confirmation.
+- Nine frozen outcome codes: unchanged (`git diff --stat lib/playstead/import/outcome.ex` empty).
+- `Playstead.Attention.Derive`: unchanged (`git diff --stat` empty), confirmed by direct read — the mapping function was already correct; only the missing signals were supplied.
+- `Playstead.Blobs` sole-adapter-caller invariant: still holds for the new callbacks (`read_leading/2`, `digest_from_offset/2`) — both introduced only in `blobs.ex`/`store.ex`/`store/local_disk.ex`. (Pre-existing direct `LocalDisk.blob_path/delete/capacity_bytes` calls in `hashing_writer.ex`, `preview.ex`, `orphan_sweeper.ex` predate this phase's gap-closure plans and are outside their scope — not a regression introduced here.)
+- Export/reimport round-trip (PORT-02): full suite green, no `round_trip_test.exs` changes in either gap-closure plan.
+- Full test suite: 758 tests, 0 failures, up from 723 at the prior verification (738 after 02-09, 758 after 02-10 — both SUMMARYs' claimed counts match the actual `mix precommit` run performed independently in this verification).
 
 ### Gaps Summary
 
-Phase 2 delivers a genuinely working, extensively tested custody pipeline: all five roadmap success criteria have their primary observable claim verified against real code and a passing 723-test suite, and all seven requirement IDs (IMPT-01 through IMPT-06, PORT-02) have concrete, non-stub implementations with contract tests — including all five of PORT-02's specifically-required round-trip assertions, present as named tests and passing.
+None remaining. Both gaps recorded in the prior `02-VERIFICATION.md` are closed and independently confirmed against the codebase (not taken on the SUMMARYs' word):
 
-Two narrow gaps prevent a clean "fully verified" status, both already self-reported by the plan executors rather than discovered fresh:
-
-1. Two of the several Needs-Attention inclusion reasons named in Plan 06's must-have truth #1 (`unknown_system`, `ambiguous_recognition`) are correctly implemented in the decision function but never triggered by any real import path — the code that would need to supply a genuine "unknown system" or "ambiguous match" signal does not exist yet. This affects the completeness of the outcome-taxonomy promise in roadmap SC #2 ("clearly distinguishes... patched or unrecognized content") only at the margin — the eight codes and most reason sub-codes that make up the bulk of that promise are fully live.
-2. Plan 08's must-have truth that reference matching uses "the headerless-offset fingerprints computed during the original import" is false as stated: nothing computes them during import. The consumption side works correctly against synthetic data, but the feature cannot fire for a real NES/SNES ROM today. This is a narrow but genuine functionality gap in D-20/D-18's intended NES/SNES DAT-matching capability, not covered by any later phase in the roadmap.
-
-Neither gap breaks any of the five roadmap success criteria's core observable claim, and neither introduces a stub, an unwired artifact, or a broken key link for the paths that ARE exercised — they are missing signal-generation code for two specific, narrow sub-cases inside an otherwise fully-built and tested pipeline. Given the project's standing preference for honest, actionable gap reporting over papering over incompleteness, this phase is reported as `gaps_found` rather than `passed`, with both gaps precisely scoped for a follow-up closure plan.
+1. `unknown_system?` is now computed live from real evidence at all three production import entry points (`ImportsController`, `SessionWorker`, `import_bag_member/3`), and `unrecognized{ambiguous}` now has a real detector (`ReferenceMatch.match/2`'s widened return shape) reachable from `Recognition.reidentify/2`.
+2. `blob_fingerprints` now has a production writer (`Blobs.Fingerprints.ensure_headerless/2`) called from every production import entry point via `classify_recognized/8`, plus a lazy backfill for blobs imported before this plan.
 
 ---
 
-*Verified: 2026-08-28*
+*Verified: 2026-08-30*
 *Verifier: Claude (gsd-verifier)*
