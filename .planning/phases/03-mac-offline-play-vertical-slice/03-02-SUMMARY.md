@@ -187,6 +187,13 @@ None — no external service configuration required.
 - `transfer` capability max `1.1.0` is discoverable via the existing `/api/v1/capabilities` negotiation path with no envelope shape change, so a client can gate its resume behavior on it without a new protocol path major.
 - No blockers for downstream plans in this phase.
 
+## Self-Check: PASSED
+
+- All `key-files` (created and modified) verified present on disk with `[ -f ]`.
+- `git log --oneline --all --grep="03-02"` returns 6 commits (2 RED/2 GREEN for tasks 1–2, 1 feat for task 3, 1 docs for this SUMMARY).
+- TDD gate sequence confirmed: `test(03-02)` commits precede their matching `feat(03-02)` commits for both `tdd="true"` tasks.
+- Re-ran all task-level `<acceptance_criteria>` and the plan-level `<verification>`: `mix test` is 782 tests, 0 failures, no compile warnings (`MIX_ENV=test mix compile --force --warnings-as-errors` clean).
+
 ---
 *Phase: 03-mac-offline-play-vertical-slice*
 *Completed: 2026-08-30*
