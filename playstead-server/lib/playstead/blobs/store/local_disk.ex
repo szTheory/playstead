@@ -339,6 +339,26 @@ defmodule Playstead.Blobs.Store.LocalDisk do
   end
 
   @impl true
+  def read_leading(sha256, byte_count) do
+    path = object_path(blob_path(), sha256)
+
+    case File.open(path, [:read, :binary, :raw]) do
+      {:ok, io} ->
+        try do
+          case :file.read(io, byte_count) do
+            {:ok, data} -> {:ok, data}
+            :eof -> {:ok, <<>>}
+          end
+        after
+          :file.close(io)
+        end
+
+      {:error, _reason} ->
+        {:error, :not_found}
+    end
+  end
+
+  @impl true
   def free_bytes, do: Playstead.Readiness.free_bytes(blob_path())
 
   @impl true

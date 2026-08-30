@@ -103,8 +103,15 @@ defmodule PlaysteadWeb.ImportLiveTest do
   } do
     {:ok, lv, _html} = live(conn, ~p"/import")
 
+    # Real GBA header bytes (not random bytes): with header evidence now
+    # flowing at import time (02-09 gap closure), random bytes named
+    # ".gba" would fail the signature the extension claims and land as
+    # unrecognized{signature_mismatch} rather than new_asset — this test
+    # is about outcome rendering, so the bytes must actually be new_asset.
     upload =
-      file_input(lv, "#import-form", :file, [entry("game.gba", :crypto.strong_rand_bytes(64))])
+      file_input(lv, "#import-form", :file, [
+        entry("game.gba", Playstead.RomFixtures.valid_gba())
+      ])
 
     assert render_upload(upload, "game.gba") =~ "Copy into my library"
 
@@ -162,7 +169,9 @@ defmodule PlaysteadWeb.ImportLiveTest do
     {:ok, lv, _html} = live(conn, ~p"/import")
 
     upload =
-      file_input(lv, "#import-form", :file, [entry("game.gba", :crypto.strong_rand_bytes(64))])
+      file_input(lv, "#import-form", :file, [
+        entry("game.gba", Playstead.RomFixtures.valid_gba())
+      ])
 
     assert render_upload(upload, "game.gba") =~ "Copy into my library"
     lv |> form("#import-form") |> render_submit()

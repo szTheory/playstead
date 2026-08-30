@@ -53,21 +53,24 @@ defmodule Playstead.Import do
   `Playstead.Blobs.put_stream/3` returned (`status` is `:stored` or
   `:existing`; `blob_meta` carries `:blob_id`, `:sha256`, `:size_bytes`).
 
-  `opts[:format_bytes]` is the leading bytes of the file (plan 02-03's
-  recognition seam): when provided, `Playstead.Formats.identify/2` and
-  `Playstead.Recognition.recognize_and_record/3` run against them and
-  their result informs the asset set's system assignment, display
-  title, and (for `:patched`/`:possible_variant`/recognition-detected
-  `:alias`) the receipt outcome. Omitted, the pipeline behaves exactly
-  as plan 02-02 left it — no format identification and no recognition
-  evidence row.
+  `opts[:format_bytes]` is an override for a caller that already holds
+  the file's leading bytes (tests, and any future caller that already
+  read them for another reason) — it is no longer the only way format
+  identification happens. When omitted, the leading bytes are read from
+  the just-committed blob via `Playstead.Blobs.read_leading/1` keyed on
+  `blob_meta.sha256`, so `Playstead.Formats.identify/2` and
+  `Playstead.Recognition.recognize_and_record/3` run against real bytes
+  for every production caller, not only ones that opted in. A missing
+  object degrades to no format identification (`format_bytes` is `nil`)
+  rather than failing the import — a missing object is a separate fault
+  with its own path.
   """
   @spec import_single(pos_integer(), map(), {:stored | :existing, map()}, keyword()) ::
           {:ok, Receipt.t()} | {:error, term()}
   def import_single(user_id, source_file_attrs, store_result, opts \\ [])
 
   def import_single(user_id, source_file_attrs, {_status, blob_meta}, opts) do
-    format_bytes = Keyword.get(opts, :format_bytes)
+    format_bytes = resolve_format_bytes(opts, blob_meta.sha256)
     format_result = identify_format(format_bytes, source_file_attrs[:original_name])
     quarantine_cap = Keyword.get(opts, :quarantine_size_cap_bytes)
 
@@ -103,6 +106,28 @@ defmodule Playstead.Import do
 
   defp identify_format(nil, _filename), do: nil
   defp identify_format(bytes, filename), do: Formats.identify(bytes, filename)
+
+  # Resolves the leading bytes used for format identification: an
+  # explicit caller-supplied override always wins (every existing test
+  # keeps its explicit control); otherwise the committed blob is read
+  # through the store seam so every production import entry identifies
+  # format from the real bytes with no caller cooperation required. A
+  # missing object is a separate fault with its own path and must never
+  # be able to fail an import here, so it degrades to `nil` (no format
+  # identification) rather than raising or rolling back.
+  defp resolve_format_bytes(opts, sha256) do
+    case Keyword.get(opts, :format_bytes) do
+      nil -> read_committed_format_bytes(sha256)
+      bytes -> bytes
+    end
+  end
+
+  defp read_committed_format_bytes(sha256) do
+    case Blobs.read_leading(sha256) do
+      {:ok, bytes} -> bytes
+      {:error, :not_found} -> nil
+    end
+  end
 
   # D-26: the single classification step every import call site funnels
   # its outcome through before deciding whether a human is needed
@@ -705,7 +730,7 @@ defmodule Playstead.Import do
         ) ::
           {:ok, Receipt.t()} | {:error, term()}
   def complete_staged_file(user_id, %SourceFile{} = source_file, {_status, blob_meta}, opts \\ []) do
-    format_bytes = Keyword.get(opts, :format_bytes)
+    format_bytes = resolve_format_bytes(opts, blob_meta.sha256)
     format_result = identify_format(format_bytes, source_file.original_name)
     quarantine_cap = Keyword.get(opts, :quarantine_size_cap_bytes)
 

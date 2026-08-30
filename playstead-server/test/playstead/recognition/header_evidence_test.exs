@@ -134,6 +134,63 @@ defmodule Playstead.Recognition.HeaderEvidenceTest do
     end
   end
 
+  describe "production import entries identify format from the committed blob (02-09 gap closure)" do
+    test "an import with no :format_bytes option still identifies format from the committed bytes" do
+      %{user: user} = user_scope_fixture()
+      bytes = Playstead.RomFixtures.valid_nes_ines(4)
+
+      # Named with an extension that maps to no system so an extension
+      # guess cannot account for the result.
+      receipt = import!(user.id, bytes, "mystery.rom")
+
+      evidence =
+        from(e in Evidence, where: e.blob_id == ^receipt.blob_id, order_by: [desc: e.inserted_at])
+        |> Repo.one()
+
+      assert evidence.evidence["mapper"] == 4
+      assert evidence.evidence["generation"] == "ines"
+
+      asset_set = Repo.get!(Playstead.Catalogue.AssetSet, receipt.asset_set_id)
+      assert asset_set.system_id == "nes"
+      assert asset_set.system_source == "header"
+    end
+
+    test "a staged import completed with no :format_bytes option produces the same header-derived system" do
+      %{user: user} = user_scope_fixture()
+      bytes = Playstead.RomFixtures.valid_nes_ines(4)
+      {status, meta} = store!(bytes)
+
+      session_id = Ecto.UUID.generate()
+
+      %Playstead.Import.Session{}
+      |> Playstead.Import.Session.create_changeset(%{
+        id: session_id,
+        user_id: user.id,
+        origin: "inbox"
+      })
+      |> Repo.insert!()
+
+      {:ok, source_file} =
+        %Playstead.Import.SourceFile{}
+        |> Playstead.Import.SourceFile.stage_changeset(%{
+          user_id: user.id,
+          import_session_id: session_id,
+          original_name: "mystery.rom",
+          origin: "inbox",
+          relative_path: "mystery.rom",
+          size_bytes: byte_size(bytes)
+        })
+        |> Repo.insert()
+
+      {:ok, receipt} =
+        Import.complete_staged_file(user.id, source_file, {status, meta})
+
+      asset_set = Repo.get!(Playstead.Catalogue.AssetSet, receipt.asset_set_id)
+      assert asset_set.system_id == "nes"
+      assert asset_set.system_source == "header"
+    end
+  end
+
   describe "wired into the import pipeline" do
     test "a standard-convention filename parses into title plus tags on the resulting asset set" do
       %{user: user} = user_scope_fixture()

@@ -15,7 +15,13 @@ defmodule Playstead.Formats do
   alias Playstead.Formats.Archive
   alias Playstead.Formats.Validators.{Gb, Gba, Md, Nes, PsxCue, Snes}
 
-  @max_read 65_536
+  # 65,536 could not admit an SNES HiROM header behind a 512-byte copier
+  # header: Playstead.Formats.Validators.Snes probes that layout at
+  # 512 + 0xFFC0 and needs 512 + 0xFFC0 + 0x20 = 66,048 bytes to read the
+  # checksum/complement pair. 66,048 is the smallest ceiling that admits
+  # it; below it a HiROM-plus-copier image is structurally unrecognizable
+  # regardless of what the caller supplies.
+  @max_read 66_048
 
   @doc """
   Identifies `bytes` (only the leading `max_read` bytes are ever

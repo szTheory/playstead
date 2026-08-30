@@ -13,6 +13,11 @@ defmodule Playstead.Blobs do
 
   @default_store Playstead.Blobs.Store.LocalDisk
 
+  # Matches Playstead.Formats' @max_read: the SNES copier probe reaches
+  # 512 + 0xFFC0 + 0x20 = 66,048 bytes, so this is the smallest bounded
+  # read that lets every validator see everything it needs.
+  @default_leading_bytes 66_048
+
   defp store do
     Application.get_env(:playstead, __MODULE__, []) |> Keyword.get(:store, @default_store)
   end
@@ -69,6 +74,15 @@ defmodule Playstead.Blobs do
   @spec adopt_temp_file(String.t(), map()) ::
           {:ok, :stored | :existing, map()} | {:error, term()}
   def adopt_temp_file(tmp_path, digest_map), do: store().adopt_temp_file(tmp_path, digest_map)
+
+  @doc """
+  Reads at most `byte_count` (default #{@default_leading_bytes}) leading
+  bytes of the committed blob for `sha256`, read-only and bounded. See
+  `Playstead.Blobs.Store.read_leading/2`.
+  """
+  @spec read_leading(String.t(), pos_integer()) :: {:ok, binary()} | {:error, :not_found}
+  def read_leading(sha256, byte_count \\ @default_leading_bytes),
+    do: store().read_leading(sha256, byte_count)
 
   @doc "Bytes currently free on the configured store's volume."
   @spec free_bytes() :: non_neg_integer() | :unknown

@@ -52,6 +52,18 @@ defmodule Playstead.Blobs.Store do
   @callback stream(hash(), range :: Range.t() | nil) ::
               {:ok, Enumerable.t()} | {:error, :not_found}
 
+  @doc """
+  Reads at most `byte_count` leading bytes of the committed object for
+  `sha256`, read-only and never decompressing — a container's bytes
+  come back exactly as stored. A committed object shorter than
+  `byte_count` is not an error: every byte it has is returned. Returns
+  `{:error, :not_found}` when no committed object exists for `sha256`.
+  This callback never deletes, renames, truncates, or moves the object
+  it reads.
+  """
+  @callback read_leading(hash(), byte_count :: pos_integer()) ::
+              {:ok, binary()} | {:error, :not_found}
+
   @doc "Bytes currently free on the volume backing this store, or `:unknown`."
   @callback free_bytes() :: non_neg_integer() | :unknown
 
