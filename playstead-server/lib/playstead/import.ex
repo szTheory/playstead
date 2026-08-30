@@ -197,6 +197,16 @@ defmodule Playstead.Import do
     # known. Idempotent by construction (unique index on
     # {blob_id, kind}), so the CAS's `:existing` result on a repeat
     # import needs no special case; the count is not needed here.
+    #
+    # IN-01: this call runs inside `import_single/4`'s ambient
+    # `Repo.transaction/1`, and when a header was detected it performs a
+    # synchronous local-disk seek-and-read (via `Blobs.digest_from_offset/2`)
+    # before that transaction can commit — extending how long any row
+    # locks it holds (e.g. via `find_or_create_asset_set/4`'s
+    # `insert_all`) stay open. Not a correctness defect today (see
+    # `Fingerprints`' moduledoc), but if blob-volume disk latency ever
+    # becomes a source of transaction timeouts, consider computing this
+    # fingerprint outside the transaction or moving it to an async job.
     _fingerprint_count = Fingerprints.ensure_headerless(blob_meta.blob_id, format_result)
 
     recognition_facts = %{
