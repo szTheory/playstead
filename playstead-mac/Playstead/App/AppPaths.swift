@@ -19,6 +19,14 @@ struct AppPaths {
     init(fileManager: FileManager = .default) {
         let support = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let root = support.appendingPathComponent("Playstead", isDirectory: true)
+        self.init(root: root, fileManager: fileManager)
+    }
+
+    /// Test-only / advanced entry point: builds the same directory
+    /// layout under an arbitrary `root` rather than the real Application
+    /// Support directory, so cache/download tests never touch a real
+    /// user's on-disk state.
+    init(root: URL, fileManager: FileManager = .default) {
         self.root = root
         self.objects = root.appendingPathComponent("objects", isDirectory: true)
         self.partials = root.appendingPathComponent("partials", isDirectory: true)
