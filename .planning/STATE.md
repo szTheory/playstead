@@ -21,10 +21,10 @@ milestone_name: milestone
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-08-28)
+See: `.planning/PROJECT.md` (updated 2026-08-30)
 
 **Core value:** A locally available game and its progress remain effortless to play, safe, understandable, synchronized, and fully under the user's control.
-**Current focus:** Phase 02 — Explainable Import and Exact Export
+**Current focus:** Phase 3 — Mac Offline Play Vertical Slice
 
 ## Current Position
 

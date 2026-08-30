@@ -23,15 +23,17 @@ A locally available game and its progress remain effortless to play, safe, under
 
 - ✓ A user can deploy a private server through one opinionated, documented container path with persistent data, health, and upgrade/recovery guidance — Phase 1 (verified backup/restore tooling remains Active below)
 - ✓ Native and future constrained clients use a durable, versioned HTTPS API with capability negotiation, idempotent mutations, resumable state, and no requirement for a persistent WebSocket — Phase 1 (server side; first native consumer lands in Phase 3)
+- ✓ Import streams, hashes, stores, and records provenance for the exact original bytes without destructive normalization — Phase 2
+- ✓ Exact duplicates, aliases, variants, unknown files, patched files, malformed files, and incomplete multi-file sets receive explicit, recoverable outcomes — Phase 2
+- ✓ The library identifies supported content through replaceable metadata/hash providers while retaining source, version, confidence, and user correction — Phase 2 (DAT reference packs, header evidence, attention-inbox correction)
+- ✓ Import supports both single-file immediacy and large staged collections through incremental, resumable, observable background work that can pause, resume, retry, and reconcile without duplicating unchanged content — Phase 2
+- ✓ A user can export exact original game bytes and a readable manifest into deterministic ordinary folders, verify their hashes, and reimport without byte changes — Phase 2 (persistent-save export remains with Phase 4)
 
 ### Active
 
 - [ ] A Mac client can securely pair with the server and declare its protocol and emulator capabilities. (Server-side pairing ceremony, device credentials, and capability negotiation shipped in Phase 1; the Mac client half is pending.)
 - [ ] The Phoenix application exposes a polished LiveView setup, administration, import, library, pairing, and job-status console without making LiveView the native-client protocol.
 - [ ] A user can drop a supported ROM into the Mac client and see, before confirmation, that the product will copy it into managed storage while leaving the source untouched.
-- [ ] Import streams, hashes, stores, and records provenance for the exact original bytes without destructive normalization.
-- [ ] Exact duplicates, aliases, variants, unknown files, patched files, malformed files, and incomplete multi-file sets receive explicit, recoverable outcomes.
-- [ ] The library identifies supported content through replaceable metadata/hash providers while retaining source, version, confidence, and user correction.
 - [ ] The client presents a fast, polished, accessible, controller-friendly library rather than a generic CRUD interface.
 - [ ] The client can download, verify, cache, pin, and launch one deliberately supported system/emulator combination through an adapter.
 - [ ] A newly paired computer can browse the complete server library without downloading it, then fetch only selected games or collections on demand.
@@ -42,9 +44,8 @@ A locally available game and its progress remain effortless to play, safe, under
 - [ ] The product preflights game assets, emulator support, BIOS, controller, local cache, and save readiness before launch.
 - [ ] The client captures a proven persistent save type, appends immutable revisions, restores history, queues safely offline, and exposes conflicts without silent last-write-wins.
 - [ ] A clean client installation can restore a game and its compatible persistent save from the server.
-- [ ] A user can export exact original game bytes, persistent saves, and a readable manifest into deterministic ordinary folders and verify their hashes.
+- [ ] A user can export persistent saves alongside game bytes in the deterministic export format. (Game-byte + manifest export shipped in Phase 2; the saves half arrives with Phase 4.)
 - [ ] Server and client updates preserve known-playable configurations through compatibility checks, migration preflight, atomicity where possible, and rollback.
-- [ ] Import supports both single-file immediacy and large staged collections through incremental, resumable, observable background work that can pause, resume, retry, and reconcile without duplicating unchanged content.
 - [ ] The server reports repository protection honestly and supports verified full and incremental backup/restore to user-controlled storage; one server copy is never described as a backup.
 - [ ] A self-hoster can see server readiness (database, storage volumes, HTTPS) after first-run setup, not only inside the one-shot setup wizard.
 - [ ] An owner who did not save their recovery codes has a discoverable, sudo-gated way to regenerate them.
@@ -179,6 +180,10 @@ The intended delivery boundary is API-first Phoenix with LiveView as the first-p
 | No email anywhere in the system; setup token + single-use recovery codes + host-shell reset instead | Self-hosters should not need an SMTP relay to own their server; recovery must work precisely when the operator is locked out | ✓ Phase 1 (D-02, D-05) |
 | RFC 8628-shaped two-code pairing where a human compares one code on two screens | The security property is human verification, not a shared secret over the wire; devices get revocable credentials | ✓ Phase 1 (PROT-01/02) |
 | Release runs as `nobody`; every named-volume mount point is pre-created and chowned in the image; compile-time embeds are guarded by a build-context test | Docker seeds volume ownership from the image only on first use, and `mix test` passes against a git checkout that a Docker build context may not match | ✓ Phase 1 gap closure (01-08) |
+| Managed-copy import with content-addressed custody, durable receipts, and an attention inbox for every non-quiet outcome | Every consequential import outcome must be explainable and recoverable, not silently normalized | ✓ Phase 2 (IMPT-01…06) |
+| Resolve format bytes once inside the import pipeline (read_leading through the store seam) instead of per call site | One defaulting point cannot be defeated by a future caller forgetting the option; header evidence reaches every production entry | ✓ Phase 2 gap closure (02-09) |
+| An ambiguous reference match is a visible human decision, never a silent coin flip | Two conflicting DAT entries for one digest is evidence conflict; limit-1 selection hid it | ✓ Phase 2 gap closure (02-10) |
+| Headerless fingerprints are derived data written through the storage seam, backfilled lazily on reidentify | Keeps format knowledge out of the storage adapter (D-12) and needs no migration/backfill job | ✓ Phase 2 gap closure (02-10) |
 | Defer repository extraction until boundaries are proven | Stable contracts and multiple consumers should determine package boundaries; the Playstead family name does not require premature multi-repo architecture | — Pending |
 
 ## Open Questions for Phase Planning
@@ -208,4 +213,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-28 after Phase 1 (Private Custody and Durable Protocol)*
+*Last updated: 2026-08-30 after Phase 2 (Explainable Import and Exact Export)*
