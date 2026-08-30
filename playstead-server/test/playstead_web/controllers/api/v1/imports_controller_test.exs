@@ -68,7 +68,11 @@ defmodule PlaysteadWeb.Api.V1.ImportsControllerTest do
       body = json_response(resp, 201)
       assert body["sha256"] == :crypto.hash(:sha256, bytes) |> Base.encode16(case: :lower)
       assert body["size_bytes"] == byte_size(bytes)
-      assert body["outcome"] == "new_asset"
+      # 02-09 gap closure: header evidence now reaches classification for
+      # every import; random bytes with no reference pack installed for
+      # this fresh user land the quiet unrecognized{no_reference_installed}
+      # reason rather than a plain new_asset.
+      assert body["outcome"] == "unrecognized"
     end
 
     test "a mismatched Repr-Digest returns 422 with import_digest_mismatch and stores nothing", %{
@@ -169,7 +173,9 @@ defmodule PlaysteadWeb.Api.V1.ImportsControllerTest do
       bytes = random_bytes(2_000)
 
       first = upload_conn(conn, token, bytes)
-      assert %{"outcome" => "new_asset"} = json_response(first, 201)
+      # 02-09 gap closure: no reference pack installed for this user, so
+      # a fresh random-bytes import lands the quiet unrecognized reason.
+      assert %{"outcome" => "unrecognized"} = json_response(first, 201)
 
       second = upload_conn(build_conn(), token, bytes)
       assert %{"outcome" => "exact_duplicate"} = json_response(second, 201)
@@ -192,7 +198,9 @@ defmodule PlaysteadWeb.Api.V1.ImportsControllerTest do
       second = upload_conn(build_conn(), token_b, bytes)
       body2 = json_response(second, 201)
 
-      assert body2["outcome"] == "new_asset"
+      # 02-09 gap closure: no reference pack installed for user B, so
+      # their own new import lands the quiet unrecognized reason.
+      assert body2["outcome"] == "unrecognized"
       refute Map.has_key?(body2, "user")
       refute inspect(body2) =~ inspect(body1["receipt_id"])
 

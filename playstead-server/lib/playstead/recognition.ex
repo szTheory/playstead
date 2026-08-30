@@ -22,7 +22,7 @@ defmodule Playstead.Recognition do
   alias Playstead.Blobs.{Blob, BlobFingerprint}
   alias Playstead.Catalogue.{AssetSet, Payload}
   alias Playstead.Import.SourceFile
-  alias Playstead.Recognition.{Evidence, HeaderEvidence, ReferenceMatch}
+  alias Playstead.Recognition.{DatPack, Evidence, HeaderEvidence, ReferenceMatch}
   alias Playstead.Repo
   alias Playstead.Sync.ChangeJournal
 
@@ -52,6 +52,19 @@ defmodule Playstead.Recognition do
     result = @provider.recognize(facts, format_evidence)
     {:ok, evidence_row} = insert_evidence(file_facts, result)
     {result, evidence_row}
+  end
+
+  @doc """
+  Whether `user_id` has any `Playstead.Recognition.DatPack` installed —
+  a single existence query, since the overwhelmingly common case is no
+  pack at all. This is the discriminator between `unrecognized`'s two
+  quiet reasons (D-26): a supported format with no pack installed is
+  `no_reference_installed`; a supported format with a pack installed
+  that matches nothing is `no_match`.
+  """
+  @spec packs_installed?(pos_integer()) :: boolean()
+  def packs_installed?(user_id) do
+    from(p in DatPack, where: p.user_id == ^user_id) |> Repo.exists?()
   end
 
   defp alias_exists?(_user_id, %{blob_id: nil}), do: false

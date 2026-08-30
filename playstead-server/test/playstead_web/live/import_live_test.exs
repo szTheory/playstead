@@ -106,8 +106,10 @@ defmodule PlaysteadWeb.ImportLiveTest do
     # Real GBA header bytes (not random bytes): with header evidence now
     # flowing at import time (02-09 gap closure), random bytes named
     # ".gba" would fail the signature the extension claims and land as
-    # unrecognized{signature_mismatch} rather than new_asset — this test
-    # is about outcome rendering, so the bytes must actually be new_asset.
+    # unrecognized{signature_mismatch}. With real header bytes and no
+    # reference pack installed (this test installs none), the outcome
+    # is D-26's quiet unrecognized{no_reference_installed} — this test
+    # is about outcome-code-driven rendering, so it asserts that code.
     upload =
       file_input(lv, "#import-form", :file, [
         entry("game.gba", Playstead.RomFixtures.valid_gba())
@@ -117,11 +119,12 @@ defmodule PlaysteadWeb.ImportLiveTest do
 
     lv |> form("#import-form") |> render_submit()
 
-    assert has_element?(lv, "[data-outcome=new_asset]")
-    assert render(lv) =~ "Added to your library"
+    assert has_element?(lv, "[data-outcome=unrecognized]")
+    assert render(lv) =~ "Not yet identified"
 
     assert [receipt] = Import.list_receipts(scope.user.id)
-    assert receipt.outcome == "new_asset"
+    assert receipt.outcome == "unrecognized"
+    assert receipt.reason == "no_reference_installed"
   end
 
   test "a failed import renders the untouched-original message with a correlation id", %{
@@ -179,6 +182,10 @@ defmodule PlaysteadWeb.ImportLiveTest do
     assert [_receipt] = Import.list_receipts(scope.user.id)
 
     {:ok, _lv2, html2} = live(conn, ~p"/import")
-    assert html2 =~ "Added to your library"
+    # 02-09 gap closure: real header bytes with no reference pack
+    # installed land the quiet unrecognized{no_reference_installed}
+    # reason (D-26); this test is about receipts surviving a reload,
+    # not about which outcome code was assigned.
+    assert html2 =~ "Not yet identified"
   end
 end

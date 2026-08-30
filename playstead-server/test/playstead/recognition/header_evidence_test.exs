@@ -80,7 +80,12 @@ defmodule Playstead.Recognition.HeaderEvidenceTest do
       %{user: user} = user_scope_fixture()
       receipt = import!(user.id, random_bytes(512), "mystery.rom")
 
-      assert receipt.outcome == "new_asset"
+      # 02-09 gap closure: header evidence now reaches classification for
+      # every import, so a file with no reference pack installed lands
+      # the quiet unrecognized{no_reference_installed} reason rather than
+      # a plain new_asset — the point of this test is that it is never
+      # classified as failed_safely.
+      assert receipt.outcome != "failed_safely"
     end
 
     test "identical bytes under a different name in the same user's library yield an alias result with no new blob" do

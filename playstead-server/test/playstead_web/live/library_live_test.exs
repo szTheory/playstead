@@ -143,9 +143,12 @@ defmodule PlaysteadWeb.LibraryLiveTest do
   test "a receipt whose asset has since been identified still displays the outcome recorded at import",
        %{conn: conn, user: user} do
     bytes = RomFixtures.valid_gba("PLAYSTEAD")
-    # First import with no recognition wired (matches an older import) —
-    # the receipt records new_asset with no evidence.
+    # First import with no reference pack installed (02-09 gap closure:
+    # header evidence now reaches classification even with no explicit
+    # format_bytes option, so the receipt records the quiet
+    # unrecognized{no_reference_installed} reason, not a plain new_asset).
     receipt = import!(user.id, bytes, "playstead.gba")
+    assert receipt.outcome == "unrecognized"
 
     # A later reference-pack install produces recognition evidence for
     # the same blob, independent of the receipt already written.
@@ -159,7 +162,7 @@ defmodule PlaysteadWeb.LibraryLiveTest do
 
     {:ok, _lv, html} = live(conn, ~p"/library/#{receipt.asset_set_id}")
 
-    assert html =~ "At import: new_asset"
+    assert html =~ "At import: unrecognized"
     assert html =~ "now: recognized"
   end
 

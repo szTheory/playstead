@@ -105,15 +105,23 @@ defmodule Playstead.Attention.QuarantineTest do
   describe "inclusion/exclusion via the real import pipeline (D-26)" do
     test "a new asset produces zero attention items" do
       user = owner_fixture()
-      {:ok, _receipt} = import_bytes(user, "notes.txt", :crypto.strong_rand_bytes(64))
+      # A recognized format with no extension/header contradiction and
+      # no reference pack installed (this test's helper installs none)
+      # is D-26's quiet no_reference_installed exclusion, not an
+      # unknown-system inclusion — a random-byte, unmapped-extension
+      # file would make no claim on either axis and genuinely raise an
+      # unknown_system item (proven separately in unknown_system_test.exs).
+      {:ok, receipt} = import_bytes(user, "game.gba", Playstead.RomFixtures.valid_gba())
+      assert receipt.outcome == "unrecognized"
+      assert receipt.reason == "no_reference_installed"
       assert Attention.count(user.id) == 0
     end
 
     test "an exact duplicate produces zero attention items" do
       user = owner_fixture()
-      bytes = :crypto.strong_rand_bytes(64)
-      {:ok, _first} = import_bytes(user, "game.bin", bytes)
-      {:ok, receipt} = import_bytes(user, "game-copy.bin", bytes)
+      bytes = Playstead.RomFixtures.valid_gba()
+      {:ok, _first} = import_bytes(user, "game.gba", bytes)
+      {:ok, receipt} = import_bytes(user, "game-copy.gba", bytes)
 
       assert receipt.outcome == "exact_duplicate"
       assert Attention.count(user.id) == 0

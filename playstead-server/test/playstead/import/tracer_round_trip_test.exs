@@ -142,7 +142,14 @@ defmodule Playstead.Import.TracerRoundTripTest do
 
     {scope_b, _device_b, _token_b} = paired()
     assert {:ok, [receipt]} = Import.reimport_folder(scope_b.user.id, target_dir)
-    assert receipt.outcome == "new_asset"
+    # 02-09 gap closure: header evidence now reaches classification for
+    # every import; random bytes with no reference pack installed for
+    # this fresh user land the quiet unrecognized{no_reference_installed}
+    # reason rather than a plain new_asset. This test's identity claim
+    # (restore into a fresh, empty library) is unaffected — reimport
+    # identity is proven separately below by the set/member assertions.
+    assert receipt.outcome == "unrecognized"
+    assert receipt.reason == "no_reference_installed"
 
     restored_set = Repo.get_by!(AssetSet, user_id: scope_b.user.id)
 

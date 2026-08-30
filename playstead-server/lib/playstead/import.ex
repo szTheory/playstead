@@ -17,11 +17,13 @@ defmodule Playstead.Import do
   alias Playstead.Attention
   alias Playstead.Attention.QuarantinePolicy
   alias Playstead.Blobs
+  alias Playstead.Blobs.BlobFingerprint
   alias Playstead.Catalogue
   alias Playstead.Catalogue.{AssetMember, AssetSet}
   alias Playstead.Formats
   alias Playstead.Import.{Outcome, Receipt, Session, SessionWorker, SourceFile}
   alias Playstead.Recognition
+  alias Playstead.Recognition.ReferenceMatch
   alias Playstead.Repo
   alias Playstead.Sync.ChangeJournal
 
@@ -157,6 +159,10 @@ defmodule Playstead.Import do
           reason: to_string(quarantine_reason),
           asset_set: nil,
           system_confirmation_needed?: false,
+          # D-28: quarantine short-circuits recognition entirely for a
+          # quarantined blob, so the pipeline has no evidence on which
+          # to judge its system and must not guess — this stays a
+          # literal `false`, not the computed expression below.
           unknown_system?: false,
           evidence: %{}
         }
@@ -199,7 +205,13 @@ defmodule Playstead.Import do
     system_assignment = Catalogue.assign_system(extension_guess, format_result, nil)
 
     unrecognized_reason =
-      unrecognized_reason_for(extension_guess, format_result, recognition_result)
+      unrecognized_reason_for(
+        user_id,
+        blob_meta,
+        extension_guess,
+        format_result,
+        recognition_result
+      )
 
     base_outcome = determine_outcome(user_id, blob_meta.blob_id, origin, recognition_result)
 
@@ -218,36 +230,87 @@ defmodule Playstead.Import do
       reason: reason,
       asset_set: asset_set,
       system_confirmation_needed?: match?({:confirmation_needed, _}, system_assignment),
-      # D-26's exclusion side is the higher-priority guarantee: an
-      # unmapped extension with no header match is also the ordinary
-      # "content with no reference installed" quiet state, and the two
-      # are indistinguishable from the bytes alone. `unknown_system?`
-      # is not raised from this pipeline to avoid flooding the inbox
-      # with the single most common no-reference case; the flag and
-      # `Playstead.Attention.Derive`'s handling of it stay available
-      # for a future, more discriminating call site.
-      unknown_system?: false,
+      # D-16/D-26: a file makes a claim on either of two axes — an
+      # extension that maps to a system, or bytes a validator matches.
+      # A file with neither claim is D-26's genuine "unknown system"
+      # inclusion case, distinct from the far more common "supported
+      # format, no reference pack installed" quiet exclusion (that
+      # distinction is `unrecognized_reason_for/5`'s job below). A
+      # container result (an archive) must not qualify here — it is a
+      # known thing kept deliberately unopened with its own reason and
+      # its own grouped inbox item. The flooding concern this flag used
+      # to be suppressed for is answered by `attention_grouping_key/1`
+      # collapsing every unknown-system file in one import/session into
+      # a single counted item, not by never raising the flag at all.
+      unknown_system?: unknown_system?(extension_guess, format_result),
       evidence: confirmation_evidence(system_assignment)
     }
   end
 
+  defp unknown_system?(nil, {:unknown, :none, _evidence}), do: true
+  defp unknown_system?(_extension_guess, _format_result), do: false
+
   # D-25's `archive_not_opened` and `signature_mismatch` reasons: the
   # first is a container detected by magic (never a quarantine
   # trigger, D-28); the second is a Tier A extension (D-14) whose bytes
-  # failed that system's own signature validation.
+  # failed that system's own signature validation. Both are more
+  # specific than the two quiet reasons below and must keep winning.
   defp unrecognized_reason_for(
+         _user_id,
+         _blob_meta,
          _extension_guess,
          {_system, :container, %{reason: :archive_not_opened}},
          _result
        ),
        do: "archive_not_opened"
 
-  defp unrecognized_reason_for(extension_guess, {system, _tier, _evidence}, recognition_result)
+  defp unrecognized_reason_for(
+         _user_id,
+         _blob_meta,
+         extension_guess,
+         {system, _tier, _evidence},
+         recognition_result
+       )
        when extension_guess in @tier_a_systems and system == :unknown do
     if recognition_result.status == :no_reference_installed, do: "signature_mismatch"
   end
 
-  defp unrecognized_reason_for(_extension_guess, _format_result, _recognition_result), do: nil
+  # D-26's two quiet reasons: a supported format with no reference pack
+  # installed at all is `no_reference_installed` (the ordinary, by-far
+  # most common case); a supported format with a pack installed that
+  # still matches nothing is `no_match`. Neither ever raises an inbox
+  # item (`Playstead.Attention.Derive.unrecognized_reason/1` excludes
+  # both). D-16/D-18: `Playstead.Recognition.DatPack`/`ReferenceEntry`
+  # carry no system column, so "any pack installed at all" — not
+  # per-system coverage — is the derivable, honest discriminator.
+  defp unrecognized_reason_for(user_id, blob_meta, _extension_guess, _format_result, _result) do
+    quiet_unrecognized_reason(user_id, blob_meta)
+  end
+
+  defp quiet_unrecognized_reason(_user_id, %{sha256: nil}), do: nil
+
+  defp quiet_unrecognized_reason(user_id, %{sha256: sha256}) do
+    if Recognition.packs_installed?(user_id) do
+      reference_match_reason(sha256)
+    else
+      "no_reference_installed"
+    end
+  end
+
+  defp reference_match_reason(sha256) do
+    case Blobs.get_by_sha256(sha256) do
+      nil ->
+        nil
+
+      blob ->
+        fingerprints = Repo.all(from(f in BlobFingerprint, where: f.blob_id == ^blob.id))
+
+        case ReferenceMatch.match(blob, fingerprints) do
+          {:match, _entry} -> nil
+          :no_match -> "no_match"
+        end
+    end
+  end
 
   defp confirmation_evidence({:confirmation_needed, %{extension: extension, header: header}}) do
     %{"extension" => to_string(extension), "header" => to_string(header)}
