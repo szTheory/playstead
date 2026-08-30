@@ -34,7 +34,9 @@ defmodule PlaysteadWeb.ErrorCodes do
     import_empty_file: {422, "Import Empty File"},
     too_many_uploads: {429, "Too Many Uploads"},
     import_session_too_large: {422, "Import Session Too Large"},
-    range_not_satisfiable: {416, "Range Not Satisfiable"}
+    range_not_satisfiable: {416, "Range Not Satisfiable"},
+    curation_limit_exceeded: {422, "Curation Limit Exceeded"},
+    curation_invalid_position: {422, "Curation Invalid Position"}
   }
 
   @doc "The full code-to-{status, title} mapping."

@@ -9,8 +9,16 @@ defmodule Playstead.Sync.ChangeJournalTest do
   alias Playstead.Sync.{ChangeJournal, EntityKind, Entry}
 
   describe "EntityKind.all/0" do
-    test "returns exactly the six registered kinds" do
-      assert EntityKind.all() == [:device, :pairing, :catalogue, :job, :transfer, :save]
+    test "returns the six original kinds plus curation (D-08)" do
+      assert EntityKind.all() == [
+               :device,
+               :pairing,
+               :catalogue,
+               :job,
+               :transfer,
+               :save,
+               :curation
+             ]
     end
 
     test "valid?/1 accepts atoms and strings for registered kinds" do
