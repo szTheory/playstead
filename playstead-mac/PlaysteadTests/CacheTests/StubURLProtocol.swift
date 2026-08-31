@@ -33,6 +33,14 @@ final class StubURLProtocol: URLProtocol {
     /// multiple attempts made by one `DownloadEngine.download` call.
     nonisolated(unsafe) static var responder: ((URLRequest) -> Stub)?
     nonisolated(unsafe) static var requestLog: [URLRequest] = []
+    /// Tracks the async response-delivery block below so `reset()` can
+    /// wait for any request still in flight from the *previous* test
+    /// before clearing `responder`/`requestLog` for the next one
+    /// (P4-WR-004) — without this, a delayed completion callback firing
+    /// after the next test has already reconfigured these statics could
+    /// append into the wrong test's `requestLog` or invoke a callback
+    /// against an already-torn-down `URLSessionTask`.
+    private static let inFlightGroup = DispatchGroup()
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -62,7 +70,9 @@ final class StubURLProtocol: URLProtocol {
         // subsequent `didFailWithError`/`didFinishLoading` — delivering
         // everything synchronously in one call risks the terminal event
         // superseding buffered-but-unconsumed data.
+        Self.inFlightGroup.enter()
         DispatchQueue.global().async { [client, stub] in
+            defer { Self.inFlightGroup.leave() }
             client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
             for chunk in stub.bodyChunks {
                 Thread.sleep(forTimeInterval: 0.02)
@@ -85,7 +95,14 @@ final class StubURLProtocol: URLProtocol {
         return URLSession(configuration: config)
     }
 
+    /// Called from `setUp`/`tearDown`. Waits for any response delivery
+    /// still in flight from a request made before this call (e.g. the
+    /// previous test) to finish before clearing `responder`/`requestLog`
+    /// (P4-WR-004) — bounded so a genuinely stuck delivery (should never
+    /// happen; every path above always reaches `leave()`) cannot hang
+    /// the whole test run.
     static func reset() {
+        _ = inFlightGroup.wait(timeout: .now() + 2)
         responder = nil
         requestLog = []
     }
