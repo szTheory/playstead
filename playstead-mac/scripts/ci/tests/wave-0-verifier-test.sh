@@ -56,6 +56,20 @@ write_result_fixture() {
       "execution_count": $execution_count,
       "skipped": $skipped,
       "outcome": "$status"
+    },
+    {
+      "identifier": "PlaysteadUITests.HostedRunnerCanaryTests/testFullKeyboardAccessCanaryFocusesAndActivatesTwoControls",
+      "discovered": true,
+      "execution_count": 1,
+      "skipped": false,
+      "outcome": "passed"
+    },
+    {
+      "identifier": "PlaysteadUITests.HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice",
+      "discovered": true,
+      "execution_count": 1,
+      "skipped": false,
+      "outcome": "passed"
     }
   ]
 }
@@ -99,6 +113,17 @@ verify_run() {
     --expected-run-id 9001
 }
 
+verify_task2_result() {
+  "$VERIFIER" --verify-result "$1" \
+    --required-canary PlaysteadUITests.HostedRunnerCanaryTests/testFullKeyboardAccessCanaryFocusesAndActivatesTwoControls \
+    --required-canary PlaysteadUITests.HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice \
+    --expected-workflow ci \
+    --expected-event pull_request \
+    --expected-ref refs/pull/42/merge \
+    --expected-sha 0123456789abcdef0123456789abcdef01234567 \
+    --expected-run-id 9001
+}
+
 valid_result="$TMP_ROOT/valid-result.json"
 write_result_fixture "$valid_result"
 expect_pass result_valid verify_result "$valid_result"
@@ -126,6 +151,25 @@ json.dump(d, open(p, "w"))
 PY
 expect_fail result_wrong_sha verify_result "$wrong_sha"
 expect_fail result_malformed verify_result /dev/null
+
+expect_pass task2_valid verify_task2_result "$valid_result"
+for identifier in \
+  PlaysteadUITests.HostedRunnerCanaryTests/testFullKeyboardAccessCanaryFocusesAndActivatesTwoControls \
+  PlaysteadUITests.HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice
+do
+  fixture="$TMP_ROOT/task2-skipped-$(basename "$identifier").json"
+  cp "$valid_result" "$fixture"
+  python3 - "$fixture" "$identifier" <<'PY'
+import json, sys
+p, identifier = sys.argv[1:]
+d = json.load(open(p))
+for record in d["canaries"]:
+    if record["identifier"] == identifier:
+        record["skipped"] = True
+json.dump(d, open(p, "w"))
+PY
+  expect_fail "task2_skipped_$(basename "$identifier")" verify_task2_result "$fixture"
+done
 
 valid_run="$TMP_ROOT/valid-run.json"
 write_run_fixture "$valid_run"

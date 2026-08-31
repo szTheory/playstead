@@ -54,7 +54,51 @@ enum KeychainError: Error, Equatable {
 /// always the newest pairing and always names one specific item — never
 /// whichever one an unordered single-match query happened to hand back.
 struct KeychainStore {
-    private let service = "dev.playstead.mac"
+    private let service: String
+    private let keychain: SecKeychain?
+
+    /// Production callers omit both arguments and retain the existing
+    /// login-Keychain behavior. Hosted tests supply a unique service and a
+    /// run-owned file Keychain so no query can escape into the runner's
+    /// default search list.
+    init(service: String = "dev.playstead.mac", keychain: SecKeychain? = nil) {
+        self.service = service
+        self.keychain = keychain
+    }
+
+    /// Adds the Security.framework search scope used by copy, update, and
+    /// delete operations. Kept pure so the exact dictionary boundary is
+    /// testable without opening a real Keychain.
+    static func scopedMatchQuery(
+        _ query: [String: Any],
+        searchList: [AnyObject]?
+    ) -> [String: Any] {
+        guard let searchList else { return query }
+        var scoped = query
+        scoped[kSecMatchSearchList as String] = searchList
+        return scoped
+    }
+
+    /// Adds the destination used only by `SecItemAdd`. Search and add use
+    /// different Security.framework keys by design; mixing them can fall
+    /// back to the user's default Keychain.
+    static func scopedAddQuery(
+        _ query: [String: Any],
+        destination: AnyObject?
+    ) -> [String: Any] {
+        guard let destination else { return query }
+        var scoped = query
+        scoped[kSecUseKeychain as String] = destination
+        return scoped
+    }
+
+    private func matchQuery(_ query: [String: Any]) -> [String: Any] {
+        Self.scopedMatchQuery(query, searchList: keychain.map { [$0 as AnyObject] })
+    }
+
+    private func addQuery(_ query: [String: Any]) -> [String: Any] {
+        Self.scopedAddQuery(query, destination: keychain.map { $0 as AnyObject })
+    }
 
     func loadCredential() -> PairingCredential? {
         // Two steps, because macOS will not return password *data* for a
@@ -63,12 +107,12 @@ struct KeychainStore {
         // then fetch that one item's token with an account-scoped query.
         // The account-scoped second step is also what makes the read
         // deterministic: it names exactly one item.
-        let listQuery: [String: Any] = [
+        let listQuery = matchQuery([
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecReturnAttributes as String: true,
             kSecMatchLimit as String: kSecMatchLimitAll
-        ]
+        ])
 
         var item: CFTypeRef?
         guard SecItemCopyMatching(listQuery as CFDictionary, &item) == errSecSuccess else {
@@ -138,13 +182,13 @@ struct KeychainStore {
 
     /// The token stored against exactly one account on this service.
     private func token(forAccount account: String) -> String? {
-        let query: [String: Any] = [
+        let query = matchQuery([
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
-        ]
+        ])
         var item: CFTypeRef?
         guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
               let data = item as? Data else {
@@ -160,11 +204,11 @@ struct KeychainStore {
             return .failure(.unexpectedFormat)
         }
 
-        let matchQuery: [String: Any] = [
+        let matchQuery = matchQuery([
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: credential.deviceID
-        ]
+        ])
         let updateAttributes: [String: Any] = [
             kSecAttrGeneric as String: genericData,
             kSecValueData as String: Data(credential.token.utf8),
@@ -191,20 +235,36 @@ struct KeychainStore {
             return .failure(.osFailure(updateStatus))
         }
 
-        let addQuery: [String: Any] = [
+        let addQuery = addQuery([
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: credential.deviceID,
             kSecAttrGeneric as String: genericData,
             kSecValueData as String: Data(credential.token.utf8),
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        ]
+        ])
 
         let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
         guard addStatus == errSecSuccess else {
             return .failure(.osFailure(addStatus))
         }
         return pruneAccounts(otherThan: credential.deviceID)
+    }
+
+    /// Removes the scoped credential set. This is used by the hosted
+    /// two-cycle canary and is also a safe explicit unpair primitive: a
+    /// scoped store cannot delete items from any other Keychain.
+    @discardableResult
+    func deleteCredential() -> Result<Void, KeychainError> {
+        let query = matchQuery([
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service
+        ])
+        let status = SecItemDelete(query as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            return .failure(.osFailure(status))
+        }
+        return .success(())
     }
 
     /// Deletes every item on this service whose account is not
@@ -214,11 +274,11 @@ struct KeychainStore {
     /// the normal case.
     private func pruneAccounts(otherThan deviceID: String) -> Result<Void, KeychainError> {
         for account in accounts() where account != deviceID {
-            let deleteQuery: [String: Any] = [
+            let deleteQuery = matchQuery([
                 kSecClass as String: kSecClassGenericPassword,
                 kSecAttrService as String: service,
                 kSecAttrAccount as String: account
-            ]
+            ])
             let status = SecItemDelete(deleteQuery as CFDictionary)
             guard status == errSecSuccess || status == errSecItemNotFound else {
                 return .failure(.osFailure(status))
@@ -229,12 +289,12 @@ struct KeychainStore {
 
     /// Every account currently stored on this service.
     private func accounts() -> [String] {
-        let query: [String: Any] = [
+        let query = matchQuery([
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecReturnAttributes as String: true,
             kSecMatchLimit as String: kSecMatchLimitAll
-        ]
+        ])
         var item: CFTypeRef?
         guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess else { return [] }
         if let array = item as? [[String: Any]] {
