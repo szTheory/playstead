@@ -72,9 +72,23 @@ actor AdapterHost {
     private let emulatorsRoot: URL
     private var process: Process?
 
+    /// The install state resolved by `AdapterInstaller`/`AdapterCatalog`'s
+    /// selection flow (plan 03-09). Defaults to `.notInstalled`, which
+    /// preserves this type's original fixed-directory digest check below
+    /// unchanged for any caller that never sets it.
+    private var installState: AdapterInstallState = .notInstalled
+
     init(pin: AdapterPin, emulatorsRoot: URL) {
         self.pin = pin
         self.emulatorsRoot = emulatorsRoot
+    }
+
+    /// Records which installation (downloaded or user-selected) launch
+    /// should trust. Passing `.installed(_, verified: false)` makes every
+    /// subsequent launch attempt fail with a typed `digestMismatch`
+    /// rather than a failed process spawn.
+    func setInstallState(_ state: AdapterInstallState) {
+        installState = state
     }
 
     private var emulatorDirectory: URL {
@@ -84,20 +98,53 @@ actor AdapterHost {
     }
 
     /// The resolved path to the pinned emulator's executable under the
-    /// cache root's `emulators/` directory.
+    /// cache root's `emulators/` directory. When `installState` names a
+    /// different (e.g. user-selected) path, `resolvedExecutableURL` below
+    /// is what launch actually uses — this property stays the fixed
+    /// downloaded-install location for backward compatibility and for the
+    /// `.notInstalled` fallback path.
     var executableURL: URL {
         emulatorDirectory.appendingPathComponent(pin.launch.executableRelativePath)
+    }
+
+    /// The executable launch actually uses: the install state's own path
+    /// when one has been set, otherwise the fixed downloaded-install
+    /// location.
+    private var resolvedExecutableURL: URL {
+        if case .installed(let path, _) = installState {
+            return URL(fileURLWithPath: path)
+        }
+        return executableURL
     }
 
     private var installVerifyURL: URL {
         emulatorDirectory.appendingPathComponent(".install-verify.json")
     }
 
-    /// Confirms the emulator directory's recorded install-time digest
-    /// still matches `pin.sha256`. Throws on any mismatch or missing
-    /// record — a typed error the UI can render as a remedy, not a
-    /// silent fallback to "launch anyway".
+    /// Confirms the resolved installation is present and verified before
+    /// every launch — a typed error the UI can render as a remedy, not a
+    /// silent fallback to "launch anyway". When `installState` was set
+    /// explicitly (by `AdapterInstaller`'s download or selection flow),
+    /// that state is authoritative. Otherwise this falls back to reading
+    /// the on-disk `.install-verify.json` record at the fixed downloaded-
+    /// install location, exactly as before this plan (03-09) added
+    /// `installState`.
     func verifyInstalledDigest() throws {
+        if case .installed(let path, let verified) = installState {
+            // The verified flag is a fact already established at
+            // install/selection time — check it first, so an explicitly
+            // unverified installation always reports as a digest
+            // mismatch rather than being masked by an unrelated
+            // "file not found" if its path also happens not to resolve.
+            guard verified else {
+                throw LaunchError.digestMismatch(expected: pin.sha256, actual: "unverified-selection")
+            }
+            guard FileManager.default.fileExists(atPath: path) else {
+                throw LaunchError.emulatorNotInstalled
+            }
+            return
+        }
+
         guard FileManager.default.fileExists(atPath: executableURL.path) else {
             throw LaunchError.emulatorNotInstalled
         }
@@ -125,7 +172,7 @@ actor AdapterHost {
         try verifyInstalledDigest()
 
         let proc = Process()
-        proc.executableURL = executableURL
+        proc.executableURL = resolvedExecutableURL
         proc.arguments = pin.launch.renderedArguments(romPath: romPath, saveDir: saveDir)
 
         let detection = pin.exitDetection

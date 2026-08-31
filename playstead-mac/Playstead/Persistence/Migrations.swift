@@ -255,5 +255,46 @@ enum Migrations {
             """
         )
         try connection.execute("CREATE INDEX IF NOT EXISTS idx_play_sessions_pending_delivered ON play_sessions_pending(delivered);")
+
+        // Plan 03-09 task 1: one row per (emulator, version) the app has
+        // either downloaded or the user has selected. `verified`
+        // (0/1) records whether `executable_path`'s own computed digest
+        // matched the pin at record time — a mismatched selection is
+        // still recorded (never rejected), so the interface can label it
+        // honestly rather than silently accepting or refusing it.
+        // `UNIQUE(emulator, version)` is what makes install idempotent:
+        // a repeat or concurrent install converges onto this one row.
+        try connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS adapter_installations (
+                id TEXT PRIMARY KEY,
+                emulator TEXT NOT NULL,
+                version TEXT NOT NULL,
+                executable_path TEXT NOT NULL,
+                sha256 TEXT NOT NULL,
+                verified INTEGER NOT NULL,
+                installed_at TEXT NOT NULL,
+                UNIQUE(emulator, version)
+            );
+            """
+        )
+
+        // Plan 03-09 task 2: one row per accepted, digest-validated BIOS
+        // file copied into managed storage. `managed_filename` is derived
+        // from the digest, never the dropped filename (see
+        // `BiosStore`'s doc comment) — the original dropped file is never
+        // referenced from this table.
+        try connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS bios_files (
+                sha256 TEXT PRIMARY KEY,
+                system TEXT NOT NULL,
+                byte_length INTEGER NOT NULL,
+                managed_filename TEXT NOT NULL,
+                accepted_at TEXT NOT NULL
+            );
+            """
+        )
+        try connection.execute("CREATE INDEX IF NOT EXISTS idx_bios_files_system ON bios_files(system);")
     }
 }
