@@ -1,11 +1,14 @@
 import SwiftUI
 
-/// Recent over `RecentViewModel`. Plan 03-08 task 3 extends this view to
-/// also list pending/delivered play sessions (individually deletable);
-/// task 2 covers the recently-played-games shelf itself.
+/// Recent over `RecentViewModel`, plus (plan 03-08 task 3) the pending/
+/// delivered play sessions `PlaySessionRecorder` owns — individually
+/// deletable, per this task's `<action>`. `sessionRecorder` is optional
+/// so this view still renders task 2's plain recently-played-games shelf
+/// wherever a `PlaySessionRecorder` isn't wired in yet.
 struct RecentShelfView: View {
     let viewModel: RecentViewModel
     let catalogueByAssetSetID: [String: CatalogueEntry]
+    var sessionRecorder: PlaySessionRecorder?
 
     static let emptyExplanation = "Play a game to see it here."
 
@@ -27,7 +30,35 @@ struct RecentShelfView: View {
                     }
                 }
             }
+
+            if let sessionRecorder {
+                sessionsSection(sessionRecorder)
+            }
         }
         .padding(.vertical, DesignTokens.Spacing.lg)
+    }
+
+    @ViewBuilder
+    private func sessionsSection(_ sessionRecorder: PlaySessionRecorder) -> some View {
+        let listings = sessionRecorder.listings()
+        if !listings.isEmpty {
+            List {
+                ForEach(listings, id: \.session.id) { listing in
+                    HStack {
+                        Text(catalogueByAssetSetID[listing.session.assetSetID]?.displayTitle ?? listing.session.assetSetID)
+                        Spacer()
+                        Text(listing.delivered ? "Delivered" : "Pending")
+                            .font(.psLabel)
+                            .foregroundStyle(DesignTokens.textMuted)
+                        Button(role: .destructive) {
+                            _ = sessionRecorder.delete(listing.session.id)
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                        .accessibilityLabel("Delete session")
+                    }
+                }
+            }
+        }
     }
 }

@@ -18,6 +18,8 @@ enum CurationIntentKind: String, Codable, Equatable {
     case queueDequeue = "queue_dequeue"
     case queueMove = "queue_move"
     case continueDismiss = "continue_dismiss"
+    case playSessionRecord = "play_session_record"
+    case playSessionDelete = "play_session_delete"
 }
 
 /// The wire-and-storage envelope for one `CurationIntent` — every field
@@ -36,6 +38,8 @@ struct CurationIntentEnvelope: Codable, Equatable {
     var position: String?
     var beforeAssetSetID: String?
     var afterAssetSetID: String?
+    var startedAt: String?
+    var endedAt: String?
 
     private enum CodingKeys: String, CodingKey {
         case kind, id, name, position
@@ -44,6 +48,8 @@ struct CurationIntentEnvelope: Codable, Equatable {
         case collectionID = "collection_id"
         case beforeAssetSetID = "before_asset_set_id"
         case afterAssetSetID = "after_asset_set_id"
+        case startedAt = "started_at"
+        case endedAt = "ended_at"
     }
 }
 
@@ -83,6 +89,20 @@ enum CurationIntent: Equatable {
 
     case continueDismiss(id: String, assetSetID: String)
 
+    /// Posts a completed play session (D-07: an identifier, an asset
+    /// set id, a start, and an end — nothing else). Delivered through
+    /// this same outbox after the fact, individually per session; the
+    /// server's `POST /api/v1/play-sessions` endpoint (plan 03-04)
+    /// accepts one session per request, not a batch array, so this
+    /// plan's own text about batching a drain cycle's pending sessions
+    /// is implemented as sequential individual posts — the "correct
+    /// fallback" the plan itself names for a partially-rejected batch,
+    /// which is what the server can actually accept.
+    case playSessionRecord(id: String, assetSetID: String, startedAt: String, endedAt: String)
+    /// A user-initiated deletion of a (possibly already-delivered)
+    /// session.
+    case playSessionDelete(id: String)
+
     var kind: CurationIntentKind {
         switch self {
         case .favoriteAdd: return .favoriteAdd
@@ -97,6 +117,8 @@ enum CurationIntent: Equatable {
         case .queueDequeue: return .queueDequeue
         case .queueMove: return .queueMove
         case .continueDismiss: return .continueDismiss
+        case .playSessionRecord: return .playSessionRecord
+        case .playSessionDelete: return .playSessionDelete
         }
     }
 
@@ -120,6 +142,8 @@ enum CurationIntent: Equatable {
         case .queueDequeue(let rowID, _): return rowID
         case .queueMove(let rowID, _, _, _, _): return rowID
         case .continueDismiss(let id, _): return id
+        case .playSessionRecord(let id, _, _, _): return id
+        case .playSessionDelete(let id): return id
         }
     }
 
@@ -145,6 +169,8 @@ enum CurationIntent: Equatable {
         case .queueDequeue(let rowID, _): return rowID
         case .queueMove(let rowID, _, _, _, _): return rowID
         case .continueDismiss(let id, _): return id
+        case .playSessionRecord(let id, _, _, _): return id
+        case .playSessionDelete(let id): return id
         }
     }
 
@@ -152,9 +178,9 @@ enum CurationIntent: Equatable {
         switch self {
         case .favoriteAdd, .collectionMemberAdd, .queueEnqueue, .continueDismiss:
             return "PUT"
-        case .favoriteRemove, .collectionDelete, .collectionMemberRemove, .queueDequeue:
+        case .favoriteRemove, .collectionDelete, .collectionMemberRemove, .queueDequeue, .playSessionDelete:
             return "DELETE"
-        case .collectionCreate:
+        case .collectionCreate, .playSessionRecord:
             return "POST"
         case .collectionRename, .collectionMemberMove, .queueMove:
             return "PATCH"
@@ -180,6 +206,10 @@ enum CurationIntent: Equatable {
             return "/api/v1/curation/queue/\(assetSetID)/position"
         case .continueDismiss(_, let assetSetID):
             return "/api/v1/curation/continue/\(assetSetID)/dismiss"
+        case .playSessionRecord:
+            return "/api/v1/play-sessions"
+        case .playSessionDelete(let id):
+            return "/api/v1/play-sessions/\(id)"
         }
     }
 
@@ -222,6 +252,12 @@ enum CurationIntent: Equatable {
             ])
         case .continueDismiss(let id, _):
             return encode(["id": id])
+        case .playSessionRecord(let id, let assetSetID, let startedAt, let endedAt):
+            return try? JSONEncoder().encode([
+                "id": id, "asset_set_id": assetSetID, "started_at": startedAt, "ended_at": endedAt
+            ])
+        case .playSessionDelete:
+            return nil
         }
     }
 
@@ -257,6 +293,10 @@ enum CurationIntent: Equatable {
             )
         case .continueDismiss(let id, let assetSetID):
             return CurationIntentEnvelope(kind: kind, id: id, assetSetID: assetSetID)
+        case .playSessionRecord(let id, let assetSetID, let startedAt, let endedAt):
+            return CurationIntentEnvelope(kind: kind, id: id, assetSetID: assetSetID, startedAt: startedAt, endedAt: endedAt)
+        case .playSessionDelete(let id):
+            return CurationIntentEnvelope(kind: kind, id: id)
         }
     }
 
@@ -317,6 +357,15 @@ enum CurationIntent: Equatable {
         case .continueDismiss:
             guard let id = envelope.id, let assetSetID = envelope.assetSetID else { return nil }
             return .continueDismiss(id: id, assetSetID: assetSetID)
+        case .playSessionRecord:
+            guard
+                let id = envelope.id, let assetSetID = envelope.assetSetID,
+                let startedAt = envelope.startedAt, let endedAt = envelope.endedAt
+            else { return nil }
+            return .playSessionRecord(id: id, assetSetID: assetSetID, startedAt: startedAt, endedAt: endedAt)
+        case .playSessionDelete:
+            guard let id = envelope.id else { return nil }
+            return .playSessionDelete(id: id)
         }
     }
 
@@ -357,6 +406,11 @@ enum CurationIntent: Equatable {
             try curationStore.updateQueueItemPosition(id: rowID, position: position)
         case .continueDismiss(let id, let assetSetID):
             try curationStore.upsertContinueDismissal(id: id, assetSetID: assetSetID)
+        case .playSessionRecord, .playSessionDelete:
+            // Play sessions live in `play_sessions_pending`, owned
+            // directly by `PlaySessionRecorder` — never in any
+            // `curation_*` table `CurationStore` manages.
+            break
         }
     }
 
@@ -383,7 +437,7 @@ enum CurationIntent: Equatable {
         case .continueDismiss(let id, _):
             try curationStore.tombstoneContinueDismissal(id: id)
         case .favoriteRemove, .collectionRename, .collectionDelete, .collectionMemberRemove,
-             .collectionMemberMove, .queueDequeue, .queueMove:
+             .collectionMemberMove, .queueDequeue, .queueMove, .playSessionRecord, .playSessionDelete:
             break
         }
     }

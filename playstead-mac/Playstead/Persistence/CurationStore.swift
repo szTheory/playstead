@@ -259,6 +259,19 @@ final class CurationStore {
         try localStore.connection.execute("DELETE FROM curation_continue_dismissals WHERE id = ?;", params: [id])
     }
 
+    /// Un-dismisses `assetSetID` from Continue by its natural key, not
+    /// its row id — used by `PlaySessionRecorder.began(assetSetID:)`
+    /// (plan 03-08 task 3) to locally restore a dismissed game to
+    /// Continue the moment it is played again, since the journal's
+    /// `continue_dismissal` payload carries no `dismissed_at` for a
+    /// time-based read-side derivation (see `ContinueViewModel`'s doc
+    /// comment).
+    func tombstoneContinueDismissalByAssetSet(_ assetSetID: String) throws {
+        try localStore.connection.execute(
+            "DELETE FROM curation_continue_dismissals WHERE asset_set_id = ?;", params: [assetSetID]
+        )
+    }
+
     func fetchContinueDismissals() -> [CurationContinueDismissalRow] {
         (try? localStore.connection.query(
             "SELECT id, asset_set_id FROM curation_continue_dismissals ORDER BY id ASC;"

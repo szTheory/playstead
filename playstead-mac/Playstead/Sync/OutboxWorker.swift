@@ -27,10 +27,18 @@ struct OutboxDrainResult: Equatable {
 actor OutboxWorker {
     private let apiClient: APIClient
     private let outbox: Outbox
+    /// Called after a successful send, before the entry is deleted —
+    /// `PlaySessionRecorder` (plan 03-08 task 3) uses this to mark its
+    /// own `play_sessions_pending` row delivered, since that table is
+    /// distinct from `outbox_entries` (the user must see and delete
+    /// already-delivered sessions too, which a plain outbox row cannot
+    /// represent once it is gone).
+    private let onEntryDelivered: (@Sendable (CurationIntent) -> Void)?
 
-    init(apiClient: APIClient, outbox: Outbox) {
+    init(apiClient: APIClient, outbox: Outbox, onEntryDelivered: (@Sendable (CurationIntent) -> Void)? = nil) {
         self.apiClient = apiClient
         self.outbox = outbox
+        self.onEntryDelivered = onEntryDelivered
     }
 
     /// Sends every currently-`pending` entry once, in creation order,
@@ -62,6 +70,7 @@ actor OutboxWorker {
                     body: intent.wireBody,
                     headers: ["Idempotency-Key": entry.idempotencyKey]
                 )
+                onEntryDelivered?(intent)
                 try outbox.markDone(entry.id)
                 result.sent += 1
             } catch let error as APIClientError {
