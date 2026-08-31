@@ -143,7 +143,7 @@ Plans:
   5. A user can connect, test, assign, remap, reset, and recover a controller while retaining keyboard, pointer, screen-reader, focus, and reduced-motion fallbacks; from a signed/notarized build they can launch, exit, and relaunch one legally testable game after app or server restart.
 
 **Research / spike flags**: Required Mac adapter gate before commitment: empirically choose the first system/emulator and direct-notarized versus sandboxed distribution posture using legal homebrew content. Demonstrate Keychain, external-process launch/recovery, controller recovery, BIOS handling, and safe persistent-save location/flush; do not promise the current GBA/mGBA hypothesis until this passes.
-**Plans**: 3/10 plans executed
+**Plans**: 4/10 plans executed
 
 Plans:
 **Wave 1**
@@ -153,7 +153,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 03-03-PLAN.md — Phase tracer: Mac app skeleton, snapshot-backed catalogue, one blob range-resumed and verified into the CAS, clone-materialized launch directory, pinned emulator launched offline
+- [x] 03-03-PLAN.md — Phase tracer: Mac app skeleton, snapshot-backed catalogue, one blob range-resumed and verified into the CAS, clone-materialized launch directory, pinned emulator launched offline
 - [x] 03-04-PLAN.md — Server curation domain: the additive `curation` journal kind and snapshot branch, six scoped tables, fractional-index ordering with rebalance, idempotent per-row REST intents, and play sessions
 
 **Wave 3** *(blocked on Wave 2)*
@@ -216,6 +216,6 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Private Custody and Durable Protocol | 8/8 | Complete    | 2026-08-28 |
 | 2. Explainable Import and Exact Export | 10/10 | Complete    | 2026-08-30 |
-| 3. Mac Offline Play Vertical Slice | 3/10 | In Progress|  |
+| 3. Mac Offline Play Vertical Slice | 4/10 | In Progress|  |
 | 4. Persistent Save Continuity | 0/TBD | Not started | - |
 | 5. Recovery and Release Proof | 0/TBD | Not started | - |
