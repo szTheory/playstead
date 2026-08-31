@@ -285,13 +285,14 @@ note "Paired as device $DEVICE_ID (credential fingerprint $FINGERPRINT)."
 
 # --- 4. write the Keychain item ---------------------------------------------
 
-# `KeychainStore.loadCredential()` queries by service alone with
-# kSecMatchLimitOne and no account predicate, so a stale item from an earlier
-# pairing (which carries a *different* device_id, i.e. a different account)
-# would be picked up arbitrarily instead of this one. `security ... -U` only
-# updates same-account items, so purge every item on this service first —
-# that is what makes re-running the script idempotent rather than
-# accumulating credentials.
+# `KeychainStore.loadCredential()` now reads every item on the service and
+# returns the most recently modified one, and `KeychainStore.storeCredential`
+# prunes the other accounts after every write — so the app reads this
+# credential, not a stale one, either way. This purge is no longer what makes
+# the app correct; it is kept because `security ... -U` only updates
+# same-account items and each pairing mints a fresh device_id (a fresh
+# account), so without it re-running this script would leave the login
+# Keychain accumulating one dead item per run.
 purged=0
 while security delete-generic-password -s "$KEYCHAIN_SERVICE" >/dev/null 2>&1; do
   purged=$((purged + 1))
