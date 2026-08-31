@@ -88,6 +88,24 @@ final class CASManager {
         loadIndex()[sha256]
     }
 
+    /// Deletes the committed object for `sha256` and its verify-index
+    /// entry. The only caller in this codebase is
+    /// `EvictionPlanner.execute(_:)`, acting on an explicit, user-
+    /// confirmed plan — nothing outside this type ever writes (or
+    /// removes) directly under `objects/` (plan 03-07 task 3).
+    func remove(_ sha256: String) throws {
+        let url = objectURL(for: sha256)
+        let fm = FileManager.default
+        if fm.fileExists(atPath: url.path) {
+            try fm.removeItem(at: url)
+        }
+        queue.sync {
+            var index = loadIndexUnlocked()
+            index.removeValue(forKey: sha256)
+            saveIndexUnlocked(index)
+        }
+    }
+
     private func recordVerify(for sha256: String, at objectURL: URL) throws {
         let attrs = try FileManager.default.attributesOfItem(atPath: objectURL.path)
         let size = (attrs[.size] as? Int) ?? 0
