@@ -318,12 +318,14 @@ defmodule Playstead.Curation do
     with {:ok, _collection} <- verify_collection_ownership(user_id, collection_id),
          {:ok, member} <- fetch_collection_member(collection_id, asset_set_id),
          {:ok, before_pos} <- resolve_member_neighbour(collection_id, before_id),
-         {:ok, after_pos} <- resolve_member_neighbour(collection_id, after_id) do
+         {:ok, after_pos} <- resolve_member_neighbour(collection_id, after_id),
+         :ok <- validate_neighbour_order(before_pos, after_pos) do
       if before_pos && after_pos && Position.needs_rebalance?(before_pos, after_pos) do
         Repo.transaction(fn ->
           with {:ok, _rebalanced} <- do_rebalance_collection(user_id, collection_id),
                {:ok, before_pos2} <- resolve_member_neighbour(collection_id, before_id),
                {:ok, after_pos2} <- resolve_member_neighbour(collection_id, after_id),
+               :ok <- validate_neighbour_order(before_pos2, after_pos2),
                {:ok, updated} <-
                  reposition_member(user_id, member, Position.between(before_pos2, after_pos2)) do
             updated
@@ -434,12 +436,14 @@ defmodule Playstead.Curation do
 
     with {:ok, item} <- fetch_queue_item(user_id, asset_set_id),
          {:ok, before_pos} <- resolve_queue_neighbour(user_id, before_id),
-         {:ok, after_pos} <- resolve_queue_neighbour(user_id, after_id) do
+         {:ok, after_pos} <- resolve_queue_neighbour(user_id, after_id),
+         :ok <- validate_neighbour_order(before_pos, after_pos) do
       if before_pos && after_pos && Position.needs_rebalance?(before_pos, after_pos) do
         Repo.transaction(fn ->
           with {:ok, _rebalanced} <- do_rebalance_queue(user_id),
                {:ok, before_pos2} <- resolve_queue_neighbour(user_id, before_id),
                {:ok, after_pos2} <- resolve_queue_neighbour(user_id, after_id),
+               :ok <- validate_neighbour_order(before_pos2, after_pos2),
                {:ok, updated} <-
                  reposition_queue_item(user_id, item, Position.between(before_pos2, after_pos2)) do
             updated
@@ -722,6 +726,26 @@ defmodule Playstead.Curation do
     case Repo.get_by(QueueItem, user_id: user_id, asset_set_id: asset_set_id) do
       nil -> {:error, :not_found}
       %QueueItem{} = item -> {:ok, item}
+    end
+  end
+
+  # P5-CR-001: `Position.between/2` requires `low < high` and otherwise
+  # loops forever growing precision. Neighbour positions are resolved
+  # from client-supplied ids, so their relative order is never
+  # guaranteed — validate it here, before ever calling
+  # `Position.needs_rebalance?/2` or `Position.between/2`, rather than
+  # trusting the caller. `nil` (meaning "start"/"end" of the list) is
+  # always fine on either side.
+  defp validate_neighbour_order(nil, _after_pos), do: :ok
+  defp validate_neighbour_order(_before_pos, nil), do: :ok
+
+  defp validate_neighbour_order(before_pos, after_pos) do
+    if before_pos < after_pos do
+      :ok
+    else
+      {:error,
+       {:curation_invalid_position,
+        "The before/after neighbours must be distinct and in ascending order."}}
     end
   end
 

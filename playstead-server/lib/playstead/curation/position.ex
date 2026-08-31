@@ -59,7 +59,15 @@ defmodule Playstead.Curation.Position do
   def between(nil, nil), do: first()
   def between(nil, high), do: prepend_before(to_digits(high))
   def between(low, nil), do: append_after(to_digits(low))
-  def between(low, high), do: midpoint(to_digits(low), to_digits(high))
+
+  def between(low, high) when is_binary(low) and is_binary(high) do
+    if low < high do
+      midpoint(to_digits(low), to_digits(high))
+    else
+      raise ArgumentError,
+            "Position.between/2 requires low < high, got low=#{inspect(low)} high=#{inspect(high)}"
+    end
+  end
 
   @doc """
   Whether inserting between `low` and `high` would need to grow
