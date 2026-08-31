@@ -45,6 +45,19 @@ enum RangeResumeDecision: Equatable {
 /// its temporary files — none of which is acceptable when resume
 /// correctness is the requirement.
 actor DownloadEngine {
+    /// One progress tick for one in-flight download — `sha256` identifies
+    /// which transfer, `bytesWritten` is the cumulative byte count
+    /// (including bytes resumed from a prior partial), `expectedSize` is
+    /// whatever the caller told `download(sha256:from:expectedSize:)`, if
+    /// anything. `DownloadCoordinator` republishes this per-transfer
+    /// stream as the asset-set-scoped percent `GameCardView`'s determinate
+    /// ring reads from `AvailabilityState`'s active-member fields.
+    struct DownloadProgressEvent: Equatable, Sendable {
+        let sha256: String
+        let bytesWritten: Int
+        let expectedSize: Int?
+    }
+
     private let session: URLSession
     private let paths: AppPaths
     private let cas: CASManager
@@ -55,6 +68,11 @@ actor DownloadEngine {
     /// production default) means unbounded, per D-18: a queued-while-
     /// offline transfer is a normal state, not an error.
     private let maxTransportAttempts: Int?
+    private let progressContinuation: AsyncStream<DownloadProgressEvent>.Continuation
+    /// A live, nonisolated stream of progress events across every
+    /// transfer this engine ever runs — safe to iterate from any actor
+    /// context (e.g. a `DownloadCoordinator` republishing it to the UI).
+    nonisolated let progress: AsyncStream<DownloadProgressEvent>
 
     private enum AttemptOutcome: Equatable {
         case committed
@@ -83,6 +101,10 @@ actor DownloadEngine {
         self.chunkSize = chunkSize
         self.maxTransportAttempts = maxTransportAttempts
         self.sleeper = sleeper
+
+        var continuation: AsyncStream<DownloadProgressEvent>.Continuation!
+        self.progress = AsyncStream<DownloadProgressEvent> { cont in continuation = cont }
+        self.progressContinuation = continuation
     }
 
     /// Downloads `sha256` from `url`, resuming an existing partial if
@@ -93,16 +115,26 @@ actor DownloadEngine {
     /// cached). Throws `DownloadError.digestMismatch` if the completed
     /// stream's hash doesn't match — that is a genuine, non-retried
     /// failure; the caller decides whether to re-enqueue.
-    func download(sha256: String, from url: URL, headers: [String: String] = [:]) async throws {
+    func download(sha256: String, from url: URL, headers: [String: String] = [:], expectedSize: Int? = nil) async throws {
         if cas.contains(sha256) { return }
 
         var transportAttempt = 0
         while true {
             do {
-                let outcome = try await attemptDownload(sha256: sha256, url: url, headers: headers)
+                let outcome = try await attemptDownload(sha256: sha256, url: url, headers: headers, expectedSize: expectedSize)
                 if outcome == .committed { return }
                 continue // .restartRequested — immediate retry, no backoff
             } catch let error as URLError {
+                // An explicit cancellation (e.g. `DownloadCoordinator`
+                // interrupting an in-flight transfer when reachability
+                // drops) must propagate immediately, never enter the
+                // unbounded retry loop meant for genuine transport
+                // failures — otherwise a cancelled Task spins retrying
+                // against its own already-cancelled context instead of
+                // actually stopping.
+                if Task.isCancelled {
+                    throw error
+                }
                 transportAttempt += 1
                 if let maxTransportAttempts, transportAttempt >= maxTransportAttempts {
                     throw error
@@ -113,7 +145,7 @@ actor DownloadEngine {
         }
     }
 
-    private func attemptDownload(sha256: String, url: URL, headers: [String: String]) async throws -> AttemptOutcome {
+    private func attemptDownload(sha256: String, url: URL, headers: [String: String], expectedSize: Int? = nil) async throws -> AttemptOutcome {
         let partialURL = paths.partialURL(for: sha256)
         let fm = FileManager.default
         try fm.createDirectory(at: paths.partials, withIntermediateDirectories: true)
@@ -190,12 +222,16 @@ actor DownloadEngine {
 
         var buffer = Data()
         buffer.reserveCapacity(chunkSize)
+        var totalWritten = existingLength
+        if case .appendFrom = decision {} else if decision == .restartFromZero { totalWritten = 0 }
         do {
             for try await byte in bytesStream {
                 buffer.append(byte)
                 if buffer.count >= chunkSize {
                     handle.write(buffer)
                     hasher.update(data: buffer)
+                    totalWritten += buffer.count
+                    progressContinuation.yield(DownloadProgressEvent(sha256: sha256, bytesWritten: totalWritten, expectedSize: expectedSize))
                     buffer.removeAll(keepingCapacity: true)
                 }
             }
@@ -203,12 +239,16 @@ actor DownloadEngine {
             if !buffer.isEmpty {
                 handle.write(buffer)
                 hasher.update(data: buffer)
+                totalWritten += buffer.count
+                progressContinuation.yield(DownloadProgressEvent(sha256: sha256, bytesWritten: totalWritten, expectedSize: expectedSize))
             }
             throw error
         }
         if !buffer.isEmpty {
             handle.write(buffer)
             hasher.update(data: buffer)
+            totalWritten += buffer.count
+            progressContinuation.yield(DownloadProgressEvent(sha256: sha256, bytesWritten: totalWritten, expectedSize: expectedSize))
         }
         try handle.close()
 
