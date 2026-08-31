@@ -108,6 +108,23 @@ actor APIClient: NSObject {
     /// `path` — `URL.appendingPathComponent` percent-encodes `?`/`=`
     /// literally, which would corrupt a query string built that way.
     func get(path: String, queryItems: [URLQueryItem] = [], headers: [String: String] = [:]) async throws -> APIResponse {
+        try await send(method: "GET", path: path, queryItems: queryItems, body: nil, headers: headers)
+    }
+
+    /// Performs any HTTP method against `path` relative to the paired
+    /// base URL, optionally with a JSON body and extra headers (added in
+    /// plan 03-08 for `OutboxWorker`'s PUT/POST/PATCH/DELETE curation and
+    /// play-session intents, every one of which carries its own
+    /// `Idempotency-Key` header per D-20a). Shares `get(path:queryItems:
+    /// headers:)`'s error-mapping/response-decoding behavior exactly —
+    /// `get` is now a thin `method: "GET"` call through this.
+    func send(
+        method: String,
+        path: String,
+        queryItems: [URLQueryItem] = [],
+        body: Data?,
+        headers: [String: String] = [:]
+    ) async throws -> APIResponse {
         guard let credential = self.credential else {
             throw APIClientError.notPaired
         }
@@ -124,8 +141,12 @@ actor APIClient: NSObject {
         }
 
         var request = URLRequest(url: url)
-        request.httpMethod = "GET"
+        request.httpMethod = method
         request.setValue("Bearer \(credential.token)", forHTTPHeaderField: "Authorization")
+        if let body {
+            request.httpBody = body
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
         for (key, value) in headers {
             request.setValue(value, forHTTPHeaderField: key)
         }

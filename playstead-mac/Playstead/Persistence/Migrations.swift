@@ -207,5 +207,53 @@ enum Migrations {
             );
             """
         )
+
+        // Plan 03-08: the durable outbox for every offline curation
+        // mutation (D-20's natural-key + idempotency-key mechanism,
+        // unchanged from Phase 1). `payload_json` is the intent's own
+        // envelope (`CurationIntentEnvelope`), not just its wire body —
+        // `OutboxWorker` needs the full intent (method/path/localRowID)
+        // to send and, on permanent rejection, to revert. A row survives
+        // across app restarts by construction (this is on-disk SQLite,
+        // not an in-memory queue) — `OutboxWorker` drains whatever is
+        // `pending` on every launch, satisfying the "the favorite
+        // persists across an application restart while still unsent"
+        // behavior with no special-cased persistence path.
+        try connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS outbox_entries (
+                id TEXT PRIMARY KEY,
+                kind TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                idempotency_key TEXT NOT NULL,
+                state TEXT NOT NULL DEFAULT 'pending',
+                attempt_count INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                last_error_code TEXT
+            );
+            """
+        )
+        try connection.execute("CREATE INDEX IF NOT EXISTS idx_outbox_entries_state ON outbox_entries(state);")
+        try connection.execute("CREATE INDEX IF NOT EXISTS idx_outbox_entries_created_at ON outbox_entries(created_at);")
+
+        // Plan 03-08 task 3: coarse play sessions recorded locally by
+        // `PlaySessionRecorder`, delivered through the outbox after the
+        // fact. Kept in its own table (distinct from `outbox_entries`,
+        // whose rows are deleted once delivered) because the user must
+        // be able to see and delete BOTH pending and already-delivered
+        // sessions from the Recent shelf — `delivered` is the only
+        // status this table needs, never a full transfer-state ladder.
+        try connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS play_sessions_pending (
+                id TEXT PRIMARY KEY,
+                asset_set_id TEXT NOT NULL,
+                started_at TEXT NOT NULL,
+                ended_at TEXT,
+                delivered INTEGER NOT NULL DEFAULT 0
+            );
+            """
+        )
+        try connection.execute("CREATE INDEX IF NOT EXISTS idx_play_sessions_pending_delivered ON play_sessions_pending(delivered);")
     }
 }
