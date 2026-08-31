@@ -29,12 +29,17 @@ final class CASManager {
         self.verifyIndexURL = paths.objects.appendingPathComponent("verify-index.json")
     }
 
-    func objectURL(for sha256: String) -> URL {
-        paths.objectURL(for: sha256)
+    /// Throws `PathSafetyError.invalidDigest` for a digest that is not a
+    /// 64-character lowercase hex string (CR-02) — see `AppPaths`.
+    func objectURL(for sha256: String) throws -> URL {
+        try paths.objectURL(for: sha256)
     }
 
+    /// A malformed digest can never name a committed object, so it is
+    /// simply absent rather than an error the caller must handle.
     func contains(_ sha256: String) -> Bool {
-        FileManager.default.fileExists(atPath: objectURL(for: sha256).path)
+        guard let url = try? objectURL(for: sha256) else { return false }
+        return FileManager.default.fileExists(atPath: url.path)
     }
 
     /// Atomically renames a verified partial file into the CAS at its
@@ -51,7 +56,9 @@ final class CASManager {
             throw CASError.sourceMissing
         }
 
-        let dest = objectURL(for: sha256)
+        // Validated before the move: `dest` is what `moveItem` writes to,
+        // and the digest is server-supplied (CR-02).
+        let dest = try objectURL(for: sha256)
         if fm.fileExists(atPath: dest.path) {
             try? fm.removeItem(at: partialURL)
         } else {
@@ -106,7 +113,7 @@ final class CASManager {
     /// confirmed plan — nothing outside this type ever writes (or
     /// removes) directly under `objects/` (plan 03-07 task 3).
     func remove(_ sha256: String) throws {
-        let url = objectURL(for: sha256)
+        let url = try objectURL(for: sha256)
         let fm = FileManager.default
         if fm.fileExists(atPath: url.path) {
             try fm.removeItem(at: url)

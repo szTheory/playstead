@@ -59,15 +59,33 @@ struct AppPaths {
 
     /// The content-addressed path for an object with digest `sha256`,
     /// mirroring the server's CAS layout: `objects/<aa>/<bb>/<sha256>`.
-    func objectURL(for sha256: String) -> URL {
+    ///
+    /// `sha256` originates from the paired server's catalogue JSON, so it
+    /// is validated as a 64-character lowercase hex digest before it is
+    /// spliced into a path component (CR-02). Without that check a server
+    /// could hand back `"../../../../Library/LaunchAgents/evil"` and have
+    /// `CASManager.commit` move a downloaded payload there — and the
+    /// digest check is no backstop, because the payload is only verified
+    /// to hash to that same attacker-chosen string.
+    ///
+    /// This throws rather than returning `URL?` so the rejected value
+    /// travels with the error to whichever layer decides what to do, and
+    /// so no call site can collapse the failure into an unsafe fallback
+    /// path with `??`.
+    func objectURL(for sha256: String) throws -> URL {
+        try PathSafety.validatedDigest(sha256)
         let a = String(sha256.prefix(2))
         let b = String(sha256.dropFirst(2).prefix(2))
         return objects.appendingPathComponent(a).appendingPathComponent(b).appendingPathComponent(sha256)
     }
 
-    /// The in-progress download path for `sha256`, held flat under `partials/`.
-    func partialURL(for sha256: String) -> URL {
-        partials.appendingPathComponent(sha256)
+    /// The in-progress download path for `sha256`, held flat under
+    /// `partials/`. Validated identically to `objectURL(for:)` — the raw
+    /// string is used as a single path component, so an unvalidated one
+    /// escapes `partials/` just as easily (CR-02).
+    func partialURL(for sha256: String) throws -> URL {
+        try PathSafety.validatedDigest(sha256)
+        return partials.appendingPathComponent(sha256)
     }
 
     /// The materialized launch directory for one asset set.

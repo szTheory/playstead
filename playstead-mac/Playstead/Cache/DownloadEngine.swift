@@ -116,6 +116,11 @@ actor DownloadEngine {
     /// stream's hash doesn't match — that is a genuine, non-retried
     /// failure; the caller decides whether to re-enqueue.
     func download(sha256: String, from url: URL, headers: [String: String] = [:], expectedSize: Int? = nil) async throws {
+        // Rejected at the front door, before any retry loop or file
+        // handling: `sha256` is server-supplied and becomes both the
+        // partial's and the committed object's path component (CR-02).
+        try PathSafety.validatedDigest(sha256)
+
         if cas.contains(sha256) { return }
 
         var transportAttempt = 0
@@ -146,7 +151,9 @@ actor DownloadEngine {
     }
 
     private func attemptDownload(sha256: String, url: URL, headers: [String: String], expectedSize: Int? = nil) async throws -> AttemptOutcome {
-        let partialURL = paths.partialURL(for: sha256)
+        // Throws on a malformed server-supplied digest before any file
+        // is created (CR-02).
+        let partialURL = try paths.partialURL(for: sha256)
         let fm = FileManager.default
         try fm.createDirectory(at: paths.partials, withIntermediateDirectories: true)
 

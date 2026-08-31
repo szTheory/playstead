@@ -31,6 +31,61 @@ struct CatalogueEntry: Codable, Equatable, Identifiable {
     }
 }
 
+/// Ingest-time validation of the two server-supplied member fields that
+/// later become filesystem path components (CR-01, CR-02).
+///
+/// This is the client's primary defence, and it sits at the decoder
+/// because both server entry points for catalogue data funnel through it:
+/// `SnapshotClient` decodes `GET /api/v1/snapshot`, and `JournalApplier`
+/// decodes the same `CatalogueEntry` shape out of each `/api/v1/changes`
+/// journal payload. A member rejected here never reaches `CatalogueStore`,
+/// `DownloadQueue`, `CASManager` or `LaunchMaterializer` at all.
+///
+/// A bad member is *dropped and logged*, not fatal to the page: failing
+/// the whole decode would let one malformed member deny service to an
+/// entire catalogue. The surrounding entry survives with its remaining
+/// members, so the affected game simply reads as not-yet-cached rather
+/// than silently launching something the server did not name.
+///
+/// Declared in an extension so the compiler still synthesises
+/// `CatalogueEntry`'s memberwise initialiser for the call sites that build
+/// entries locally (`ReadinessEngine`, tests).
+extension CatalogueEntry {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let id = try container.decode(String.self, forKey: .id)
+        self.init(
+            id: id,
+            system: try container.decode(String.self, forKey: .system),
+            displayTitle: try container.decode(String.self, forKey: .displayTitle),
+            tags: try container.decode([String: String].self, forKey: .tags),
+            members: Self.validatedMembers(
+                try container.decode([AssetMember].self, forKey: .members),
+                assetSetID: id
+            )
+        )
+    }
+
+    /// Drops any member whose non-nil `sha256` is not a 64-character
+    /// lowercase hex digest, or whose non-nil `name` is not a safe bare
+    /// filename. A `nil` field is not a validation failure — the existing
+    /// consumers already skip members missing a digest or a name.
+    static func validatedMembers(_ members: [AssetMember], assetSetID: String) -> [AssetMember] {
+        members.filter { member in
+            do {
+                if let sha256 = member.sha256 { try PathSafety.validatedDigest(sha256) }
+                if let name = member.name { try PathSafety.validatedFilename(name) }
+                return true
+            } catch let error as PathSafetyError {
+                PathSafety.logRejection(error, context: "catalogue member ordinal \(member.ordinal) of asset set \(assetSetID)")
+                return false
+            } catch {
+                return false
+            }
+        }
+    }
+}
+
 /// The full decoded `GET /api/v1/snapshot` response shape (Playstead.Sync.Snapshot.read/2).
 /// This tracer plan only consumes `catalogue`; the other branches
 /// (curation, job, cursor/paging) are read and ignored for forward

@@ -45,7 +45,7 @@ final class ReadinessEngineTests: XCTestCase {
         let data = Data(raw)
         let digest = sha256Hex(data)
 
-        let partial = paths.partialURL(for: digest)
+        let partial = try paths.partialURL(for: digest)
         try FileManager.default.createDirectory(at: paths.partials, withIntermediateDirectories: true)
         try data.write(to: partial)
         try cas.commit(partialAt: partial, sha256: digest)
@@ -234,7 +234,7 @@ final class ReadinessEngineTests: XCTestCase {
         let member = try seedVerifiedObject(seed: "a")
         let engine = makeEngine()
 
-        let objectPath = cas.objectURL(for: member.sha256).path
+        let objectPath = try cas.objectURL(for: member.sha256).path
         let attrsBefore = try FileManager.default.attributesOfItem(atPath: objectPath)
 
         let first = engine.evaluate(assetSetID: "g1", requiredMembers: [member])
@@ -254,7 +254,7 @@ final class ReadinessEngineTests: XCTestCase {
         // we overwrite in place, mtime/inode may or may not change, but
         // content no longer hashes to `member.sha256`), forcing a full
         // re-hash that also fails, per `PreflightChecker`'s fallback.
-        let objectURL = cas.objectURL(for: member.sha256)
+        let objectURL = try cas.objectURL(for: member.sha256)
         try Data("corrupted-bytes-not-matching-digest".utf8).write(to: objectURL)
 
         let engine = makeEngine()

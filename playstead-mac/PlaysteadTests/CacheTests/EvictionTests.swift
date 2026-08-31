@@ -37,7 +37,7 @@ final class EvictionTests: XCTestCase {
         let digest = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
 
         try FileManager.default.createDirectory(at: paths.partials, withIntermediateDirectories: true)
-        let partial = paths.partialURL(for: digest)
+        let partial = try paths.partialURL(for: digest)
         try data.write(to: partial)
         try cas.commit(partialAt: partial, sha256: digest)
 
@@ -180,9 +180,21 @@ final class EvictionTests: XCTestCase {
 
     // MARK: - Quarantined partials
 
+    /// Updated for CR-02: this test used to reach a malformed-partial file
+    /// through `paths.partialURL(for: "bad-digest")`, which is now a
+    /// rejected input rather than a path factory. The scenario it exercises
+    /// — a partial on disk whose name is not a valid digest still being
+    /// listed and individually removable — is unchanged; only the way the
+    /// fixture file is created moved to a direct, test-local path append,
+    /// and the rejection itself is asserted first.
     func testQuarantinedPartialsAreListedSeparatelyAndIndividuallyRemovable() throws {
         try FileManager.default.createDirectory(at: paths.partials, withIntermediateDirectories: true)
-        let partial = paths.partialURL(for: "bad-digest")
+
+        XCTAssertThrowsError(try paths.partialURL(for: "bad-digest")) { error in
+            XCTAssertEqual(error as? PathSafetyError, .invalidDigest("bad-digest"))
+        }
+
+        let partial = paths.partials.appendingPathComponent("bad-digest")
         try Data(repeating: 9, count: 100).write(to: partial)
         try cas.quarantine(partialAt: partial, reason: "digest_mismatch")
 

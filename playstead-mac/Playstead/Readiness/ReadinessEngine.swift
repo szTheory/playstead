@@ -152,7 +152,9 @@ struct ReadinessEngine {
     /// fresh download for the same member.
     private func quarantineAndRequeue(assetSetID: String, sha256: String, requiredMembers: [RequiredMember]) {
         let fm = FileManager.default
-        let objectURL = cas.objectURL(for: sha256)
+        // A malformed digest has no object to quarantine and must not be
+        // spliced into the quarantine destination below (CR-02).
+        guard let objectURL = try? cas.objectURL(for: sha256) else { return }
         if fm.fileExists(atPath: objectURL.path) {
             let quarantineDir = cas.paths.partials.appendingPathComponent("quarantine", isDirectory: true)
             try? fm.createDirectory(at: quarantineDir, withIntermediateDirectories: true)

@@ -237,7 +237,7 @@ final class AvailabilityStateTests: XCTestCase {
         let digest = sha256Hex(data)
 
         try FileManager.default.createDirectory(at: paths.partials, withIntermediateDirectories: true)
-        let partial = paths.partialURL(for: digest)
+        let partial = try paths.partialURL(for: digest)
         try data.write(to: partial)
         try cas.commit(partialAt: partial, sha256: digest)
         return digest

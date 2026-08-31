@@ -33,11 +33,11 @@ final class MaterializationTests: XCTestCase {
         let data = Data(raw)
         let digest = sha256Hex(data)
 
-        let partial = paths.partialURL(for: digest)
+        let partial = try paths.partialURL(for: digest)
         try FileManager.default.createDirectory(at: paths.partials, withIntermediateDirectories: true)
         try data.write(to: partial)
         try cas.commit(partialAt: partial, sha256: digest)
-        return (digest, cas.objectURL(for: digest))
+        return (digest, try cas.objectURL(for: digest))
     }
 
     func testMaterializedFileHasDistinctInodeFromCacheObject() throws {

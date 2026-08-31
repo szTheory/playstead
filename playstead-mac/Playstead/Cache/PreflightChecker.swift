@@ -35,7 +35,16 @@ struct PreflightChecker {
         var blockers: [ReadinessBlocker] = []
 
         for member in requiredMembers {
-            let objectURL = cas.objectURL(for: member.sha256)
+            // A member whose digest is not a well-formed hex digest can
+            // never have been committed to the CAS, and must never be
+            // turned into a path (CR-02). Surface it as an explicit
+            // blocker rather than "missing" — the two have very different
+            // remedies, and a malformed digest means the catalogue itself
+            // is untrustworthy.
+            guard let objectURL = try? cas.objectURL(for: member.sha256) else {
+                blockers.append(ReadinessBlocker(sha256: member.sha256, reason: "invalid_digest"))
+                continue
+            }
             guard let attrs = try? FileManager.default.attributesOfItem(atPath: objectURL.path) else {
                 blockers.append(ReadinessBlocker(sha256: member.sha256, reason: "missing"))
                 continue

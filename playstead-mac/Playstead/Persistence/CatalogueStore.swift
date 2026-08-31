@@ -23,9 +23,16 @@ final class CatalogueStore {
     /// (the journal entry's `entity_id`). Replaying the same entry is a
     /// no-op on the resulting row content.
     func upsert(_ entry: CatalogueEntry) throws {
+        // Second ingest gate (CR-01/CR-02). `CatalogueEntry`'s decoder is
+        // the primary one, but this is the only chokepoint every write
+        // passes through — including entries built in-process — so a
+        // member whose digest or declared name could become a hostile path
+        // component never reaches the `catalogue_members` table, and
+        // therefore never reaches the cache layer via a later read-back.
+        let members = CatalogueEntry.validatedMembers(entry.members, assetSetID: entry.id)
         let tagsData = (try? JSONEncoder().encode(entry.tags)) ?? Data("{}".utf8)
         let tagsJSON = String(data: tagsData, encoding: .utf8) ?? "{}"
-        let searchBlob = Self.fold(([entry.displayTitle] + entry.members.compactMap(\.name)).joined(separator: " "))
+        let searchBlob = Self.fold(([entry.displayTitle] + members.compactMap(\.name)).joined(separator: " "))
 
         // `availability` is deliberately NOT in this column list — a
         // catalogue upsert must never clobber the locally-derived
@@ -48,7 +55,7 @@ final class CatalogueStore {
             "DELETE FROM catalogue_members WHERE asset_set_id = ?;",
             params: [entry.id]
         )
-        for member in entry.members {
+        for member in members {
             try localStore.connection.execute(
                 """
                 INSERT INTO catalogue_members

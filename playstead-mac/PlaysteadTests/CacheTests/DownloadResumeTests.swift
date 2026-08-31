@@ -50,7 +50,7 @@ final class DownloadResumeTests: XCTestCase {
         try await engine.download(sha256: digest, from: url)
 
         XCTAssertTrue(cas.contains(digest))
-        let committedURL = cas.objectURL(for: digest)
+        let committedURL = try cas.objectURL(for: digest)
         XCTAssertEqual(committedURL, paths.objects.appendingPathComponent(String(digest.prefix(2)))
             .appendingPathComponent(String(digest.dropFirst(2).prefix(2))).appendingPathComponent(digest))
         let onDisk = try Data(contentsOf: committedURL)
@@ -65,7 +65,7 @@ final class DownloadResumeTests: XCTestCase {
         try await engine.download(sha256: digest, from: url)
 
         XCTAssertTrue(cas.contains(digest))
-        let attrs = try FileManager.default.attributesOfItem(atPath: cas.objectURL(for: digest).path)
+        let attrs = try FileManager.default.attributesOfItem(atPath: try cas.objectURL(for: digest).path)
         XCTAssertEqual(attrs[.size] as? Int, 0)
     }
 
@@ -96,7 +96,7 @@ final class DownloadResumeTests: XCTestCase {
             // expected — the single allowed attempt failed transport-side
         }
 
-        let partialURL = paths.partialURL(for: digest)
+        let partialURL = try paths.partialURL(for: digest)
         let attrs = try FileManager.default.attributesOfItem(atPath: partialURL.path)
         XCTAssertEqual(attrs[.size] as? Int, cutoff)
         XCTAssertFalse(cas.contains(digest))
@@ -111,7 +111,7 @@ final class DownloadResumeTests: XCTestCase {
 
     private func seedPartial(digest: String, prefix: Data) throws {
         try FileManager.default.createDirectory(at: paths.partials, withIntermediateDirectories: true)
-        try prefix.write(to: paths.partialURL(for: digest))
+        try prefix.write(to: try paths.partialURL(for: digest))
     }
 
     func testResumeSendsRangeAndQuotedIfRangeAndCommitsByteIdenticalObject() async throws {
@@ -134,7 +134,7 @@ final class DownloadResumeTests: XCTestCase {
         try await engine.download(sha256: digest, from: url)
 
         XCTAssertTrue(cas.contains(digest))
-        let onDisk = try Data(contentsOf: cas.objectURL(for: digest))
+        let onDisk = try Data(contentsOf: try cas.objectURL(for: digest))
         XCTAssertEqual(onDisk, data)
     }
 
@@ -163,7 +163,7 @@ final class DownloadResumeTests: XCTestCase {
         // cutoff + data.count bytes (doubled prefix). It must be exactly
         // data.count — proof the pre-existing cutoff bytes were discarded
         // rather than kept and appended onto.
-        let onDisk = try Data(contentsOf: cas.objectURL(for: digest))
+        let onDisk = try Data(contentsOf: try cas.objectURL(for: digest))
         XCTAssertEqual(onDisk.count, data.count)
         XCTAssertEqual(onDisk, data)
     }
@@ -190,11 +190,11 @@ final class DownloadResumeTests: XCTestCase {
         try await engine.download(sha256: digest, from: url)
 
         XCTAssertTrue(cas.contains(digest))
-        let onDisk = try Data(contentsOf: cas.objectURL(for: digest))
+        let onDisk = try Data(contentsOf: try cas.objectURL(for: digest))
         XCTAssertEqual(onDisk, data)
         XCTAssertEqual(attempt, 2)
 
-        let partialSizeBeforeSecondRequest = paths.partialURL(for: digest)
+        let partialSizeBeforeSecondRequest = try paths.partialURL(for: digest)
         XCTAssertFalse(FileManager.default.fileExists(atPath: partialSizeBeforeSecondRequest.path), "partial is renamed away on commit")
     }
 
