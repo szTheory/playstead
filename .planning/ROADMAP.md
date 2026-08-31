@@ -188,34 +188,39 @@ Plans:
   1. A `macos-*` GitHub-hosted runner job builds the Mac app and runs the existing `PlaysteadTests` target on every push and pull request, and fails the build on any test failure.
   2. An XCUITest target exists and drives the real app: the library shell, the curation shelves (including the `.onMove` drag reorder), and the downloads/quota/reclaim/storage views are exercised by automated interaction rather than by hand.
   3. A view-rendering/snapshot harness asserts the locked 03-UI-SPEC.md contract — the 8-step navigation order, the status vocabulary and its ladder, honest empty states, and card geometry that never uses cover art or title-derived color — so a visual regression fails CI instead of a UAT question.
-  4. The Mac app is driven against a live server started from the existing `docker-compose.yml` in CI, with pairing performed automatically, proving the catalogue renders from `/api/v1/snapshot` before any bytes are downloaded.
+  4. Linux `compose-smoke` proves deployment topology, while native PostgreSQL 17 plus Phoenix beside XCUITest on macOS proves Mac client/server behavior, including automated pairing and catalogue rendering from `/api/v1/snapshot` before any bytes are downloaded.
   5. A keyboard-only navigation pass over every Mac surface is automated, and the accessibility audit runs against a live accessibility tree rather than the current declarative-manifest tree-walk.
   6. Each Phase 3 UAT checkpoint this phase closes is re-recorded in `03-UAT.md` as `source: automated` with its covering test named.
 
 **Research / spike flags**: Runner choice is decided — GitHub-hosted `macos-*`. That deliberately leaves three classes out of scope, and they stay `blocked` in 03-UAT.md rather than being faked: physical controller hardware (checkpoints 8, 9), a real emulator install plus real game bytes (checkpoint 7), and a Developer ID certificate for signing/notarization (checkpoints 14, 15). Revisit a self-hosted runner only if those become recurring blockers. Watch Xcode-version drift on hosted runners and snapshot-test flakiness across macOS releases — pin both.
-**Plans**: 9 plans
+**Plans**: 10 plans
 
 Plans:
 **Wave 0**
-- [ ] 03.5-01-PLAN.md — Hosted macos-26 adoption gate for signing, keyboard, scoped Keychain, native services, and snapshot mismatch semantics
+- [ ] 03.5-01-PLAN.md — Nine-file macos-26 adoption harness, five canaries, and fail-closed exact-run validator
 
-**Wave 1** *(blocked on Wave 0 approval)*
-- [ ] 03.5-02-PLAN.md — One-build four-layer XCTest orchestration, sanitized evidence, and candidate-only refresh
+**Wave 1** *(blocking Wave 0 empirical approval)*
+- [ ] 03.5-10-PLAN.md — Authorized push/PR publication, exact run-ID validation, and human adoption approval
 
 **Wave 2**
-- [ ] 03.5-03-PLAN.md — Release-safe deterministic profiles, stable identifiers, and shared focus contract
+- [ ] 03.5-02-PLAN.md — One-build four-layer XCTest orchestration, sanitized evidence, and candidate-only refresh
 
 **Wave 3**
+- [ ] 03.5-03-PLAN.md — Release-safe deterministic profiles, stable identifiers, and shared focus contract
+
+**Wave 4**
 - [ ] 03.5-04-PLAN.md — Locked visual, semantic, and motion snapshot contracts
 - [ ] 03.5-05-PLAN.md — Production reachability, keyboard traversal, and live accessibility audits
 
-**Wave 4**
-- [ ] 03.5-06-PLAN.md — Curation shelf rendering plus exact drag and keyboard reorder
-- [ ] 03.5-07-PLAN.md — Downloads, quota, reclaim, and storage interaction coverage
-- [ ] 03.5-08-PLAN.md — Native Phoenix pairing/snapshot/Keychain spine and complete hosted allowlist
-
 **Wave 5**
-- [ ] 03.5-09-PLAN.md — Same-SHA hosted evidence gate and exact Roadmap/UAT handoff
+- [ ] 03.5-06-PLAN.md — Curation shelf rendering plus exact drag and keyboard reorder
+- [ ] 03.5-07-PLAN.md — Downloads/quota/reclaim/storage interaction plus focused visual and motion coverage
+
+**Wave 6**
+- [ ] 03.5-08-PLAN.md — Native Phoenix pairing/snapshot/Keychain spine after all UI producers
+
+**Wave 7**
+- [ ] 03.5-09-PLAN.md — Final allowlist, authorized exact hosted run, structured Roadmap/UAT handoff
 
 ### Phase 4: Persistent Save Continuity
 
