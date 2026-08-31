@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import AppKit
 import UniformTypeIdentifiers
 
 /// What `BiosDropTargetView` shows after handling one dropped file.
@@ -39,9 +40,17 @@ private extension BiosDropTarget {
 /// A drag-and-drop surface for a BIOS file the user already has. Its
 /// copy never names a source, a link, or a filename hint for such a
 /// file — the user either already has it or does not, and this view's
-/// only job is to say what happened when they drop something.
+/// only job is to say what happened when they drop something. A drop
+/// target that only accepts a drag excludes anyone who cannot perform
+/// one, so this view always also offers a keyboard-and-pointer file
+/// chooser (`chooseFile`) reaching exactly the same `BiosDropTarget`
+/// validation path — never a second, divergent acceptance rule.
 struct BiosDropTargetView: View {
     let target: BiosDropTarget
+    /// Presents an `NSOpenPanel` and returns the file the user picked,
+    /// or `nil` on cancel. Injectable so tests exercise the keyboard
+    /// path with no real panel.
+    var chooseFile: () -> URL? = BiosDropTargetView.defaultChooseFile
     @State private var result: BiosDropResult = .idle
     @State private var isTargeted = false
 
@@ -50,6 +59,12 @@ struct BiosDropTargetView: View {
             Text("Drop your BIOS file here to validate it.")
                 .font(.psBody)
                 .foregroundColor(DesignTokens.textPrimary)
+            Button("Choose File…") {
+                if let url = chooseFile() {
+                    result = target.handle(droppedFileURL: url)
+                }
+            }
+            .accessibilityLabel("Choose BIOS file")
             statusView
         }
         .padding(DesignTokens.Spacing.lg)
@@ -58,7 +73,15 @@ struct BiosDropTargetView: View {
                 .strokeBorder(isTargeted ? DesignTokens.focusRing : DesignTokens.border, lineWidth: isTargeted ? 2 : 1)
         )
         .onDrop(of: [UTType.fileURL], isTargeted: $isTargeted, perform: handleProviders)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
+    }
+
+    static func defaultChooseFile() -> URL? {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        return panel.runModal() == .OK ? panel.url : nil
     }
 
     @ViewBuilder

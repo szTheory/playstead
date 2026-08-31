@@ -2,6 +2,31 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- GENERATE_INFOPLIST_FILE is NO for this target (this is a static,
+	     hand-maintained Info.plist), so the required Info.plist identity
+	     keys below must be present explicitly — Xcode does not inject
+	     them into a static plist the way it does when
+	     GENERATE_INFOPLIST_FILE is YES. Their absence was silently
+	     harmless for `xcodebuild build`/`test` but fails
+	     `xcodebuild archive`'s validation with "Archive Missing Bundle
+	     Identifier" the first time a release archive is attempted
+	     (found and fixed in plan 03-10 while hardening the release
+	     script). Values reference the same project build settings the
+	     rest of the target already uses (PRODUCT_BUNDLE_IDENTIFIER,
+	     PRODUCT_NAME, MARKETING_VERSION, CURRENT_PROJECT_VERSION) so
+	     they never drift from a second, restated literal. -->
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.entertainment</string>
 	<key>NSPrincipalClass</key>
