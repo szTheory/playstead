@@ -35,11 +35,11 @@ struct CollectionDetailView: View {
     }
 
     private func move(from source: IndexSet, to destination: Int) {
-        guard let sourceIndex = source.first else { return }
-        let assetSetID = members[sourceIndex].assetSetID
-        viewModel.beginReorderMembers(collectionID)
-        viewModel.previewMoveMember(collectionID, assetSetID: assetSetID, to: destination > sourceIndex ? destination - 1 : destination)
-        viewModel.commitReorderMembers(collectionID, assetSetID: assetSetID)
-        viewModel.refresh()
+        performListReorder(from: source, to: destination, ids: members.map(\.assetSetID)) { assetSetID, index in
+            viewModel.beginReorderMembers(collectionID)
+            viewModel.previewMoveMember(collectionID, assetSetID: assetSetID, to: index)
+            viewModel.commitReorderMembers(collectionID, assetSetID: assetSetID)
+            viewModel.refresh()
+        }
     }
 }

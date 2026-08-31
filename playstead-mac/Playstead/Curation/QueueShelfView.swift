@@ -33,11 +33,11 @@ struct QueueShelfView: View {
     }
 
     private func move(from source: IndexSet, to destination: Int) {
-        guard let sourceIndex = source.first else { return }
-        let assetSetID = viewModel.items[sourceIndex].assetSetID
-        viewModel.beginReorder()
-        viewModel.previewMove(assetSetID: assetSetID, to: destination > sourceIndex ? destination - 1 : destination)
-        viewModel.commitReorder(assetSetID: assetSetID)
-        viewModel.refresh()
+        performListReorder(from: source, to: destination, ids: viewModel.items.map(\.assetSetID)) { assetSetID, index in
+            viewModel.beginReorder()
+            viewModel.previewMove(assetSetID: assetSetID, to: index)
+            viewModel.commitReorder(assetSetID: assetSetID)
+            viewModel.refresh()
+        }
     }
 }

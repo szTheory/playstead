@@ -63,3 +63,25 @@ final class ReorderSession {
         return Move(position: position, beforeID: beforeID, afterID: afterID)
     }
 }
+
+/// The shared SwiftUI-facing half of the reorder discipline: translates
+/// `List.onMove(perform:)`'s `(source, destination)` into the moved row's
+/// id and a destination index already adjusted for the source item's own
+/// removal (SwiftUI reports `destination` in terms of the list *before*
+/// the move, so moving an item later in the list needs `destination - 1`
+/// once the source slot is removed). Previously this exact ternary, plus
+/// the surrounding begin/preview/commit/refresh call sequence, was
+/// duplicated verbatim between `CollectionDetailView` and
+/// `QueueShelfView`; `reorder` now carries only what differs between the
+/// two call sites (which view model methods to call).
+func performListReorder(
+    from source: IndexSet,
+    to destination: Int,
+    ids: [String],
+    reorder: (_ assetSetID: String, _ destinationIndex: Int) -> Void
+) {
+    guard let sourceIndex = source.first else { return }
+    let assetSetID = ids[sourceIndex]
+    let translatedDestination = destination > sourceIndex ? destination - 1 : destination
+    reorder(assetSetID, translatedDestination)
+}
