@@ -108,19 +108,22 @@ final class OutboxTests: XCTestCase {
 
     func test_retry_sendsTheSameIdempotencyKeyAsTheFirstAttempt() async throws {
         try outbox.enqueue(.favoriteAdd(id: "fav-1", assetSetID: "asset-1"))
+        let start = Date()
 
         // First attempt: transport failure (the response was never
         // observed — the request may or may not have reached the server).
         StubURLProtocol.responder = { _ in StubURLProtocol.Stub(statusCode: 500, headers: [:], body: Data()) }
-        let first = await makeWorker().drainOnce()
+        let first = await makeWorker().drainOnce(at: start)
         XCTAssertTrue(first.stoppedForRetry)
-        XCTAssertEqual(outbox.listPending().count, 1, "a 5xx leaves the entry pending for retry")
+        XCTAssertEqual(outbox.listAll().first?.state, .pending, "a 5xx leaves the entry pending for retry")
+        XCTAssertEqual(outbox.listPending(at: start).count, 0, "the entry is scheduled with a backoff delay, not immediately retriable")
 
-        // Second attempt (the retry): server now succeeds.
+        // Second attempt (the retry), simulated as happening after the
+        // scheduled backoff delay has elapsed: server now succeeds.
         StubURLProtocol.responder = { request in
             StubURLProtocol.Stub(statusCode: 200, headers: [:], body: Data("{}".utf8))
         }
-        _ = await makeWorker().drainOnce()
+        _ = await makeWorker().drainOnce(at: start.addingTimeInterval(Outbox.retryDelay(forAttempt: 1) + 1))
 
         XCTAssertEqual(StubURLProtocol.requestLog.count, 2)
         let keys = StubURLProtocol.requestLog.map { $0.value(forHTTPHeaderField: "Idempotency-Key") }
@@ -218,10 +221,45 @@ final class OutboxTests: XCTestCase {
 
         XCTAssertTrue(result.stoppedForRetry)
         XCTAssertEqual(curationStore.fetchFavorites().count, 1, "a 5xx must never revert the optimistic local row")
-        let pending = outbox.listPending()
-        XCTAssertEqual(pending.count, 1)
-        XCTAssertEqual(pending.first?.state, .pending)
-        XCTAssertEqual(pending.first?.attemptCount, 1)
+        // Scheduled with a backoff delay (P4-CR-003) — not immediately
+        // due, so it must not appear in listPending() yet, but it must
+        // still exist as a pending (not rejected/quarantined) entry.
+        XCTAssertEqual(outbox.listPending().count, 0, "the retry is scheduled with a backoff delay, not immediately retriable")
+        let all = outbox.listAll()
+        XCTAssertEqual(all.count, 1)
+        XCTAssertEqual(all.first?.state, .pending)
+        XCTAssertEqual(all.first?.attemptCount, 1)
+        XCTAssertNotNil(all.first?.nextRetryAt, "a scheduled retry must record when it becomes due")
+    }
+
+    // MARK: - A permanently-failing entry is quarantined after
+    // Outbox.maxAttempts, not retried forever (P4-CR-003's
+    // poison-message handling).
+
+    func test_repeatedTransientFailures_quarantineEntryAfterMaxAttempts() async throws {
+        try outbox.enqueue(.favoriteAdd(id: "fav-1", assetSetID: "asset-1"))
+        StubURLProtocol.responder = { _ in StubURLProtocol.Stub(statusCode: 503, headers: [:], body: Data()) }
+
+        var now = Date()
+        for _ in 0..<(Outbox.maxAttempts - 1) {
+            let result = await makeWorker().drainOnce(at: now)
+            XCTAssertTrue(result.stoppedForRetry)
+            let entry = outbox.listAll().first
+            XCTAssertEqual(entry?.state, .pending, "still pending before reaching maxAttempts")
+            guard let nextRetryAtString = entry?.nextRetryAt, let nextRetryAt = ISO8601DateFormatter().date(from: nextRetryAtString) else {
+                return XCTFail("a pending retry must always record its next-due time")
+            }
+            now = nextRetryAt.addingTimeInterval(1)
+        }
+
+        // One more failure pushes attempt_count to maxAttempts.
+        _ = await makeWorker().drainOnce(at: now)
+
+        let quarantined = outbox.listQuarantined()
+        XCTAssertEqual(quarantined.count, 1, "a permanently-failing entry must stop being retried after maxAttempts")
+        XCTAssertEqual(quarantined.first?.attemptCount, Outbox.maxAttempts)
+        XCTAssertEqual(outbox.listPending(at: now.addingTimeInterval(10_000)).count, 0, "a quarantined entry must never resume automatic retry")
+        XCTAssertEqual(curationStore.fetchFavorites().count, 1, "quarantining is not a rejection — the optimistic local row must never be reverted")
     }
 
     // MARK: - Applying the journal entry for an already-optimistically-
@@ -271,6 +309,24 @@ final class OutboxTests: XCTestCase {
 
         XCTAssertEqual(curationStore.fetchFavorites().map(\.assetSetID), ["asset-2"])
         XCTAssertEqual(outbox.listAll().count, 0)
+    }
+
+    // MARK: - A `kind` this build doesn't recognise (e.g. written by a
+    // future client version) must not be silently aliased onto an
+    // arbitrary real kind (P4-WR-001).
+
+    func test_unrecognizedKind_decodesAsUnknownNotFavoriteAdd() throws {
+        try localStore.connection.execute(
+            """
+            INSERT INTO outbox_entries
+                (id, kind, payload_json, idempotency_key, state, attempt_count, created_at, last_error_code, next_retry_at)
+            VALUES ('future-entry', 'future_kind_v2', '{}', 'future_kind_v2:future-entry', 'pending', 0, '2026-08-30T00:00:00Z', NULL, NULL);
+            """
+        )
+
+        let entry = outbox.listAll().first
+        XCTAssertEqual(entry?.kind, .unknown, "an unrecognised kind must decode to .unknown, never be aliased onto a real case")
+        XCTAssertNil(entry?.intent, "there is no shape to reconstruct for an unrecognised kind")
     }
 
     // MARK: - Entries send in the order they were created.

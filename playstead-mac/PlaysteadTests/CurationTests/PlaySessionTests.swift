@@ -82,12 +82,14 @@ final class PlaySessionTests: XCTestCase {
             }
         })
 
-        let offlineResult = await worker.drainOnce()
+        let offlineResult = await worker.drainOnce(at: start)
         XCTAssertTrue(offlineResult.stoppedForRetry)
         XCTAssertFalse(recorder.listings().first(where: { $0.session.id == sessionID })?.delivered ?? true)
 
         StubURLProtocol.responder = { _ in StubURLProtocol.Stub(statusCode: 201, headers: [:], body: Data("{}".utf8)) }
-        let onlineResult = await worker.drainOnce()
+        // Simulate the scheduled backoff delay having elapsed before the
+        // retry (P4-CR-003) rather than actually sleeping in the test.
+        let onlineResult = await worker.drainOnce(at: start.addingTimeInterval(Outbox.retryDelay(forAttempt: 1) + 1))
 
         XCTAssertEqual(onlineResult.sent, 1)
         XCTAssertTrue(recorder.listings().first(where: { $0.session.id == sessionID })?.delivered ?? false)
@@ -105,9 +107,10 @@ final class PlaySessionTests: XCTestCase {
         // observed by the client.
         StubURLProtocol.responder = { _ in StubURLProtocol.Stub(statusCode: 500, headers: [:], body: Data()) }
         let worker = OutboxWorker(apiClient: apiClient, outbox: outbox)
-        _ = await worker.drainOnce()
+        _ = await worker.drainOnce(at: start)
 
-        // Retry: server now succeeds.
+        // Retry: server now succeeds. Simulate the scheduled backoff
+        // delay (P4-CR-003) having elapsed rather than actually sleeping.
         var effects = Set<String>()
         StubURLProtocol.responder = { request in
             if let key = request.value(forHTTPHeaderField: "Idempotency-Key") {
@@ -115,7 +118,7 @@ final class PlaySessionTests: XCTestCase {
             }
             return StubURLProtocol.Stub(statusCode: 201, headers: [:], body: Data("{}".utf8))
         }
-        _ = await worker.drainOnce()
+        _ = await worker.drainOnce(at: start.addingTimeInterval(Outbox.retryDelay(forAttempt: 1) + 1))
 
         XCTAssertEqual(StubURLProtocol.requestLog.count, 2, "the client sent two requests (the retry)")
         XCTAssertEqual(effects.count, 1, "but both attempts carried the same idempotency key, so the server-side effect converges on one")

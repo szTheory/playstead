@@ -229,10 +229,16 @@ enum Migrations {
                 state TEXT NOT NULL DEFAULT 'pending',
                 attempt_count INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
-                last_error_code TEXT
+                last_error_code TEXT,
+                next_retry_at TEXT
             );
             """
         )
+        // Defensive column add for a pre-P4-CR-003 dev database whose
+        // outbox_entries already exists without this column (see the
+        // catalogue_entries precedent above) — a brand new database
+        // already has it from the CREATE TABLE above.
+        try? connection.execute("ALTER TABLE outbox_entries ADD COLUMN next_retry_at TEXT;")
         try connection.execute("CREATE INDEX IF NOT EXISTS idx_outbox_entries_state ON outbox_entries(state);")
         try connection.execute("CREATE INDEX IF NOT EXISTS idx_outbox_entries_created_at ON outbox_entries(created_at);")
 

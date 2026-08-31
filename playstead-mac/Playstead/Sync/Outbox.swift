@@ -4,6 +4,14 @@ enum OutboxEntryState: String, Equatable {
     case pending
     case inFlight = "in_flight"
     case rejected
+    /// Retried `Outbox.maxAttempts` times with no success and no
+    /// permanent rejection either — a poison message (P4-CR-003).
+    /// Excluded from `listPending()` so it stops being retried
+    /// automatically; the local optimistic row is left alone (unlike
+    /// `.rejected`, this is not a confirmed refusal, just persistent
+    /// failure to find out) and it stays visible via `listQuarantined()`/
+    /// `listAll()` for the user or a future retry-quarantined action.
+    case quarantined
 }
 
 /// One durable outbox row. `intent` is `nil` only if a future client
@@ -19,6 +27,12 @@ struct OutboxEntry: Equatable {
     var attemptCount: Int
     let createdAt: String
     var lastErrorCode: String?
+    /// Set by `markPendingForRetry` to an exponential-backoff delay from
+    /// the retry attempt (P4-CR-003) — `listPending()` excludes any
+    /// entry whose `next_retry_at` is still in the future, so a
+    /// permanently-failing entry no longer hammers the server at
+    /// whatever cadence the caller invokes `drainOnce()` at.
+    var nextRetryAt: String?
 }
 
 /// The durable outbox for offline curation intents (plan 03-08 task 1).
@@ -30,12 +44,27 @@ struct OutboxEntry: Equatable {
 /// application restart while still unsent" with no special-cased
 /// persistence path; this is on-disk SQLite, not an in-memory queue).
 final class Outbox {
+    /// After this many attempts with no success and no permanent
+    /// rejection, an entry is quarantined rather than retried again
+    /// (P4-CR-003's poison-message handling).
+    static let maxAttempts = 8
+    private static let baseRetryDelaySeconds: TimeInterval = 5
+    private static let maxRetryDelaySeconds: TimeInterval = 300
+
     private let localStore: LocalStore
     private let curationStore: CurationStore
 
     init(localStore: LocalStore, curationStore: CurationStore) {
         self.localStore = localStore
         self.curationStore = curationStore
+    }
+
+    /// Exponential backoff for the `attempt`th retry (1-indexed), capped
+    /// at `maxRetryDelaySeconds` — `Outbox.markPendingForRetry`'s actual
+    /// documented "retry with backoff" (P4-CR-003; previously
+    /// `attempt_count` was incremented but never read anywhere).
+    static func retryDelay(forAttempt attempt: Int) -> TimeInterval {
+        min(pow(2, Double(attempt)) * baseRetryDelaySeconds, maxRetryDelaySeconds)
     }
 
     /// Applies `intent`'s optimistic local write and enqueues it,
@@ -66,8 +95,8 @@ final class Outbox {
             try self.localStore.connection.execute(
                 """
                 INSERT INTO outbox_entries
-                    (id, kind, payload_json, idempotency_key, state, attempt_count, created_at, last_error_code)
-                VALUES (?, ?, ?, ?, 'pending', 0, ?, NULL);
+                    (id, kind, payload_json, idempotency_key, state, attempt_count, created_at, last_error_code, next_retry_at)
+                VALUES (?, ?, ?, ?, 'pending', 0, ?, NULL, NULL);
                 """,
                 params: [entryID, intent.kind.rawValue, payloadJSON, idempotencyKey, createdAt]
             )
@@ -75,15 +104,22 @@ final class Outbox {
 
         return OutboxEntry(
             id: entryID, kind: intent.kind, intent: intent, idempotencyKey: idempotencyKey,
-            state: .pending, attemptCount: 0, createdAt: createdAt, lastErrorCode: nil
+            state: .pending, attemptCount: 0, createdAt: createdAt, lastErrorCode: nil, nextRetryAt: nil
         )
     }
 
-    /// Every `pending` entry, oldest-created first — `OutboxWorker`
-    /// drains in this exact order so entries send in the order they were
-    /// created (this task's `<behavior>` requirement).
-    func listPending() -> [OutboxEntry] {
-        rows(where: "state = 'pending'", orderBy: "created_at ASC, rowid ASC")
+    /// Every `pending` entry that is actually due to send — oldest-created
+    /// first among those — so `OutboxWorker` drains in creation order
+    /// (this task's `<behavior>` requirement) while still honoring the
+    /// backoff delay `markPendingForRetry` schedules for an entry that
+    /// keeps failing (P4-CR-003).
+    func listPending(at now: Date = Date()) -> [OutboxEntry] {
+        let nowString = ISO8601DateFormatter().string(from: now)
+        return rows(
+            where: "state = 'pending' AND (next_retry_at IS NULL OR next_retry_at <= ?)",
+            orderBy: "created_at ASC, rowid ASC",
+            params: [nowString]
+        )
     }
 
     /// Every entry regardless of state — used by tests and by
@@ -95,6 +131,13 @@ final class Outbox {
 
     func listRejected() -> [OutboxEntry] {
         rows(where: "state = 'rejected'", orderBy: "created_at ASC, rowid ASC")
+    }
+
+    /// Entries that hit `Outbox.maxAttempts` with no success and no
+    /// permanent rejection — poison messages needing manual attention
+    /// (P4-CR-003).
+    func listQuarantined() -> [OutboxEntry] {
+        rows(where: "state = 'quarantined'", orderBy: "created_at ASC, rowid ASC")
     }
 
     func markInFlight(_ entryID: String) throws {
@@ -112,14 +155,30 @@ final class Outbox {
     }
 
     /// A transport failure or 5xx response — the mutation may well have
-    /// succeeded, so the local row is left alone (never reverted) and
-    /// the entry returns to `pending` for a later retry, with its
-    /// attempt count incremented for the worker's backoff decision.
-    func markPendingForRetry(_ entryID: String) throws {
-        try localStore.connection.execute(
-            "UPDATE outbox_entries SET state = 'pending', attempt_count = attempt_count + 1 WHERE id = ?;",
-            params: [entryID]
-        )
+    /// succeeded, so the local row is left alone (never reverted). The
+    /// attempt count is incremented and, while it stays under
+    /// `Outbox.maxAttempts`, the entry returns to `pending` with
+    /// `next_retry_at` set to an exponential backoff delay from `now`
+    /// (P4-CR-003) so `listPending()` skips it until then rather than
+    /// retrying at whatever cadence the caller invokes `drainOnce()` at.
+    /// Once `maxAttempts` is reached, the entry is quarantined instead —
+    /// a poison message that needs manual attention, not indefinite
+    /// silent retries.
+    func markPendingForRetry(_ entry: OutboxEntry, at now: Date = Date()) throws {
+        let newAttemptCount = entry.attemptCount + 1
+        if newAttemptCount >= Self.maxAttempts {
+            try localStore.connection.execute(
+                "UPDATE outbox_entries SET state = 'quarantined', attempt_count = ?, next_retry_at = NULL WHERE id = ?;",
+                params: [newAttemptCount, entry.id]
+            )
+        } else {
+            let delay = Self.retryDelay(forAttempt: newAttemptCount)
+            let nextRetryAt = ISO8601DateFormatter().string(from: now.addingTimeInterval(delay))
+            try localStore.connection.execute(
+                "UPDATE outbox_entries SET state = 'pending', attempt_count = ?, next_retry_at = ? WHERE id = ?;",
+                params: [newAttemptCount, nextRetryAt, entry.id]
+            )
+        }
     }
 
     /// A permanent (4xx, non-idempotency-conflict) rejection — reverts
@@ -130,18 +189,19 @@ final class Outbox {
         try localStore.transaction {
             try intent.revertOptimistic(from: self.curationStore)
             try self.localStore.connection.execute(
-                "UPDATE outbox_entries SET state = 'rejected', last_error_code = ? WHERE id = ?;",
+                "UPDATE outbox_entries SET state = 'rejected', last_error_code = ?, next_retry_at = NULL WHERE id = ?;",
                 params: [code, entryID]
             )
         }
     }
 
-    private func rows(where clause: String, orderBy: String) -> [OutboxEntry] {
+    private func rows(where clause: String, orderBy: String, params: [SQLiteBindable] = []) -> [OutboxEntry] {
         (try? localStore.connection.query(
             """
-            SELECT id, kind, payload_json, idempotency_key, state, attempt_count, created_at, last_error_code
+            SELECT id, kind, payload_json, idempotency_key, state, attempt_count, created_at, last_error_code, next_retry_at
             FROM outbox_entries WHERE \(clause) ORDER BY \(orderBy);
-            """
+            """,
+            params: params
         ) { row in
             let kindRaw = row.string(1) ?? ""
             let kind = CurationIntentKind(rawValue: kindRaw)
@@ -156,13 +216,14 @@ final class Outbox {
 
             return OutboxEntry(
                 id: row.string(0) ?? "",
-                kind: kind ?? .favoriteAdd,
+                kind: kind ?? .unknown,
                 intent: intent,
                 idempotencyKey: row.string(3) ?? "",
                 state: OutboxEntryState(rawValue: row.string(4) ?? "pending") ?? .pending,
                 attemptCount: row.int(5) ?? 0,
                 createdAt: row.string(6) ?? "",
-                lastErrorCode: row.string(7)
+                lastErrorCode: row.string(7),
+                nextRetryAt: row.string(8)
             )
         }) ?? []
     }

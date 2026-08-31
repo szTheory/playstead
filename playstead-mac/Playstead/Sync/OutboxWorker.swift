@@ -14,12 +14,16 @@ struct OutboxDrainResult: Equatable {
 /// Drains `Outbox`'s pending entries one at a time, in creation order,
 /// while the server is reachable (plan 03-08 task 1's `<action>`). A
 /// transport failure or five-hundred-class response retries with
-/// backoff and leaves the local row alone — the mutation may well have
-/// succeeded. A four-hundred-class rejection other than the idempotency
-/// conflict is permanent: `Outbox.markRejected` reverts the optimistic
-/// local row and surfaces the server's problem code, because discarding
-/// a rejected intent silently would mean the user's library quietly
-/// differs from what they asked for.
+/// exponential backoff (`Outbox.markPendingForRetry`/`retryDelay`) and
+/// leaves the local row alone — the mutation may well have succeeded.
+/// After `Outbox.maxAttempts` such failures with no success and no
+/// permanent rejection, the entry is quarantined instead of retried
+/// again (P4-CR-003's poison-message handling). A four-hundred-class
+/// rejection other than the idempotency conflict is permanent:
+/// `Outbox.markRejected` reverts the optimistic local row and surfaces
+/// the server's problem code, because discarding a rejected intent
+/// silently would mean the user's library quietly differs from what
+/// they asked for.
 ///
 /// An actor because draining must be serialized — two concurrent
 /// `drainOnce()` calls racing the same entry could otherwise send it
@@ -60,10 +64,10 @@ actor OutboxWorker {
     /// outstanding). Safe to call repeatedly — e.g. from a periodic timer
     /// or right after `SyncEngine.syncNow()` confirms reachability.
     @discardableResult
-    func drainOnce() async -> OutboxDrainResult {
+    func drainOnce(at now: Date = Date()) async -> OutboxDrainResult {
         var result = OutboxDrainResult()
 
-        for entry in outbox.listPending() {
+        for entry in outbox.listPending(at: now) {
             guard let intent = entry.intent else {
                 // A kind this build doesn't recognise — nothing this
                 // worker can send; leave it for a newer build.
@@ -99,12 +103,12 @@ actor OutboxWorker {
                     // elsewhere) — all transient. Leave the local row
                     // alone and stop draining so a later entry never
                     // sends ahead of this still-outstanding one.
-                    try? outbox.markPendingForRetry(entry.id)
+                    try? outbox.markPendingForRetry(entry, at: now)
                     result.stoppedForRetry = true
                     return result
                 }
             } catch {
-                try? outbox.markPendingForRetry(entry.id)
+                try? outbox.markPendingForRetry(entry, at: now)
                 result.stoppedForRetry = true
                 return result
             }

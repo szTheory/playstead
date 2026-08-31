@@ -6,6 +6,15 @@ import Foundation
 /// (plan 03-08) added the favorite pair; task 2 adds the remaining nine
 /// kinds for collections, the play queue, and Continue dismissals.
 enum CurationIntentKind: String, Codable, Equatable {
+    /// A persisted `kind` string this build doesn't recognise — e.g. an
+    /// outbox row written by a future client version. `Outbox.rows(_:_:)`
+    /// falls back to this rather than silently aliasing an unrecognised
+    /// value onto an arbitrary real case (P4-WR-001): a row's `kind` is
+    /// meaningful even when its `intent` fails to decode (e.g.
+    /// `RejectedIntentsView` groups/filters by kind), so mislabeling it
+    /// as `favoriteAdd` would misrepresent it to any such reader.
+    case unknown
+
     case favoriteAdd = "favorite_add"
     case favoriteRemove = "favorite_remove"
     case collectionCreate = "collection_create"
@@ -335,6 +344,14 @@ enum CurationIntent: Equatable {
         case .playSessionDelete:
             guard let id = envelope.id else { return nil }
             return .playSessionDelete(id: id)
+        case .unknown:
+            // Never actually persisted by this build (`kind.rawValue` on
+            // enqueue always comes from a real `CurationIntent` case) —
+            // only reachable if `Outbox.rows(_:_:)` fell back to
+            // `.unknown` for a `kind` string this build doesn't
+            // recognise (P4-WR-001), in which case there is no shape to
+            // reconstruct.
+            return nil
         }
     }
 
