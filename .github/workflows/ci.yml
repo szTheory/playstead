@@ -99,6 +99,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: erlef/setup-beam@v1
+        with:
+          version-file: playstead-server/.tool-versions
+          version-type: strict
+
       - name: Run exact hosted adoption tracer
         working-directory: playstead-mac
         run: scripts/ci/run-mac-verification.sh --run-wave-0-adoption

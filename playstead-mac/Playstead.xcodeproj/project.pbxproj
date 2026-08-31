@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		240000000000000000000001 /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = 250000000000000000000001 /* SnapshotTesting */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -67,6 +68,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				240000000000000000000001 /* SnapshotTesting in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -139,6 +141,9 @@
 				DE82DF82B79D42B0BA0E75F3 /* PlaysteadTests */,
 			);
 			name = PlaysteadTests;
+			packageProductDependencies = (
+				250000000000000000000001 /* SnapshotTesting */,
+			);
 			productName = PlaysteadTests;
 			productReference = C6329AF3F108470AA0F49B6B /* PlaysteadTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
@@ -196,6 +201,9 @@
 			);
 			mainGroup = F2EE740FF66C4EB09CAB9688;
 			productRefGroup = 34F27EAF1B52460DBD41F3EC /* Products */;
+			packageReferences = (
+				260000000000000000000001 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */,
+			);
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -540,6 +548,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		260000000000000000000001 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/pointfreeco/swift-snapshot-testing";
+			requirement = {
+				kind = exactVersion;
+				version = 1.19.4;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		250000000000000000000001 /* SnapshotTesting */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 260000000000000000000001 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */;
+			productName = SnapshotTesting;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 4D6D4F7B80314C78A88735E2 /* Project object */;
 }

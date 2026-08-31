@@ -11,21 +11,22 @@ final class SnapshotHarnessCanaryTests: XCTestCase {
         let reference = image(pixel: NSColor(calibratedRed: 0.1, green: 0.6, blue: 0.9, alpha: 1))
         let mutation = image(pixel: NSColor(calibratedRed: 0.9, green: 0.1, blue: 0.2, alpha: 1))
 
-        XCTAssertNil(
+        XCTAssertNotNil(
             verifySnapshot(
-                matching: reference,
+                of: reference,
                 as: .image(precision: 1, perceptualPrecision: 1),
                 named: snapshotName,
-                record: true,
+                record: .all,
                 snapshotDirectory: output.path,
                 testName: "snapshot-harness-canary"
-            )
+            ),
+            "record mode must report its ordinary assertion instead of crashing"
         )
         let mismatch = verifySnapshot(
-            matching: mutation,
+            of: mutation,
             as: .image(precision: 1, perceptualPrecision: 1),
             named: snapshotName,
-            record: false,
+            record: .never,
             snapshotDirectory: output.path,
             testName: "snapshot-harness-canary"
         )
@@ -43,32 +44,33 @@ final class SnapshotHarnessCanaryTests: XCTestCase {
         let mutation = image(pixel: NSColor(calibratedWhite: 0.9, alpha: 1))
         let calibratedNoise = image(pixel: NSColor(calibratedWhite: 0.501, alpha: 1))
 
-        XCTAssertNil(
+        XCTAssertNotNil(
             verifySnapshot(
-                matching: reference,
+                of: reference,
                 as: .image(precision: 1, perceptualPrecision: 1),
                 named: "wave-0-mutation-noise",
-                record: true,
+                record: .all,
                 snapshotDirectory: output.path,
                 testName: "snapshot-mutation-noise"
-            )
+            ),
+            "record mode must produce a reviewable assertion"
         )
         XCTAssertNotNil(
             verifySnapshot(
-                matching: mutation,
+                of: mutation,
                 as: .image(precision: 1, perceptualPrecision: 1),
                 named: "wave-0-mutation-noise",
-                record: false,
+                record: .never,
                 snapshotDirectory: output.path,
                 testName: "snapshot-mutation-noise"
             )
         )
         XCTAssertNil(
             verifySnapshot(
-                matching: calibratedNoise,
+                of: calibratedNoise,
                 as: .image(precision: 0.99, perceptualPrecision: 0.99),
                 named: "wave-0-mutation-noise",
-                record: false,
+                record: .never,
                 snapshotDirectory: output.path,
                 testName: "snapshot-mutation-noise"
             )

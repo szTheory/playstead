@@ -104,6 +104,47 @@ for identifier in required:
     if record.get("outcome") != "passed":
         raise SystemExit(f"required canary did not pass: {identifier}")
 
+fingerprint = data.get("fingerprint")
+if not isinstance(fingerprint, dict):
+    raise SystemExit("runner fingerprint is missing")
+if fingerprint.get("architecture") != "arm64":
+    raise SystemExit("runner fingerprint architecture must be arm64")
+if fingerprint.get("xcode") != ["Xcode 26.6", "Build version 17F113"]:
+    raise SystemExit("runner fingerprint Xcode identity mismatched")
+for key in ("runner_image", "runner_image_version", "macos", "macos_build"):
+    if not isinstance(fingerprint.get(key), str) or not fingerprint[key]:
+        raise SystemExit(f"runner fingerprint field is missing: {key}")
+
+native = data.get("native_health")
+if not isinstance(native, dict):
+    raise SystemExit("native health evidence is missing")
+if native.get("postgresql_major") != 17 or native.get("phoenix_healthy") is not True:
+    raise SystemExit("native PostgreSQL 17/Phoenix health did not pass")
+if native.get("loopback_only") is not True or native.get("cleanup_complete") is not True:
+    raise SystemExit("native service isolation/cleanup evidence did not pass")
+
+triplets = data.get("snapshot_triplets")
+if triplets != ["actual.png", "diff.png", "reference.png"]:
+    raise SystemExit("snapshot reference/actual/diff inventory is incomplete")
+calibration = data.get("snapshot_calibration")
+if not isinstance(calibration, dict) or calibration.get("mutation_failed") is not True or calibration.get("noise_passed") is not True:
+    raise SystemExit("snapshot mutation/noise calibration did not pass")
+
+linux = data.get("linux_jobs")
+if linux != {"compose_smoke": "success", "test": "success"}:
+    raise SystemExit("both Linux jobs must conclude success")
+
+forbidden_keys = {"authorization", "credential", "token", "database_url", "raw_log", "keychain_path"}
+def scan(value):
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if key.lower() in forbidden_keys:
+                raise SystemExit(f"secret-bearing evidence key is forbidden: {key}")
+            scan(child)
+    elif isinstance(value, list):
+        for child in value: scan(child)
+scan(data)
+
 print(f"verified {len(required)} exact hosted canary result(s)")
 PY
 }
@@ -217,30 +258,95 @@ print(json.dumps(record, sort_keys=True))
 PY
 }
 
-run_wave_0_adoption() {
-  assert_hosted_environment
-  write_fingerprint
-  mkdir -p "$DERIVED_DATA" "$RAW_ROOT" "$EVIDENCE_ROOT"
-  defaults write NSGlobalDomain AppleKeyboardUIMode -int 3
+NATIVE_ROOT=""
+PG_CTL=""
+PGDATA=""
+PHOENIX_PID=""
 
-  local result_bundle="$RAW_ROOT/wave-0-launch.xcresult"
-  local test_results="$RAW_ROOT/wave-0-launch-tests.json"
-  local identifier="PlaysteadUITests.HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner"
-  local signing=(CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=)
+cleanup_native_services() {
+  trap - EXIT
+  local cleanup_ok=true
+  if [ -n "$PHOENIX_PID" ] && kill -0 "$PHOENIX_PID" 2>/dev/null; then
+    kill "$PHOENIX_PID" 2>/dev/null || cleanup_ok=false
+    wait "$PHOENIX_PID" 2>/dev/null || true
+  fi
+  if [ -n "$PG_CTL" ] && [ -n "$PGDATA" ] && [ -d "$PGDATA" ]; then
+    "$PG_CTL" -D "$PGDATA" -m fast -w stop >/dev/null 2>&1 || cleanup_ok=false
+  fi
+  if [ -n "$NATIVE_ROOT" ] && [ -d "$NATIVE_ROOT" ]; then
+    rm -rf "$NATIVE_ROOT"
+  fi
+  if [ -f "$ADOPTION_EVIDENCE" ]; then
+    python3 - "$ADOPTION_EVIDENCE" "$cleanup_ok" <<'PY'
+import json, sys
+path, cleanup = sys.argv[1:]
+data = json.load(open(path))
+data.setdefault("native_health", {})["cleanup_complete"] = cleanup == "true"
+with open(path, "w", encoding="utf-8") as handle:
+    json.dump(data, handle, indent=2, sort_keys=True)
+PY
+  fi
+  [ "$cleanup_ok" = true ] || die "native service cleanup failed"
+}
 
-  xcodebuild build-for-testing -project "$PROJECT" -scheme "$SCHEME" \
-    -destination 'platform=macOS' -derivedDataPath "$DERIVED_DATA" "${signing[@]}"
-  xcodebuild test-without-building -project "$PROJECT" -scheme "$SCHEME" \
-    -destination 'platform=macOS' -derivedDataPath "$DERIVED_DATA" \
-    -resultBundlePath "$result_bundle" -only-testing:"$identifier" "${signing[@]}"
-  xcrun xcresulttool get test-results tests --path "$result_bundle" --format json >"$test_results"
+start_native_services() {
+  command -v brew >/dev/null || die "Homebrew is required on the hosted runner"
+  if ! brew list --versions postgresql@17 >/dev/null 2>&1; then
+    brew install postgresql@17
+  fi
 
-  local record
-  record="$(extract_canary_record "$test_results" "$identifier")"
-  python3 - "$ADOPTION_EVIDENCE" "$record" <<'PY'
-import json, os, sys
+  local pg_prefix pg_bin pg_port pg_user server_root
+  pg_prefix="$(brew --prefix postgresql@17)"
+  pg_bin="$pg_prefix/bin"
+  PG_CTL="$pg_bin/pg_ctl"
+  pg_port=55432
+  pg_user="$(id -un)"
+  NATIVE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/playstead-native-ci.XXXXXX")"
+  PGDATA="$NATIVE_ROOT/postgres"
+  server_root="$NATIVE_ROOT/app"
+  mkdir -p "$server_root/inbox" "$server_root/blobs" "$server_root/exports"
 
-path, record = sys.argv[1:]
+  "$pg_bin/initdb" -D "$PGDATA" --auth=trust --no-locale --encoding=UTF8 >/dev/null
+  "$PG_CTL" -D "$PGDATA" -l "$NATIVE_ROOT/postgres.log" \
+    -o "-h 127.0.0.1 -p $pg_port" -w start >/dev/null
+  "$pg_bin/createdb" -h 127.0.0.1 -p "$pg_port" playstead_mac_ci
+
+  export MIX_ENV=mac_ci
+  export PORT=4010
+  export PLAYSTEAD_MAC_CI_ROOT="$server_root"
+  export MAC_CI_DATABASE_URL="ecto://${pg_user}@127.0.0.1:${pg_port}/playstead_mac_ci"
+
+  (
+    cd "$REPO_ROOT/playstead-server"
+    mix deps.get
+    mix ecto.migrate
+    mix phx.server >"$NATIVE_ROOT/phoenix.log" 2>&1
+  ) &
+  PHOENIX_PID=$!
+
+  local ready=false
+  for _ in $(seq 1 60); do
+    if python3 -c 'import urllib.request; r=urllib.request.urlopen("http://127.0.0.1:4010/healthz", timeout=1); raise SystemExit(0 if r.status == 200 else 1)' 2>/dev/null; then
+      ready=true
+      break
+    fi
+    kill -0 "$PHOENIX_PID" 2>/dev/null || die "native Phoenix exited before health"
+    sleep 1
+  done
+  [ "$ready" = true ] || die "native Phoenix health deadline exceeded"
+}
+
+write_adoption_evidence() {
+  local records_file="$1"
+  local calibration_record="$2"
+  python3 - "$ADOPTION_EVIDENCE" "$EVIDENCE_ROOT/environment-fingerprint.json" \
+    "$records_file" "$calibration_record" <<'PY'
+import json, os, pathlib, sys
+
+path, fingerprint_path, records_path, calibration_raw = sys.argv[1:]
+triplet_root = pathlib.Path(path).parent / "snapshot-triplet"
+triplets = sorted(p.name for p in triplet_root.glob("*.png") if p.is_file() and p.stat().st_size > 0)
+calibration = json.loads(calibration_raw)
 data = {
     "schema_version": 1,
     "source": "github-hosted" if os.environ.get("GITHUB_ACTIONS") == "true" else "local",
@@ -251,12 +357,90 @@ data = {
         "head_sha": os.environ.get("GITHUB_SHA", ""),
         "run_id": os.environ.get("GITHUB_RUN_ID", ""),
     },
-    "canaries": [json.loads(record)],
+    "fingerprint": json.load(open(fingerprint_path)),
+    "canaries": [json.loads(line) for line in pathlib.Path(records_path).read_text().splitlines() if line],
+    "native_health": {
+        "postgresql_major": 17,
+        "phoenix_healthy": True,
+        "loopback_only": True,
+        "cleanup_complete": False,
+    },
+    "snapshot_triplets": triplets,
+    "snapshot_calibration": {
+        "mutation_failed": calibration.get("outcome") == "passed",
+        "noise_passed": calibration.get("outcome") == "passed",
+    },
+    "linux_jobs": {
+        "test": os.environ.get("LINUX_TEST_CONCLUSION", ""),
+        "compose_smoke": os.environ.get("LINUX_COMPOSE_CONCLUSION", ""),
+    },
 }
 with open(path, "w", encoding="utf-8") as handle:
     json.dump(data, handle, indent=2, sort_keys=True)
 PY
-  verify_result "$ADOPTION_EVIDENCE" --required-canary "$identifier" \
+}
+
+run_wave_0_adoption() {
+  assert_hosted_environment
+  mkdir -p "$DERIVED_DATA" "$RAW_ROOT" "$EVIDENCE_ROOT"
+  write_fingerprint
+  defaults write NSGlobalDomain AppleKeyboardUIMode -int 3
+  trap cleanup_native_services EXIT
+  start_native_services
+
+  local ui_result="$RAW_ROOT/wave-0-ui.xcresult"
+  local ui_tests="$RAW_ROOT/wave-0-ui-tests.json"
+  local snapshot_result="$RAW_ROOT/wave-0-snapshot.xcresult"
+  local snapshot_tests="$RAW_ROOT/wave-0-snapshot-tests.json"
+  local records_file="$RAW_ROOT/canary-records.jsonl"
+  local snapshot_output="$EVIDENCE_ROOT/snapshot-triplet"
+  local signing=(CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=)
+  local ui_identifiers=(
+    "PlaysteadUITests.HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner"
+    "PlaysteadUITests.HostedRunnerCanaryTests/testFullKeyboardAccessCanaryFocusesAndActivatesTwoControls"
+    "PlaysteadUITests.HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice"
+  )
+  local snapshot_identifier="PlaysteadTests.SnapshotHarnessCanaryTests/testIntentionalMismatchProducesReviewableTriplet"
+  local calibration_identifier="PlaysteadTests.SnapshotHarnessCanaryTests/testMeaningfulMutationFailsAndCalibratedNoisePasses"
+
+  xcodebuild build-for-testing -project "$PROJECT" -scheme "$SCHEME" \
+    -destination 'platform=macOS' -derivedDataPath "$DERIVED_DATA" "${signing[@]}"
+
+  local ui_only=()
+  local identifier
+  for identifier in "${ui_identifiers[@]}"; do ui_only+=("-only-testing:$identifier"); done
+  xcodebuild test-without-building -project "$PROJECT" -scheme "$SCHEME" \
+    -destination 'platform=macOS' -derivedDataPath "$DERIVED_DATA" \
+    -resultBundlePath "$ui_result" "${ui_only[@]}" "${signing[@]}"
+  xcrun xcresulttool get test-results tests --path "$ui_result" --format json >"$ui_tests"
+
+  mkdir -p "$snapshot_output"
+  PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT="$snapshot_output" \
+    xcodebuild test-without-building -project "$PROJECT" -scheme "$SCHEME" \
+      -destination 'platform=macOS' -derivedDataPath "$DERIVED_DATA" \
+      -resultBundlePath "$snapshot_result" \
+      -only-testing:"$snapshot_identifier" -only-testing:"$calibration_identifier" "${signing[@]}"
+  xcrun xcresulttool get test-results tests --path "$snapshot_result" --format json >"$snapshot_tests"
+
+  : >"$records_file"
+  for identifier in "${ui_identifiers[@]}"; do
+    extract_canary_record "$ui_tests" "$identifier" >>"$records_file"
+  done
+  extract_canary_record "$snapshot_tests" "$snapshot_identifier" >>"$records_file"
+  printf '%s\n' '{"identifier":"native.postgresql17-phoenix-health","discovered":true,"execution_count":1,"skipped":false,"outcome":"passed"}' >>"$records_file"
+
+  local calibration_record
+  calibration_record="$(extract_canary_record "$snapshot_tests" "$calibration_identifier")"
+  write_adoption_evidence "$records_file" "$calibration_record"
+  cleanup_native_services
+  trap - EXIT
+
+  verify_result "$ADOPTION_EVIDENCE" \
+    --required-canary "${ui_identifiers[0]}" \
+    --required-canary "${ui_identifiers[1]}" \
+    --required-canary "${ui_identifiers[2]}" \
+    --required-canary "$snapshot_identifier" \
+    --required-canary native.postgresql17-phoenix-health \
     --expected-workflow "${GITHUB_WORKFLOW:?}" --expected-event "${GITHUB_EVENT_NAME:?}" \
     --expected-ref "${GITHUB_REF:?}" --expected-sha "${GITHUB_SHA:?}" \
     --expected-run-id "${GITHUB_RUN_ID:?}"
@@ -266,13 +450,18 @@ run_self_tests() {
   "${SCRIPT_DIR}/tests/wave-0-verifier-test.sh"
 }
 
+verify_topology() {
+  "${SCRIPT_DIR}/tests/wave-0-topology-test.sh"
+}
+
 usage() {
   cat <<'USAGE'
 Usage:
   run-mac-verification.sh --run-wave-0-adoption
   run-mac-verification.sh --verify-result FILE --required-canary ID [expected metadata]
   run-mac-verification.sh --validate-hosted-run FILE [expected metadata]
-  run-mac-verification.sh --self-test-wave-0-verifier [--self-test-hosted-run-validator]
+  run-mac-verification.sh --self-test-wave-0-verifier [--self-test-hosted-run-validator] [--verify-wave-0-topology]
+  run-mac-verification.sh --verify-wave-0-topology
 USAGE
 }
 
@@ -281,15 +470,19 @@ case "$1" in
   --verify-result) require_value "$1" "${2:-}"; evidence="$2"; shift 2; verify_result "$evidence" "$@" ;;
   --validate-hosted-run) require_value "$1" "${2:-}"; metadata="$2"; shift 2; validate_hosted_run "$metadata" "$@" ;;
   --run-wave-0-adoption) shift; [ "$#" -eq 0 ] || die "unexpected adoption arguments"; run_wave_0_adoption ;;
+  --verify-wave-0-topology) shift; [ "$#" -eq 0 ] || die "unexpected topology arguments"; verify_topology ;;
   --self-test-wave-0-verifier|--self-test-hosted-run-validator)
+    verify_topology_after=false
     while [ "$#" -gt 0 ]; do
       case "$1" in
         --self-test-wave-0-verifier|--self-test-hosted-run-validator) shift ;;
+        --verify-wave-0-topology) verify_topology_after=true; shift ;;
         --only-canaries) require_value "$1" "${2:-}"; shift 2 ;;
         *) die "unknown self-test argument: $1" ;;
       esac
     done
     run_self_tests
+    [ "$verify_topology_after" = false ] || verify_topology
     ;;
   -h|--help) usage ;;
   *) die "unknown mode: $1" ;;
