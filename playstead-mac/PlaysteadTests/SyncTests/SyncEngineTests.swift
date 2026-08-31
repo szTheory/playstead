@@ -231,6 +231,24 @@ final class SyncEngineTests: XCTestCase {
         XCTAssertEqual(catalogueStore.count(), 0)
     }
 
+    // MARK: - A large integer JSON number must round-trip exactly, not
+    // lose precision by decoding through Double (P4-WR-006).
+
+    func testLargeIntegerJSONNumberRoundTripsExactlyThroughJSONValue() throws {
+        let large = 9_007_199_254_740_993 // 2^53 + 1 — the first Int not exactly representable as a Double
+        let payload = try makePayload("{\"count\": \(large)}")
+
+        guard case .object(let object) = payload, case .int(let decoded)? = object["count"] else {
+            return XCTFail("expected an integer-typed JSONValue.int, got \(String(describing: payload))")
+        }
+        XCTAssertEqual(decoded, large, "a large integer must decode via Int, not lose precision through Double")
+
+        // And it must still round-trip byte-correctly through decoded(as:).
+        struct Counter: Decodable { let count: Int }
+        let redecoded = try payload.decoded(as: Counter.self)
+        XCTAssertEqual(redecoded.count, large)
+    }
+
     func testApplyingSameEntryTwiceLeavesRowCountAndContentsUnchanged() throws {
         let catalogueStore = CatalogueStore(localStore: localStore)
         let curationStore = CurationStore(localStore: localStore)

@@ -9,6 +9,11 @@ import Foundation
 /// task's `<action>` requires for forward compatibility.
 enum JSONValue: Codable, Equatable {
     case string(String)
+    /// An integer-valued JSON number, decoded via `Int` (exact up to
+    /// 64 bits) rather than `Double` (exact only up to ~2^53) — tried
+    /// before `.number` below so a large integer id or counter never
+    /// silently round-trips to an off-by-a-few value (P4-WR-006).
+    case int(Int)
     case number(Double)
     case bool(Bool)
     case object([String: JSONValue])
@@ -21,6 +26,8 @@ enum JSONValue: Codable, Equatable {
             self = .null
         } else if let value = try? container.decode(Bool.self) {
             self = .bool(value)
+        } else if let value = try? container.decode(Int.self) {
+            self = .int(value)
         } else if let value = try? container.decode(Double.self) {
             self = .number(value)
         } else if let value = try? container.decode(String.self) {
@@ -38,6 +45,7 @@ enum JSONValue: Codable, Equatable {
         var container = encoder.singleValueContainer()
         switch self {
         case .string(let value): try container.encode(value)
+        case .int(let value): try container.encode(value)
         case .number(let value): try container.encode(value)
         case .bool(let value): try container.encode(value)
         case .object(let value): try container.encode(value)
