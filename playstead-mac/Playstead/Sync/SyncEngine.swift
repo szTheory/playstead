@@ -87,6 +87,24 @@ actor SyncEngine {
         }
     }
 
+    /// Forces a full snapshot resync, discarding the incremental cursor
+    /// path and re-pulling every catalogue/curation row from scratch —
+    /// the only mechanism that can restore a row a permanently-rejected
+    /// delete/remove-shaped outbox intent left tombstoned locally
+    /// (`CurationIntent.leavesUncorrectableTombstoneOnRejection`,
+    /// P4-CR-002). An untouched server-side row generates no incremental
+    /// `/changes` entry, so `syncNow()`'s normal resumed-paging path can
+    /// never surface it; only re-pulling the whole snapshot can.
+    func forceFullResync() async {
+        state = .syncing
+        do {
+            try await bootstrapFromSnapshot()
+            state = .synced(at: Date())
+        } catch {
+            state = fallbackOfflineState()
+        }
+    }
+
     private func handleCursorExpired() async {
         do {
             try await bootstrapFromSnapshot()

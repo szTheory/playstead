@@ -390,9 +390,14 @@ enum CurationIntent: Equatable {
     /// is a plain delete of the row it optimistically inserted. A
     /// remove/rename/delete/move-shaped intent's rejection reverts to a
     /// no-op beyond marking the entry rejected — there is no captured
-    /// prior state to restore from without storing a full row snapshot,
-    /// which no acceptance criterion in this plan requires; flagged as a
-    /// known, bounded limitation in this plan's SUMMARY.
+    /// prior state to restore from without storing a full row snapshot.
+    /// For the delete/remove-shaped kinds this would otherwise be an
+    /// uncorrectable data-loss trap (P4-CR-002): see
+    /// `leavesUncorrectableTombstoneOnRejection`, which `OutboxWorker`
+    /// uses to trigger a full snapshot resync instead of leaving the
+    /// no-op as the only outcome. Rename/move-shaped kinds' rejection
+    /// remains a documented, bounded limitation (cosmetic metadata
+    /// staleness only) per this plan's SUMMARY.
     func revertOptimistic(from curationStore: CurationStore) throws {
         switch self {
         case .favoriteAdd(let id, _):
@@ -408,6 +413,30 @@ enum CurationIntent: Equatable {
         case .favoriteRemove, .collectionRename, .collectionDelete, .collectionMemberRemove,
              .collectionMemberMove, .queueDequeue, .queueMove, .playSessionRecord, .playSessionDelete:
             break
+        }
+    }
+
+    /// True for the delete/remove-shaped kinds whose `applyOptimistically`
+    /// tombstones a row that `revertOptimistic` never restores. A
+    /// permanent rejection of one of these leaves the row permanently,
+    /// silently gone from the local library — and because nothing
+    /// actually changed server-side, no future `/changes` journal entry
+    /// will ever arrive to correct it (P4-CR-002). `OutboxWorker` uses
+    /// this to know which rejections need a full snapshot resync (the
+    /// only mechanism that can re-pull an untouched server-side row)
+    /// rather than just surfacing the rejection.
+    ///
+    /// Excludes rename/move-shaped kinds (`collectionRename`,
+    /// `collectionMemberMove`, `queueMove`): their rejection leaves only
+    /// cosmetic metadata staleness, not a vanished row — the documented,
+    /// bounded limitation this plan's SUMMARY already accepts.
+    var leavesUncorrectableTombstoneOnRejection: Bool {
+        switch self {
+        case .favoriteRemove, .collectionDelete, .collectionMemberRemove, .queueDequeue, .playSessionDelete:
+            return true
+        case .favoriteAdd, .collectionCreate, .collectionRename, .collectionMemberAdd, .collectionMemberMove,
+             .queueEnqueue, .queueMove, .continueDismiss, .playSessionRecord:
+            return false
         }
     }
 }

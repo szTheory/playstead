@@ -170,6 +170,43 @@ final class OutboxTests: XCTestCase {
         XCTAssertEqual(rejected.first?.lastErrorCode, "not_found")
     }
 
+    // MARK: - A permanently-rejected delete/remove-shaped intent leaves a
+    // local row `revertOptimistic` cannot restore (P4-CR-002); the worker
+    // must signal that a full resync is needed rather than leaving the
+    // tombstone with no correction path.
+
+    func test_permanentRejectionOfDeleteShapedIntent_triggersDestructiveRejectionCallback() async throws {
+        try curationStore.upsertCollection(id: "col-1", name: "Doomed", createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z")
+        try outbox.enqueue(.collectionDelete(collectionID: "col-1"))
+
+        StubURLProtocol.responder = { _ in
+            StubURLProtocol.Stub(statusCode: 403, headers: [:], body: self.problemJSON(code: "forbidden"))
+        }
+
+        var resyncCount = 0
+        let worker = OutboxWorker(apiClient: apiClient, outbox: outbox, onDestructiveRejection: { resyncCount += 1 })
+        let result = await worker.drainOnce()
+
+        XCTAssertEqual(result.rejected, 1)
+        XCTAssertEqual(resyncCount, 1, "a permanently-rejected delete-shaped intent must signal that a full resync is needed to restore the row")
+    }
+
+    func test_permanentRejectionOfRenameShapedIntent_doesNotTriggerDestructiveRejectionCallback() async throws {
+        try curationStore.upsertCollection(id: "col-1", name: "Original", createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z")
+        try outbox.enqueue(.collectionRename(collectionID: "col-1", name: "Renamed"))
+
+        StubURLProtocol.responder = { _ in
+            StubURLProtocol.Stub(statusCode: 403, headers: [:], body: self.problemJSON(code: "forbidden"))
+        }
+
+        var resyncCount = 0
+        let worker = OutboxWorker(apiClient: apiClient, outbox: outbox, onDestructiveRejection: { resyncCount += 1 })
+        let result = await worker.drainOnce()
+
+        XCTAssertEqual(result.rejected, 1)
+        XCTAssertEqual(resyncCount, 0, "a rename rejection is a documented, bounded (non-destructive) limitation — it must not trigger a full resync")
+    }
+
     // MARK: - A transient failure retries with backoff and does not
     // revert the local row.
 

@@ -34,11 +34,24 @@ actor OutboxWorker {
     /// already-delivered sessions too, which a plain outbox row cannot
     /// represent once it is gone).
     private let onEntryDelivered: (@Sendable (CurationIntent) -> Void)?
+    /// Called when a delete/remove-shaped intent is permanently rejected
+    /// (`CurationIntent.leavesUncorrectableTombstoneOnRejection`) —
+    /// intended to be wired to `SyncEngine.forceFullResync()` so the row
+    /// the server never actually deleted is re-pulled and restored
+    /// locally rather than left as a silent, uncorrectable tombstone
+    /// (P4-CR-002). No-op by default.
+    private let onDestructiveRejection: (@Sendable () -> Void)?
 
-    init(apiClient: APIClient, outbox: Outbox, onEntryDelivered: (@Sendable (CurationIntent) -> Void)? = nil) {
+    init(
+        apiClient: APIClient,
+        outbox: Outbox,
+        onEntryDelivered: (@Sendable (CurationIntent) -> Void)? = nil,
+        onDestructiveRejection: (@Sendable () -> Void)? = nil
+    ) {
         self.apiClient = apiClient
         self.outbox = outbox
         self.onEntryDelivered = onEntryDelivered
+        self.onDestructiveRejection = onDestructiveRejection
     }
 
     /// Sends every currently-`pending` entry once, in creation order,
@@ -77,6 +90,9 @@ actor OutboxWorker {
                 if case .server(let apiError) = error, isPermanentRejection(apiError) {
                     try? outbox.markRejected(entry.id, intent: intent, code: apiError.code)
                     result.rejected += 1
+                    if intent.leavesUncorrectableTombstoneOnRejection {
+                        onDestructiveRejection?()
+                    }
                 } else {
                     // Transport failure, 5xx, or a 409 idempotency
                     // conflict (another attempt is already in flight
