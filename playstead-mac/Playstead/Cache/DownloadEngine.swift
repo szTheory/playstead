@@ -196,17 +196,26 @@ actor DownloadEngine {
             break
         }
 
+        // A fresh (no-Range) request that comes back with a non-200
+        // status (404/500/403/...) never started downloading real
+        // content — drain the response body (the connection may not be
+        // cleanly reusable otherwise) and fail before touching the
+        // partial file at all, rather than truncating/creating an
+        // unnecessary zero-byte file for a request that never produced
+        // useful payload (P1-WR-004).
+        if !sentRange && http.statusCode != 200 {
+            _ = try? await drain(bytesStream)
+            throw DownloadError.invalidResponse
+        }
+
         // Every remaining case has a body worth consuming: a fresh
-        // (false, .restartFromZero) request, a (true, .restartFromZero)
-        // 200 that ignored Range, or a (true, .appendFrom) 206.
+        // (false, .restartFromZero) request that got a 200, a (true,
+        // .restartFromZero) 200 that ignored Range, or a (true,
+        // .appendFrom) 206.
         if decision == .restartFromZero {
             try truncatePartial(at: partialURL, fm: fm)
         } else if !fm.fileExists(atPath: partialURL.path) {
             fm.createFile(atPath: partialURL.path, contents: nil)
-        }
-
-        if !sentRange && http.statusCode != 200 {
-            throw DownloadError.invalidResponse
         }
 
         var hasher: StreamingSHA256
