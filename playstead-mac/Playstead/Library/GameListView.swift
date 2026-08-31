@@ -55,7 +55,9 @@ struct GameListView: View {
     private func accessibleLabel(for row: GameListRow) -> String {
         let title = row.title.isEmpty ? "Untitled" : row.title
         let systemName = SystemRegistry.entry(for: row.systemID).displayName
-        let statusSentence = LibraryStatus.highestPriority(among: row.statuses)?.accessibleName(title: title) ?? ""
+        guard let statusSentence = LibraryStatus.highestPriority(among: row.statuses)?.accessibleName(title: title) else {
+            return "\(title), \(systemName)"
+        }
         return "\(title), \(systemName), \(statusSentence)"
     }
 }

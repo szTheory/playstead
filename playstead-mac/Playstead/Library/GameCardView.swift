@@ -56,7 +56,9 @@ struct GameCardView: View {
     /// downloaded and ready to play offline."
     var accessibleLabel: String {
         let systemName = SystemRegistry.entry(for: systemID).displayName
-        let statusSentence = LibraryStatus.highestPriority(among: statuses)?.accessibleName(title: displayTitle) ?? ""
+        guard let statusSentence = LibraryStatus.highestPriority(among: statuses)?.accessibleName(title: displayTitle) else {
+            return "\(displayTitle), \(systemName)"
+        }
         return "\(displayTitle), \(systemName), \(statusSentence)"
     }
 }
