@@ -20,7 +20,11 @@ final class MotionPreference {
     /// Injectable so tests toggle this without touching the real system
     /// setting or requiring Accessibility permissions in CI.
     private let poll: () -> Bool
-    private var observer: NSObjectProtocol?
+    // `nonisolated(unsafe)`: deinit cannot hop to the main actor to read
+    // an isolated property, but this token is only ever written once (in
+    // init, on the main actor) and read/cleared once (in deinit, at most
+    // once per instance) — there is no concurrent access to guard against.
+    private nonisolated(unsafe) var observer: NSObjectProtocol?
 
     init(poll: @escaping () -> Bool = { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }) {
         self.poll = poll
