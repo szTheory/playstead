@@ -81,6 +81,7 @@ struct GameRowView: View {
         status = (result == .ready) ? .ready : .needsDownload
     }
 
+    @MainActor
     private func download() async {
         guard let apiClient = await environment.apiClientIfAvailable() else {
             status = .error("Not paired")
@@ -109,6 +110,7 @@ struct GameRowView: View {
         }
     }
 
+    @MainActor
     private func play() async {
         guard let adapterHost = environment.adapterHost else {
             status = .error("Adapter unavailable")
