@@ -52,13 +52,25 @@ actor DownloadCoordinator {
     private let eventsContinuation: AsyncStream<CoordinatorEvent>.Continuation
     nonisolated let events: AsyncStream<CoordinatorEvent>
 
+    /// Applied to every non-cancellation failure path (digest mismatches
+    /// and transport/response-shape errors alike) so a permanently
+    /// failing resource can't drive an unbounded, backoff-free hammer
+    /// loop against the network (see P1-CR-001). Once `attemptCount`
+    /// reaches this cap, the item is paused and a `.blocked` event is
+    /// emitted instead of another silent retry.
+    private let maxAttempts = 5
+    private let sleeper: (@Sendable (Double) async -> Void)
+
     init(
         queue: DownloadQueue,
         engine: DownloadEngine,
         cas: CASManager,
         localStore: LocalStore,
         reachability: Reachability,
-        blobURL: @escaping (String) -> URL
+        blobURL: @escaping (String) -> URL,
+        sleeper: @escaping (@Sendable (Double) async -> Void) = { seconds in
+            try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+        }
     ) {
         self.queue = queue
         self.engine = engine
@@ -66,6 +78,7 @@ actor DownloadCoordinator {
         self.localStore = localStore
         self.reachability = reachability
         self.blobURL = blobURL
+        self.sleeper = sleeper
 
         var continuation: AsyncStream<CoordinatorEvent>.Continuation!
         self.events = AsyncStream { cont in continuation = cont }
@@ -194,7 +207,7 @@ actor DownloadCoordinator {
             // Offline handling already reset this item's state to
             // `.waiting` before cancelling — nothing further to do.
         } catch let error as DownloadError {
-            handleDownloadError(item, error: error)
+            await handleDownloadError(item, error: error)
         } catch {
             // A transport failure the engine itself couldn't recover
             // from (or a cancellation surfaced as a plain `URLError`,
@@ -232,14 +245,35 @@ actor DownloadCoordinator {
     /// (D-23): `DownloadEngine` already quarantined the bad partial, so
     /// all this actor does is re-enqueue with an incremented attempt
     /// count and a plainly worded, no-blame event for the UI.
-    private func handleDownloadError(_ item: QueueItem, error: DownloadError) {
-        guard case .digestMismatch = error else {
-            try? queue.resume(id: item.id)
+    ///
+    /// Every non-cancellation failure — digest mismatches as well as
+    /// transport/response-shape errors (`.invalidResponse`,
+    /// `.transport`) that previously reset the item to `.waiting` with
+    /// no backoff and no cap — is now capped at `maxAttempts` and backed
+    /// off exponentially, so a permanently failing resource (revoked
+    /// blob URL, deleted server object, corrupt upstream bytes) stops
+    /// hammering the network and surfaces a `.blocked` event instead of
+    /// retrying forever (P1-CR-001).
+    private func handleDownloadError(_ item: QueueItem, error: DownloadError) async {
+        let nextAttempt = item.attemptCount + 1
+        guard nextAttempt < maxAttempts else {
+            try? queue.pause(id: item.id)
+            emit(.blocked(itemID: item.id, assetSetID: item.assetSetID, reason: "\(error)"))
             return
         }
+
         try? queue.incrementAttempt(id: item.id)
         try? queue.resume(id: item.id)
-        emit(.digestMismatchRequeued(itemID: item.id, assetSetID: item.assetSetID, sha256: item.sha256, attempt: item.attemptCount + 1))
+
+        if case .digestMismatch = error {
+            emit(.digestMismatchRequeued(itemID: item.id, assetSetID: item.assetSetID, sha256: item.sha256, attempt: nextAttempt))
+        }
+
+        await sleeper(backoffSeconds(attempt: nextAttempt))
+    }
+
+    private func backoffSeconds(attempt: Int) -> Double {
+        min(pow(2.0, Double(attempt)), 60.0)
     }
 
     /// Reachability returned: emit the calm "we're back" event and
