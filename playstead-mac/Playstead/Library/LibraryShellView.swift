@@ -124,6 +124,20 @@ struct LibraryShellView: View {
             AdapterSetupView()
 
         case .downloads:
+            // The queue path's counterpart to the row path's reclaim
+            // prompt: when the scheduler refuses an item on capacity,
+            // the reason has to be visible somewhere the user can act
+            // on it, or the item just silently stops.
+            if let blocked = environment.lastBlockedDownload {
+                Text(blocked.reason)
+                    .font(.psLabel)
+                    .foregroundStyle(DesignTokens.textMuted)
+                    .padding(.horizontal, DesignTokens.Spacing.lg)
+                    .accessibilityLabel("Download paused: \(blocked.reason)")
+                Button("Free up space…") { presentedSurface = .storage }
+                    .padding(.horizontal, DesignTokens.Spacing.lg)
+            }
+
             DownloadsView(
                 rows: environment.downloadRows(),
                 onPause: { environment.pauseDownload(id: $0); storageRevision += 1 },

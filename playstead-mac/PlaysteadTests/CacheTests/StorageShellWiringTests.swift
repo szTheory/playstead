@@ -277,6 +277,23 @@ final class StorageShellWiringTests: XCTestCase {
         XCTAssertEqual(environment.reclaimCandidateRows().map(\.id), ["old-game"])
     }
 
+    /// The reason a queue-path block carries into the Downloads surface
+    /// must name the limit and the actual shortfall — the scheduler
+    /// pausing an item with no visible reason is how a download silently
+    /// stops.
+    func testBlockedQueueReasonNamesTheLimitAndShortfall() {
+        let quotaReason = AppEnvironment.quotaReason(
+            QuotaVerdict(allowed: false, limitHit: .quota, shortfallBytes: 2 * QuotaPolicy.gibibyte)
+        )
+        XCTAssertTrue(quotaReason.contains(ByteFormatting.formatBytes(2 * QuotaPolicy.gibibyte)))
+        XCTAssertTrue(quotaReason.lowercased().contains("quota"))
+
+        let floorReason = AppEnvironment.quotaReason(
+            QuotaVerdict(allowed: false, limitHit: .floor, shortfallBytes: QuotaPolicy.gibibyte)
+        )
+        XCTAssertTrue(floorReason.lowercased().contains("free-space floor"))
+    }
+
     // MARK: - Every toolbar surface is reachable and renders real data
 
     func testEveryShellSurfaceRoutesToATitledSurface() {
