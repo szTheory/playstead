@@ -28,6 +28,17 @@ enum SQLiteError: Error, CustomStringConvertible {
 final class SQLiteConnection {
     private var db: OpaquePointer?
     private let queue = DispatchQueue(label: "dev.playstead.mac.sqlite")
+    /// Marks `queue` with an instance-specific token so `onQueue(_:)` can
+    /// tell whether the calling code is already running on this
+    /// connection's own serial queue (added in plan 03-06). Without this,
+    /// any table-owning store (`CatalogueStore`/`CurationStore`) calling
+    /// `execute`/`query` from inside a `transaction(_:)` closure —
+    /// exactly the pattern `SyncEngine`'s page-apply discipline requires
+    /// — hits `queue.sync` from a thread already executing synchronously
+    /// on that same queue, which libdispatch traps as a fatal
+    /// "BUG IN CLIENT OF LIBDISPATCH: dispatch_sync called on queue
+    /// already owned by current thread" rather than merely deadlocking.
+    private let queueKey = DispatchSpecificKey<Void>()
 
     init(path: String) throws {
         var handle: OpaquePointer?
@@ -38,15 +49,27 @@ final class SQLiteConnection {
         }
         self.db = handle
         sqlite3_exec(handle, "PRAGMA foreign_keys = ON;", nil, nil, nil)
+        queue.setSpecific(key: queueKey, value: ())
     }
 
     deinit {
         sqlite3_close(db)
     }
 
+    /// Runs `body`, synchronously hopping onto `queue` unless the caller
+    /// is already running on it (see `queueKey`'s doc comment above) —
+    /// in which case `body` runs directly, in place, with no additional
+    /// queue hop.
+    private func onQueue<T>(_ body: () throws -> T) throws -> T {
+        if DispatchQueue.getSpecific(key: queueKey) != nil {
+            return try body()
+        }
+        return try queue.sync(execute: body)
+    }
+
     /// Executes `sql` with no result set, binding `params` positionally.
     func execute(_ sql: String, params: [SQLiteBindable] = []) throws {
-        try queue.sync {
+        try onQueue {
             let statement = try prepare(sql)
             defer { sqlite3_finalize(statement) }
             try bind(params, to: statement)
@@ -59,7 +82,7 @@ final class SQLiteConnection {
 
     /// Runs `sql` and maps every result row through `rowMapper`.
     func query<T>(_ sql: String, params: [SQLiteBindable] = [], rowMapper: (SQLiteRow) -> T) throws -> [T] {
-        try queue.sync {
+        try onQueue {
             let statement = try prepare(sql)
             defer { sqlite3_finalize(statement) }
             try bind(params, to: statement)
@@ -79,9 +102,12 @@ final class SQLiteConnection {
         }
     }
 
-    /// Runs `body` inside a `BEGIN`/`COMMIT` transaction, rolling back on error.
+    /// Runs `body` inside a `BEGIN`/`COMMIT` transaction, rolling back on
+    /// error. `body` may itself call `execute`/`query` (including via a
+    /// table-owning store) — those calls detect they are already on this
+    /// connection's queue and run in place rather than re-entering it.
     func transaction(_ body: () throws -> Void) throws {
-        try queue.sync {
+        try onQueue {
             try execUnlocked("BEGIN;")
             do {
                 try body()

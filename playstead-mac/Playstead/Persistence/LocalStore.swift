@@ -6,7 +6,13 @@ import Foundation
 /// so `LibraryShellView` shows content immediately on every launch and
 /// only refreshes it from the network in the background.
 final class LocalStore {
-    private let connection: SQLiteConnection
+    /// Exposed (module-internal) so table-owning stores added in plan
+    /// 03-06 (`CatalogueStore`, `CurationStore`, `CursorStore`) can read
+    /// and write their own tables directly, and wrap multi-row writes in
+    /// `transaction(_:)` below, without `LocalStore` growing a method per
+    /// table. `LocalStore` itself owns only migrations and this shared
+    /// connection.
+    let connection: SQLiteConnection
 
     init(paths: AppPaths) throws {
         self.connection = try SQLiteConnection(path: paths.databaseURL.path)
@@ -15,6 +21,13 @@ final class LocalStore {
 
     private init(connection: SQLiteConnection) {
         self.connection = connection
+    }
+
+    /// Runs `body` inside one `BEGIN`/`COMMIT` transaction, rolling back
+    /// on error. `SyncEngine`/`JournalApplier` wrap every page apply in
+    /// this so a partially applied page can never be observed (T-03-17).
+    func transaction(_ body: () throws -> Void) throws {
+        try connection.transaction(body)
     }
 
     /// An in-memory store used only if the on-disk store somehow fails to
