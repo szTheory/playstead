@@ -1,8 +1,6 @@
 # Generated web-research response cache; source ledgers are tracked instead.
 .planning/research/.cache/
 
-original-deep-research-prompt.txt
-
 # GSD runtime scratch
 .gsd/
 .planning/milestone.lock

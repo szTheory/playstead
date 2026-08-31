@@ -169,4 +169,4 @@ The owner selected **Playstead** as the ecosystem family name on 2026-08-26. Tha
 - Experience principles and design sources: [`EXPERIENCE-ETHOS.md`](EXPERIENCE-ETHOS.md)
 - Web/client architecture and 17-source ledger: [`WEB-AND-CLIENT-ARCHITECTURE.md`](WEB-AND-CLIENT-ARCHITECTURE.md)
 - Naming research and collision checks: [`NAMING.md`](NAMING.md)
-- Original project intent: [`../../original-deep-research-prompt.txt`](../../original-deep-research-prompt.txt)
+- Original project intent: [`original-deep-research-prompt.txt`](original-deep-research-prompt.txt)

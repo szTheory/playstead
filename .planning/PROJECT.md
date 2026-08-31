@@ -128,7 +128,7 @@ Pre-project research found mature local frontends, ROM managers, appliance bundl
 - [Technical, protocol, BIOS, storage, security, and legal risks](discovery/TECHNICAL-RISKS.md)
 - [Web and client architecture](discovery/WEB-AND-CLIENT-ARCHITECTURE.md)
 - [Naming research](discovery/NAMING.md)
-- [Original vision](../original-deep-research-prompt.txt)
+- [Original vision](discovery/original-deep-research-prompt.txt)
 
 The discovery corpus contains 62 source-ledger entries. Mutable facts and legal/licensing claims must be revalidated when a phase depends on them.
 

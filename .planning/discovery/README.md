@@ -17,7 +17,7 @@ This directory preserves pre-project research gathered before `PROJECT.md` is ap
 
 ## Primary Intent
 
-- [`../../original-deep-research-prompt.txt`](../../original-deep-research-prompt.txt) — the user's original vision and ambitions; downstream synthesis must preserve rather than replace it
+- [`original-deep-research-prompt.txt`](original-deep-research-prompt.txt) — the user's original vision and ambitions; downstream synthesis must preserve rather than replace it
 
 ## Provenance Standard
 
