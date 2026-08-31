@@ -7,10 +7,18 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		240000000000000000000001 /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = 250000000000000000000001 /* SnapshotTesting */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
 		232A3E90E56347D5A5C343EB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4D6D4F7B80314C78A88735E2 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 44DC10C2CEB44A12A91241F2;
+			remoteInfo = Playstead;
+		};
+		1F0000000000000000000001 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 4D6D4F7B80314C78A88735E2 /* Project object */;
 			proxyType = 1;
@@ -22,6 +30,7 @@
 /* Begin PBXFileReference section */
 		39A00EA58CC747DF8AF5DB1E /* Playstead.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Playstead.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C6329AF3F108470AA0F49B6B /* PlaysteadTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PlaysteadTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		1A0000000000000000000001 /* PlaysteadUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PlaysteadUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -44,6 +53,7 @@
 			sourceTree = "<group>";
 		};
 		DE82DF82B79D42B0BA0E75F3 /* PlaysteadTests */ = {isa = PBXFileSystemSynchronizedRootGroup; path = PlaysteadTests; sourceTree = "<group>"; };
+		1B0000000000000000000001 /* PlaysteadUITests */ = {isa = PBXFileSystemSynchronizedRootGroup; path = PlaysteadUITests; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -58,6 +68,14 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				240000000000000000000001 /* SnapshotTesting in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1D0000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -69,6 +87,7 @@
 			children = (
 				F4DB3718A4C04995AC0D2980 /* Playstead */,
 				DE82DF82B79D42B0BA0E75F3 /* PlaysteadTests */,
+				1B0000000000000000000001 /* PlaysteadUITests */,
 				34F27EAF1B52460DBD41F3EC /* Products */,
 			);
 			sourceTree = "<group>";
@@ -78,6 +97,7 @@
 			children = (
 				39A00EA58CC747DF8AF5DB1E /* Playstead.app */,
 				C6329AF3F108470AA0F49B6B /* PlaysteadTests.xctest */,
+				1A0000000000000000000001 /* PlaysteadUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -121,9 +141,32 @@
 				DE82DF82B79D42B0BA0E75F3 /* PlaysteadTests */,
 			);
 			name = PlaysteadTests;
+			packageProductDependencies = (
+				250000000000000000000001 /* SnapshotTesting */,
+			);
 			productName = PlaysteadTests;
 			productReference = C6329AF3F108470AA0F49B6B /* PlaysteadTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		1E0000000000000000000001 /* PlaysteadUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 230000000000000000000001 /* Build configuration list for PBXNativeTarget "PlaysteadUITests" */;
+			buildPhases = (
+				1C0000000000000000000001 /* Sources */,
+				1D0000000000000000000001 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				200000000000000000000001 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				1B0000000000000000000001 /* PlaysteadUITests */,
+			);
+			name = PlaysteadUITests;
+			productName = PlaysteadUITests;
+			productReference = 1A0000000000000000000001 /* PlaysteadUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
 
@@ -142,6 +185,10 @@
 						CreatedOnToolsVersion = 16.2;
 						TestTargetID = 44DC10C2CEB44A12A91241F2;
 					};
+					1E0000000000000000000001 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = 44DC10C2CEB44A12A91241F2;
+					};
 				};
 			};
 			buildConfigurationList = 07D345382FBC4F6BB1DBF241 /* Build configuration list for PBXProject "Playstead" */;
@@ -154,11 +201,15 @@
 			);
 			mainGroup = F2EE740FF66C4EB09CAB9688;
 			productRefGroup = 34F27EAF1B52460DBD41F3EC /* Products */;
+			packageReferences = (
+				260000000000000000000001 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */,
+			);
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
 				44DC10C2CEB44A12A91241F2 /* Playstead */,
 				B523D701384541059776544C /* PlaysteadTests */,
+				1E0000000000000000000001 /* PlaysteadUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -188,6 +239,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		1C0000000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -195,6 +253,11 @@
 			isa = PBXTargetDependency;
 			target = 44DC10C2CEB44A12A91241F2 /* Playstead */;
 			targetProxy = 232A3E90E56347D5A5C343EB /* PBXContainerItemProxy */;
+		};
+		200000000000000000000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 44DC10C2CEB44A12A91241F2 /* Playstead */;
+			targetProxy = 1F0000000000000000000001 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -409,6 +472,42 @@
 			};
 			name = Release;
 		};
+		210000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = REPLACE_WITH_YOUR_TEAM_ID;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "dev.playstead.mac.PlaysteadUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Playstead;
+			};
+			name = Debug;
+		};
+		220000000000000000000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = REPLACE_WITH_YOUR_TEAM_ID;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "dev.playstead.mac.PlaysteadUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Playstead;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -439,7 +538,35 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		230000000000000000000001 /* Build configuration list for PBXNativeTarget "PlaysteadUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				210000000000000000000001 /* Debug */,
+				220000000000000000000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		260000000000000000000001 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/pointfreeco/swift-snapshot-testing";
+			requirement = {
+				kind = exactVersion;
+				version = 1.19.4;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		250000000000000000000001 /* SnapshotTesting */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 260000000000000000000001 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */;
+			productName = SnapshotTesting;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 4D6D4F7B80314C78A88735E2 /* Project object */;
 }

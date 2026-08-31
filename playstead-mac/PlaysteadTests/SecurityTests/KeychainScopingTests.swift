@@ -140,4 +140,28 @@ final class KeychainScopingTests: XCTestCase {
     func testOrderedCandidatesOfNothingIsEmpty() {
         XCTAssertTrue(KeychainStore.orderedCandidates(in: []).isEmpty)
     }
+
+    func testScopedMatchQueryRestrictsSearchWithoutSelectingAnAddDestination() {
+        let scope = NSObject()
+        let query = KeychainStore.scopedMatchQuery(
+            [kSecClass as String: kSecClassGenericPassword],
+            searchList: [scope]
+        )
+
+        let searchList = query[kSecMatchSearchList as String] as? [NSObject]
+        XCTAssertTrue(searchList?.first === scope)
+        XCTAssertEqual(searchList?.count, 1)
+        XCTAssertNil(query[kSecUseKeychain as String])
+    }
+
+    func testScopedAddQuerySelectsDestinationWithoutChangingSearchList() {
+        let scope = NSObject()
+        let query = KeychainStore.scopedAddQuery(
+            [kSecClass as String: kSecClassGenericPassword],
+            destination: scope
+        )
+
+        XCTAssertTrue((query[kSecUseKeychain as String] as? NSObject) === scope)
+        XCTAssertNil(query[kSecMatchSearchList as String])
+    }
 }
