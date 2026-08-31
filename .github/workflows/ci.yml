@@ -83,6 +83,44 @@ jobs:
           git status --porcelain
           test -z "$(git status --porcelain)"
 
+  # Wave 0 macOS adoption tracer. This job is deliberately unfiltered: a
+  # push or pull request may change a server/client contract without touching
+  # the Mac directory, so path filtering would make the evidence vacuous.
+  mac-verification:
+    name: macOS 26 adoption canaries
+    runs-on: macos-26
+    timeout-minutes: 30
+    needs: [test, compose-smoke]
+    if: always()
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      LINUX_TEST_CONCLUSION: ${{ needs.test.result }}
+      LINUX_COMPOSE_CONCLUSION: ${{ needs.compose-smoke.result }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run exact hosted adoption tracer
+        working-directory: playstead-mac
+        run: scripts/ci/run-mac-verification.sh --run-wave-0-adoption
+
+      - name: Upload sanitized adoption manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wave-0-adoption
+          path: playstead-mac/.build/ci/evidence
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload raw Xcode results on failure only
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wave-0-xcresult-failure
+          path: playstead-mac/.build/ci/raw/*.xcresult
+          if-no-files-found: ignore
+          retention-days: 7
+
   # Cold-start deployment proof (docker build + compose up from destroyed
   # volumes + restart). It is slow (~5 min) and only changes when the
   # deployment surface does, so it runs on main and on PRs that touch it.
