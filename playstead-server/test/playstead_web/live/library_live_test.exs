@@ -7,9 +7,12 @@ defmodule PlaysteadWeb.LibraryLiveTest do
 
   alias Playstead.Accounts.Scope
   alias Playstead.Blobs
+  alias Playstead.Curation
   alias Playstead.Import
   alias Playstead.Recognition
   alias Playstead.RomFixtures
+  alias Playstead.Sync.ChangeJournal
+  alias PlaysteadWeb.LibraryLive.StatusSlot
 
   setup :register_and_log_in_user
 
@@ -176,7 +179,10 @@ defmodule PlaysteadWeb.LibraryLiveTest do
 
     {:ok, _lv, html} = live(conn, ~p"/library")
 
-    assert Regex.scan(~r/shared/, html) |> length() == 1
+    # Scoped to the element's own visible text (`>shared<`), not the whole
+    # page — an accessible name attribute (e.g. "Add shared to Favorites")
+    # legitimately mentions the same user's own asset a second time.
+    assert Regex.scan(~r/>shared</, html) |> length() == 1
 
     other_scope = Scope.for_user(other)
 
@@ -209,5 +215,112 @@ defmodule PlaysteadWeb.LibraryLiveTest do
       |> length()
 
     assert count == 0
+  end
+
+  describe "Task 1: favorites shelf and the single status-slot component (03-05)" do
+    test "toggling the favorite control in the console creates the same row and journal entry the API path creates",
+         %{conn: conn, user: user} do
+      receipt = import!(user.id, random_bytes(64), "favme.bin")
+      asset_set_id = receipt.asset_set_id
+
+      {:ok, lv, _html} = live(conn, ~p"/library")
+
+      lv |> element("#asset-#{asset_set_id}-favorite-toggle") |> render_click()
+
+      assert [%{asset_set_id: ^asset_set_id}] = Curation.list_favorites(user.id)
+
+      entries = ChangeJournal.read_after(user.id, 0, 50)
+      assert [entry] = Enum.filter(entries, &(&1.entity_kind == "curation"))
+      assert entry.operation == "upsert"
+      assert entry.payload["type"] == "favorite"
+      assert entry.payload["asset_set_id"] == asset_set_id
+    end
+
+    test "the Favorites shelf reflects a favorite created directly through Curation.add_favorite/3 without any console interaction",
+         %{conn: conn, user: user} do
+      receipt = import!(user.id, random_bytes(64), "favdirect.bin")
+
+      {:ok, _favorite} =
+        Curation.add_favorite(user.id, Ecto.UUID.generate(), receipt.asset_set_id)
+
+      {:ok, _lv, html} = live(conn, ~p"/library")
+
+      assert html =~ ~s(id="favorites-shelf")
+      assert html =~ ~s(id="game-card-#{receipt.asset_set_id}")
+    end
+
+    test "a card for content with no reference match renders the quiet badge and carries no error/warning role",
+         %{conn: conn, user: user} do
+      receipt = import!(user.id, random_bytes(64), "quiet.bin")
+
+      {:ok, _favorite} =
+        Curation.add_favorite(user.id, Ecto.UUID.generate(), receipt.asset_set_id)
+
+      {:ok, lv, _html} = live(conn, ~p"/library")
+
+      assert has_element?(lv, "#game-card-#{receipt.asset_set_id}-unidentified")
+      card_html = lv |> element("#game-card-#{receipt.asset_set_id}") |> render()
+      refute card_html =~ ~s(role="alert")
+      refute card_html =~ ~s(role="warning")
+    end
+
+    test "StatusSlot renders exactly one indicator element for an input carrying several simultaneous states, and the higher-ladder state wins" do
+      html =
+        render_component(&StatusSlot.status_slot/1, %{
+          id: "multi-status",
+          title: "Multi-State Game",
+          needs_attention: false,
+          missing_dependency: true,
+          downloading: true,
+          queued: true,
+          pinned: true,
+          verified: true
+        })
+
+      assert Regex.scan(~r/data-status-slot="true"/, html) |> length() == 1
+      assert html =~ ~s(data-status="missing_dependency")
+      refute html =~ ~s(data-status="downloading")
+    end
+
+    test "every status variant's rendered markup contains a glyph element and an accessible name" do
+      for state <- StatusSlot.ladder() do
+        assigns =
+          %{
+            id: "status-#{state}",
+            title: "Some Game",
+            needs_attention: false,
+            missing_dependency: false,
+            downloading: false,
+            download_percent: 42,
+            queued: false,
+            pinned: false,
+            verified: false
+          }
+          |> Map.put(state, true)
+
+        html = render_component(&StatusSlot.status_slot/1, assigns)
+
+        assert html =~ ~s(status-slot-glyph)
+        assert html =~ "aria-label"
+      end
+    end
+
+    test "the CSS defines the system-accent and status color vocabularies with no shared value" do
+      css = File.read!("assets/css/app.css")
+
+      system_accents =
+        Regex.scan(~r/--system-accent-[a-z]+:\s*(#[0-9a-fA-F]+);/, css) |> Enum.map(&List.last/1)
+
+      statuses =
+        Regex.scan(~r/--status-[a-z-]+:\s*(#[0-9a-fA-F]+);/, css) |> Enum.map(&List.last/1)
+
+      assert length(system_accents) > 0
+      assert length(statuses) > 0
+      assert MapSet.disjoint?(MapSet.new(system_accents), MapSet.new(statuses))
+    end
+
+    test "the LiveView never calls the repository directly" do
+      refute File.read!("lib/playstead_web/live/library_live.ex") =~ ~r/Repo\./
+    end
   end
 end
