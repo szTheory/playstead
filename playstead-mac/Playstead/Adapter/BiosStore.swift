@@ -106,14 +106,34 @@ final class BiosStore {
             )
         }
 
-        let digest = try hashFile(candidateURL)
+        // Copy first into a private temp file, then hash THAT copy, then
+        // atomically move it into managed storage under the computed
+        // digest name — `candidateURL` is never re-opened after this
+        // point. Hashing (then trusting) a second, separate read of
+        // `candidateURL` would leave a window where the file on disk
+        // could be replaced between the digest computation and the copy,
+        // so the bytes actually stored under the trusted digest name
+        // would not be guaranteed to be the bytes that were hashed
+        // (P2-WR-002).
+        let tempURL = managedDirectory.appendingPathComponent(".incoming-\(UUID().uuidString)")
+        try fm.copyItem(at: candidateURL, to: tempURL)
+        let digest: String
+        do {
+            digest = try hashFile(tempURL)
+        } catch {
+            try? fm.removeItem(at: tempURL)
+            throw error
+        }
         guard reference.knownSHA256Digests.contains(digest) else {
+            try? fm.removeItem(at: tempURL)
             throw BiosStoreError.invalidCandidate(reason: "this file's contents don't match a known reference")
         }
 
         let managedURL = managedDirectory.appendingPathComponent(digest)
-        if !fm.fileExists(atPath: managedURL.path) {
-            try fm.copyItem(at: candidateURL, to: managedURL)
+        if fm.fileExists(atPath: managedURL.path) {
+            try? fm.removeItem(at: tempURL)
+        } else {
+            try fm.moveItem(at: tempURL, to: managedURL)
         }
 
         let timestamp = now()
