@@ -180,10 +180,11 @@ defmodule PlaysteadWeb.LibraryLiveTest do
 
     {:ok, _lv, html} = live(conn, ~p"/library")
 
-    # Scoped to the element's own visible text (`>shared<`), not the whole
-    # page — an accessible name attribute (e.g. "Add shared to Favorites")
-    # legitimately mentions the same user's own asset a second time.
-    assert Regex.scan(~r/>shared</, html) |> length() == 1
+    # Scoped to the element's own visible text (`>` … `shared` … `<`,
+    # tolerant of HEEx's insignificant inter-tag whitespace), not the
+    # whole page — an accessible name attribute (e.g. "Add shared to
+    # Favorites") legitimately mentions the same user's own asset again.
+    assert Regex.scan(~r/>\s*shared\s*</, html) |> length() == 1
 
     other_scope = Scope.for_user(other)
 
@@ -247,7 +248,7 @@ defmodule PlaysteadWeb.LibraryLiveTest do
       {:ok, _lv, html} = live(conn, ~p"/library")
 
       assert html =~ ~s(id="favorites-shelf")
-      assert html =~ ~s(id="game-card-#{receipt.asset_set_id}")
+      assert html =~ ~s(id="favorites-shelf-card-#{receipt.asset_set_id}")
     end
 
     test "a card for content with no reference match renders the quiet badge and carries no error/warning role",
@@ -259,8 +260,8 @@ defmodule PlaysteadWeb.LibraryLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/library")
 
-      assert has_element?(lv, "#game-card-#{receipt.asset_set_id}-unidentified")
-      card_html = lv |> element("#game-card-#{receipt.asset_set_id}") |> render()
+      assert has_element?(lv, "#favorites-shelf-card-#{receipt.asset_set_id}-unidentified")
+      card_html = lv |> element("#favorites-shelf-card-#{receipt.asset_set_id}") |> render()
       refute card_html =~ ~s(role="alert")
       refute card_html =~ ~s(role="warning")
     end
@@ -428,6 +429,111 @@ defmodule PlaysteadWeb.LibraryLiveTest do
       empty_html = lv |> element("#library-empty") |> render()
       refute empty_html =~ ~s(role="alert")
       refute empty_html =~ ~s(role="warning")
+    end
+  end
+
+  describe "Task 3: search, filters, show-all-systems, large-library rendering, accessibility (03-05)" do
+    test "a library of 500 asset sets renders through a stream container with no skeleton placeholder",
+         %{conn: conn, user: user} do
+      for i <- 1..500 do
+        asset_set_fixture(user.id, %{display_title: "Game #{i}", system_id: "gba"})
+      end
+
+      {:ok, lv, html} = live(conn, ~p"/library")
+
+      assert has_element?(lv, "#library-asset-stream")
+      refute html =~ "skeleton"
+      assert html =~ ~s(phx-update="stream")
+    end
+
+    test "searching a distinctive substring narrows the rendered set to the matching entries only",
+         %{conn: conn, user: user} do
+      asset_set_fixture(user.id, %{display_title: "Xyzzyplugh Adventure"})
+      asset_set_fixture(user.id, %{display_title: "Something Else Entirely"})
+
+      {:ok, lv, _html} = live(conn, ~p"/library")
+
+      lv
+      |> form("#library-search-form", %{"q" => "Xyzzyplugh"})
+      |> render_change()
+
+      html = render(lv)
+      assert html =~ "Xyzzyplugh Adventure"
+      refute html =~ "Something Else Entirely"
+    end
+
+    test "toggling a system chip and an availability chip each narrow the set, and a pressed chip carries aria-pressed",
+         %{conn: conn, user: user} do
+      gba = asset_set_fixture(user.id, %{display_title: "GBA Game", system_id: "gba"})
+      asset_set_fixture(user.id, %{display_title: "SNES Game", system_id: "snes"})
+
+      {:ok, lv, _html} = live(conn, ~p"/library")
+
+      assert has_element?(lv, ~s(button[aria-pressed="false"]#filter-chip-system-gba))
+
+      lv |> element("#filter-chip-system-gba") |> render_click()
+
+      html = render(lv)
+      assert html =~ "GBA Game"
+      refute html =~ "SNES Game"
+      assert has_element?(lv, ~s(button[aria-pressed="true"]#filter-chip-system-gba))
+
+      # Clicking again clears the filter.
+      lv |> element("#filter-chip-system-gba") |> render_click()
+      html = render(lv)
+      assert html =~ "SNES Game"
+
+      lv |> element("#filter-chip-availability-queued") |> render_click()
+      html = render(lv)
+      refute html =~ "GBA Game"
+      refute html =~ "SNES Game"
+
+      Curation.enqueue(user.id, Ecto.UUID.generate(), gba.id)
+      {:ok, lv2, _html} = live(conn, ~p"/library")
+      lv2 |> element("#filter-chip-availability-queued") |> render_click()
+      html = render(lv2)
+      assert html =~ "GBA Game"
+      refute html =~ "SNES Game"
+    end
+
+    test "a system with zero assets appears only after show-all-systems is activated, and the control's label states the hidden count",
+         %{conn: conn, user: user} do
+      asset_set_fixture(user.id, %{display_title: "Present", system_id: "gba"})
+
+      {:ok, lv, html} = live(conn, ~p"/library")
+
+      refute has_element?(lv, "#sidebar-system-snes")
+      assert html =~ "Show all systems (6 hidden)"
+
+      lv |> element("#show-all-systems") |> render_click()
+
+      html = render(lv)
+      assert has_element?(lv, "#sidebar-system-snes")
+      assert html =~ "Hide empty systems"
+    end
+
+    test "every card's accessible name contains the title, the system, and the status sentence",
+         %{conn: conn, user: user} do
+      asset_set_fixture(user.id, %{display_title: "Metroid Fusion", system_id: "gba"})
+
+      {:ok, _lv, html} = live(conn, ~p"/library")
+
+      assert html =~
+               "Metroid Fusion, Game Boy Advance, Metroid Fusion is on your server. Choose Download to play it offline."
+    end
+
+    test "the list view renders a visible text label for each status in addition to the glyph",
+         %{conn: conn, user: user} do
+      asset_set_fixture(user.id, %{display_title: "Listed Game", system_id: "gba"})
+
+      {:ok, lv, _html} = live(conn, ~p"/library")
+
+      lv |> element("#toggle-view") |> render_click()
+
+      html = render(lv)
+      assert has_element?(lv, "#library-asset-stream")
+      assert html =~ "status-slot-label"
+      assert html =~ "On server"
     end
   end
 end

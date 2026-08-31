@@ -256,7 +256,7 @@ defmodule PlaysteadWeb.CollectionsLive do
                   phx-value-collection-id={@collection.id}
                   phx-value-asset-set-id={member.asset_set_id}
                   aria-label={"Remove #{member_title(member, @assets_by_id)} from collection"}
-                  class="text-sm font-semibold text-[#EF4444] hover:underline"
+                  class="text-sm font-semibold text-[#F1F5F9] hover:underline"
                 >
                   Remove
                 </button>

@@ -63,16 +63,24 @@ defmodule PlaysteadWeb.LibraryLive.GameCard do
   attr :navigate, :string, required: true
   attr :status, :map, default: %{}
 
+  attr :id_prefix, :string,
+    default: "game-card",
+    doc:
+      "The same asset can render in more than one section at once (a shelf and the full " <>
+        "browse list); each caller passing a distinct prefix keeps every element id unique " <>
+        "across the page."
+
   def game_card(assigns) do
     assigns =
       assigns
       |> assign(:system_name, system_display_name(assigns.asset_set.system_id))
       |> assign(:status_state_assigns, Map.merge(%{}, assigns.status))
+      |> assign(:base_id, "#{assigns.id_prefix}-#{assigns.asset_set.id}")
 
     ~H"""
     <.link
       navigate={@navigate}
-      id={"game-card-#{@asset_set.id}"}
+      id={@base_id}
       class="game-card"
       aria-label={accessible_name(@asset_set, @system_name, @status_state_assigns)}
     >
@@ -90,7 +98,7 @@ defmodule PlaysteadWeb.LibraryLive.GameCard do
         </span>
         <span
           :if={@identification_state == :unidentified}
-          id={"game-card-#{@asset_set.id}-unidentified"}
+          id={"#{@base_id}-unidentified"}
           class="unidentified-badge text-label text-[#94A3B8]"
         >
           Not yet identified
@@ -98,7 +106,7 @@ defmodule PlaysteadWeb.LibraryLive.GameCard do
       </div>
 
       <.status_slot
-        id={"game-card-#{@asset_set.id}-status"}
+        id={"#{@base_id}-status"}
         title={@asset_set.display_title}
         needs_attention={Map.get(@status_state_assigns, :needs_attention, false)}
         missing_dependency={Map.get(@status_state_assigns, :missing_dependency, false)}

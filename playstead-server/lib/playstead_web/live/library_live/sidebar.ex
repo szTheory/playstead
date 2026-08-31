@@ -10,6 +10,7 @@ defmodule PlaysteadWeb.LibraryLive.Sidebar do
   """
 
   use Phoenix.Component
+  alias PlaysteadWeb.LibraryLive.GameCard
   import PlaysteadWeb.LibraryLive.GameCard, only: [system_display_name: 1]
 
   attr :active, :atom, default: :home
@@ -28,8 +29,14 @@ defmodule PlaysteadWeb.LibraryLive.Sidebar do
     doc: "%{continue: bool, favorites: bool, collections: bool, queue: bool, recent: bool}"
 
   def sidebar(assigns) do
+    assigns = assign(assigns, :visible_systems, visible_systems(assigns))
+
     ~H"""
-    <nav id="library-sidebar" aria-label="Library navigation" class="library-sidebar">
+    <nav
+      id="library-sidebar"
+      aria-label="Library navigation"
+      class="library-sidebar lg:w-56 lg:shrink-0"
+    >
       <.entry id="sidebar-home" href="/library" active={@active == :home}>Home</.entry>
       <.entry id="sidebar-continue" href="/library?shelf=continue" active={@active == :continue}>
         Continue
@@ -88,7 +95,7 @@ defmodule PlaysteadWeb.LibraryLive.Sidebar do
 
       <div class="mt-4">
         <.entry
-          :for={system <- @systems}
+          :for={system <- @visible_systems}
           id={"sidebar-system-#{system.id}"}
           href={"/library?system=#{system.id}"}
           active={@active == :system and @active_system == system.id}
@@ -101,7 +108,7 @@ defmodule PlaysteadWeb.LibraryLive.Sidebar do
           type="button"
           id="show-all-systems"
           phx-click="show-all-systems"
-          aria-pressed={@show_all_systems}
+          aria-pressed={to_string(@show_all_systems)}
           class="text-label text-[#94A3B8] hover:text-[#F1F5F9]"
         >
           {if @show_all_systems,
@@ -122,6 +129,22 @@ defmodule PlaysteadWeb.LibraryLive.Sidebar do
     """
   end
 
+  # Frozen registry order (D-14), regardless of which subset is visible:
+  # `systems` and `hidden_systems` were each built by iterating
+  # `GameCard.system_order/0` and partitioning on count, so re-filtering
+  # that same order by membership (rather than concatenating the two
+  # lists) keeps a single global order when show-all-systems is active.
+  defp visible_systems(%{show_all_systems: false, systems: systems}), do: systems
+
+  defp visible_systems(%{show_all_systems: true, systems: systems, hidden_systems: hidden}) do
+    ids = MapSet.new(systems ++ hidden, & &1.id)
+    by_id = Map.new(systems ++ hidden, &{&1.id, &1})
+
+    GameCard.system_order()
+    |> Enum.filter(&MapSet.member?(ids, &1))
+    |> Enum.map(&Map.fetch!(by_id, &1))
+  end
+
   attr :id, :string, required: true
   attr :href, :string, required: true
   attr :active, :boolean, default: false
@@ -132,7 +155,16 @@ defmodule PlaysteadWeb.LibraryLive.Sidebar do
     <.link
       navigate={@href}
       id={@id}
-      class={["library-sidebar-entry text-label font-semibold", @active && "text-[#38BDF8]"]}
+      class={
+        [
+          "library-sidebar-entry text-label font-semibold rounded px-2 py-1 -mx-2",
+          # The active-item indicator is a background fill, not the accent
+          # color — 01-UI-SPEC.md reserves accent for CTAs, the display
+          # code, and the focus ring only (03-UI-SPEC.md carries that rule
+          # forward unchanged for the console's new surfaces).
+          @active && "bg-[#334155]"
+        ]
+      }
       aria-current={@active && "page"}
     >
       {render_slot(@inner_block)}

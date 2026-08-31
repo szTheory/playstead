@@ -5,6 +5,12 @@ defmodule PlaysteadWeb.LibraryLive.Shelves do
   count. A shelf with zero items is not rendered here — its sidebar
   entry with a one-line explainer carries that state instead, so the
   caller decides whether to render `shelf/1` at all.
+
+  Each card's `id_prefix` is scoped to this shelf's own `id` — the same
+  asset set can legitimately appear in more than one shelf at once (a
+  favorited game that is also in Continue), and a stateless component
+  render has no way to know that on its own; without a per-shelf prefix
+  the two renders would emit duplicate DOM ids.
   """
 
   use Phoenix.Component
@@ -34,6 +40,7 @@ defmodule PlaysteadWeb.LibraryLive.Shelves do
       <div class="library-shelf-track" role="list" tabindex="0">
         <div :for={entry <- @items} role="listitem" class="library-shelf-item space-y-1">
           <.game_card
+            id_prefix={"#{@id}-card"}
             asset_set={entry.asset_set}
             identification_state={entry.identification_state}
             navigate={@navigate_fun.(entry.asset_set.id)}

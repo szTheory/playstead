@@ -25,9 +25,13 @@ defmodule PlaysteadWeb.LibraryLive do
   alias PlaysteadWeb.LibraryLive.Shelves
   alias PlaysteadWeb.LibraryLive.Sidebar
 
+  alias PlaysteadWeb.LibraryLive.StatusSlot
+
   import AssetDetail, only: [asset_detail: 1]
+  import GameCard, only: [game_card: 1]
   import Shelves, only: [shelf: 1]
   import Sidebar, only: [sidebar: 1]
+  import StatusSlot, only: [status_slot: 1]
 
   @impl true
   def mount(_params, _session, socket) do
@@ -37,7 +41,12 @@ defmodule PlaysteadWeb.LibraryLive do
        hint_dismissed: false,
        attention_count: 0,
        first_run_dismissed: false,
-       show_all_systems: false
+       show_all_systems: false,
+       search: "",
+       filter_system: nil,
+       filter_availability: nil,
+       sort: "title",
+       view: :grid
      )}
   end
 
@@ -97,7 +106,78 @@ defmodule PlaysteadWeb.LibraryLive do
       hidden_systems: hidden_systems,
       has_unidentified: has_unidentified
     )
+    |> stream_filtered_assets(reset: true)
   end
+
+  # The full-library browse section: search, system/availability filter
+  # chips, and sort all apply here — separate from the five curation
+  # shelves above, which are always the raw, unfiltered curation reads.
+  # Rendered via a LiveView stream (D-16): a 500-item library must be
+  # interactive on cold load with fixed row heights and no skeleton,
+  # which a plain `:for` over a growing list assign cannot guarantee.
+  defp stream_filtered_assets(socket, opts) do
+    filtered = filtered_assets(socket)
+
+    socket
+    |> assign(:browse_empty?, filtered == [])
+    |> stream(
+      :library_assets,
+      filtered,
+      Keyword.merge([dom_id: &("asset-" <> &1.asset_set.id)], opts)
+    )
+  end
+
+  defp filtered_assets(socket) do
+    search = String.trim(socket.assigns[:search] || "")
+    filter_system = socket.assigns[:filter_system]
+    filter_availability = socket.assigns[:filter_availability]
+    queue_ids = socket.assigns.queue_ids
+
+    socket.assigns.assets
+    |> Enum.filter(&matches_search?(&1, search))
+    |> Enum.filter(&matches_system?(&1, filter_system))
+    |> Enum.filter(&matches_availability?(&1, filter_availability, queue_ids))
+    |> sort_assets(socket.assigns[:sort] || "title")
+  end
+
+  defp matches_search?(_entry, ""), do: true
+
+  defp matches_search?(%{asset_set: set}, search) do
+    q = String.downcase(search)
+
+    String.contains?(String.downcase(set.display_title || ""), q) or
+      Enum.any?(set.asset_members || [], fn member ->
+        String.contains?(String.downcase(member.declared_name || ""), q)
+      end)
+  end
+
+  defp matches_system?(_entry, system) when system in [nil, ""], do: true
+  defp matches_system?(%{asset_set: set}, system), do: set.system_id == system
+
+  defp matches_availability?(_entry, availability, _queue_ids) when availability in [nil, ""],
+    do: true
+
+  defp matches_availability?(%{asset_set: set}, "queued", queue_ids),
+    do: MapSet.member?(queue_ids, set.id)
+
+  defp matches_availability?(%{asset_set: set}, "server_only", queue_ids),
+    do: not MapSet.member?(queue_ids, set.id)
+
+  defp matches_availability?(_entry, _other, _queue_ids), do: true
+
+  defp sort_assets(entries, "system") do
+    Enum.sort_by(entries, fn %{asset_set: s} -> {s.system_id || "zzzz", title_key(s)} end)
+  end
+
+  defp sort_assets(entries, "date_added") do
+    Enum.sort_by(entries, fn %{asset_set: s} -> s.inserted_at end, {:desc, DateTime})
+  end
+
+  defp sort_assets(entries, _title) do
+    Enum.sort_by(entries, fn %{asset_set: s} -> title_key(s) end)
+  end
+
+  defp title_key(%{display_title: title}), do: String.downcase(title || "")
 
   defp pick_entries(assets_by_id, rows, key_fun) do
     rows
@@ -140,6 +220,45 @@ defmodule PlaysteadWeb.LibraryLive do
 
   def handle_event("show-all-systems", _params, socket) do
     {:noreply, assign(socket, :show_all_systems, not socket.assigns.show_all_systems)}
+  end
+
+  def handle_event("search", %{"q" => query}, socket) do
+    socket = assign(socket, :search, query)
+    {:noreply, stream_filtered_assets(socket, reset: true)}
+  end
+
+  def handle_event("filter-system", %{"system" => system}, socket) do
+    new_value = if socket.assigns.filter_system == system, do: nil, else: system
+    socket = assign(socket, :filter_system, new_value)
+    {:noreply, stream_filtered_assets(socket, reset: true)}
+  end
+
+  def handle_event("filter-availability", %{"availability" => availability}, socket) do
+    new_value = if socket.assigns.filter_availability == availability, do: nil, else: availability
+    socket = assign(socket, :filter_availability, new_value)
+    {:noreply, stream_filtered_assets(socket, reset: true)}
+  end
+
+  def handle_event("sort", %{"sort" => sort}, socket) do
+    socket = assign(socket, :sort, sort)
+    {:noreply, stream_filtered_assets(socket, reset: true)}
+  end
+
+  def handle_event("toggle-view", _params, socket) do
+    new_view = if socket.assigns.view == :grid, do: :list, else: :grid
+    socket = assign(socket, :view, new_view)
+    # A `phx-update="stream"` container only ever receives insert/delete/
+    # reorder diffs for its children — LiveView does not re-diff an
+    # already-inserted item's own markup, so a plain assign here would
+    # leave every existing row showing its old grid/list branch. Forcing
+    # a full re-stream (`reset: true`) re-inserts every item fresh under
+    # the new view's branch.
+    {:noreply, stream_filtered_assets(socket, reset: true)}
+  end
+
+  def handle_event("clear-search", _params, socket) do
+    socket = assign(socket, :search, "")
+    {:noreply, stream_filtered_assets(socket, reset: true)}
   end
 
   def handle_event("toggle-favorite", %{"asset-set-id" => asset_set_id}, socket) do
@@ -275,7 +394,7 @@ defmodule PlaysteadWeb.LibraryLive do
     ~H"""
     <div class="min-h-screen bg-[#0F172A] px-8 py-12 font-sans">
       <Layouts.flash_group flash={@flash} />
-      <div class="mx-auto flex max-w-6xl gap-8">
+      <div class="mx-auto flex max-w-6xl flex-col gap-8 lg:flex-row">
         <.sidebar
           active={:home}
           systems={@systems}
@@ -469,60 +588,168 @@ defmodule PlaysteadWeb.LibraryLive do
             status_fun={&status_for(&1, assigns)}
           />
 
-          <div :if={@assets != []} id="asset-list" class="space-y-3">
-            <div
-              :for={%{asset_set: set, identification_state: state} <- @assets}
-              id={"asset-#{set.id}"}
-              class="rounded-lg border border-[#334155] bg-[#1E293B] p-4 hover:border-[#38BDF8]"
+          <div :if={@assets != []} id="library-browse" class="space-y-4">
+            <div class="flex flex-wrap items-center gap-3">
+              <form id="library-search-form" phx-change="search" class="flex-1">
+                <input
+                  type="text"
+                  name="q"
+                  id="library-search"
+                  value={@search}
+                  placeholder="Search by title or filename"
+                  aria-label="Search your library"
+                  phx-debounce="300"
+                  class="w-full rounded-lg border border-[#334155] bg-[#1E293B] px-3 py-2 text-sm text-[#F1F5F9]"
+                />
+              </form>
+
+              <button
+                type="button"
+                id="toggle-view"
+                phx-click="toggle-view"
+                aria-label={if @view == :grid, do: "Switch to list view", else: "Switch to grid view"}
+                class="text-sm font-semibold text-[#94A3B8] hover:text-[#F1F5F9]"
+              >
+                {if @view == :grid, do: "List view", else: "Grid view"}
+              </button>
+            </div>
+
+            <div class="flex flex-wrap gap-2" role="group" aria-label="Filter by system">
+              <button
+                :for={system <- @systems}
+                type="button"
+                id={"filter-chip-system-#{system.id}"}
+                phx-click="filter-system"
+                phx-value-system={system.id}
+                aria-pressed={to_string(@filter_system == system.id)}
+                class="filter-chip rounded-full border border-[#334155] px-3 py-1 text-label text-[#94A3B8]"
+              >
+                {GameCard.system_display_name(system.id)}
+              </button>
+            </div>
+
+            <div class="flex flex-wrap gap-2" role="group" aria-label="Filter by availability">
+              <button
+                type="button"
+                id="filter-chip-availability-queued"
+                phx-click="filter-availability"
+                phx-value-availability="queued"
+                aria-pressed={to_string(@filter_availability == "queued")}
+                class="filter-chip rounded-full border border-[#334155] px-3 py-1 text-label text-[#94A3B8]"
+              >
+                Queued
+              </button>
+              <button
+                type="button"
+                id="filter-chip-availability-server-only"
+                phx-click="filter-availability"
+                phx-value-availability="server_only"
+                aria-pressed={to_string(@filter_availability == "server_only")}
+                class="filter-chip rounded-full border border-[#334155] px-3 py-1 text-label text-[#94A3B8]"
+              >
+                On server
+              </button>
+            </div>
+
+            <form
+              :if={@view == :list}
+              id="library-sort-form"
+              phx-change="sort"
+              class="flex items-center gap-2"
             >
-              <.link navigate={~p"/library/#{set.id}"} class="block">
-                <p class="text-base font-semibold text-[#F1F5F9]">{set.display_title}</p>
-                <p class="mt-1 text-sm text-[#94A3B8]">
-                  {set.system_id || "Unknown system"}
-                  <span
-                    :if={state == :unidentified}
-                    id={"asset-#{set.id}-unidentified-badge"}
-                    class="ml-2 text-[#94A3B8]"
+              <label for="library-sort" class="text-label text-[#94A3B8]">Sort by</label>
+              <select
+                id="library-sort"
+                name="sort"
+                class="rounded-lg border border-[#334155] bg-[#1E293B] px-2 py-1 text-sm text-[#F1F5F9]"
+              >
+                <option value="title" selected={@sort == "title"}>Title</option>
+                <option value="system" selected={@sort == "system"}>System</option>
+                <option value="date_added" selected={@sort == "date_added"}>Date added</option>
+              </select>
+            </form>
+
+            <div :if={@browse_empty? and @search != ""} id="library-search-empty">
+              <p class="text-heading font-semibold text-[#F1F5F9]">No matches for “{@search}”</p>
+              <p class="mt-1 text-base text-[#94A3B8]">
+                Check the spelling, or clear your search to see everything.
+              </p>
+              <button
+                type="button"
+                id="clear-search"
+                phx-click="clear-search"
+                class="mt-2 text-sm font-semibold text-[#F1F5F9] hover:underline"
+              >
+                Clear search
+              </button>
+            </div>
+
+            <!--
+              A LiveView stream can only be consumed by one phx-update="stream"
+              container per page — inserts are delivered once, so two
+              conditionally-visible containers sharing the same stream name
+              (grid vs. list) would leave whichever one wasn't mounted first
+              permanently empty after a view toggle. One container, switching
+              its inner markup per item, is the only correct structure.
+            -->
+            <div
+              id="library-asset-stream"
+              phx-update="stream"
+              class={if @view == :grid, do: "flex flex-wrap gap-4", else: "space-y-1"}
+            >
+              <div
+                :for={{dom_id, entry} <- @streams.library_assets}
+                id={dom_id}
+                class={
+                  if @view == :grid,
+                    do: "space-y-1",
+                    else:
+                      "flex h-14 items-center justify-between gap-4 rounded-lg border border-[#334155] bg-[#1E293B] px-4"
+                }
+                aria-label={
+                  if @view == :list,
+                    do:
+                      list_row_accessible_name(
+                        entry.asset_set,
+                        status_for(entry.asset_set, assigns)
+                      )
+                }
+              >
+                <%= if @view == :grid do %>
+                  <.game_card
+                    id_prefix="browse-card"
+                    asset_set={entry.asset_set}
+                    identification_state={entry.identification_state}
+                    navigate={~p"/library/#{entry.asset_set.id}"}
+                    status={status_for(entry.asset_set, assigns)}
+                  />
+                  <.asset_actions
+                    asset_set={entry.asset_set}
+                    favorite?={MapSet.member?(@favorite_ids, entry.asset_set.id)}
+                    queued?={MapSet.member?(@queue_ids, entry.asset_set.id)}
+                  />
+                <% else %>
+                  <.link
+                    navigate={~p"/library/#{entry.asset_set.id}"}
+                    class="min-w-0 flex-1 truncate text-sm font-semibold text-[#F1F5F9] hover:underline"
                   >
-                    Not yet identified
+                    {entry.asset_set.display_title}
+                  </.link>
+                  <span class="text-label text-[#94A3B8]">
+                    {GameCard.system_display_name(entry.asset_set.system_id)}
                   </span>
-                </p>
-              </.link>
-              <div class="mt-2 flex gap-3">
-                <button
-                  type="button"
-                  id={"asset-#{set.id}-favorite-toggle"}
-                  phx-click="toggle-favorite"
-                  phx-value-asset-set-id={set.id}
-                  class="text-sm font-semibold text-[#F1F5F9] hover:underline"
-                  aria-label={
-                    if MapSet.member?(@favorite_ids, set.id),
-                      do: "Remove #{set.display_title} from Favorites",
-                      else: "Add #{set.display_title} to Favorites"
-                  }
-                  aria-pressed={MapSet.member?(@favorite_ids, set.id)}
-                >
-                  {if MapSet.member?(@favorite_ids, set.id),
-                    do: "Remove from Favorites",
-                    else: "Add to Favorites"}
-                </button>
-                <button
-                  type="button"
-                  id={"asset-#{set.id}-queue-toggle"}
-                  phx-click={if MapSet.member?(@queue_ids, set.id), do: "dequeue", else: "enqueue"}
-                  phx-value-asset-set-id={set.id}
-                  class="text-sm font-semibold text-[#F1F5F9] hover:underline"
-                  aria-label={
-                    if MapSet.member?(@queue_ids, set.id),
-                      do: "Remove #{set.display_title} from Queue",
-                      else: "Add #{set.display_title} to Queue"
-                  }
-                  aria-pressed={MapSet.member?(@queue_ids, set.id)}
-                >
-                  {if MapSet.member?(@queue_ids, set.id),
-                    do: "Remove from Queue",
-                    else: "Add to Queue"}
-                </button>
+                  <.status_slot
+                    id={"#{dom_id}-status"}
+                    title={entry.asset_set.display_title}
+                    variant={:list}
+                    queued={Map.get(status_for(entry.asset_set, assigns), :queued, false)}
+                  />
+                  <.asset_actions
+                    asset_set={entry.asset_set}
+                    favorite?={MapSet.member?(@favorite_ids, entry.asset_set.id)}
+                    queued?={MapSet.member?(@queue_ids, entry.asset_set.id)}
+                  />
+                <% end %>
               </div>
             </div>
           </div>
@@ -530,5 +757,52 @@ defmodule PlaysteadWeb.LibraryLive do
       </div>
     </div>
     """
+  end
+
+  attr :asset_set, :map, required: true
+  attr :favorite?, :boolean, required: true
+  attr :queued?, :boolean, required: true
+
+  defp asset_actions(assigns) do
+    ~H"""
+    <div class="flex items-center gap-3">
+      <button
+        type="button"
+        id={"asset-#{@asset_set.id}-favorite-toggle"}
+        phx-click="toggle-favorite"
+        phx-value-asset-set-id={@asset_set.id}
+        class="text-sm font-semibold text-[#F1F5F9] hover:underline"
+        aria-label={
+          if @favorite?,
+            do: "Remove #{@asset_set.display_title} from Favorites",
+            else: "Add #{@asset_set.display_title} to Favorites"
+        }
+        aria-pressed={to_string(@favorite?)}
+      >
+        {if @favorite?, do: "Remove from Favorites", else: "Add to Favorites"}
+      </button>
+      <button
+        type="button"
+        id={"asset-#{@asset_set.id}-queue-toggle"}
+        phx-click={if @queued?, do: "dequeue", else: "enqueue"}
+        phx-value-asset-set-id={@asset_set.id}
+        class="text-sm font-semibold text-[#F1F5F9] hover:underline"
+        aria-label={
+          if @queued?,
+            do: "Remove #{@asset_set.display_title} from Queue",
+            else: "Add #{@asset_set.display_title} to Queue"
+        }
+        aria-pressed={to_string(@queued?)}
+      >
+        {if @queued?, do: "Remove from Queue", else: "Add to Queue"}
+      </button>
+    </div>
+    """
+  end
+
+  defp list_row_accessible_name(asset_set, status) do
+    {_state, sentence} = StatusSlot.describe(status, asset_set.display_title)
+
+    "#{asset_set.display_title}, #{GameCard.system_display_name(asset_set.system_id)}, #{sentence}"
   end
 end
