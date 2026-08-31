@@ -4,7 +4,14 @@
 # on-disk flush during play, not only at clean exit.
 #
 # Usage: watch-save.sh <save-file> <duration-seconds> <output-jsonl>
-set -uo pipefail
+#
+# P6-WR-004: `-e` was deliberately omitted with no comment explaining
+# why (see run-probes.sh, this script's only caller, for the fuller
+# rationale). Now on; the one place that already tolerates a
+# transient failure (the save file disappearing between the
+# existence check and the hash, a real possibility during active
+# play) is guarded explicitly below.
+set -euo pipefail
 
 SAVE_FILE="${1:?usage: watch-save.sh <save-file> <duration-seconds> <output-jsonl>}"
 DURATION="${2:?usage: watch-save.sh <save-file> <duration-seconds> <output-jsonl>}"
@@ -19,7 +26,8 @@ while [ "$(date +%s)" -lt "$END" ]; do
   if [ -f "$SAVE_FILE" ]; then
     SIZE=$(stat -f%z "$SAVE_FILE" 2>/dev/null || echo 0)
     MTIME=$(stat -f%m "$SAVE_FILE" 2>/dev/null || echo 0)
-    SHA=$(shasum -a 256 "$SAVE_FILE" | awk '{print $1}')
+    SHA=$(shasum -a 256 "$SAVE_FILE" 2>/dev/null | awk '{print $1}' || true)
+    [ -n "$SHA" ] || SHA="absent"
   else
     SIZE=0
     MTIME=0

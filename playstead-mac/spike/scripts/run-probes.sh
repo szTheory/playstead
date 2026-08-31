@@ -4,7 +4,18 @@
 # detection) and the spike's own savetest.gba homebrew title (probes 2/3/7).
 #
 # Usage: run-probes.sh <probe-number> [<probe-number> ...]
-set -uo pipefail
+#
+# P6-WR-004: `-e` was deliberately omitted with no comment explaining
+# why, unlike acquire-emulator.sh/sign-and-notarize.sh/testrom/build.sh,
+# which all use `set -euo pipefail`. For a script whose entire purpose
+# is producing pass/fail evidence used to justify a production adapter
+# decision, silently continuing past an unexpected failure (a `mkdir
+# -p` permissions error, a stuck `hdiutil`-adjacent tool) to compute a
+# verdict from partial/stale evidence is a correctness risk, not a
+# convenience. `-e` is now on; every place that already tolerates a
+# non-zero exit (killing/waiting on a process that may have already
+# exited) is marked `|| true` explicitly below.
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SPIKE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -38,8 +49,8 @@ run_probe_02() {
   "$MGBA_BIN" -C savegamePath="$savedir" "$ROM" > "$OUT_DIR/probe-02-mgba.log" 2>&1 &
   local pid=$!
   sleep 6
-  kill "$pid" 2>/dev/null
-  wait "$pid" 2>/dev/null
+  kill "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
 
   local sav="$savedir/savetest.sav"
   local verdict="fail"
@@ -100,12 +111,12 @@ print(len(shas))
 
   # Scenario (ii): clean quit (SIGTERM) — record digest at exit.
   local sha_before_quit
-  sha_before_quit=$(shasum -a 256 "$sav" 2>/dev/null | awk '{print $1}')
-  kill "$pid" 2>/dev/null
-  wait "$pid" 2>/dev/null
+  sha_before_quit=$(shasum -a 256 "$sav" 2>/dev/null | awk '{print $1}' || true)
+  kill "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
   sleep 1
   local sha_after_quit
-  sha_after_quit=$(shasum -a 256 "$sav" 2>/dev/null | awk '{print $1}')
+  sha_after_quit=$(shasum -a 256 "$sav" 2>/dev/null | awk '{print $1}' || true)
 
   # Scenario (iii): kill -9 at a known offset after an in-game save. Relaunch,
   # let the first auto-save happen (~5s), record its sha, then kill -9 shortly
@@ -115,14 +126,14 @@ print(len(shas))
   pid=$!
   sleep 6
   local sha_pre_kill
-  sha_pre_kill=$(shasum -a 256 "$sav" 2>/dev/null | awk '{print $1}')
+  sha_pre_kill=$(shasum -a 256 "$sav" 2>/dev/null | awk '{print $1}' || true)
   local kill_offset_seconds=2
   sleep "$kill_offset_seconds"
-  kill -9 "$pid" 2>/dev/null
-  wait "$pid" 2>/dev/null
+  kill -9 "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
   sleep 1
   local sha_post_kill
-  sha_post_kill=$(shasum -a 256 "$sav" 2>/dev/null | awk '{print $1}')
+  sha_post_kill=$(shasum -a 256 "$sav" 2>/dev/null | awk '{print $1}' || true)
 
   local verdict="fail"
   if [ "$distinct_live" -ge 2 ]; then
@@ -269,8 +280,8 @@ run_probe_07() {
   if kill -0 "$pid" 2>/dev/null; then
     nobios_alive="true"
   fi
-  kill "$pid" 2>/dev/null
-  wait "$pid" 2>/dev/null
+  kill "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
 
   local nobios_verdict="fail"
   [ "$nobios_alive" = "true" ] && [ -f "$savedir/savetest.sav" ] && nobios_verdict="pass"
@@ -292,8 +303,8 @@ run_probe_07() {
     sleep 4
     local withbios_alive="false"
     if kill -0 "$pid" 2>/dev/null; then withbios_alive="true"; fi
-    kill "$pid" 2>/dev/null
-    wait "$pid" 2>/dev/null
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
     [ "$withbios_alive" = "true" ] && bios_verdict="pass"
     bios_notes="Operator-supplied BIOS launched via -b <path>; only byte length and SHA-256 recorded."
   fi
