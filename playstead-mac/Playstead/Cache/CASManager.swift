@@ -11,7 +11,6 @@ struct VerifyRecord: Equatable, Codable {
 }
 
 enum CASError: Error, Equatable {
-    case digestAlreadyExists
     case sourceMissing
 }
 
