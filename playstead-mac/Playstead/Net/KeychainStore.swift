@@ -76,7 +76,7 @@ struct KeychainStore {
             kSecAttrAccount as String: credential.deviceID,
             kSecAttrGeneric as String: genericData,
             kSecValueData as String: Data(credential.token.utf8),
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         ]
 
         let status = SecItemAdd(addQuery as CFDictionary, nil)
