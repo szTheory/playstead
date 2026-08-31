@@ -49,6 +49,22 @@ final class AdapterProcessRegistry: @unchecked Sendable {
         for proc in procs where proc.isRunning {
             proc.terminate()
         }
+        // The pin's own recorded evidence (`AdapterPin.json`'s
+        // `exit_detection.clean.note`) documents there is "no observed
+        // graceful-quit path from an external Process.terminate() call"
+        // for the pinned emulator, and macOS does not block app
+        // termination on this notification handler — so a SIGTERM that
+        // the child never acts on can otherwise leave an orphaned
+        // emulator process running after Playstead itself has quit.
+        // Give every still-running process a short grace period, then
+        // escalate to SIGKILL (P2-WR-005).
+        let deadline = Date().addingTimeInterval(2)
+        while Date() < deadline, procs.contains(where: { $0.isRunning }) {
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+        for proc in procs where proc.isRunning {
+            kill(proc.processIdentifier, SIGKILL)
+        }
     }
 }
 
