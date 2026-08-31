@@ -90,6 +90,19 @@ actor DownloadCoordinator {
         }
     }
 
+    /// Wires the pin-priority seam to a real `PinStore.isPinned(_:)` (or
+    /// any test double). Plan 03-07 task 2.
+    func setIsPinned(_ provider: @escaping (String) -> Bool) {
+        isPinned = provider
+    }
+
+    /// Wires the quota-gating seam to a real
+    /// `QuotaManager.verdict(forAdditional:)` (or any test double). Plan
+    /// 03-07 task 2.
+    func setQuotaCheck(_ provider: @escaping (Int) -> (allowed: Bool, reason: String?)) {
+        quotaCheck = provider
+    }
+
     /// Kicks off the scheduling loop if it isn't already running. Safe to
     /// call repeatedly (e.g. after every enqueue, and after reachability
     /// returns) — a no-op when a loop is already in flight.

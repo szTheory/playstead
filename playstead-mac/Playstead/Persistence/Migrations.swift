@@ -179,5 +179,33 @@ enum Migrations {
             """
         )
         try connection.execute("CREATE INDEX IF NOT EXISTS idx_cache_objects_last_used ON cache_objects(last_used_at);")
+
+        // Plan 03-07 task 2: capacity policy. Single-row table (id is
+        // always 1); absence of a row means "use the default policy"
+        // (25 GiB quota, 10 GiB floor) — `QuotaManager` inserts the
+        // default row lazily on first read rather than requiring a
+        // migration-time default, so raising/lowering the quota is a
+        // plain UPDATE with no upsert-vs-insert ambiguity.
+        try connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS quota_policy (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                quota_bytes INTEGER NOT NULL,
+                floor_bytes INTEGER NOT NULL
+            );
+            """
+        )
+
+        // One row per pinned asset set. Presence alone is the pin flag —
+        // `PinStore` never stores a boolean column; a pin is either a row
+        // or it isn't.
+        try connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS pins (
+                asset_set_id TEXT PRIMARY KEY,
+                pinned_at TEXT NOT NULL
+            );
+            """
+        )
     }
 }
