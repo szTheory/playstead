@@ -16,7 +16,36 @@ struct LibraryShellView: View {
     @State private var selection: SidebarSection? = .home
     @State private var selectedCollectionID: String?
     @State private var refreshError: String?
-    @State private var showsAdapterSetup = false
+    @State private var presentedSurface: ShellSurface?
+    /// Bumped by every storage action so the presented sheet re-reads the
+    /// real stores. Pins, the queue and the quota policy live in SQLite,
+    /// not in an observable view model, so nothing else would invalidate
+    /// the sheet's body.
+    @State private var storageRevision = 0
+
+    /// The app-wide surfaces reached from the toolbar rather than the
+    /// source list. The sidebar's section order is a frozen navigation
+    /// contract (D-14), so a surface that is about the app as a whole —
+    /// the adapter, the download queue, the cache — is a toolbar
+    /// affordance instead of a ninth source-list row.
+    enum ShellSurface: String, Identifiable, CaseIterable {
+        case adapter
+        case downloads
+        case storage
+
+        var id: String { rawValue }
+    }
+
+    /// The toolbar label and sheet title for each surface — a pure
+    /// function, so a test can assert every surface actually routes
+    /// somewhere rather than opening a blank sheet.
+    static func title(for surface: ShellSurface) -> String {
+        switch surface {
+        case .adapter: return "Adapter"
+        case .downloads: return "Downloads"
+        case .storage: return "Storage"
+        }
+    }
 
     private var library: LibraryViewModel { environment.libraryViewModel }
 
@@ -40,21 +69,29 @@ struct LibraryShellView: View {
                 .navigationTitle(Self.title(for: selection ?? .home))
         }
         .toolbar {
-            // The adapter surface's own entry point, independent of any
-            // one title's readiness sheet — the sidebar's eight-step
-            // order is a frozen navigation contract (D-14), so this is a
-            // toolbar affordance rather than a ninth source-list row.
+            // Each app-wide surface's own entry point, independent of any
+            // one title's row. `DownloadsView`, `StorageView` and
+            // `QuotaSettingsView` had no reachable call site at all
+            // before these buttons existed.
             ToolbarItem {
-                Button("Adapter") { showsAdapterSetup = true }
+                Button(Self.title(for: .downloads)) { presentedSurface = .downloads }
+                    .accessibilityLabel("Download queue")
+            }
+            ToolbarItem {
+                Button(Self.title(for: .storage)) { presentedSurface = .storage }
+                    .accessibilityLabel("Storage and quota settings")
+            }
+            ToolbarItem {
+                Button(Self.title(for: .adapter)) { presentedSurface = .adapter }
                     .accessibilityLabel("Adapter setup")
             }
         }
-        .sheet(isPresented: $showsAdapterSetup) {
+        .sheet(item: $presentedSurface) { surface in
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-                AdapterSetupView()
+                surfaceContent(surface)
                 HStack {
                     Spacer()
-                    Button("Done") { showsAdapterSetup = false }
+                    Button("Done") { presentedSurface = nil }
                 }
                 .padding(.horizontal, DesignTokens.Spacing.lg)
                 .padding(.bottom, DesignTokens.Spacing.lg)
@@ -69,6 +106,56 @@ struct LibraryShellView: View {
             library.refresh()
             environment.refreshCurationViewModels()
             await environment.syncNow()
+        }
+    }
+
+    /// Each toolbar surface's real content. Every value handed to these
+    /// views is read from the app's shared stores at body-evaluation time
+    /// and every callback does real work against them — no placeholders,
+    /// no locally-constructed second copy of a store.
+    @ViewBuilder
+    private func surfaceContent(_ surface: ShellSurface) -> some View {
+        // Read so a storage action invalidates this body; pins, the queue
+        // and the quota policy live in SQLite, not in a view model.
+        let _ = storageRevision
+
+        switch surface {
+        case .adapter:
+            AdapterSetupView()
+
+        case .downloads:
+            DownloadsView(
+                rows: environment.downloadRows(),
+                onPause: { environment.pauseDownload(id: $0); storageRevision += 1 },
+                onResume: { environment.resumeDownload(id: $0); storageRevision += 1 },
+                onCancel: { environment.cancelDownload(id: $0); storageRevision += 1 },
+                onMoveUp: { environment.moveDownloadUp(id: $0); storageRevision += 1 },
+                onMoveDown: { environment.moveDownloadDown(id: $0); storageRevision += 1 }
+            )
+            .task { await environment.startDownloadQueue() }
+
+        case .storage:
+            let snapshot = environment.storageSnapshot()
+            ScrollView {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+                    QuotaSettingsView(
+                        policy: snapshot.policy,
+                        usedBytes: snapshot.usedBytes,
+                        onSetQuota: { environment.setQuota(bytes: $0); storageRevision += 1 }
+                    )
+                    StorageView(
+                        totalUsedBytes: snapshot.usedBytes,
+                        quotaBytes: snapshot.policy.quotaBytes,
+                        floorBytes: snapshot.policy.floorBytes,
+                        candidates: snapshot.candidates,
+                        pinnedGames: snapshot.pinnedGames,
+                        unreferencedObjects: snapshot.unreferenced,
+                        quarantinedPartials: snapshot.quarantined,
+                        onReclaim: { environment.reclaim(gameIDs: $0); storageRevision += 1 },
+                        onRemoveQuarantined: { environment.removeQuarantinedPartial(atPath: $0); storageRevision += 1 }
+                    )
+                }
+            }
         }
     }
 
