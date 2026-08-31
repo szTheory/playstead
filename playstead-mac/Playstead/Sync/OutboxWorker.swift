@@ -77,7 +77,16 @@ actor OutboxWorker {
             do {
                 try outbox.markInFlight(entry.id)
             } catch {
-                continue
+                // A local persistence failure marking this entry
+                // in-flight. Skipping to the next entry here would send a
+                // *later* curation intent ahead of this still-pending
+                // earlier one, silently violating this module's own
+                // creation-order guarantee (03-VERIFICATION.md WR-01).
+                // Stop the pass instead: the entry stays `pending` and the
+                // next `drainOnce()` retries it from the front of the
+                // queue, in order.
+                result.stoppedForRetry = true
+                return result
             }
 
             do {

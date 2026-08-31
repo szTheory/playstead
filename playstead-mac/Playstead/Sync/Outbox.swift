@@ -54,7 +54,7 @@ struct OutboxEntry: Equatable {
 /// the next launch (satisfying "the favorite persists across an
 /// application restart while still unsent" with no special-cased
 /// persistence path; this is on-disk SQLite, not an in-memory queue).
-final class Outbox {
+class Outbox {
     /// After this many attempts with no success and no permanent
     /// rejection, an entry is quarantined rather than retried again
     /// (P4-CR-003's poison-message handling).
@@ -64,6 +64,16 @@ final class Outbox {
 
     private let localStore: LocalStore
     private let curationStore: CurationStore
+
+    /// Invoked (on the caller's thread) immediately after a successful
+    /// `enqueue` commits. The composition root (`AppEnvironment`) wires
+    /// this to `OutboxWorker.drainOnce()` so a curation mutation made
+    /// anywhere in the UI attempts its send right away, without every
+    /// individual view model having to know the worker exists. Kept as a
+    /// hook here rather than a call-site convention precisely because a
+    /// call-site convention is what left the outbox unreachable from the
+    /// shipped app in the first place.
+    var onEnqueue: (@Sendable () -> Void)?
 
     init(localStore: LocalStore, curationStore: CurationStore) {
         self.localStore = localStore
@@ -114,6 +124,8 @@ final class Outbox {
                 params: [entryID, intent.kind.rawValue, payloadJSON, idempotencyKey, createdAt]
             )
         }
+
+        onEnqueue?()
 
         return OutboxEntry(
             id: entryID, kind: intent.kind, intent: intent, idempotencyKey: idempotencyKey,

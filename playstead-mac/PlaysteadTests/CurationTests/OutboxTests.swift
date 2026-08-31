@@ -364,4 +364,42 @@ final class OutboxTests: XCTestCase {
         XCTAssertTrue(viewModel.isEmpty)
         XCTAssertEqual(outbox.listAll().count, 2)
     }
+
+    // MARK: - A local persistence failure must not let a later intent overtake an earlier one
+
+    /// `Outbox` subclass whose `markInFlight` fails for one chosen entry,
+    /// standing in for a local persistence failure (a locked/failed
+    /// SQLite write) mid-drain.
+    private final class MarkInFlightFailingOutbox: Outbox {
+        var failingEntryID: String?
+
+        override func markInFlight(_ entryID: String) throws {
+            if entryID == failingEntryID { throw OutboxError.payloadEncodingFailed }
+            try super.markInFlight(entryID)
+        }
+    }
+
+    /// 03-VERIFICATION.md WR-01: `drainOnce` used to `continue` past an
+    /// entry whose `markInFlight` failed, which silently sent a *later*
+    /// curation intent ahead of an earlier one still pending — a direct
+    /// violation of the module's own documented creation-order guarantee.
+    func testLocalPersistenceFailureStopsTheDrainInsteadOfSkippingAhead() async throws {
+        let failing = MarkInFlightFailingOutbox(localStore: localStore, curationStore: curationStore)
+        let first = try failing.enqueue(.favoriteAdd(id: "fav-1", assetSetID: "asset-1"), at: Date(timeIntervalSince1970: 1))
+        _ = try failing.enqueue(.favoriteAdd(id: "fav-2", assetSetID: "asset-2"), at: Date(timeIntervalSince1970: 2))
+        failing.failingEntryID = first.id
+
+        StubURLProtocol.responder = { _ in StubURLProtocol.Stub(statusCode: 200, headers: [:], body: Data("{}".utf8)) }
+
+        let worker = OutboxWorker(apiClient: apiClient, outbox: failing)
+        let result = await worker.drainOnce()
+
+        XCTAssertEqual(result.sent, 0)
+        XCTAssertTrue(result.stoppedForRetry)
+        XCTAssertEqual(
+            StubURLProtocol.requestLog.count, 0,
+            "the second intent must not send while the first is still pending"
+        )
+        XCTAssertEqual(failing.listPending().count, 2, "both entries stay pending, in order, for the next pass")
+    }
 }
