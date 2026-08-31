@@ -2,32 +2,37 @@
 phase: 03-mac-offline-play-vertical-slice
 fixed_at: 2026-08-31
 review_path: .planning/phases/03-mac-offline-play-vertical-slice/03-REVIEW.md
-fix_scope: critical_warning
-batches: 3
-findings_in_scope: 45
-fixed: 44
-skipped: 1
+fix_scope: all
+batches: 4
+findings_in_scope: 57
+fixed: 51
+already_resolved: 2
+skipped: 4
 iteration: 1
 status: partial
 ---
 
 # Phase 03 Code Review Fix Report
 
-Applied the Critical and Warning findings from `03-REVIEW.md` (45 of the 57 total findings;
-the 12 `IN-` informational findings were out of scope for this pass, per the default
-`--fix` scope of Critical + Warning).
+Applied **all 57 findings** from `03-REVIEW.md` — the 45 Critical/Warning findings in the
+default `--fix` scope, then the 12 informational `IN-` findings in a follow-up pass.
 
-Fixes ran as three sequential batches — sequential rather than parallel because concurrent
+Fixes ran as four sequential batches — sequential rather than parallel because concurrent
 fixer agents would race on the git index. Each finding landed as its own atomic
-`fix(03): ...` commit: **39 commits** in total, from `c0c8889` through `17f25aa`.
+`fix(03): ...` commit: **46 commits** in total, from `c0c8889` through `ebd71d9`.
 
-| Batch | Findings | Fixed | Skipped | Verification |
-|---|---:|---:|---:|---|
-| A — P1/P2 (mac cache, net, persistence, adapter, controller, release scripts) | 16 | 16 | 0 | xcodebuild build + full test target: passing |
-| B — P3/P4 (mac UI, sync, XCTest suite) | 17 | 16 | 1 | xcodebuild build + full test target: TEST SUCCEEDED |
-| C — P5/P6 (server lib, migrations, tests, spike toolchain) | 13 | 12 | 1 (same finding, re-investigated) | `mix test`: 872 tests, 0 failures; ROM rebuilt; `bash -n` on scripts |
+| Batch | Findings | Fixed | Already resolved | Skipped | Verification |
+|---|---:|---:|---:|---:|---|
+| A — P1/P2 (mac cache, net, persistence, adapter, controller, release scripts) | 16 | 16 | 0 | 0 | xcodebuild build + full test target: passing |
+| B — P3/P4 (mac UI, sync, XCTest suite) | 17 | 16 | 0 | 1 | xcodebuild build + full test target: TEST SUCCEEDED |
+| C — P5/P6 (server lib, migrations, tests, spike toolchain) | 13 | 12 | 0 | 1 (same finding, re-investigated) | `mix test`: 872 tests, 0 failures; ROM rebuilt; `bash -n` on scripts |
+| D — all `IN-` informational findings | 12 | 7 | 2 | 3 | Swift TEST SUCCEEDED; `mix compile --warnings-as-errors` clean, 872 tests, 0 failures |
 
-All 12 Critical findings were fixed. 32 of 33 Warnings were fixed.
+**All 12 Critical findings fixed. 32 of 33 Warnings fixed. 7 of 12 Info fixed, 2 already
+resolved as a side effect of earlier batches, 3 deliberately skipped.**
+
+Both suites were re-verified at final HEAD after the last batch: `mix test` 872 tests /
+0 failures, and `xcodebuild test` **TEST SUCCEEDED**.
 
 ## Highlights
 
@@ -50,7 +55,9 @@ All 12 Critical findings were fixed. 32 of 33 Warnings were fixed.
   advertised the download as hash-verified. Now compares against the digest already pinned
   in `docs/SUPPORT-MATRIX.md` and aborts on mismatch.
 
-## Skipped
+## Skipped (4)
+
+One Warning and three Info findings were left unfixed. Only the first needs a decision.
 
 ### P4-WR-003 — `OutboxWorker` / `SyncEngine` / `Outbox` have no production call site
 
@@ -64,6 +71,16 @@ must make are recorded in the batch C section below.
 
 Note this finding is corroborated by the phase's own verification report, which already
 flagged gaps in this area.
+
+
+### Info findings skipped in batch D
+
+- **P3-IN-002** — `FractionalPosition.needsRebalance`/`spaced` are still unused. Wiring in a
+  real rebalance mechanism is more than an Info-severity change warrants, and the
+  infinite-loop hazard these were apparently designed to preempt is already fixed directly
+  in `midpoint` (P3-CR-001).
+- **P4-IN-001** and **P4-IN-002** — the review itself records both as "no action required";
+  left unchanged.
 
 ---
 
@@ -448,7 +465,9 @@ Replaced the `?? "{}"` fallback with a throw (`OutboxError.payloadEncodingFailed
 before the transaction (and before `applyOptimistically`) runs, so no
 partial optimistic-write-with-no-durable-record state can ever be created.
 
-## Skipped
+## Skipped (4)
+
+One Warning and three Info findings were left unfixed. Only the first needs a decision.
 
 ### P4-WR-003 — `OutboxWorker` never instantiated in production code
 **File:** `playstead-mac/Playstead/Sync/OutboxWorker.swift` (whole file)
@@ -766,3 +785,148 @@ than the prior batch's skip.
   above.
 - **Swift:** no Swift files were modified this batch (P4-WR-003 was
   skipped rather than implemented), so no Xcode build/test was run.
+
+# Batch D — Info findings
+
+# Phase 03 Code Review Fix Report — Batch D (Info findings)
+
+Scope: the 12 `IN-`-prefixed findings (`P1-IN-001` through `P6-IN-001`). Every file
+this batch touched was re-read fresh before any edit, since the prior three
+batches (39 commits) substantially rewrote `ReorderSession.swift`,
+`ByteFormatting.swift`, `Outbox.swift`/`CurationIntent.swift`/`OutboxWorker.swift`,
+and deleted `CursorStore.clear()` outright.
+
+All work was done in an isolated git worktree
+(`.claude/worktrees/rf-03-14057-1788152750`, branch `gsd-reviewfix/03-14057`),
+fast-forward-merged onto `main`, and cleaned up (worktree removed, temp branch
+deleted, recovery sentinel removed) after verification.
+
+**Verification:**
+- Swift: `xcodebuild -project Playstead.xcodeproj -scheme Playstead -destination 'platform=macOS' build` → `** BUILD SUCCEEDED **`; `... test` → `** TEST SUCCEEDED **` (full `PlaysteadTests` target, all cases passing).
+- Elixir: `MIX_ENV=test mix compile --warnings-as-errors` clean; `mix test` → `872 tests, 0 failures`.
+
+## Fixed Issues
+
+### P1-IN-001: `CASError.digestAlreadyExists` unused
+
+**File:** `playstead-mac/Playstead/Cache/CASManager.swift:14`
+**Commit:** `07108d6`
+Re-confirmed via grep it is still never thrown anywhere. Removed the dead case
+rather than wiring it in — `commit(partialAt:sha256:)`'s doc comment already
+documents "redundant partial discarded as success" as the intended behavior,
+so there was no real caller need to distinguish it.
+
+### P1-IN-002: `LocalStore.replaceCatalogue`/`CatalogueStore.replaceAll` duplicated insert logic (with a `search_blob` staleness bug)
+
+**File:** `playstead-mac/Playstead/Persistence/LocalStore.swift:46` (now delegates), `playstead-mac/Playstead/Net/SnapshotClient.swift:71` (unchanged caller)
+**Commit:** `7b84bc6`
+Confirmed the bug was still live: `LocalStore.replaceCatalogue` (the only path `SnapshotClient.fetch()` calls) still hand-rolled its own insert and never touched `search_blob`, leaving it at the column-default `''` for a freshly-bootstrapped snapshot — silently breaking `CatalogueStore.filteredQuery`'s search until the next incremental `upsert`. Per the guidance in this task (fix the correctness issue, not just the duplication), `replaceCatalogue` now delegates to `CatalogueStore.replaceAll`, which does populate `search_blob` via `upsert`. This is the most substantive fix in this batch.
+
+### P1-IN-003: `Reachability.onChange` had no unregister mechanism
+
+**File:** `playstead-mac/Playstead/Cache/Reachability.swift`
+**Commit:** `1d1bf79`
+`onChange` now returns a `UUID` token; a new `removeObserver(_:)` drops the
+closure from the internal dictionary. Confirmed via grep there are still zero
+production call sites of `onChange` today, so this is forward-looking
+plumbing rather than a fix to an active leak, but it closes the gap cheaply
+and correctly.
+
+### P2-IN-001: `apiClient` doc comment contradicted its unconditional construction
+
+**File:** `playstead-mac/Playstead/App/PlaysteadApp.swift:26`
+**Commit:** `d37e26c`
+Re-read `init()`: `apiClient` is still unconditionally constructed. Updated
+the doc comment to state that pairing state is tracked internally by
+`APIClient` (via its `.notPaired` error), rather than introducing a
+conditional-construction behavior change that isn't otherwise motivated.
+
+### P3-IN-001: Accessibility label had a dangling comma with no status
+
+**Files:** `playstead-mac/Playstead/Library/GameCardView.swift:57`, `playstead-mac/Playstead/Library/GameListView.swift:55`
+**Commit:** `b48580d`
+Still present in both files. Both `accessibleLabel` computed properties now
+return `"title, system"` (no trailing comma-space) when
+`LibraryStatus.highestPriority(among:)` returns `nil`, exactly as the review
+suggested.
+
+### P5-IN-001: `PlaySession.create_changeset/2` never validated `ended_at` after `started_at`
+
+**File:** `playstead-server/lib/playstead/curation/play_session.ex`
+**Commit:** `37b5b96`
+Still unvalidated. Added `validate_ended_after_started/1` via
+`validate_change/3`, rejecting `ended_at <= started_at` when both fields are
+present.
+
+### P6-IN-001: `fix-header.py` had no argument validation
+
+**File:** `playstead-mac/spike/testrom/fix-header.py`
+**Commit:** `ebd71d9`
+Still unvalidated (raw `sys.argv[1]`). Added the exact usage-message-and-exit
+guard the review suggested, matching the sibling shell scripts' argument
+validation discipline.
+
+## Already Resolved
+
+### P2-IN-002: `BiosStore.managedPath(forSHA256:)` unused
+
+**Files:** `playstead-mac/Playstead/Adapter/BiosStore.swift:186`, `playstead-mac/Playstead/Library/GameRowView.swift:141`
+**Reason:** Batch A's fix for P2-CR-002 (BIOS injection into launch arguments)
+gave this method a real production call site: `GameRowView.play()` now calls
+`environment.biosStore.managedPath(forSHA256: $0.sha256).path`, fed by
+`managedRecord(forSystem:)` — the store's own DB-derived digest, not
+unvalidated user input. The path-traversal-adjacent concern the review raised
+(a caller passing an unvalidated string) does not apply to this call site, so
+no additional input validation was added. No longer dead code.
+
+### P5-IN-002: Dead error code `curation_invalid_position`
+
+**File:** `playstead-server/lib/playstead_web/error_codes.ex:39`
+**Reason:** Batch C's fix for P5-CR-001 wired this code into
+`Playstead.Curation.validate_neighbour_order/2`
+(`playstead-server/lib/playstead/curation.ex:799`), confirmed via grep. No
+longer dead.
+
+## Skipped Issues
+
+### P3-IN-002: `FractionalPosition.needsRebalance`/`spaced` unused
+
+**File:** `playstead-mac/Playstead/Curation/FractionalPosition.swift:55,63`
+**Reason:** Confirmed via grep both remain uncalled from production code
+(only exercised by `OrderingTests.swift`). The review offers two options:
+wire `needsRebalance` into the reorder commit path as a pre-check, or delete
+it. Wiring it in properly requires a genuine client-side rebalance mechanism
+(renumbering every sibling position and enqueueing a corresponding intent for
+each), which is a nontrivial feature addition, not a targeted Info-level fix
+— and it's no longer motivated by an active bug: batch B's fix for P3-CR-001
+already eliminated the infinite-loop hazard `needsRebalance` was meant to
+preempt, by guarding `midpoint` directly against equal/misordered neighbours.
+Deleting `needsRebalance`/`spaced` would also delete the only place their
+digit-for-digit parity with the server's `Position` module encoding is
+exercised (`OrderingTests.swift`), which has standalone value as a
+port-correctness guarantee. Leaving both in place, unused in production, is
+the more defensible choice than either half-wiring a bigger feature or
+discarding working, tested parity logic.
+
+### P4-IN-001: brittle structural test walks up the filesystem from `#filePath`
+
+**File:** `playstead-mac/PlaysteadTests/CurationTests/PlaySessionTests.swift:217`
+**Reason:** Re-read the test; unchanged since the review. The review's own
+fix section says "No action required now; consider replacing ... if this
+directory ever gets reorganized." No reorganization has occurred. Skipping
+per the review's own recommendation.
+
+### P4-IN-002: `applyCurationTombstone` always reports "applied"
+
+**File:** `playstead-mac/Playstead/Sync/JournalApplier.swift:171`
+**Reason:** Re-read the function; unchanged (still returns `true`
+unconditionally). The review's own fix section says "No functional change
+needed" unless `appliedCount` is ever surfaced to users/telemetry, which it
+currently is not. Skipping per the review's own recommendation.
+
+---
+
+_Fixed: 2026-08-31_
+_Fixer: Claude (gsd-code-fixer)_
+_Iteration: 1_
+_Batch: D_
