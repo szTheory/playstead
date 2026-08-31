@@ -224,7 +224,7 @@ actor AdapterInstaller {
             detach.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
             detach.arguments = ["detach", mountPoint.path, "-quiet"]
             try? detach.run()
-            detach.waitUntilExit()
+            _ = waitWithTimeout(detach, seconds: 30)
             try? fm.removeItem(at: mountPoint)
         }
 
@@ -232,7 +232,9 @@ actor AdapterInstaller {
         attach.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
         attach.arguments = ["attach", archiveURL.path, "-mountpoint", mountPoint.path, "-nobrowse", "-quiet", "-readonly"]
         try attach.run()
-        attach.waitUntilExit()
+        guard waitWithTimeout(attach, seconds: 60) else {
+            throw AdapterInstallError.expansionFailed("timed out waiting for disk image attach")
+        }
         guard attach.terminationStatus == 0 else {
             throw AdapterInstallError.expansionFailed("disk image attach failed")
         }
@@ -248,11 +250,41 @@ actor AdapterInstaller {
         ditto.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
         ditto.arguments = [appSource.path, destApp.path]
         try ditto.run()
-        ditto.waitUntilExit()
+        guard waitWithTimeout(ditto, seconds: 60) else {
+            ditto.terminate()
+            throw AdapterInstallError.expansionFailed("timed out copying into managed storage")
+        }
         guard ditto.terminationStatus == 0 else {
             throw AdapterInstallError.expansionFailed("copy into managed storage failed")
         }
 
         return destApp
+    }
+
+    /// Waits for `process` to exit, up to `seconds`. Returns `false` (and
+    /// force-terminates the process) if it is still running once the
+    /// deadline passes, instead of blocking the actor-isolated
+    /// `install()` call indefinitely — `hdiutil attach` against a
+    /// downloaded disk image can hang (an unexpected password prompt, a
+    /// stuck kernel extension, or a malformed-but-not-corrupt-by-digest
+    /// image) with no other way for a caller to cancel or time out
+    /// (P2-WR-004).
+    private static func waitWithTimeout(_ process: Process, seconds: TimeInterval) -> Bool {
+        // A process that never launched (e.g. a `try?`-swallowed `run()`
+        // failure) or that already exited before this call has
+        // `isRunning == false` — nothing to wait for, and no
+        // `terminationHandler` will ever fire for a process that was
+        // never started.
+        guard process.isRunning else { return true }
+        let semaphore = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in semaphore.signal() }
+        let result = semaphore.wait(timeout: .now() + seconds)
+        process.terminationHandler = nil
+        if result == .timedOut {
+            process.terminate()
+            _ = semaphore.wait(timeout: .now() + 5)
+            return false
+        }
+        return true
     }
 }
