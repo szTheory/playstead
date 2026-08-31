@@ -163,7 +163,10 @@ defmodule PlaysteadWeb.Api.V1.BlobsControllerTest do
         |> get(~p"/api/v1/blobs/#{sha256}")
 
       assert resp.status == 206
-      assert Enum.at(get_resp_header(resp, "content-range"), 0) == "bytes #{n}-#{size - 1}/#{size}"
+
+      assert Enum.at(get_resp_header(resp, "content-range"), 0) ==
+               "bytes #{n}-#{size - 1}/#{size}"
+
       assert byte_size(resp.resp_body) == size - n
     end
 
@@ -246,7 +249,10 @@ defmodule PlaysteadWeb.Api.V1.BlobsControllerTest do
       resp = get_range(token, sha256, "bytes=#{size - 1}-#{size + 100}")
 
       assert resp.status == 206
-      assert Enum.at(get_resp_header(resp, "content-range"), 0) == "bytes #{size - 1}-#{size - 1}/#{size}"
+
+      assert Enum.at(get_resp_header(resp, "content-range"), 0) ==
+               "bytes #{size - 1}-#{size - 1}/#{size}"
+
       assert byte_size(resp.resp_body) == 1
     end
 
@@ -318,7 +324,10 @@ defmodule PlaysteadWeb.Api.V1.BlobsControllerTest do
 
       assert head_resp.status == get_resp.status
       assert get_resp_header(head_resp, "etag") == get_resp_header(get_resp, "etag")
-      assert get_resp_header(head_resp, "accept-ranges") == get_resp_header(get_resp, "accept-ranges")
+
+      assert get_resp_header(head_resp, "accept-ranges") ==
+               get_resp_header(get_resp, "accept-ranges")
+
       assert Enum.at(get_resp_header(head_resp, "content-length"), 0) == Integer.to_string(size)
       assert head_resp.resp_body == ""
     end

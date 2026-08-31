@@ -137,7 +137,9 @@ defmodule Playstead.Curation do
     # the same user serializes behind it instead of racing.
     Ecto.Multi.new()
     |> Ecto.Multi.run(:lock, fn repo, _changes -> acquire_cap_lock(repo, :collection, user_id) end)
-    |> Ecto.Multi.run(:cap, fn _repo, _changes -> as_multi_result(check_collection_cap(user_id)) end)
+    |> Ecto.Multi.run(:cap, fn _repo, _changes ->
+      as_multi_result(check_collection_cap(user_id))
+    end)
     |> Ecto.Multi.insert(:collection, fn _changes ->
       position = Position.last(max_position(Collection, user_id: user_id))
 
@@ -395,7 +397,9 @@ defmodule Playstead.Curation do
       # two paired devices) can't both observe a stale under-cap count.
       Ecto.Multi.new()
       |> Ecto.Multi.run(:lock, fn repo, _changes -> acquire_cap_lock(repo, :queue, user_id) end)
-      |> Ecto.Multi.run(:cap, fn _repo, _changes -> as_multi_result(check_queue_cap(user_id, asset_set_id)) end)
+      |> Ecto.Multi.run(:cap, fn _repo, _changes ->
+        as_multi_result(check_queue_cap(user_id, asset_set_id))
+      end)
       |> Ecto.Multi.insert(
         :item,
         fn _changes ->

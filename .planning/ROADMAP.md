@@ -14,6 +14,7 @@ This MVP proves one trustworthy Mac-to-server custody and continuity journey: de
 - [x] **Phase 1: Private Custody and Durable Protocol** - Establish the self-hosted foundation and HTTP contracts every client can safely recover through. (completed 2026-08-28)
 - [x] **Phase 2: Explainable Import and Exact Export** - Turn user files into recoverable, provenance-backed canonical assets through durable work. (completed 2026-08-30)
 - [ ] **Phase 3: Mac Offline Play Vertical Slice** - Let a paired Mac browse, selectively cache, preflight, and launch one proven adapter path offline.
+- [ ] **Phase 3.5: Mac Verification Automation** - Stand up macOS CI and a UI-test harness so Mac client behavior is machine-verified instead of hand-checked.
 - [ ] **Phase 4: Persistent Save Continuity** - Preserve compatible progress through offline queues, immutable revisions, restore, and conflict recovery.
 - [ ] **Phase 5: Recovery and Release Proof** - Demonstrate independently backed-up recovery, safe updates, diagnostics, and release-quality operations.
 
@@ -175,6 +176,24 @@ Plans:
 - [x] 03-10-PLAN.md — Controller lifecycle with non-stranding keyboard and pointer fallbacks, the accessibility and motion floor, the notarized release, launch-exit-relaunch proof, and the honest support matrix
 
 **UI hint**: yes
+
+### Phase 3.5: Mac Verification Automation
+
+**Goal**: Mac client behavior that today can only be confirmed by a human clicking through the app is proven by an automated test run on every push.
+**Rationale**: Discovered during Phase 3 UAT (03-UAT.md). `playstead-mac` holds 26 test files and has **no CI job at all** — `.github/workflows/ci.yml` runs two jobs, both `ubuntu-24.04`, so nothing Swift is verified on push. There is also no XCUITest target and no view-rendering/snapshot harness anywhere in `PlaysteadTests/`, which is the direct and only reason five Phase 3 UAT checkpoints (03-03/D1, 03-06/D2, 03-07/D6, 03-08/D3, 03-10/D2) are human-only. They are not subjective — they are unautomatable with the harness as it stands. Every future Mac phase inherits the same manual-UAT tax until this is fixed, so the cost compounds.
+**Depends on**: Phase 3
+**Requirements**: QUAL-01 (verification posture); unblocks re-verification of LIBR-01, LIBR-03, LIBR-04
+**Success Criteria** (what must be TRUE):
+
+  1. A `macos-*` GitHub-hosted runner job builds the Mac app and runs the existing `PlaysteadTests` target on every push and pull request, and fails the build on any test failure.
+  2. An XCUITest target exists and drives the real app: the library shell, the curation shelves (including the `.onMove` drag reorder), and the downloads/quota/reclaim/storage views are exercised by automated interaction rather than by hand.
+  3. A view-rendering/snapshot harness asserts the locked 03-UI-SPEC.md contract — the 8-step navigation order, the status vocabulary and its ladder, honest empty states, and card geometry that never uses cover art or title-derived color — so a visual regression fails CI instead of a UAT question.
+  4. The Mac app is driven against a live server started from the existing `docker-compose.yml` in CI, with pairing performed automatically, proving the catalogue renders from `/api/v1/snapshot` before any bytes are downloaded.
+  5. A keyboard-only navigation pass over every Mac surface is automated, and the accessibility audit runs against a live accessibility tree rather than the current declarative-manifest tree-walk.
+  6. Each Phase 3 UAT checkpoint this phase closes is re-recorded in `03-UAT.md` as `source: automated` with its covering test named.
+
+**Research / spike flags**: Runner choice is decided — GitHub-hosted `macos-*`. That deliberately leaves three classes out of scope, and they stay `blocked` in 03-UAT.md rather than being faked: physical controller hardware (checkpoints 8, 9), a real emulator install plus real game bytes (checkpoint 7), and a Developer ID certificate for signing/notarization (checkpoints 14, 15). Revisit a self-hosted runner only if those become recurring blockers. Watch Xcode-version drift on hosted runners and snapshot-test flakiness across macOS releases — pin both.
+**Plans**: TBD
 
 ### Phase 4: Persistent Save Continuity
 
