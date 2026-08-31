@@ -126,8 +126,8 @@ final class OrderingTests: XCTestCase {
             return XCTFail("expected a collectionMemberMove intent")
         }
         XCTAssertEqual(assetSetID, "a")
-        // "a" moved to the end (index 2 of 3): its new neighbours are b (before) and nothing (after).
-        XCTAssertEqual(before, "b")
+        // "a" moved to the end (index 2 of 3, after b and c): its new neighbours are c (before) and nothing (after).
+        XCTAssertEqual(before, "c")
         XCTAssertNil(after)
 
         // No array-shaped field anywhere in the persisted envelope/body.
