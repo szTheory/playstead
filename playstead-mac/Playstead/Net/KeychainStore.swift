@@ -63,12 +63,30 @@ struct KeychainStore {
             return .failure(.unexpectedFormat)
         }
 
-        let deleteQuery: [String: Any] = [
+        let matchQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: credential.deviceID
         ]
-        SecItemDelete(deleteQuery as CFDictionary)
+        let updateAttributes: [String: Any] = [
+            kSecAttrGeneric as String: genericData,
+            kSecValueData as String: Data(credential.token.utf8),
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        ]
+
+        // Prefer an in-place update over delete-then-add: if the process
+        // is killed between two independent Keychain operations (or
+        // SecItemAdd fails, e.g. errSecDuplicateItem/errSecInDarkWake),
+        // delete-then-add can leave a window with zero stored credential
+        // — the app becomes unexpectedly unpaired rather than keeping
+        // either the old or the new one (P1-WR-001).
+        let updateStatus = SecItemUpdate(matchQuery as CFDictionary, updateAttributes as CFDictionary)
+        if updateStatus == errSecSuccess {
+            return .success(())
+        }
+        guard updateStatus == errSecItemNotFound else {
+            return .failure(.osFailure(updateStatus))
+        }
 
         let addQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -79,9 +97,9 @@ struct KeychainStore {
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         ]
 
-        let status = SecItemAdd(addQuery as CFDictionary, nil)
-        guard status == errSecSuccess else {
-            return .failure(.osFailure(status))
+        let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+        guard addStatus == errSecSuccess else {
+            return .failure(.osFailure(addStatus))
         }
         return .success(())
     }
