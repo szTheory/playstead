@@ -296,5 +296,22 @@ enum Migrations {
             """
         )
         try connection.execute("CREATE INDEX IF NOT EXISTS idx_bios_files_system ON bios_files(system);")
+
+        // Plan 03-10 task 1: one row per controller (keyed by its own
+        // stable product identifier), holding that controller's full
+        // remap as a JSON array of `MappedInput`. Keying by the
+        // controller rather than a single global row is what makes a
+        // user's remap follow their specific controller — plugging in a
+        // different controller gets its own (initially default) mapping,
+        // never the first controller's remap by accident.
+        try connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS controller_mappings (
+                controller_product_id TEXT PRIMARY KEY,
+                mappings_json TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            """
+        )
     }
 }

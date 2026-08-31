@@ -78,6 +78,16 @@ actor AdapterHost {
     /// unchanged for any caller that never sets it.
     private var installState: AdapterInstallState = .notInstalled
 
+    /// The controller mapping `ControllerSettingsView`/`ControllerHost`
+    /// currently have active for the assigned controller, injected into
+    /// every subsequent launch's rendered arguments. `nil` (the default)
+    /// launches with no controller-mapping override at all — a mapping
+    /// the emulator never reads would look correct in settings and do
+    /// nothing in the game, so this is read directly by
+    /// `renderedLaunchArguments`, the same method the test suite asserts
+    /// against (plan 03-10).
+    private var activeControllerMapping: ControllerMapping?
+
     init(pin: AdapterPin, emulatorsRoot: URL) {
         self.pin = pin
         self.emulatorsRoot = emulatorsRoot
@@ -89,6 +99,42 @@ actor AdapterHost {
     /// rather than a failed process spawn.
     func setInstallState(_ state: AdapterInstallState) {
         installState = state
+    }
+
+    /// Sets (or clears, with `nil`) the controller mapping every
+    /// subsequent `launch` injects. `ControllerHost`/`ControllerSettingsView`
+    /// call this whenever the assigned controller or its mapping
+    /// changes.
+    func setControllerMapping(_ mapping: ControllerMapping?) {
+        activeControllerMapping = mapping
+    }
+
+    /// Builds the exact argument array `launch(...)` hands to `Process`
+    /// — pure and independently testable, so a test can assert the
+    /// injected configuration contains the active mapping's values
+    /// without spawning a real process.
+    ///
+    /// Renders the pin's own launch template first (unchanged
+    /// behaviour), then appends one `cli_config_override` pair per
+    /// mapped input. The pinned mGBA build's `config_injection.keys`
+    /// records `controller_mapping` as `"not_probed_no_hardware_available"`
+    /// (03-ADAPTER-PIN.json) — the spike never had hardware to confirm a
+    /// real per-button flag syntax — so this falls back to mGBA's own
+    /// documented general `-C key=value` override mechanism (the same
+    /// flag the pin already uses for `savegamePath`), under an
+    /// `input.<adapterInput>` key. Whether mGBA's runtime actually reads
+    /// that specific key name is therefore unverified pending real
+    /// controller hardware; the wiring itself — that the active mapping
+    /// reaches the injected configuration at launch — is what this
+    /// method and its test prove.
+    func renderedLaunchArguments(romPath: String, saveDir: String) -> [String] {
+        var args = pin.launch.renderedArguments(romPath: romPath, saveDir: saveDir)
+        guard let mapping = activeControllerMapping else { return args }
+        for input in mapping.mappings {
+            args.append("-C")
+            args.append("input.\(input.adapterInput)=\(input.controllerInput)")
+        }
+        return args
     }
 
     private var emulatorDirectory: URL {
@@ -173,7 +219,7 @@ actor AdapterHost {
 
         let proc = Process()
         proc.executableURL = resolvedExecutableURL
-        proc.arguments = pin.launch.renderedArguments(romPath: romPath, saveDir: saveDir)
+        proc.arguments = renderedLaunchArguments(romPath: romPath, saveDir: saveDir)
 
         let detection = pin.exitDetection
         let registry = AdapterProcessRegistry.shared
