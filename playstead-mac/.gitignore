@@ -1,0 +1,7 @@
+# Release build output (scripts/build-release.sh, scripts/sign-and-notarize.sh)
+build/
+
+# Xcode
+DerivedData/
+*.xcuserstate
+xcuserdata/
