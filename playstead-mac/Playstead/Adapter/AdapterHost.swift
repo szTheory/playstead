@@ -131,11 +131,16 @@ actor AdapterHost {
     /// `installState`.
     func verifyInstalledDigest() throws {
         if case .installed(let path, let verified) = installState {
-            guard FileManager.default.fileExists(atPath: path) else {
-                throw LaunchError.emulatorNotInstalled
-            }
+            // The verified flag is a fact already established at
+            // install/selection time — check it first, so an explicitly
+            // unverified installation always reports as a digest
+            // mismatch rather than being masked by an unrelated
+            // "file not found" if its path also happens not to resolve.
             guard verified else {
                 throw LaunchError.digestMismatch(expected: pin.sha256, actual: "unverified-selection")
+            }
+            guard FileManager.default.fileExists(atPath: path) else {
+                throw LaunchError.emulatorNotInstalled
             }
             return
         }

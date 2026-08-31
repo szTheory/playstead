@@ -1,8 +1,14 @@
 import Foundation
 
-/// Names the specific member that failed readiness, so the UI (and a
-/// later remedy vocabulary — plan 03-09) can point at exactly what's
-/// wrong rather than a generic "not ready".
+/// Names the specific member that failed readiness, so the UI — and, as
+/// of plan 03-09, `ReadinessEngine`'s remedy vocabulary — can point at
+/// exactly what's wrong rather than a generic "not ready". `reason` is
+/// `"missing"` (never downloaded), `"unreadable"` (a re-hash couldn't
+/// even read the bytes), or `"corrupted"` (a re-hash disagreed with the
+/// expected digest) — `ReadinessEngine` treats `"missing"` as its game-
+/// assets check and the other two as its cache-verification check,
+/// since only the latter two describe a local copy that needs replacing
+/// rather than one that was simply never fetched.
 struct ReadinessBlocker: Equatable {
     let sha256: String
     let reason: String
