@@ -16,6 +16,11 @@ defmodule PlaysteadWeb.LibraryLive.Shelves do
   attr :navigate_fun, :any, required: true, doc: "fun(asset_set_id) -> path"
   attr :status_fun, :any, default: nil, doc: "fun(asset_set) -> status map"
 
+  attr :dismiss_fun, :any,
+    default: nil,
+    doc:
+      "fun(asset_set) -> {event, label} | nil — an optional per-item action (e.g. Continue's dismiss)"
+
   def shelf(assigns) do
     status_fun = assigns.status_fun || (&default_status_fun/1)
     assigns = assign(assigns, :status_fun, status_fun)
@@ -27,13 +32,23 @@ defmodule PlaysteadWeb.LibraryLive.Shelves do
         <span class="text-label text-[#94A3B8]">{length(@items)}</span>
       </div>
       <div class="library-shelf-track" role="list" tabindex="0">
-        <div :for={entry <- @items} role="listitem" class="library-shelf-item">
+        <div :for={entry <- @items} role="listitem" class="library-shelf-item space-y-1">
           <.game_card
             asset_set={entry.asset_set}
             identification_state={entry.identification_state}
             navigate={@navigate_fun.(entry.asset_set.id)}
             status={@status_fun.(entry.asset_set)}
           />
+          <button
+            :if={@dismiss_fun && @dismiss_fun.(entry.asset_set)}
+            type="button"
+            id={"#{@id}-#{entry.asset_set.id}-dismiss"}
+            phx-click={elem(@dismiss_fun.(entry.asset_set), 0)}
+            phx-value-asset-set-id={entry.asset_set.id}
+            class="text-label text-[#94A3B8] hover:text-[#F1F5F9]"
+          >
+            {elem(@dismiss_fun.(entry.asset_set), 1)}
+          </button>
         </div>
       </div>
     </section>

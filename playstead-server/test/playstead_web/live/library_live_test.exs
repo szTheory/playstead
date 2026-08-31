@@ -3,6 +3,7 @@ defmodule PlaysteadWeb.LibraryLiveTest do
 
   import Phoenix.LiveViewTest
   import Playstead.AccountsFixtures
+  import Playstead.CatalogueFixtures
   import Playstead.ImportFixtures
 
   alias Playstead.Accounts.Scope
@@ -321,6 +322,112 @@ defmodule PlaysteadWeb.LibraryLiveTest do
 
     test "the LiveView never calls the repository directly" do
       refute File.read!("lib/playstead_web/live/library_live.ex") =~ ~r/Repo\./
+    end
+  end
+
+  describe "Task 2: sidebar order, remaining shelves, and collections (03-05)" do
+    test "the sidebar's rendered entries appear in the canonical order Home, Continue, Favorites, Collections, Queue, Recent, systems, unidentified",
+         %{conn: conn, user: user} do
+      asset_set_fixture(user.id, %{system_id: "gba", display_title: "A GBA Game"})
+      asset_set_fixture(user.id, %{system_id: "unknown", display_title: "Mystery"})
+
+      {:ok, _lv, html} = live(conn, ~p"/library")
+
+      ids = [
+        "sidebar-home",
+        "sidebar-continue",
+        "sidebar-favorites",
+        "sidebar-collections",
+        "sidebar-queue",
+        "sidebar-recent",
+        "sidebar-system-gba",
+        "sidebar-unidentified"
+      ]
+
+      positions =
+        Enum.map(ids, fn id ->
+          case :binary.match(html, ~s(id="#{id}")) do
+            {pos, _len} -> pos
+            :nomatch -> flunk("expected sidebar entry ##{id} to be present")
+          end
+        end)
+
+      assert positions == Enum.sort(positions)
+    end
+
+    test "a system with zero asset sets does not appear in the sidebar's system list", %{
+      conn: conn,
+      user: user
+    } do
+      asset_set_fixture(user.id, %{system_id: "gba", display_title: "Present"})
+
+      {:ok, lv, _html} = live(conn, ~p"/library")
+
+      assert has_element?(lv, "#sidebar-system-gba")
+      refute has_element?(lv, "#sidebar-system-snes")
+      assert has_element?(lv, "#show-all-systems")
+    end
+
+    test "an empty Favorites shelf is absent from the home markup while the sidebar entry is present with explanatory text",
+         %{conn: conn, user: user} do
+      asset_set_fixture(user.id, %{display_title: "Unfavorited"})
+
+      {:ok, lv, _html} = live(conn, ~p"/library")
+
+      refute has_element?(lv, "#favorites-shelf")
+      assert has_element?(lv, "#sidebar-favorites-explainer", "Favorite a game to see it here.")
+    end
+
+    test "reordering the queue in the console issues exactly one context call and produces exactly one journal entry",
+         %{conn: conn, user: user} do
+      a = asset_set_fixture(user.id, %{display_title: "First"})
+      b = asset_set_fixture(user.id, %{display_title: "Second"})
+      c = asset_set_fixture(user.id, %{display_title: "Third"})
+
+      {:ok, _} = Curation.enqueue(user.id, Ecto.UUID.generate(), a.id)
+      {:ok, _} = Curation.enqueue(user.id, Ecto.UUID.generate(), b.id)
+      {:ok, _} = Curation.enqueue(user.id, Ecto.UUID.generate(), c.id)
+
+      {:ok, lv, _html} = live(conn, ~p"/library")
+
+      before_count = ChangeJournal.read_after(user.id, 0, 100) |> length()
+
+      lv |> element("#queue-item-#{c.id}-move-up") |> render_click()
+
+      after_entries = ChangeJournal.read_after(user.id, 0, 100)
+      assert length(after_entries) == before_count + 1
+
+      assert [%{asset_set_id: id1}, %{asset_set_id: id2}, %{asset_set_id: id3}] =
+               Curation.list_queue(user.id)
+
+      assert [id1, id2, id3] == [a.id, c.id, b.id]
+    end
+
+    test "the first-run banner renders once, and does not render after the dismiss event", %{
+      conn: conn,
+      user: user
+    } do
+      asset_set_fixture(user.id, %{display_title: "Anything"})
+
+      {:ok, lv, html} = live(conn, ~p"/library")
+
+      assert Regex.scan(~r/Your library lives on your server/, html) |> length() == 1
+
+      lv |> element("#dismiss-first-run-banner") |> render_click()
+
+      refute has_element?(lv, "#first-run-banner")
+    end
+
+    test "a catalogue with zero asset sets renders the import invitation and no error styling", %{
+      conn: conn,
+      user: _user
+    } do
+      {:ok, lv, _html} = live(conn, ~p"/library")
+
+      assert has_element?(lv, "#library-empty", "No games yet")
+      empty_html = lv |> element("#library-empty") |> render()
+      refute empty_html =~ ~s(role="alert")
+      refute empty_html =~ ~s(role="warning")
     end
   end
 end
