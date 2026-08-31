@@ -57,10 +57,23 @@ final class CASManager {
             try? fm.removeItem(at: partialURL)
         } else {
             try fm.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
-            // `objects/` and `partials/` both live under the same cache
-            // root filesystem, so this is a same-volume rename — atomic,
-            // no partial-write window a crash could observe.
-            try fm.moveItem(at: partialURL, to: dest)
+            do {
+                // `objects/` and `partials/` both live under the same
+                // cache root filesystem, so this is a same-volume
+                // rename — atomic, no partial-write window a crash
+                // could observe.
+                try fm.moveItem(at: partialURL, to: dest)
+            } catch {
+                // TOCTOU: two concurrent commits of the same digest can
+                // both observe `fileExists == false` above, and the
+                // loser's move then fails because the winner already
+                // placed the object. Content-addressing guarantees the
+                // bytes are identical, so treat "destination now exists"
+                // as success rather than propagating the error
+                // (P1-WR-002).
+                guard fm.fileExists(atPath: dest.path) else { throw error }
+                try? fm.removeItem(at: partialURL)
+            }
         }
 
         try recordVerify(for: sha256, at: dest)
