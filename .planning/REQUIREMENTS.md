@@ -44,13 +44,13 @@ Requirements for the first complete Mac-to-server custody and continuity release
 - [x] **CACH-01**: A user can choose a game or collection for local download and resume an interrupted transfer without restarting verified ranges.
 - [x] **CACH-02**: A user can distinguish server-only, queued, partial, verified-local, pinned-offline, and safe-to-evict content.
 - [x] **CACH-03**: A user can set a local capacity policy, pin selected content, and reclaim only reconstructable unpinned content without affecting the server repository or backup.
-- [ ] **CACH-04**: A user can launch a manifest only after every required member verifies locally, and can launch that verified game while the server, internet, metadata, achievements, and other optional services are unavailable.
+- [x] **CACH-04**: A user can launch a manifest only after every required member verifies locally, and can launch that verified game while the server, internet, metadata, achievements, and other optional services are unavailable.
 
 ### Mac Readiness and Emulator Adapter
 
-- [ ] **PLAY-01**: A user can install or select one deliberately supported Mac emulator adapter and see its exact supported system, emulator version, content, BIOS, and persistent-save capabilities.
-- [ ] **PLAY-02**: Before launch, a user receives a clear readiness result for game assets, local cache, emulator, BIOS, controller, and persistent-save path, with a concrete remedy for every blocking result.
-- [ ] **PLAY-03**: A user can drag in a locally supplied BIOS file for validation and managed local use, while the product offers no proprietary BIOS acquisition or distribution path and recognizes an open replacement when the selected adapter supports one.
+- [x] **PLAY-01**: A user can install or select one deliberately supported Mac emulator adapter and see its exact supported system, emulator version, content, BIOS, and persistent-save capabilities.
+- [x] **PLAY-02**: Before launch, a user receives a clear readiness result for game assets, local cache, emulator, BIOS, controller, and persistent-save path, with a concrete remedy for every blocking result.
+- [x] **PLAY-03**: A user can drag in a locally supplied BIOS file for validation and managed local use, while the product offers no proprietary BIOS acquisition or distribution path and recognizes an open replacement when the selected adapter supports one.
 - [ ] **PLAY-04**: A user can connect, test, assign, remap, reset, and recover a supported controller while retaining keyboard, pointer, and assistive-technology fallbacks.
 - [ ] **PLAY-05**: A user can launch one legally testable game through the supported adapter from a signed/notarized Mac build, exit safely, and relaunch it after an application or server restart.
 
@@ -138,10 +138,10 @@ Which phases cover which requirements. This table is populated by roadmap creati
 | CACH-01 | Phase 3 | Complete |
 | CACH-02 | Phase 3 | Complete |
 | CACH-03 | Phase 3 | Complete |
-| CACH-04 | Phase 3 | Pending |
-| PLAY-01 | Phase 3 | Pending |
-| PLAY-02 | Phase 3 | Pending |
-| PLAY-03 | Phase 3 | Pending |
+| CACH-04 | Phase 3 | Complete |
+| PLAY-01 | Phase 3 | Complete |
+| PLAY-02 | Phase 3 | Complete |
+| PLAY-03 | Phase 3 | Complete |
 | PLAY-04 | Phase 3 | Pending |
 | PLAY-05 | Phase 3 | Pending |
 | SAVE-01 | Phase 4 | Pending |
