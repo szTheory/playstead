@@ -16,6 +16,7 @@ struct LibraryShellView: View {
     @State private var selection: SidebarSection? = .home
     @State private var selectedCollectionID: String?
     @State private var refreshError: String?
+    @State private var showsAdapterSetup = false
 
     private var library: LibraryViewModel { environment.libraryViewModel }
 
@@ -37,6 +38,29 @@ struct LibraryShellView: View {
         } detail: {
             detail
                 .navigationTitle(Self.title(for: selection ?? .home))
+        }
+        .toolbar {
+            // The adapter surface's own entry point, independent of any
+            // one title's readiness sheet — the sidebar's eight-step
+            // order is a frozen navigation contract (D-14), so this is a
+            // toolbar affordance rather than a ninth source-list row.
+            ToolbarItem {
+                Button("Adapter") { showsAdapterSetup = true }
+                    .accessibilityLabel("Adapter setup")
+            }
+        }
+        .sheet(isPresented: $showsAdapterSetup) {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+                AdapterSetupView()
+                HStack {
+                    Spacer()
+                    Button("Done") { showsAdapterSetup = false }
+                }
+                .padding(.horizontal, DesignTokens.Spacing.lg)
+                .padding(.bottom, DesignTokens.Spacing.lg)
+            }
+            .environment(environment)
+            .frame(minWidth: 560, minHeight: 380)
         }
         .task {
             // The window renders from the local mirror first (LIBR-01's
