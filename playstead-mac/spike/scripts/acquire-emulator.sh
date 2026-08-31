@@ -29,6 +29,23 @@ case "$CANDIDATE" in
     ;;
 esac
 
+# P6-CR-001: the only download this script currently performs is pinned
+# in playstead-mac/docs/SUPPORT-MATRIX.md — look up the expected digest
+# from that same pin rather than inventing one, so a tampered/MITM'd/
+# compromised release asset is refused instead of silently installed
+# and later launched as a real process. Extend this table (never invent
+# a value) as later D-02 rungs add candidates/versions.
+case "${CANDIDATE}/${VERSION}" in
+  mgba/0.10.5)
+    EXPECTED_SHA256="443b490ec728293dfcde1cb9db160f73d94c457cb1864f3ce0407e60e174b09c"
+    ;;
+  *)
+    echo "FATAL: no pinned SHA-256 for $CANDIDATE $VERSION in SUPPORT-MATRIX.md." >&2
+    echo "       Refusing to download and install an unverifiable candidate." >&2
+    exit 1
+    ;;
+esac
+
 mkdir -p "$INSTALL_ROOT"
 DL_PATH="$INSTALL_ROOT/$ARCHIVE_NAME"
 
@@ -38,6 +55,15 @@ curl -L --fail --show-error -o "$DL_PATH" "$DOWNLOAD_URL"
 echo "==> Computed SHA-256:"
 SHA256=$(shasum -a 256 "$DL_PATH" | awk '{print $1}')
 echo "$SHA256"
+
+if [ "$SHA256" != "$EXPECTED_SHA256" ]; then
+  echo "FATAL: SHA-256 mismatch for $ARCHIVE_NAME." >&2
+  echo "       expected: $EXPECTED_SHA256" >&2
+  echo "       got:      $SHA256" >&2
+  rm -f "$DL_PATH"
+  exit 1
+fi
+echo "==> SHA-256 verified against SUPPORT-MATRIX.md pin"
 
 # `curl` on the command line does NOT set com.apple.quarantine — that flag is
 # applied by LSQuarantine-aware download paths (Safari, Mail, and Foundation's
