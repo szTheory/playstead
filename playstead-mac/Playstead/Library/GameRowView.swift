@@ -131,7 +131,14 @@ struct GameRowView: View {
                 .appendingPathComponent(entry.id, isDirectory: true)
             try FileManager.default.createDirectory(at: saveDir, withIntermediateDirectories: true)
 
-            try await adapterHost.launch(romPath: romURL.path, saveDir: saveDir.path) { exit in
+            // A validated, managed BIOS for this ROM's system (if any)
+            // must actually reach the emulator's launch arguments —
+            // otherwise the readiness/capability UI's "BIOS validated
+            // and in use" claim would be false (P2-CR-002).
+            let biosPath = environment.biosStore.managedRecord(forSystem: entry.system)
+                .map { environment.biosStore.managedPath(forSHA256: $0.sha256).path }
+
+            try await adapterHost.launch(romPath: romURL.path, saveDir: saveDir.path, biosPath: biosPath) { exit in
                 Task { @MainActor in
                     lastExit = exit
                 }

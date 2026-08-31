@@ -38,6 +38,14 @@ final class AppEnvironment {
     /// the instant any surface reads it (plan 03-10, D-14).
     let controllerHost = ControllerHost()
     let controllerMappingStore: ControllerMappingStore
+    /// Holds whatever BIOS a user has validated per system, so a launch
+    /// can inject it into the emulator's arguments (plan 03-09/03-10,
+    /// P2-CR-002). `references` starts empty — this client has no
+    /// confirmed reference BIOS digest yet (see `BiosStore`'s own doc
+    /// comment); until one is gathered, every candidate is correctly and
+    /// honestly rejected, which is the documented safe default, not a
+    /// stub.
+    let biosStore: BiosStore
     /// Constructed here for the same reason `controllerHost` is —
     /// reduced-motion state must be known from the first frame, not
     /// discovered lazily by whichever view happens to render first.
@@ -52,6 +60,7 @@ final class AppEnvironment {
         let store = (try? LocalStore(paths: paths)) ?? LocalStore.inMemoryFallback()
         self.localStore = store
         self.controllerMappingStore = ControllerMappingStore(localStore: store)
+        self.biosStore = BiosStore(localStore: store, managedDirectory: paths.bios, references: [])
         self.apiClient = APIClient(keychain: KeychainStore())
 
         let cas = CASManager(paths: paths)
@@ -65,6 +74,15 @@ final class AppEnvironment {
         } catch {
             self.adapterPinLoadError = error
         }
+
+        // Wires ControllerHost's connect/disconnect/assign transitions to
+        // AdapterHost's launch arguments — without this, a remap or a
+        // reconnect never reaches the emulator (P2-CR-003).
+        controllerHost.onAssignmentChanged = { [weak self] in self?.refreshActiveControllerMapping() }
+        // A controller already connected before the window opens (D-14)
+        // must have its mapping applied immediately, not only on the next
+        // connect/disconnect/assign transition.
+        refreshActiveControllerMapping()
     }
 
     /// Loads (or lazily creates) the currently assigned controller's

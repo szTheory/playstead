@@ -14,6 +14,7 @@ struct AppPaths {
     let partials: URL
     let launch: URL
     let emulators: URL
+    let bios: URL
     let databaseURL: URL
 
     init(fileManager: FileManager = .default) {
@@ -32,6 +33,7 @@ struct AppPaths {
         self.partials = root.appendingPathComponent("partials", isDirectory: true)
         self.launch = root.appendingPathComponent("launch", isDirectory: true)
         self.emulators = root.appendingPathComponent("emulators", isDirectory: true)
+        self.bios = root.appendingPathComponent("bios", isDirectory: true)
         self.databaseURL = root.appendingPathComponent("playstead.sqlite3", isDirectory: false)
 
         createDirectoriesIfNeeded(fileManager: fileManager)
@@ -39,7 +41,7 @@ struct AppPaths {
     }
 
     private func createDirectoriesIfNeeded(fileManager: FileManager) {
-        for dir in [root, objects, partials, launch, emulators] {
+        for dir in [root, objects, partials, launch, emulators, bios] {
             try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
         }
     }

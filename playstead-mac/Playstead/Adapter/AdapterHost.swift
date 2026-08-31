@@ -127,8 +127,21 @@ actor AdapterHost {
     /// controller hardware; the wiring itself — that the active mapping
     /// reaches the injected configuration at launch — is what this
     /// method and its test prove.
-    func renderedLaunchArguments(romPath: String, saveDir: String) -> [String] {
+    /// `biosPath` is the resolved path to a validated, managed BIOS file
+    /// for the ROM's system, if one exists (`nil` when no BIOS has been
+    /// validated) — passed by the caller, since `AdapterHost` holds no
+    /// reference to `BiosStore` itself. When present, renders the pin's
+    /// `config_injection.keys["bios_path"]` template (e.g. `"-b {path}"`)
+    /// so a validated BIOS is actually used by the emulator rather than
+    /// only being described as "in use" by the UI (P2-CR-002).
+    func renderedLaunchArguments(romPath: String, saveDir: String, biosPath: String? = nil) -> [String] {
         var args = pin.launch.renderedArguments(romPath: romPath, saveDir: saveDir)
+        if let biosPath, let template = pin.configInjection.keys["bios_path"] {
+            args.append(contentsOf: template
+                .replacingOccurrences(of: "{path}", with: biosPath)
+                .split(separator: " ")
+                .map(String.init))
+        }
         guard let mapping = activeControllerMapping else { return args }
         for input in mapping.mappings {
             args.append("-C")
@@ -249,13 +262,14 @@ actor AdapterHost {
     func launch(
         romPath: String,
         saveDir: String,
+        biosPath: String? = nil,
         onExit: @escaping @Sendable (AdapterExit) -> Void
     ) throws -> Process {
         try verifyInstalledDigest()
 
         let proc = Process()
         proc.executableURL = resolvedExecutableURL
-        proc.arguments = renderedLaunchArguments(romPath: romPath, saveDir: saveDir)
+        proc.arguments = renderedLaunchArguments(romPath: romPath, saveDir: saveDir, biosPath: biosPath)
 
         let detection = pin.exitDetection
         let registry = AdapterProcessRegistry.shared
