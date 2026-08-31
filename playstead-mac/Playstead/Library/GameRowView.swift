@@ -9,6 +9,11 @@ enum GameRowStatus: Equatable {
     case needsDownload
     case downloading
     case ready
+    /// At least one readiness check other than "the files aren't here
+    /// yet" is blocking. Carries the whole report so the row can show
+    /// the blocking condition and its remedy rather than a raw error
+    /// string.
+    case blocked(ReadinessReport)
     case error(String)
 }
 
@@ -23,14 +28,17 @@ struct GameRowView: View {
     @Environment(AppEnvironment.self) private var environment
     @State private var status: GameRowStatus = .needsDownload
     @State private var lastExit: AdapterExit?
+    @State private var showsReadinessSheet = false
 
     private var requiredMembers: [(sha256: String, size: Int)] {
-        entry.members
-            .filter { $0.required }
-            .compactMap { member in
-                guard let sha256 = member.sha256, let size = member.size else { return nil }
-                return (sha256, size)
-            }
+        AppEnvironment.requiredMembers(of: entry).map { (sha256: $0.sha256, size: $0.size) }
+    }
+
+    /// The report currently being shown, if any — `.blocked` carries it,
+    /// and a sheet opened from a ready row re-evaluates on demand.
+    private var blockingReport: ReadinessReport? {
+        if case .blocked(let report) = status { return report }
+        return nil
     }
 
     var body: some View {
@@ -46,6 +54,11 @@ struct GameRowView: View {
                         .font(.caption2)
                         .foregroundStyle(.red)
                 }
+                if let blockingReport, let first = blockingReport.checks.first(where: { $0.outcome.isBlocking }) {
+                    Text(Self.blockingSummary(first))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
                 if let lastExit {
                     Text("Last exit: \(String(describing: lastExit))")
                         .font(.caption2)
@@ -60,6 +73,33 @@ struct GameRowView: View {
         .task {
             refreshStatus()
         }
+        .sheet(isPresented: $showsReadinessSheet) {
+            ReadinessSheetView(
+                entry: entry,
+                report: blockingReport ?? environment.readinessReport(for: entry),
+                onRefresh: { refreshStatus() },
+                onDownload: {
+                    showsReadinessSheet = false
+                    Task { await download() }
+                },
+                onPlay: {
+                    showsReadinessSheet = false
+                    Task { await play() }
+                },
+                onClose: {
+                    showsReadinessSheet = false
+                    refreshStatus()
+                }
+            )
+            .environment(environment)
+        }
+    }
+
+    /// The one-line summary a blocked row shows inline, so the reason is
+    /// visible without opening anything.
+    static func blockingSummary(_ check: ReadinessCheck) -> String {
+        guard case .blocked(let text) = check.outcome else { return check.finding }
+        return text
     }
 
     /// Favorite and Queue, the two curation mutations reachable from any
@@ -103,15 +143,35 @@ struct GameRowView: View {
             ProgressView().controlSize(.small)
         case .ready:
             Button("Play") { Task { await play() } }
+        case .blocked:
+            // D-17: the row offers the action that is actually available.
+            // With something other than the files blocking, that action
+            // is seeing the blocker and its remedy — never a disabled
+            // Play, and never a Play that fails with a raw error.
+            Button("What's needed") { showsReadinessSheet = true }
         case .error:
             Button("Retry") { Task { await download() } }
         }
     }
 
+    /// Derives the row's action from the real six-check readiness report,
+    /// not from a bare cache lookup. Missing files stay a Download — the
+    /// row's own remedy for that blocker — and every other blocking
+    /// condition routes to the report and its remedy.
     private func refreshStatus() {
         guard !requiredMembers.isEmpty else { return }
-        let result = environment.preflightChecker.check(requiredMembers: requiredMembers)
-        status = (result == .ready) ? .ready : .needsDownload
+        status = Self.status(for: environment.readinessReport(for: entry))
+    }
+
+    /// The row's action, derived from a readiness report — pure, so the
+    /// exact mapping the shipped row uses can be asserted without
+    /// hosting a live view.
+    static func status(for report: ReadinessReport) -> GameRowStatus {
+        if report.isReady { return .ready }
+        if report.checks.contains(where: { $0.kind == .gameAssets && $0.outcome.isBlocking }) {
+            return .needsDownload
+        }
+        return .blocked(report)
     }
 
     @MainActor
@@ -155,15 +215,27 @@ struct GameRowView: View {
             return (sha256, name)
         }
 
+        // The real gate: six local checks, every blocking one carrying a
+        // remedy. Before this, Play ran no readiness check at all and
+        // surfaced failures as an untyped "Launch failed: …" string.
+        let report = environment.readinessReport(for: entry)
+        guard report.isReady else {
+            status = .blocked(report)
+            showsReadinessSheet = true
+            return
+        }
+
         do {
             let materialized = try environment.launchMaterializer.materialize(assetSetID: entry.id, members: members)
             guard let romURL = materialized.files.first else {
                 status = .error("No launchable member")
                 return
             }
-            let saveDir = environment.appPaths.root
-                .appendingPathComponent("saves", isDirectory: true)
-                .appendingPathComponent(entry.id, isDirectory: true)
+            // The same validated save directory the readiness check just
+            // confirmed is writable — the asset set id is server-supplied
+            // and is validated as a safe bare filename before it becomes
+            // a path component (CR-01/CR-02).
+            let saveDir = try environment.saveDirectoryURL(forAssetSetID: entry.id)
             try FileManager.default.createDirectory(at: saveDir, withIntermediateDirectories: true)
 
             // A validated, managed BIOS for this ROM's system (if any)
