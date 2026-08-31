@@ -35,6 +35,34 @@ rom_start:
     msr     cpsr_c, r0
     ldr     sp, =0x03007F00
 
+    @ P6-WR-005: copy .data's initial values from their ROM load
+    @ address (baked in at link time via linker.ld's `AT> rom`) to
+    @ their IWRAM run address, and zero .bss, before main() can read
+    @ or write any global. Without this, a writable global's initial
+    @ value would only ever exist at its ROM address -- unreachable at
+    @ runtime since .data's VMA is IWRAM -- and any write to it would
+    @ hit uninitialized/stale IWRAM contents instead.
+    ldr     r0, =__data_load_start
+    ldr     r1, =__data_start
+    ldr     r2, =__data_end
+copy_data_loop:
+    cmp     r1, r2
+    bge     copy_data_done
+    ldrb    r3, [r0], #1
+    strb    r3, [r1], #1
+    b       copy_data_loop
+copy_data_done:
+
+    ldr     r0, =__bss_start
+    ldr     r1, =__bss_end
+    mov     r2, #0
+zero_bss_loop:
+    cmp     r0, r1
+    bge     zero_bss_done
+    strb    r2, [r0], #1
+    b       zero_bss_loop
+zero_bss_done:
+
     ldr     r0, =main
     bx      r0
 hang:
