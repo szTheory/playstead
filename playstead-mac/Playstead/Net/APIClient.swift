@@ -64,32 +64,66 @@ struct APIResponse {
 /// ships its certificate capture.
 actor APIClient: NSObject {
     private let keychain: KeychainStore
-    private lazy var session: URLSession = {
+    private lazy var defaultSession: URLSession = {
         let config = URLSessionConfiguration.ephemeral
         return URLSession(configuration: config, delegate: PinningDelegate(pinnedCertificateURL: pinnedCertificateURL), delegateQueue: nil)
     }()
+    private let sessionOverride: URLSession?
     private let pinnedCertificateURL: URL?
+    /// A fixed credential a test can inject instead of `keychain`. Real
+    /// macOS Keychain access can fail with `errSecInDarkWake` in a
+    /// headless/sandboxed test run (see plan 03-03's SUMMARY) — this
+    /// lets `SyncEngineTests` (plan 03-06) drive `APIClient` against a
+    /// `URLProtocol` stub without touching the Keychain at all.
+    private let credentialOverride: PairingCredential?
 
-    init(keychain: KeychainStore, pinnedCertificateURL: URL? = nil) {
+    init(
+        keychain: KeychainStore,
+        pinnedCertificateURL: URL? = nil,
+        session: URLSession? = nil,
+        credential: PairingCredential? = nil
+    ) {
         self.keychain = keychain
         self.pinnedCertificateURL = pinnedCertificateURL
+        self.sessionOverride = session
+        self.credentialOverride = credential
         super.init()
     }
 
+    private var session: URLSession {
+        sessionOverride ?? defaultSession
+    }
+
     var credential: PairingCredential? {
-        keychain.loadCredential()
+        credentialOverride ?? keychain.loadCredential()
     }
 
     /// Performs a `GET` (or, via `headers`, any method that needs a
     /// custom header set) against `path` relative to the paired base
     /// URL, returning status/headers/body. RFC 9457 problem+json bodies
     /// on non-2xx responses are surfaced as `APIClientError.server`.
-    func get(path: String, headers: [String: String] = [:]) async throws -> APIResponse {
-        guard let credential = keychain.loadCredential() else {
+    ///
+    /// `queryItems` (added in plan 03-06 for `GET /api/v1/changes?cursor=…`)
+    /// is applied via `URLComponents`, never string-concatenated onto
+    /// `path` — `URL.appendingPathComponent` percent-encodes `?`/`=`
+    /// literally, which would corrupt a query string built that way.
+    func get(path: String, queryItems: [URLQueryItem] = [], headers: [String: String] = [:]) async throws -> APIResponse {
+        guard let credential = self.credential else {
             throw APIClientError.notPaired
         }
 
-        var request = URLRequest(url: credential.baseURL.appendingPathComponent(path))
+        var components = URLComponents(
+            url: credential.baseURL.appendingPathComponent(path),
+            resolvingAgainstBaseURL: false
+        )
+        if !queryItems.isEmpty {
+            components?.queryItems = queryItems
+        }
+        guard let url = components?.url else {
+            throw APIClientError.invalidResponse
+        }
+
+        var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(credential.token)", forHTTPHeaderField: "Authorization")
         for (key, value) in headers {
