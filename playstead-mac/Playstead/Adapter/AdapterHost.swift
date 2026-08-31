@@ -188,6 +188,7 @@ actor AdapterHost {
             guard FileManager.default.fileExists(atPath: path) else {
                 throw LaunchError.emulatorNotInstalled
             }
+            try reverifyLiveDigest(at: path)
             return
         }
 
@@ -202,6 +203,41 @@ actor AdapterHost {
         }
         guard record.sha256 == pin.sha256 else {
             throw LaunchError.digestMismatch(expected: pin.sha256, actual: record.sha256)
+        }
+        // The cached record only proves the digest matched at some past
+        // install/select moment — it says nothing about the bytes
+        // currently on disk. Re-hash the live file every launch, exactly
+        // as `InstallVerifyRecord`'s own doc comment promises ("the app
+        // re-proves it every time"), so a binary swapped or corrupted
+        // after install is caught here instead of trusted forever
+        // (P2-CR-001).
+        try reverifyLiveDigest(at: executableURL.path)
+    }
+
+    /// Re-hashes the file currently on disk at `path` and confirms it
+    /// still matches `pin.sha256` — the actual "re-proves it every time"
+    /// check neither the cached-record fallback nor the install-state
+    /// fast path performed before this fix.
+    ///
+    /// NOTE for whoever wires `setInstallState` to a real `install()`
+    /// call site: `AdapterInstaller.install()` currently validates the
+    /// *downloaded archive's* digest against `pin.sha256`, not the
+    /// *expanded executable's* digest — the two are different byte
+    /// streams (an archive/disk-image vs. its unpacked binary) and will
+    /// not compare equal here. `selectExisting()` already hashes the
+    /// resolved executable directly, so that flow is consistent with
+    /// this check. Before wiring `install()`'s result into
+    /// `setInstallState`, either (a) also record and compare against the
+    /// expanded executable's own digest (not `pin.sha256` directly), or
+    /// (b) confirm `pin.sha256` is meant to describe the expanded
+    /// executable and adjust `install()` to hash post-expansion instead
+    /// of the archive. This is a real design decision, not a mechanical
+    /// fix — see P2-CR-001 in 03-REVIEW.md.
+    private func reverifyLiveDigest(at path: String) throws {
+        var hasher = try StreamingSHA256.resume(from: URL(fileURLWithPath: path))
+        let actualDigest = hasher.finalizeHex()
+        guard actualDigest == pin.sha256 else {
+            throw LaunchError.digestMismatch(expected: pin.sha256, actual: actualDigest)
         }
     }
 
