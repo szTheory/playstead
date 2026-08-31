@@ -44,16 +44,6 @@ enum DesignTokens {
     static let border = Color(hex: 0x334155)
 }
 
-/// Reads the system's reduced-motion accessibility setting
-/// (03-UI-SPEC.md Motion & Focus Specification). The ring fill itself
-/// always stays — it carries information; only the morph/crossfade
-/// decorations are swapped for an instant change when this is true.
-enum MotionPreference {
-    static var reduceMotionEnabled: Bool {
-        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-    }
-}
-
 extension Font {
     /// The 4-role type scale (03-UI-SPEC.md Typography). Only 2 weights
     /// exist system-wide: regular and semibold — Label alone appears at

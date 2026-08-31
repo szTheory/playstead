@@ -97,7 +97,11 @@ struct StatusSlotView: View {
         Group {
             if let selected {
                 if case .downloading(let percent) = selected {
-                    ProgressView(value: Double(percent), total: 100)
+                    // `ProgressFillState` is computed with no dependency
+                    // on `MotionPreference` — under reduced motion this
+                    // determinate fraction still renders exactly as it
+                    // does otherwise (03-10, D-16).
+                    ProgressView(value: ProgressFillState(percent: percent).fraction, total: 1)
                         .progressViewStyle(.circular)
                         .tint(StatusToken.color(for: selected))
                 } else {

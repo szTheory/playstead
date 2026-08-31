@@ -43,7 +43,20 @@ struct GameListView: View {
                     StatusSlotView(statuses: row.statuses, title: row.title.isEmpty ? "Untitled" : row.title)
                 }
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(accessibleLabel(for: row))
         }
+    }
+
+    /// One accessible name per row — title, system, and the status
+    /// ladder's accessible-name sentence, matching `GameCardView`'s
+    /// own composition rule so a screen-reader user hears the same
+    /// three facts regardless of which layout is active.
+    private func accessibleLabel(for row: GameListRow) -> String {
+        let title = row.title.isEmpty ? "Untitled" : row.title
+        let systemName = SystemRegistry.entry(for: row.systemID).displayName
+        let statusSentence = LibraryStatus.highestPriority(among: row.statuses)?.accessibleName(title: title) ?? ""
+        return "\(title), \(systemName), \(statusSentence)"
     }
 }
 

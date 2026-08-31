@@ -38,6 +38,10 @@ final class AppEnvironment {
     /// the instant any surface reads it (plan 03-10, D-14).
     let controllerHost = ControllerHost()
     let controllerMappingStore: ControllerMappingStore
+    /// Constructed here for the same reason `controllerHost` is —
+    /// reduced-motion state must be known from the first frame, not
+    /// discovered lazily by whichever view happens to render first.
+    let motionPreference = MotionPreference()
     private(set) var apiClient: APIClient?
     private(set) var adapterHost: AdapterHost?
     private(set) var adapterPinLoadError: Error?
