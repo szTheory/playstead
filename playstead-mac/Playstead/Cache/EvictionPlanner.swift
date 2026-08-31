@@ -125,10 +125,19 @@ final class EvictionPlanner {
     /// `AvailabilityState` re-derives to `.serverOnly` on the next read
     /// because its cached members are simply gone, never because a row
     /// was deleted.
+    ///
+    /// The `cache_objects` row is deleted first, then the on-disk object
+    /// is removed as best-effort cleanup (P1-CR-002). Every reader of
+    /// `AvailabilityState` derives "verified"/"pinned" status directly
+    /// from `cache_objects`, so ordering the deletions this way means a
+    /// crash between the two steps can only leave a leftover file with
+    /// no corresponding row (harmless — a future reconciliation sweep
+    /// can reclaim it), never a row that still claims a file exists
+    /// after that file is actually gone.
     func execute(_ plan: EvictionPlan) throws {
         for sha in plan.objectSHAs {
-            try cas.remove(sha)
             try localStore.connection.execute("DELETE FROM cache_objects WHERE sha256 = ?;", params: [sha])
+            try? cas.remove(sha)
         }
     }
 
