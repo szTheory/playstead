@@ -9,14 +9,8 @@ struct QuotaSettingsView: View {
     let usedBytes: Int
     let onSetQuota: (Int) -> Void
 
-    private static let formatter: ByteCountFormatter = {
-        let f = ByteCountFormatter()
-        f.countStyle = .file
-        return f
-    }()
-
     static func formatBytes(_ bytes: Int) -> String {
-        formatter.string(fromByteCount: Int64(bytes))
+        ByteFormatting.formatBytes(bytes)
     }
 
     /// The plain statement of precedence this view must always render —
