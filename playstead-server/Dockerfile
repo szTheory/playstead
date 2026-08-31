@@ -105,19 +105,19 @@ COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/playstead ./
 # by the volume is already writable by the runtime user.
 RUN mkdir -p /app/blobs && chown nobody /app/blobs
 
-# Same reasoning as /app/blobs above, for the two Phase 2 bind mounts:
-# a fresh bind mount lands root-owned before the app ever runs as
-# `nobody` (this repeated the exact 01-08 failure the first time). The
-# inbox mount is bind-mounted `:ro` in compose, so a `nobody`-owned
-# directory here only needs to be listable, never written to by the
-# app; /app/exports must be writable.
+# Same reasoning as /app/blobs above, for the two Phase 2 bind mounts.
+# NOTE: chowning here is necessary but NOT sufficient for a bind mount --
+# unlike a named volume, a bind mount carries the HOST directory's
+# ownership into the container and discards whatever the image set. The
+# inbox mount is `:ro` in compose, so a listable directory is all it
+# needs. /app/exports must be writable, and only the entrypoint below can
+# guarantee that; see rel/entrypoint.sh.
 RUN mkdir -p /app/inbox /app/exports && chown nobody /app/inbox /app/exports
 
-USER nobody
-
-# If using an environment that doesn't automatically reap zombie processes, it is
-# advised to add an init process such as tini via `apt-get install`
-# above and adding an entrypoint. See https://github.com/krallin/tini for details
-# ENTRYPOINT ["/tini", "--"]
+# Deliberately NOT `USER nobody`: the entrypoint needs root to repair
+# bind-mount ownership, and drops to `nobody` via setpriv before exec'ing
+# the release. The server process itself never runs as root.
+COPY --chmod=755 rel/entrypoint.sh /app/entrypoint.sh
+ENTRYPOINT ["/app/entrypoint.sh"]
 
 CMD ["/app/bin/server"]

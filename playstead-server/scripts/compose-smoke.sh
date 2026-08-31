@@ -132,21 +132,34 @@ if [ "$FRESH" = "1" ]; then
   assert_setup_token_banner
 fi
 
+# The entrypoint starts as root to repair bind-mount ownership and then
+# drops to `nobody` via setpriv. Assert the drop against the RUNNING
+# process (PID 1), not `docker compose exec` -- exec starts a fresh
+# process as the image's default user (now root, since the entrypoint
+# needs it) and would report root no matter what the server is doing.
+# /proc is used because the slim runner image has no `ps`.
+log "asserting the server process dropped from root to nobody"
+APP_UID=$($COMPOSE exec -T --user nobody app sh -c "awk '/^Uid:/ {print \$2}' /proc/1/status" 2>/dev/null | tr -d '\r')
+if [ "$APP_UID" != "65534" ]; then
+  fail "the server process (PID 1) runs as uid '${APP_UID:-unknown}', expected 65534 (nobody) -- the entrypoint's setpriv privilege drop has regressed"
+fi
+log "server process runs as nobody (uid 65534)"
+
 log "asserting /app/blobs is writable by the app container's runtime user"
-$COMPOSE exec -T app sh -c 'touch /app/blobs/.smoke-write-test && rm /app/blobs/.smoke-write-test' \
+$COMPOSE exec -T --user nobody app sh -c 'touch /app/blobs/.smoke-write-test && rm /app/blobs/.smoke-write-test' \
   || fail "/app/blobs is not writable inside the app container"
 log "/app/blobs is writable"
 
 log "asserting /app/inbox is listable but not writable (D-01 read-only bind mount)"
-$COMPOSE exec -T app sh -c 'ls /app/inbox >/dev/null' \
+$COMPOSE exec -T --user nobody app sh -c 'ls /app/inbox >/dev/null' \
   || fail "/app/inbox is not listable inside the app container"
-if $COMPOSE exec -T app sh -c 'touch /app/inbox/.smoke-write-test' 2>/dev/null; then
+if $COMPOSE exec -T --user nobody app sh -c 'touch /app/inbox/.smoke-write-test' 2>/dev/null; then
   fail "/app/inbox is writable inside the app container -- expected the :ro bind mount to refuse this"
 fi
 log "/app/inbox is listable and not writable"
 
 log "asserting /app/exports is writable by the app container's runtime user"
-$COMPOSE exec -T app sh -c 'touch /app/exports/.smoke-write-test && rm /app/exports/.smoke-write-test' \
+$COMPOSE exec -T --user nobody app sh -c 'touch /app/exports/.smoke-write-test && rm /app/exports/.smoke-write-test' \
   || fail "/app/exports is not writable inside the app container"
 log "/app/exports is writable"
 

@@ -320,6 +320,40 @@ result: pass
 source: automated
 coverage_id: 03-09/D3
 
+## Defects Found During Verification
+
+- id: D-03-EXPORTS-OWNERSHIP
+  found_by: "compose-smoke CI job, first run on a Linux runner (2026-08-31)"
+  phase_origin: 02 (PORT-02 export)
+  severity: major
+  truth: "A self-hoster who clones the repo and runs `docker compose up` can write exports."
+  symptom: "[compose-smoke] FAIL: /app/exports is not writable inside the app container"
+  root_cause: |
+    docker-compose.yml bind-mounts ./exports over /app/exports. A bind mount carries the
+    HOST directory's ownership into the container and discards the image's own chown, so
+    the Dockerfile's `chown nobody /app/exports` had no effect. Because ./exports is not
+    tracked in git, Docker created it root-owned on a fresh clone, and the app — running
+    as `nobody` — could not write any export. Named volumes (/app/blobs) are unaffected:
+    Docker seeds a fresh named volume from the image path, ownership included.
+  why_missed: |
+    Invisible on macOS — Docker Desktop's VirtioFS translates UIDs, so bind-mount
+    ownership never bites. Fatal on Linux, which is where self-hosters deploy. The local
+    run of this same script also masked it by creating ./exports as the host user first.
+    CI had never run before today (the repo had no git remote), so nothing had ever
+    executed this path on Linux.
+  fix: |
+    rel/entrypoint.sh runs as root only long enough to chown the export path, then drops
+    to nobody via setpriv (already present in the Debian runner image) before exec'ing the
+    release. `USER nobody` was removed from the Dockerfile so the entrypoint can do this;
+    the server process itself still runs as nobody.
+  regression_guards: |
+    compose-smoke.sh now asserts PID 1 runs as uid 65534 by reading /proc/1/status — not
+    via `docker compose exec`, which starts a fresh process as the image's default user
+    (now root) and would report root regardless. All writability probes were switched to
+    `exec --user nobody` for the same reason: with USER removed, a bare exec runs as root
+    and every one of those probes would have passed vacuously.
+  status: fixed
+
 ## Summary
 
 total: 44
