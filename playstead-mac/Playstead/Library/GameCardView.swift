@@ -60,3 +60,39 @@ struct GameCardView: View {
         return "\(displayTitle), \(systemName), \(statusSentence)"
     }
 }
+
+// MARK: - AvailabilityState → LibraryStatus (plan 03-07)
+
+extension LibraryStatus {
+    /// Maps a read-time `AvailabilityState` (plus, when a member of this
+    /// game is actively transferring, its progress percent) onto the
+    /// card's status ladder — the determinate ring for the active member
+    /// and the queued mark, sourced from `AvailabilityState` rather than
+    /// any remembered/stored state (D-21).
+    ///
+    /// `.safeToEvict` has no card-ladder equivalent by construction: this
+    /// function's caller MUST pass `AvailabilityState.derive(_:)`'s
+    /// result (never `.deriveForStorageView(_:)`'s), and `derive(_:)`
+    /// itself never returns `.safeToEvict` — the switch's `.safeToEvict`
+    /// arm below is unreachable in practice and exists only so this
+    /// mapping stays exhaustive over every `AvailabilityState` case.
+    static func forCard(availability: AvailabilityState, activeMemberProgressPercent: Int?) -> LibraryStatus {
+        switch availability {
+        case .serverOnly:
+            return .serverOnly
+        case .queued:
+            return .queued
+        case .partial:
+            if let activeMemberProgressPercent {
+                return .downloading(percent: activeMemberProgressPercent)
+            }
+            return .queued
+        case .verifiedLocal:
+            return .verified
+        case .pinnedOffline:
+            return .pinned
+        case .safeToEvict:
+            return .serverOnly
+        }
+    }
+}

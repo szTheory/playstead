@@ -123,5 +123,89 @@ enum Migrations {
             );
             """
         )
+
+        // Plan 03-07: the persistent, user-visible download queue and the
+        // committed-cache-object verify facts `AvailabilityState.derive(_:)`
+        // reads at render time. `state` is the ONLY availability-shaped
+        // column anywhere in this schema — its permitted values (waiting,
+        // active, paused, cancelled) describe *transfer* progress, never
+        // one of the six read-time-derived availability names
+        // (server-only/queued/partial/verified-local/pinned-offline/
+        // safe-to-evict). A unique index on (asset_set_id, sha256) is what
+        // makes `DownloadQueue.enqueue` idempotent per member: a repeated
+        // enqueue converges onto the existing row rather than duplicating
+        // it. `position` is a fractional (lexicographically-ordered)
+        // string (see `FractionalIndex`), so `DownloadQueue.reorder` can
+        // move one row without renumbering its neighbors.
+        try connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS download_queue_items (
+                id TEXT PRIMARY KEY,
+                asset_set_id TEXT NOT NULL,
+                sha256 TEXT NOT NULL,
+                size INTEGER NOT NULL,
+                position TEXT NOT NULL,
+                state TEXT NOT NULL DEFAULT 'waiting',
+                attempt_count INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(asset_set_id, sha256)
+            );
+            """
+        )
+        try connection.execute("CREATE INDEX IF NOT EXISTS idx_download_queue_items_position ON download_queue_items(position);")
+        try connection.execute("CREATE INDEX IF NOT EXISTS idx_download_queue_items_state ON download_queue_items(state);")
+        try connection.execute("CREATE INDEX IF NOT EXISTS idx_download_queue_items_asset_set ON download_queue_items(asset_set_id);")
+
+        // Mirrors `CASManager`'s on-disk verify index inside SQLite so
+        // `AvailabilityState.derive(_:)` and `EvictionPlanner` can query
+        // "which members are cached" and "when was this object last used"
+        // with one indexed SQL statement instead of a filesystem walk.
+        // `CASManager` remains the source of truth for the bytes
+        // themselves and the cheap-verify record; this table is a queryable
+        // index over that same fact set, kept in sync by
+        // `DownloadCoordinator` on every commit.
+        try connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS cache_objects (
+                sha256 TEXT PRIMARY KEY,
+                size INTEGER NOT NULL,
+                committed_at TEXT NOT NULL,
+                last_used_at TEXT NOT NULL,
+                verify_size INTEGER NOT NULL,
+                verify_inode INTEGER NOT NULL,
+                verify_mtime_ms INTEGER NOT NULL
+            );
+            """
+        )
+        try connection.execute("CREATE INDEX IF NOT EXISTS idx_cache_objects_last_used ON cache_objects(last_used_at);")
+
+        // Plan 03-07 task 2: capacity policy. Single-row table (id is
+        // always 1); absence of a row means "use the default policy"
+        // (25 GiB quota, 10 GiB floor) — `QuotaManager` inserts the
+        // default row lazily on first read rather than requiring a
+        // migration-time default, so raising/lowering the quota is a
+        // plain UPDATE with no upsert-vs-insert ambiguity.
+        try connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS quota_policy (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                quota_bytes INTEGER NOT NULL,
+                floor_bytes INTEGER NOT NULL
+            );
+            """
+        )
+
+        // One row per pinned asset set. Presence alone is the pin flag —
+        // `PinStore` never stores a boolean column; a pin is either a row
+        // or it isn't.
+        try connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS pins (
+                asset_set_id TEXT PRIMARY KEY,
+                pinned_at TEXT NOT NULL
+            );
+            """
+        )
     }
 }
