@@ -2,7 +2,7 @@
 status: resolved
 trigger: "can u fix this first? keeps happening from above • UserPromptSubmit hook (failed) error: hook exited with code 1"
 created: 2026-08-31T16:21:21-04:00
-updated: 2026-08-31T16:55:00-04:00
+updated: 2026-08-31T16:56:00-04:00
 ---
 
 ## Current Focus
@@ -25,7 +25,7 @@ reasoning_checkpoint:
   and_gate: "no — the absent dependency closure alone is sufficient to reproduce the failure for every input; runtime and input candidates were directly ruled out."
 verification_state: "Guardrail accepted: original command and adjacent cases exit 0; 20/20 stability runs pass; controlled removal restores the exact exit-1 failure and replacement fixes it."
 human_verification: "passed — the user submitted the normal prompt 'replying here' and the Codex UI reported no UserPromptSubmit hook failure."
-next_action: Archive this resolved session, append its prevention summary to the debug knowledge base, and commit the planning artifacts.
+next_action: None — human verification passed, the session is archived, and the durable knowledge-base entry is recorded.
 
 ## Symptoms
 <!-- Written during gathering, then IMMUTABLE -->
@@ -157,3 +157,4 @@ causal_branches:
   and_gate: "No: the installer omission was sufficient by itself; runtime configuration and prompt data were independently ruled out."
 why_not_caught: "No Codex installer integration gate existed in @opengsd/gsd-core 1.12.0 to launch every installed hook in a clean destination and verify that its complete relative-import closure was staged."
 recurrence_guard: "The resolved-session pattern in .planning/debug/knowledge-base.md records the exact missing hooks/lib closure, the three-file repair, and the reinstall risk so a future Phase-0 debug recall tests this cause first."
+semantic_index: "skipped — MemPalace is disabled in .planning/config.json; .planning/debug/knowledge-base.md remains the durable fallback."
