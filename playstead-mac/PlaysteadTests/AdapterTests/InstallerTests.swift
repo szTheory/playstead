@@ -120,7 +120,12 @@ final class InstallerTests: XCTestCase {
         }
 
         XCTAssertEqual(expander.invocationCount, 0, "expansion must never run before the digest is confirmed")
-        XCTAssertFalse(FileManager.default.fileExists(atPath: emulatorsRoot.path), "no directory must be created under emulators/ on a digest mismatch")
+        // `AppPaths` eagerly creates the shared `emulators/` root itself
+        // (independent of any adapter install), so the meaningful
+        // assertion is that THIS pin's own emulator/version subdirectory
+        // was never created — not that the shared root is absent.
+        let pinEmulatorDirectory = emulatorsRoot.appendingPathComponent(pin.emulator).appendingPathComponent(pin.version)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: pinEmulatorDirectory.path), "no directory must be created for this pin's emulator/version on a digest mismatch")
         XCTAssertEqual(installationCount(), 0)
     }
 
