@@ -168,17 +168,26 @@ final class PlaySessionTests: XCTestCase {
         // succeeds — its call signature has no session-store parameter
         // at all, so it structurally cannot read one. `/bin/echo` stands
         // in for the pinned emulator binary (no real emulator is
-        // available in this environment); only `pin.sha256` and the
-        // recorded install-verify digest need to match for
-        // `verifyInstalledDigest()` to pass.
+        // available in this environment). `AdapterHost` now re-hashes
+        // the live executable on every launch (P2-CR-001) rather than
+        // trusting a cached record, so `pin.sha256` must be the actual
+        // digest of the copied binary, not an arbitrary placeholder.
         let tempRoot = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let emulatorDirForDigest = tempRoot.appendingPathComponent("emulators").appendingPathComponent("mgba").appendingPathComponent("0.10.5")
+        try FileManager.default.createDirectory(at: emulatorDirForDigest, withIntermediateDirectories: true)
+        let echoDestination = emulatorDirForDigest.appendingPathComponent("echo")
+        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/bin/echo"), to: echoDestination)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: echoDestination.path)
+        var echoHasher = try StreamingSHA256.resume(from: echoDestination)
+        let echoDigest = echoHasher.finalizeHex()
 
         let pinJSON = """
         {
           "system": "gba", "emulator": "mgba", "version": "0.10.5",
           "download_url": "https://example.test/mgba.dmg",
-          "sha256": "\(String(repeating: "a", count: 64))",
+          "sha256": "\(echoDigest)",
           "launch": {"executable_relative_path": "echo", "argument_template": ["{romPath}"]},
           "config_injection": {"mechanism": "cli_config_override", "keys": {"save_directory": "-C savegamePath={path}", "bios_path": "-b {path}", "controller_mapping": "not_probed_no_hardware_available"}},
           "save_contract": {"artifact_glob": "{saveDir}/{romBaseName}.sav", "directory_key": "savegamePath", "flush_triggers": ["periodic_during_play_observed_every_24s"], "on_demand_flush_supported": false, "worst_case_loss_seconds": 24},
@@ -188,9 +197,6 @@ final class PlaySessionTests: XCTestCase {
         let pin = try JSONDecoder().decode(AdapterPin.self, from: Data(pinJSON.utf8))
 
         let emulatorDir = tempRoot.appendingPathComponent("emulators").appendingPathComponent(pin.emulator).appendingPathComponent(pin.version)
-        try FileManager.default.createDirectory(at: emulatorDir, withIntermediateDirectories: true)
-        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/bin/echo"), to: emulatorDir.appendingPathComponent("echo"))
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: emulatorDir.appendingPathComponent("echo").path)
         try JSONEncoder().encode(InstallVerifyRecord(sha256: pin.sha256)).write(to: emulatorDir.appendingPathComponent(".install-verify.json"))
 
         let host = AdapterHost(pin: pin, emulatorsRoot: tempRoot.appendingPathComponent("emulators"))

@@ -137,6 +137,16 @@ final class ControllerHost {
     private(set) var showRecoveryBanner = false
     private(set) var lastDisconnectedControllerName: String?
 
+    /// Invoked whenever `assignedControllerID`'s effective mapping target
+    /// changes — a controller connects, disconnects, or is explicitly
+    /// (re)assigned. `AppEnvironment.init()` sets this to
+    /// `refreshActiveControllerMapping()`, the one place that connects
+    /// this type's assignment state to `AdapterHost`'s launch arguments.
+    /// Without this callback, a remap or a reconnect never reaches the
+    /// emulator (P2-CR-003) — `ControllerHost` itself has no reference to
+    /// `AdapterHost`, so it can only notify, never call it directly.
+    var onAssignmentChanged: (() -> Void)?
+
     private let source: ControllerInputSource
 
     init(source: ControllerInputSource = GCControllerInputSource()) {
@@ -172,6 +182,7 @@ final class ControllerHost {
         guard connectedControllers.contains(where: { $0.id == controllerID }) else { return }
         assignedControllerID = controllerID
         showRecoveryBanner = false
+        onAssignmentChanged?()
     }
 
     func dismissRecoveryBanner() {
@@ -191,11 +202,16 @@ final class ControllerHost {
         if !connectedControllers.contains(where: { $0.id == descriptor.id }) {
             connectedControllers.append(descriptor)
         }
+        var assignmentChanged = false
         if assignedControllerID == nil {
             assignedControllerID = descriptor.id
+            assignmentChanged = true
         }
         if assignedControllerID == descriptor.id {
             showRecoveryBanner = false
+        }
+        if assignmentChanged {
+            onAssignmentChanged?()
         }
     }
 
@@ -205,6 +221,7 @@ final class ControllerHost {
             lastDisconnectedControllerName = descriptor.name
             showRecoveryBanner = true
             assignedControllerID = connectedControllers.first?.id
+            onAssignmentChanged?()
         }
     }
 }
