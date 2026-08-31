@@ -38,3 +38,7 @@ npm-debug.log
 # Real secrets live here, generated from .env.example — never commit this.
 /.env
 
+
+# Platform-specific esbuild/tailwind binaries downloaded by their Mix tasks.
+/esbuild-*
+/tailwind-*
