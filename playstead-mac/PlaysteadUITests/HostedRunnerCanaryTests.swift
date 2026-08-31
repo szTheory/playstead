@@ -1,6 +1,5 @@
 import XCTest
 import Security
-@testable import Playstead
 
 @MainActor
 final class HostedRunnerCanaryTests: XCTestCase {
@@ -86,32 +85,58 @@ final class HostedRunnerCanaryTests: XCTestCase {
             XCTAssertEqual(createStatus, errSecSuccess)
             guard let keychain else { return XCTFail("file Keychain was not created") }
 
+            var keychainDeleted = false
             defer {
-                SecKeychainDelete(keychain)
+                if !keychainDeleted {
+                    SecKeychainDelete(keychain)
+                }
                 try? FileManager.default.removeItem(at: file)
             }
 
-            let store = KeychainStore(
-                service: "dev.playstead.mac.wave0.\(cycle).\(UUID().uuidString)",
-                keychain: keychain
-            )
-            let credential = PairingCredential(
-                deviceID: "synthetic-device-\(cycle)",
-                baseURL: URL(string: "https://127.0.0.1.invalid")!,
-                token: "synthetic-token-\(cycle)"
-            )
+            // XCUITest is an out-of-process bundle and must not link against
+            // the app executable. Exercise the same Security.framework
+            // destination/search-list contract directly here; the production
+            // KeychainStore query builders are covered by KeychainScopingTests.
+            let service = "dev.playstead.mac.wave0.\(cycle).\(UUID().uuidString)"
+            let account = "synthetic-device-\(cycle)"
+            let secret = Data("synthetic-token-\(cycle)".utf8)
+            let addQuery: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecAttrAccount as String: account,
+                kSecValueData as String: secret,
+                kSecUseKeychain as String: keychain
+            ]
+            XCTAssertEqual(SecItemAdd(addQuery as CFDictionary, nil), errSecSuccess)
 
-            guard case .success = store.storeCredential(credential) else {
-                return XCTFail("scoped credential store failed")
-            }
-            XCTAssertEqual(store.loadCredential(), credential)
-            guard case .success = store.deleteCredential() else {
-                return XCTFail("scoped credential delete failed")
-            }
-            XCTAssertNil(store.loadCredential())
+            let matchQuery: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecAttrAccount as String: account,
+                kSecMatchSearchList as String: [keychain],
+                kSecMatchLimit as String: kSecMatchLimitOne,
+                kSecReturnData as String: true
+            ]
+            var loaded: CFTypeRef?
+            XCTAssertEqual(SecItemCopyMatching(matchQuery as CFDictionary, &loaded), errSecSuccess)
+            XCTAssertEqual(loaded as? Data, secret)
+
+            let deleteQuery: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecAttrAccount as String: account,
+                kSecMatchSearchList as String: [keychain]
+            ]
+            XCTAssertEqual(SecItemDelete(deleteQuery as CFDictionary), errSecSuccess)
+            loaded = nil
+            XCTAssertEqual(
+                SecItemCopyMatching(matchQuery as CFDictionary, &loaded),
+                errSecItemNotFound
+            )
 
             XCTAssertTrue(sameKeychainList(searchListBefore, try copyKeychainSearchList()))
             XCTAssertEqual(SecKeychainDelete(keychain), errSecSuccess)
+            keychainDeleted = true
             XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
         }
 

@@ -19,8 +19,9 @@ lockfile="$MAC_ROOT/Playstead.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
 config="$REPO_ROOT/playstead-server/config/mac_ci.exs"
 runner="$MAC_ROOT/scripts/ci/run-mac-verification.sh"
 workflow="$REPO_ROOT/.github/workflows/ci.yml"
+ui_canary="$MAC_ROOT/PlaysteadUITests/HostedRunnerCanaryTests.swift"
 
-for file in "$project" "$lockfile" "$config" "$runner" "$workflow"; do
+for file in "$project" "$lockfile" "$config" "$runner" "$workflow" "$ui_canary"; do
   [ -f "$file" ] || { printf 'required topology file missing: %s\n' "$file" >&2; exit 1; }
 done
 
@@ -41,6 +42,12 @@ require_text "$runner" 'linux_jobs'
 require_text "$runner" 'trap cleanup_native_services EXIT'
 require_text "$runner" 'bootstrap.log'
 require_text "$runner" 'exec mix phx.server'
+if grep -F '@testable import Playstead' "$ui_canary" >/dev/null; then
+  printf 'XCUITest canaries must not link directly against the app module\n' >&2
+  exit 1
+fi
+require_text "$ui_canary" 'kSecUseKeychain as String'
+require_text "$ui_canary" 'kSecMatchSearchList as String'
 require_text "$workflow" 'test:'
 require_text "$workflow" 'compose-smoke:'
 require_text "$workflow" 'runs-on: macos-26'
