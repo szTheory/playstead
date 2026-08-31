@@ -19,7 +19,7 @@ final class Reachability: @unchecked Sendable {
     private let queue = DispatchQueue(label: "dev.playstead.mac.reachability")
     private let lock = NSLock()
     private var _isOnline: Bool
-    private var observers: [(Bool) -> Void] = []
+    private var observers: [UUID: (Bool) -> Void] = [:]
 
     /// The current reachability state, safe to read from any thread.
     var isOnline: Bool {
@@ -48,9 +48,24 @@ final class Reachability: @unchecked Sendable {
     /// Registers a callback invoked (on an unspecified queue) every time
     /// reachability changes, including the transition back to online that
     /// must resume the coordinator with no user action.
-    func onChange(_ callback: @escaping (Bool) -> Void) {
+    ///
+    /// Returns an opaque token; pass it to `removeObserver(_:)` to stop
+    /// receiving callbacks (e.g. for a short-lived subscriber in a test
+    /// suite) rather than accumulating retained closures indefinitely.
+    @discardableResult
+    func onChange(_ callback: @escaping (Bool) -> Void) -> UUID {
+        let token = UUID()
         lock.lock()
-        observers.append(callback)
+        observers[token] = callback
+        lock.unlock()
+        return token
+    }
+
+    /// Unregisters a callback previously registered via `onChange(_:)`.
+    /// A no-op if `token` is unknown or was already removed.
+    func removeObserver(_ token: UUID) {
+        lock.lock()
+        observers.removeValue(forKey: token)
         lock.unlock()
     }
 
@@ -64,7 +79,7 @@ final class Reachability: @unchecked Sendable {
         lock.lock()
         let changed = _isOnline != online
         _isOnline = online
-        let callbacks = observers
+        let callbacks = Array(observers.values)
         lock.unlock()
 
         guard changed else { return }
