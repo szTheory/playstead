@@ -210,16 +210,18 @@ Plans:
 
 **Wave 4**
 - [ ] 03.5-04-PLAN.md — Locked visual, semantic, and motion snapshot contracts
-- [ ] 03.5-05-PLAN.md — Production reachability, keyboard traversal, and live accessibility audits
 
 **Wave 5**
+- [ ] 03.5-05-PLAN.md — Production reachability, keyboard traversal, and live accessibility audits
+
+**Wave 6**
 - [ ] 03.5-06-PLAN.md — Curation shelf rendering plus exact drag and keyboard reorder
 - [ ] 03.5-07-PLAN.md — Downloads/quota/reclaim/storage interaction plus focused visual and motion coverage
 
-**Wave 6**
+**Wave 7**
 - [ ] 03.5-08-PLAN.md — Native Phoenix pairing/snapshot/Keychain spine after all UI producers
 
-**Wave 7**
+**Wave 8**
 - [ ] 03.5-09-PLAN.md — Final allowlist, authorized exact hosted run, structured Roadmap/UAT handoff
 
 ### Phase 4: Persistent Save Continuity
