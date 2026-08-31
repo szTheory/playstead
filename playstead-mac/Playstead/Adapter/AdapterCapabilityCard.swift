@@ -64,6 +64,18 @@ struct AdapterCapabilityCard: Equatable {
     }
 }
 
+extension AdapterCapabilityCard {
+    /// Derives `hasManagedBIOS` from `BiosStore` rather than requiring
+    /// every caller to query it separately (plan 03-09 task 2).
+    init(descriptor: AdapterDescriptor, installState: AdapterInstallState, biosStore: BiosStore) {
+        self.init(
+            descriptor: descriptor,
+            installState: installState,
+            hasManagedBIOS: biosStore.hasManagedBIOS(forSystem: descriptor.system)
+        )
+    }
+}
+
 struct AdapterCapabilityCardView: View {
     let card: AdapterCapabilityCard
 
