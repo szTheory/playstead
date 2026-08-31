@@ -1,5 +1,5 @@
 {
-  "model_profile": "balanced",
+  "model_profile": "quality",
   "commit_docs": true,
   "parallelization": true,
   "search_gitignored": false,
@@ -77,16 +77,16 @@
   "runtime": "codex",
   "model_policy": {
     "provider": "openai",
-    "budget": "medium",
+    "budget": "high",
     "high": "gpt-5.6-sol",
-    "medium": "gpt-5.6-terra",
-    "low": "gpt-5.6-luna"
+    "medium": "gpt-5.6-sol",
+    "low": "gpt-5.6-sol"
   },
   "model_profile_overrides": {
     "codex": {
       "opus": "gpt-5.6-sol",
-      "sonnet": "gpt-5.6-terra",
-      "haiku": "gpt-5.6-luna"
+      "sonnet": "gpt-5.6-sol",
+      "haiku": "gpt-5.6-sol"
     }
   },
   "effort": {
@@ -96,5 +96,42 @@
       "standard": "medium",
       "heavy": "medium"
     }
+  },
+  "model_overrides": {
+    "gsd-advisor-researcher": "gpt-5.6-sol",
+    "gsd-ai-researcher": "gpt-5.6-sol",
+    "gsd-assumptions-analyzer": "gpt-5.6-sol",
+    "gsd-code-fixer": "gpt-5.6-sol",
+    "gsd-code-reviewer": "gpt-5.6-sol",
+    "gsd-codebase-mapper": "gpt-5.6-sol",
+    "gsd-debug-session-manager": "gpt-5.6-sol",
+    "gsd-debugger": "gpt-5.6-sol",
+    "gsd-doc-classifier": "gpt-5.6-sol",
+    "gsd-doc-synthesizer": "gpt-5.6-sol",
+    "gsd-doc-verifier": "gpt-5.6-sol",
+    "gsd-doc-writer": "gpt-5.6-sol",
+    "gsd-dom-verifier": "gpt-5.6-sol",
+    "gsd-domain-researcher": "gpt-5.6-sol",
+    "gsd-eval-auditor": "gpt-5.6-sol",
+    "gsd-eval-planner": "gpt-5.6-sol",
+    "gsd-executor": "gpt-5.6-sol",
+    "gsd-framework-selector": "gpt-5.6-sol",
+    "gsd-integration-checker": "gpt-5.6-sol",
+    "gsd-intel-updater": "gpt-5.6-sol",
+    "gsd-mempalace-curator": "gpt-5.6-sol",
+    "gsd-nyquist-auditor": "gpt-5.6-sol",
+    "gsd-pattern-mapper": "gpt-5.6-sol",
+    "gsd-phase-researcher": "gpt-5.6-sol",
+    "gsd-plan-checker": "gpt-5.6-sol",
+    "gsd-planner": "gpt-5.6-sol",
+    "gsd-project-researcher": "gpt-5.6-sol",
+    "gsd-research-synthesizer": "gpt-5.6-sol",
+    "gsd-roadmapper": "gpt-5.6-sol",
+    "gsd-security-auditor": "gpt-5.6-sol",
+    "gsd-ui-auditor": "gpt-5.6-sol",
+    "gsd-ui-checker": "gpt-5.6-sol",
+    "gsd-ui-researcher": "gpt-5.6-sol",
+    "gsd-user-profiler": "gpt-5.6-sol",
+    "gsd-verifier": "gpt-5.6-sol"
   }
 }
