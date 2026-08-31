@@ -41,6 +41,12 @@ final class MotionPreference {
         reduceMotionEnabled = poll()
     }
 
+    deinit {
+        if let observer {
+            NotificationCenter.default.removeObserver(observer)
+        }
+    }
+
     /// The duration a morph, a directional focus transition, or a
     /// status crossfade should use: zero (an instant change) under
     /// reduced motion, the design system's normal duration otherwise.
