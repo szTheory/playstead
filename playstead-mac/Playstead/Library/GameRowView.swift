@@ -29,9 +29,25 @@ struct GameRowView: View {
     @State private var status: GameRowStatus = .needsDownload
     @State private var lastExit: AdapterExit?
     @State private var showsReadinessSheet = false
+    /// The blocked capacity verdict that stopped the last download
+    /// attempt, and the prompt it opens. `nil` whenever nothing is
+    /// blocked — the row never remembers a stale refusal.
+    @State private var quotaBlock: QuotaVerdict?
+    @State private var showsReclaimPrompt = false
+    /// Bumped after a pin toggle so the row re-reads `PinStore` (pins
+    /// live in SQLite, not in an observable view model).
+    @State private var pinRevision = 0
 
     private var requiredMembers: [(sha256: String, size: Int)] {
         AppEnvironment.requiredMembers(of: entry).map { (sha256: $0.sha256, size: $0.size) }
+    }
+
+    /// Whether this game is pinned. `pinRevision` is read here so a
+    /// toggle invalidates the row — pins live in SQLite, not in an
+    /// observable view model.
+    private var isPinned: Bool {
+        _ = pinRevision
+        return environment.isPinned(assetSetID: entry.id)
     }
 
     /// The report currently being shown, if any — `.blocked` carries it,
@@ -93,6 +109,44 @@ struct GameRowView: View {
             )
             .environment(environment)
         }
+        .sheet(isPresented: $showsReclaimPrompt) {
+            reclaimPrompt
+        }
+    }
+
+    /// The blocked-capacity surface. Every button here does real work
+    /// against the app's shared `QuotaManager`/`EvictionPlanner`: raising
+    /// the quota persists it, reclaiming executes an explicit
+    /// `EvictionPlan`, and both then retry the download that was refused.
+    @ViewBuilder
+    private var reclaimPrompt: some View {
+        if let verdict = quotaBlock, let limitHit = verdict.limitHit {
+            ReclaimPromptView(
+                limitHit: limitHit,
+                shortfallBytes: verdict.shortfallBytes,
+                canRaiseQuota: environment.canRaiseQuota(for: verdict),
+                candidates: environment.reclaimCandidateRows(),
+                onRaiseQuota: {
+                    environment.raiseQuota(toCover: verdict)
+                    dismissReclaimPromptAndRetry()
+                },
+                onReclaim: { selected in
+                    environment.reclaim(gameIDs: selected)
+                    dismissReclaimPromptAndRetry()
+                },
+                onCancel: {
+                    showsReclaimPrompt = false
+                    quotaBlock = nil
+                }
+            )
+            .frame(minWidth: 460, minHeight: 320)
+        }
+    }
+
+    private func dismissReclaimPromptAndRetry() {
+        showsReclaimPrompt = false
+        quotaBlock = nil
+        Task { await download() }
     }
 
     /// The one-line summary a blocked row shows inline, so the reason is
@@ -121,6 +175,15 @@ struct GameRowView: View {
             environment.toggleQueued(assetSetID: entry.id)
         }
         .accessibilityLabel(Self.queueActionLabel(title: entry.displayTitle, isQueued: isQueued))
+
+        // Pinning is the only way a game becomes protected from reclaim
+        // and prioritised by the download scheduler — `PinStore` had no
+        // reachable caller at all before this button existed.
+        Button(isPinned ? "Unpin" : "Pin") {
+            environment.togglePin(assetSetID: entry.id)
+            pinRevision += 1
+        }
+        .accessibilityLabel(Self.pinActionLabel(title: entry.displayTitle, isPinned: isPinned))
     }
 
     /// Accessible names are the action verb plus its subject
@@ -132,6 +195,10 @@ struct GameRowView: View {
 
     static func queueActionLabel(title: String, isQueued: Bool) -> String {
         isQueued ? "Remove \(title) from Queue" : "Add \(title) to Queue"
+    }
+
+    static func pinActionLabel(title: String, isPinned: Bool) -> String {
+        isPinned ? "Unpin \(title), allowing it to be reclaimed" : "Pin \(title) to keep it on this Mac"
     }
 
     @ViewBuilder
@@ -174,32 +241,27 @@ struct GameRowView: View {
         return .blocked(report)
     }
 
+    /// The row's Download button. The whole attempt — including the
+    /// capacity gate that runs before any connection is opened — lives on
+    /// `AppEnvironment` so the shipped path and the tested path are the
+    /// same code. Before that gate existed the row went straight to
+    /// `DownloadEngine`, so nothing in the shipped app ever consulted
+    /// `QuotaManager` and the cache could grow past both the quota and
+    /// the free-space floor.
     @MainActor
     private func download() async {
-        guard let apiClient = await environment.apiClientIfAvailable() else {
-            status = .error("Not paired")
-            return
-        }
-        guard let credential = await apiClient.credential else {
-            status = .error("Not paired")
-            return
-        }
-
         status = .downloading
-        let engine = environment.makeDownloadEngine()
-
-        do {
-            for member in requiredMembers {
-                let url = credential.baseURL.appendingPathComponent("/api/v1/blobs/\(member.sha256)")
-                try await engine.download(
-                    sha256: member.sha256,
-                    from: url,
-                    headers: ["Authorization": "Bearer \(credential.token)"]
-                )
-            }
+        switch await environment.attemptDownload(for: entry) {
+        case .notPaired:
+            status = .error("Not paired")
+        case .blocked(let verdict):
+            quotaBlock = verdict
+            showsReclaimPrompt = true
             refreshStatus()
-        } catch {
-            status = .error("Download failed: \(error)")
+        case .completed:
+            refreshStatus()
+        case .failed(let message):
+            status = .error(message)
         }
     }
 

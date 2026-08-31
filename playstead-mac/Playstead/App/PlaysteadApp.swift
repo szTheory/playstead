@@ -59,6 +59,17 @@ final class AppEnvironment {
     /// like every other store here, so a requeue made during a readiness
     /// evaluation is the same queue the rest of the app reads.
     let downloadQueue: DownloadQueue
+    /// Pins, quota policy and reclaim planning — the download-management
+    /// layer. Every one of these was previously constructed only inside
+    /// its own unit test, so the shipped app enforced no quota at all and
+    /// `DownloadsView`/`StorageView`/`QuotaSettingsView`/
+    /// `ReclaimPromptView` had no reachable call site. They are shared
+    /// instances for the same reason the curation stores are: the pin a
+    /// row sets must be the pin `EvictionPlanner` excludes and the pin
+    /// `DownloadCoordinator` prioritises.
+    let pinStore: PinStore
+    let quotaManager: QuotaManager
+    let evictionPlanner: EvictionPlanner
     let launchMaterializer: LaunchMaterializer
     /// Constructed here — not lazily inside a settings view — so a
     /// controller connected before the window opens is already known
@@ -99,6 +110,26 @@ final class AppEnvironment {
     private(set) var adapterInstallState: AdapterInstallState = .notInstalled
     private(set) var adapterProvenance: AdapterProvenance = .pinnedRelease
     private(set) var adapterSetupPhase: AdapterSetupPhase = .idle
+
+    // MARK: - Download coordination
+    //
+    // `DownloadCoordinator` needs a paired credential (for the blob base
+    // URL and the bearer token) that does not exist at launch on a fresh
+    // install, so it is built on first use rather than in `init` — but
+    // built exactly once, and stored here, so the whole app drives one
+    // scheduler over one queue.
+
+    private(set) var downloadCoordinator: DownloadCoordinator?
+    /// Live transfer progress per asset set, republished from the
+    /// coordinator's event stream so `DownloadsView` renders real
+    /// percentages rather than a placeholder.
+    private(set) var downloadProgressByAssetSet: [String: Int] = [:]
+    /// The most recent `.blocked` coordinator event, if any — the queue
+    /// path's counterpart to the row path's synchronous quota verdict.
+    private(set) var lastBlockedDownload: (itemID: String, assetSetID: String, reason: String)?
+    /// Injected by tests so the coordinator's transfers go through
+    /// `StubURLProtocol` instead of the network. `nil` in production.
+    private let downloadSessionOverride: URLSession?
 
     // MARK: - Curation / sync composition root
     //
@@ -144,9 +175,11 @@ final class AppEnvironment {
     init(
         paths: AppPaths = AppPaths(),
         apiClient: APIClient? = nil,
-        reachability: Reachability = Reachability()
+        reachability: Reachability = Reachability(),
+        downloadSession: URLSession? = nil
     ) {
         self.appPaths = paths
+        self.downloadSessionOverride = downloadSession
         let store = (try? LocalStore(paths: paths)) ?? LocalStore.inMemoryFallback()
         self.localStore = store
         self.controllerMappingStore = ControllerMappingStore(localStore: store)
@@ -201,6 +234,15 @@ final class AppEnvironment {
         self.launchMaterializer = LaunchMaterializer(paths: paths, cas: cas)
 
         self.downloadQueue = DownloadQueue(localStore: store)
+
+        let pinStore = PinStore(localStore: store)
+        self.pinStore = pinStore
+        // The cache root is the volume whose free space the floor is
+        // measured against — the objects directory, not the app bundle.
+        self.quotaManager = QuotaManager(localStore: store, cacheRootURL: paths.objects)
+        self.evictionPlanner = EvictionPlanner(
+            localStore: store, catalogueStore: catalogueStore, pinStore: pinStore, cas: cas, paths: paths
+        )
 
         do {
             let pin = try AdapterPin.load()
@@ -512,6 +554,318 @@ final class AppEnvironment {
     }
 
     func makeDownloadEngine() -> DownloadEngine {
-        DownloadEngine(session: URLSession(configuration: .ephemeral), paths: appPaths, cas: casManager)
+        // The injected session is the same seam the coordinator uses, so
+        // a test drives the row's download path through `StubURLProtocol`
+        // and can assert whether a connection was actually opened — which
+        // is what makes "an over-quota download is refused" provable
+        // rather than merely reported.
+        DownloadEngine(
+            session: downloadSessionOverride ?? URLSession(configuration: .ephemeral),
+            paths: appPaths,
+            cas: casManager
+        )
+    }
+
+    // MARK: - Quota enforcement on the real download path
+
+    /// The outcome of the row's Download button. `.blocked` carries the
+    /// verdict the reclaim prompt renders.
+    enum DownloadAttempt: Equatable {
+        case notPaired
+        case blocked(QuotaVerdict)
+        case completed
+        case failed(String)
+    }
+
+    /// The whole of what `GameRowView`'s Download button does, living
+    /// here rather than inside the view so the quota gate sits on a seam
+    /// a test can drive exactly as the shipped row drives it. The gate
+    /// runs *before* the first connection is opened: a blocked verdict
+    /// returns without touching `DownloadEngine` at all.
+    func attemptDownload(for entry: CatalogueEntry) async -> DownloadAttempt {
+        guard let apiClient = await apiClientIfAvailable(),
+              let credential = await apiClient.credential else { return .notPaired }
+
+        let verdict = quotaVerdict(forDownloading: entry)
+        guard verdict.allowed else { return .blocked(verdict) }
+
+        let engine = makeDownloadEngine()
+        do {
+            for member in Self.requiredMembers(of: entry) where !casManager.contains(member.sha256) {
+                // The digest is server-supplied and becomes a URL path
+                // component, so it is validated before it is spliced
+                // (CR-02) — the same rule the coordinator's `blobURL`
+                // follows.
+                let digest = try PathSafety.validatedDigest(member.sha256)
+                let url = credential.baseURL
+                    .appendingPathComponent("api/v1/blobs")
+                    .appendingPathComponent(digest)
+                try await engine.download(
+                    sha256: digest,
+                    from: url,
+                    headers: ["Authorization": "Bearer \(credential.token)"],
+                    expectedSize: member.size
+                )
+            }
+            return .completed
+        } catch {
+            return .failed("Download failed: \(error)")
+        }
+    }
+
+    /// The bytes a download of `entry` would actually add to the cache:
+    /// required members that are not already committed. Members already
+    /// in the CAS cost nothing, so counting them would block downloads
+    /// that free-cost nothing.
+    func pendingDownloadBytes(for entry: CatalogueEntry) -> Int {
+        Self.requiredMembers(of: entry)
+            .filter { !casManager.contains($0.sha256) }
+            .reduce(0) { $0 + $1.size }
+    }
+
+    /// The capacity verdict for downloading `entry` right now. This is
+    /// the gate `GameRowView.download()` consults before it opens a
+    /// single connection — before this existed the row went straight to
+    /// `DownloadEngine` and the cache could grow without bound.
+    func quotaVerdict(forDownloading entry: CatalogueEntry) -> QuotaVerdict {
+        quotaManager.verdict(forAdditional: pendingDownloadBytes(for: entry))
+    }
+
+    /// Raising the quota can only help when the *quota* was the limit
+    /// hit. The free-space floor outranks it (D-21), so a floor-blocked
+    /// download offers reclaim only — never a "raise the quota" button
+    /// that would change nothing.
+    func canRaiseQuota(for verdict: QuotaVerdict) -> Bool {
+        verdict.limitHit == .quota
+    }
+
+    /// Raises the quota by exactly the reported shortfall. Returns false
+    /// (and changes nothing) when the floor was the limit hit.
+    @discardableResult
+    func raiseQuota(toCover verdict: QuotaVerdict) -> Bool {
+        guard canRaiseQuota(for: verdict) else { return false }
+        try? quotaManager.setQuota(bytes: quotaManager.policy().quotaBytes + verdict.shortfallBytes)
+        return true
+    }
+
+    func setQuota(bytes: Int) {
+        try? quotaManager.setQuota(bytes: max(0, bytes))
+    }
+
+    // MARK: - Storage surfaces
+
+    /// Everything `StorageView` and `QuotaSettingsView` render, read from
+    /// the real stores at call time — never remembered state (D-21).
+    struct StorageSnapshot {
+        let policy: QuotaPolicy
+        let usedBytes: Int
+        let candidates: [EvictionCandidate]
+        let pinnedGames: [PinnedGameRow]
+        let unreferenced: [UnreferencedObject]
+        let quarantined: [QuarantinedPartial]
+    }
+
+    func storageSnapshot() -> StorageSnapshot {
+        let titles = catalogueTitles()
+        let pinned = pinStore.allPinned().sorted().map {
+            PinnedGameRow(id: $0, title: titles[$0] ?? $0)
+        }
+        return StorageSnapshot(
+            policy: quotaManager.policy(),
+            usedBytes: quotaManager.usedBytes(),
+            candidates: evictionPlanner.candidates(),
+            pinnedGames: pinned,
+            unreferenced: evictionPlanner.unreferencedObjects(),
+            quarantined: evictionPlanner.quarantinedPartials()
+        )
+    }
+
+    /// The reclaim candidates in `ReclaimPromptView`'s own row shape —
+    /// the prompt deliberately does not depend on `EvictionCandidate`.
+    func reclaimCandidateRows() -> [ReclaimCandidateRow] {
+        evictionPlanner.candidates().map {
+            ReclaimCandidateRow(id: $0.id, title: $0.title, bytes: $0.bytes)
+        }
+    }
+
+    /// Reclaims exactly the named games through an explicit
+    /// `EvictionPlan` — nothing is ever deleted outside a plan (D-21).
+    /// Returns the bytes freed; an empty selection is a calm no-op.
+    @discardableResult
+    func reclaim(gameIDs: Set<String>) -> Int {
+        let plan = evictionPlanner.plan(for: gameIDs)
+        guard !plan.objectSHAs.isEmpty else { return 0 }
+        try? evictionPlanner.execute(plan)
+        return plan.totalBytes
+    }
+
+    func removeQuarantinedPartial(atPath path: String) {
+        try? evictionPlanner.removeQuarantined(atPath: path)
+    }
+
+    // MARK: - Pins
+
+    func isPinned(assetSetID: String) -> Bool {
+        pinStore.isPinned(assetSetID)
+    }
+
+    /// The pin toggle behind every library row's Pin button. Returns the
+    /// resulting pinned state. Unpinning deletes nothing — it only makes
+    /// the game eligible for a later, explicitly confirmed reclaim.
+    @discardableResult
+    func togglePin(assetSetID: String) -> Bool {
+        let wasPinned = pinStore.isPinned(assetSetID)
+        if wasPinned {
+            try? pinStore.unpin(assetSetID: assetSetID)
+        } else {
+            try? pinStore.pin(assetSetID: assetSetID)
+        }
+        return !wasPinned
+    }
+
+    // MARK: - Download queue surface
+
+    private func catalogueTitles() -> [String: String] {
+        Dictionary(catalogueStore.fetchAll().map { ($0.id, $0.displayTitle) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    /// The persistent queue in `DownloadsView`'s row shape, with the live
+    /// percentage for whatever is actually transferring.
+    func downloadRows() -> [DownloadRow] {
+        let titles = catalogueTitles()
+        return downloadQueue.list().map { item in
+            DownloadRow(
+                id: item.id,
+                assetSetID: item.assetSetID,
+                title: titles[item.assetSetID] ?? item.assetSetID,
+                sha256: item.sha256,
+                sizeBytes: item.size,
+                state: item.state,
+                progressPercent: item.state == .active ? downloadProgressByAssetSet[item.assetSetID] : nil
+            )
+        }
+    }
+
+    func pauseDownload(id: String) { try? downloadQueue.pause(id: id) }
+    func resumeDownload(id: String) { try? downloadQueue.resume(id: id); Task { await startDownloadQueue() } }
+    func cancelDownload(id: String) { try? downloadQueue.cancel(id: id) }
+
+    /// Reorder by one position, expressed in `DownloadQueue`'s own
+    /// between-two-neighbours vocabulary so no other row is renumbered.
+    func moveDownloadUp(id: String) {
+        let items = downloadQueue.list()
+        guard let index = items.firstIndex(where: { $0.id == id }), index > 0 else { return }
+        try? downloadQueue.reorder(
+            id: id,
+            afterID: index >= 2 ? items[index - 2].id : nil,
+            beforeID: items[index - 1].id
+        )
+    }
+
+    func moveDownloadDown(id: String) {
+        let items = downloadQueue.list()
+        guard let index = items.firstIndex(where: { $0.id == id }), index < items.count - 1 else { return }
+        try? downloadQueue.reorder(
+            id: id,
+            afterID: items[index + 1].id,
+            beforeID: index + 2 < items.count ? items[index + 2].id : nil
+        )
+    }
+
+    /// Enqueues every required member of `entry` onto the persistent
+    /// queue and starts the scheduler.
+    func enqueueDownload(for entry: CatalogueEntry) {
+        try? downloadQueue.enqueueGame(entry)
+        Task { await startDownloadQueue() }
+    }
+
+    // MARK: - Download coordinator
+
+    /// Builds the one `DownloadCoordinator` this app uses, wiring its two
+    /// injected seams to the real `PinStore` and `QuotaManager` exactly
+    /// as its own doc comments specify. Returns `nil` until a pairing
+    /// credential exists — there is no blob base URL to download from
+    /// before that.
+    @discardableResult
+    func downloadCoordinatorIfAvailable() async -> DownloadCoordinator? {
+        if let downloadCoordinator { return downloadCoordinator }
+        guard let client = await apiClientIfAvailable(),
+              let credential = await client.credential else { return nil }
+
+        let session: URLSession
+        if let downloadSessionOverride {
+            session = downloadSessionOverride
+        } else {
+            // `DownloadCoordinator` calls `DownloadEngine.download` with
+            // no per-request headers, so the bearer token is carried by
+            // the session configuration instead — the one adaptation
+            // this wiring needed to reach the coordinator's API as it
+            // already exists.
+            let configuration = URLSessionConfiguration.ephemeral
+            configuration.httpAdditionalHeaders = ["Authorization": "Bearer \(credential.token)"]
+            session = URLSession(configuration: configuration)
+        }
+
+        let base = credential.baseURL
+        let coordinator = DownloadCoordinator(
+            queue: downloadQueue,
+            engine: DownloadEngine(session: session, paths: appPaths, cas: casManager),
+            cas: casManager,
+            localStore: localStore,
+            reachability: reachability,
+            blobURL: { sha256 in
+                // The digest is server-supplied and becomes a URL path
+                // component, so it is validated before it is spliced
+                // (CR-02). An invalid digest yields the bare base URL,
+                // which `DownloadEngine.download` never reaches: it
+                // rejects the same digest at its own front door first.
+                guard (try? PathSafety.validatedDigest(sha256)) != nil else { return base }
+                return base.appendingPathComponent("api/v1/blobs").appendingPathComponent(sha256)
+            }
+        )
+
+        await coordinator.setIsPinned { [pinStore] assetSetID in pinStore.isPinned(assetSetID) }
+        await coordinator.setQuotaCheck { [quotaManager] bytes in
+            let verdict = quotaManager.verdict(forAdditional: bytes)
+            guard !verdict.allowed else { return (true, nil) }
+            return (false, Self.quotaReason(verdict))
+        }
+
+        let events = coordinator.events
+        Task { @MainActor [weak self] in
+            for await event in events { self?.apply(event) }
+        }
+
+        downloadCoordinator = coordinator
+        return coordinator
+    }
+
+    /// Starts (or resumes) the queue scheduler. Safe to call repeatedly.
+    func startDownloadQueue() async {
+        await downloadCoordinatorIfAvailable()?.start()
+    }
+
+    private func apply(_ event: CoordinatorEvent) {
+        switch event {
+        case .started(_, let assetSetID, _):
+            downloadProgressByAssetSet[assetSetID] = 0
+        case .progress(_, let assetSetID, _, let percent):
+            downloadProgressByAssetSet[assetSetID] = percent
+        case .committed(_, let assetSetID, _):
+            downloadProgressByAssetSet.removeValue(forKey: assetSetID)
+            libraryViewModel.refresh()
+        case .blocked(let itemID, let assetSetID, let reason):
+            downloadProgressByAssetSet.removeValue(forKey: assetSetID)
+            lastBlockedDownload = (itemID: itemID, assetSetID: assetSetID, reason: reason)
+        case .digestMismatchRequeued, .wentOffline, .resumedOnline:
+            break
+        }
+    }
+
+    /// The plainly-worded reason a blocked verdict carries into the
+    /// coordinator's `.blocked` event and on to the user.
+    static func quotaReason(_ verdict: QuotaVerdict) -> String {
+        let limitName = verdict.limitHit == .floor ? "free-space floor" : "quota"
+        return "Needs \(ByteFormatting.formatBytes(verdict.shortfallBytes)) more than your \(limitName) allows."
     }
 }

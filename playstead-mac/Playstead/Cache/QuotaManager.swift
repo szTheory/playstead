@@ -100,6 +100,14 @@ final class QuotaManager {
         )
     }
 
+    /// The cache's current committed size, measured the same way
+    /// `verdict(forAdditional:)` measures it — so `StorageView` and
+    /// `QuotaSettingsView` report exactly the number the gate uses,
+    /// never a second, separately-derived figure that could disagree.
+    func usedBytes() -> Int {
+        cacheUsageProvider()
+    }
+
     /// Whether a transfer of `bytes` additional bytes may start right
     /// now. The floor is checked first and always wins when both limits
     /// would be crossed.
