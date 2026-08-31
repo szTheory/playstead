@@ -95,33 +95,35 @@ defmodule PlaysteadWeb.Browser.PaletteTest do
 
   # The Deny button's hover surface is `hover:bg-[#EF4444]/10` -- the
   # destructive red at 10% alpha, which Tailwind v4 emits as a
-  # `color-mix(in oklab, ...)`.
+  # `color-mix(in oklab, ...)` inside `@media (hover: hover)`.
   @destructive_hover_surface "color-mix(in oklab, #EF4444 10%, transparent)"
 
   feature "the Deny hover surface stays on the palette", %{session: session} do
     {session, %{pending: pending}} = BrowserScreens.open(session, :devices)
     selector = "#deny-#{pending.id}"
 
+    # Guards the whole assertion: Tailwind v4 wraps `hover:` utilities in
+    # `@media (hover: hover)`, so a browser advertising no hover-capable
+    # pointer makes every one of them inert and this test unfalsifiable.
+    # config/test.exs sets blink settings so headless Chrome advertises
+    # one; if that ever regresses, fail here rather than silently passing.
+    assert js(session, "return matchMedia('(hover: hover)').matches;"),
+           "this browser reports no hover-capable pointer, so every Tailwind `hover:` " <>
+             "utility is inert and this test cannot detect an off-palette hover surface"
+
     resting = computed_style(session, selector, "backgroundColor")
     session = hover(session, css(selector))
     hovered = computed_style(session, selector, "backgroundColor")
 
-    # Split from the color assertion so a headless browser that never
-    # applies :hover reports that, rather than looking like a palette
-    # violation.
     refute normalize_color(session, hovered) == normalize_color(session, resting),
            "hovering #{selector} did not change its background (resting #{resting}, " <>
-             "hovered #{hovered}) -- the hover state never applied, so the color " <>
-             "assertion below would be meaningless"
+             "hovered #{hovered})"
 
     # Both sides are normalized by the SAME browser rather than comparing a
-    # 10%-alpha color against an opaque hex. That comparison round-trips
-    # through a canvas pixel, and unpremultiplying at alpha 0.1 amplifies
-    # 8-bit rounding roughly tenfold -- enough for Chrome's Skia backend to
-    # land outside tolerance on Linux while passing on macOS, which is
-    # exactly how this test failed on its first CI run. Normalizing both
-    # sides identically cancels that error on every platform while still
-    # catching a genuinely off-palette hover surface.
+    # 10%-alpha color against an opaque hex: that round-trips through a
+    # canvas pixel, and unpremultiplying at alpha 0.1 amplifies 8-bit
+    # rounding roughly tenfold. Normalizing both sides identically cancels
+    # the error on every platform while still catching an off-palette value.
     assert normalize_color(session, hovered) ==
              normalize_color(session, @destructive_hover_surface),
            "the Deny hover surface is #{hovered}, which is not the destructive red " <>

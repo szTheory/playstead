@@ -54,7 +54,40 @@ config :wallaby,
   js_errors: true,
   js_logger: nil,
   chromedriver:
-    [headless: true] ++
+    [
+      headless: true,
+      # Headless Chrome on Linux reports no hover-capable pointer, so
+      # `@media (hover: hover)` never matches and every Tailwind `hover:`
+      # utility is inert -- a hovered element keeps its resting styles and
+      # the palette's hover assertions become unfalsifiable. Desktop Chrome
+      # on macOS reports hover, which is why this only ever bit CI. These
+      # blink settings make the headless browser advertise a fine,
+      # hover-capable pointer (pointer/hover enum: fine = 4, hover = 2) so
+      # both platforms evaluate the same CSS.
+      capabilities: %{
+        javascriptEnabled: true,
+        loadImages: false,
+        version: "",
+        rotatable: false,
+        takesScreenshot: true,
+        cssSelectorsEnabled: true,
+        nativeEvents: false,
+        platform: "ANY",
+        unhandledPromptBehavior: "accept",
+        loggingPrefs: %{browser: "DEBUG"},
+        chromeOptions: %{
+          args: [
+            "--no-sandbox",
+            "window-size=1280,800",
+            "--disable-gpu",
+            "--headless",
+            "--fullscreen",
+            "--blink-settings=primaryPointerType=4,availablePointerTypes=4," <>
+              "primaryHoverType=2,availableHoverTypes=2"
+          ]
+        }
+      }
+    ] ++
       (case System.get_env("WALLABY_CHROME_BINARY") do
          nil -> []
          binary -> [binary: binary]
