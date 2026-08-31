@@ -41,9 +41,9 @@ Requirements for the first complete Mac-to-server custody and continuity release
 
 ### Selective Cache and Offline Play
 
-- [ ] **CACH-01**: A user can choose a game or collection for local download and resume an interrupted transfer without restarting verified ranges.
-- [ ] **CACH-02**: A user can distinguish server-only, queued, partial, verified-local, pinned-offline, and safe-to-evict content.
-- [ ] **CACH-03**: A user can set a local capacity policy, pin selected content, and reclaim only reconstructable unpinned content without affecting the server repository or backup.
+- [x] **CACH-01**: A user can choose a game or collection for local download and resume an interrupted transfer without restarting verified ranges.
+- [x] **CACH-02**: A user can distinguish server-only, queued, partial, verified-local, pinned-offline, and safe-to-evict content.
+- [x] **CACH-03**: A user can set a local capacity policy, pin selected content, and reclaim only reconstructable unpinned content without affecting the server repository or backup.
 - [ ] **CACH-04**: A user can launch a manifest only after every required member verifies locally, and can launch that verified game while the server, internet, metadata, achievements, and other optional services are unavailable.
 
 ### Mac Readiness and Emulator Adapter
@@ -135,9 +135,9 @@ Which phases cover which requirements. This table is populated by roadmap creati
 | LIBR-03 | Phase 3 | Pending |
 | LIBR-04 | Phase 3 | Pending |
 | LIBR-05 | Phase 3 | Pending |
-| CACH-01 | Phase 3 | Pending |
-| CACH-02 | Phase 3 | Pending |
-| CACH-03 | Phase 3 | Pending |
+| CACH-01 | Phase 3 | Complete |
+| CACH-02 | Phase 3 | Complete |
+| CACH-03 | Phase 3 | Complete |
 | CACH-04 | Phase 3 | Pending |
 | PLAY-01 | Phase 3 | Pending |
 | PLAY-02 | Phase 3 | Pending |
