@@ -31,6 +31,22 @@ defmodule Playstead.Curation.PlaySession do
     session
     |> cast(attrs, [:id, :user_id, :asset_set_id, :started_at, :ended_at])
     |> validate_required([:id, :user_id, :asset_set_id, :started_at])
+    |> validate_ended_after_started()
+  end
+
+  # P5-IN-001: nothing previously prevented `ended_at` from preceding (or
+  # equalling) `started_at`, which would corrupt any future
+  # duration-based analytics built on top of these coarse sessions.
+  defp validate_ended_after_started(changeset) do
+    validate_change(changeset, :ended_at, fn :ended_at, ended_at ->
+      started_at = get_field(changeset, :started_at)
+
+      if started_at && DateTime.compare(ended_at, started_at) != :gt do
+        [ended_at: "must be after started_at"]
+      else
+        []
+      end
+    end)
   end
 
   @type t :: %__MODULE__{}
