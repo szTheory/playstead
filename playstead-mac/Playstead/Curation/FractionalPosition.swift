@@ -130,6 +130,16 @@ enum FractionalPosition {
         let len = max(max(lowDigits.count, highDigits.count), 1)
         var lowInt = padInt(lowDigits, len)
         var highInt = padInt(highDigits, len)
+        guard lowInt < highInt else {
+            // Neighbours are equal (or, defensively, out of order) once
+            // padded to the same length — there is no true midpoint, and
+            // `highInt - lowInt` would stay <= 0 forever under repeated
+            // multiplication by `base`, hanging the caller (this can
+            // happen if the local mirror ever contains two rows with an
+            // identical position, e.g. a race between optimistic inserts).
+            // Fall back to "insert after low" instead of spinning.
+            return appendAfter(lowDigits)
+        }
         var currentLen = len
         while highInt - lowInt < 2 {
             lowInt *= base
