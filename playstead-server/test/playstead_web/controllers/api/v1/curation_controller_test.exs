@@ -244,4 +244,56 @@ defmodule PlaysteadWeb.Api.V1.CurationControllerTest do
       assert %{"queue" => []} = json_response(list_resp2, 200)
     end
   end
+
+  describe "continue dismissals (plan 03-08 deviation: missing REST intent)" do
+    test "PUT continue/:asset_set_id/dismiss dismisses the game from Continue", %{conn: conn} do
+      {scope, _device, token} = paired()
+      asset_set = asset_set_fixture(scope.user.id)
+
+      resp =
+        conn
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("idempotency-key", unique_key("dismiss"))
+        |> put(~p"/api/v1/curation/continue/#{asset_set.id}/dismiss", %{})
+
+      body = json_response(resp, 200)
+      assert body["asset_set_id"] == asset_set.id
+
+      assert %Playstead.Curation.ContinueDismissal{} =
+               Playstead.Repo.get_by(Playstead.Curation.ContinueDismissal,
+                 user_id: scope.user.id,
+                 asset_set_id: asset_set.id
+               )
+    end
+
+    test "repeating the dismiss intent with the same Idempotency-Key produces no second effect",
+         %{conn: conn} do
+      {scope, _device, token} = paired()
+      asset_set = asset_set_fixture(scope.user.id)
+      key = unique_key("dismiss")
+
+      resp1 =
+        conn
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("idempotency-key", key)
+        |> put(~p"/api/v1/curation/continue/#{asset_set.id}/dismiss", %{})
+
+      resp2 =
+        conn
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("idempotency-key", key)
+        |> put(~p"/api/v1/curation/continue/#{asset_set.id}/dismiss", %{})
+
+      assert json_response(resp1, 200) == json_response(resp2, 200)
+
+      assert %Playstead.Curation.ContinueDismissal{} =
+               Playstead.Repo.get_by(Playstead.Curation.ContinueDismissal,
+                 user_id: scope.user.id,
+                 asset_set_id: asset_set.id
+               )
+    end
+  end
 end

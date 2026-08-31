@@ -235,6 +235,8 @@ defmodule PlaysteadWeb.Router do
     put "/queue/:asset_set_id", CurationController, :enqueue
     delete "/queue/:asset_set_id", CurationController, :dequeue
     patch "/queue/:asset_set_id/position", CurationController, :move_queue_item
+
+    put "/continue/:asset_set_id/dismiss", CurationController, :dismiss_continue
   end
 
   # D-07…D-10: read-only curation lists, strictly user-scoped, no
