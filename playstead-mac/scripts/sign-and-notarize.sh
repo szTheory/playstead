@@ -31,7 +31,20 @@ echo "==> Verifying signature"
 codesign --verify --deep --strict --verbose=2 "$APP_PATH"
 
 echo "==> Confirming hardened runtime and non-sandboxed entitlements"
-codesign -d --entitlements - "$APP_PATH" | grep -A1 'com.apple.security.app-sandbox'
+# Captured into a variable rather than piped live into `grep`, for the
+# same SIGPIPE-under-pipefail reason documented below for
+# CODESIGN_DETAILS. Actually asserts the app-sandbox key's VALUE is
+# false — a bare `grep -A1 | ` only confirmed the key's presence and
+# printed the following line for a human to notice, which would not
+# catch a regression that accidentally ships with sandboxing enabled
+# (breaking D-04's non-sandboxed-launch requirement) since this
+# script's own set -e/pipefail guard never inspected the value (P2-WR-003).
+ENTITLEMENTS="$(codesign -d --entitlements :- "$APP_PATH" 2>/dev/null)"
+if grep -A1 'com.apple.security.app-sandbox' <<< "$ENTITLEMENTS" | grep -q '<true/>'; then
+  echo "FATAL: $APP_PATH is App-Sandboxed; D-04 requires a non-sandboxed build." >&2
+  exit 1
+fi
+echo "$ENTITLEMENTS" | grep -A1 'com.apple.security.app-sandbox'
 
 echo "==> Confirming the hardened runtime flag is set"
 # Captured into a variable (not piped live into `grep -q`) so an early
