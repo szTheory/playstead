@@ -88,7 +88,14 @@ actor AdapterInstaller {
     /// installation with no additional disk activity. Refuses to install
     /// on any digest mismatch, leaving no files behind.
     func install() async throws -> AdapterInstallation {
-        if let existing = existingInstallation(), existing.verified {
+        // A cached "verified" row means nothing if the expanded .app is
+        // no longer on disk (deleted by the user or another process
+        // after a prior successful install) — without this check,
+        // install() would report success/"already installed" to a
+        // caller treating its return value as "ready to play," even
+        // though nothing is actually there (P2-WR-001).
+        if let existing = existingInstallation(), existing.verified,
+           FileManager.default.fileExists(atPath: existing.executablePath) {
             return existing
         }
 
