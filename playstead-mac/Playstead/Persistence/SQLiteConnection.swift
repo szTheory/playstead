@@ -48,6 +48,13 @@ final class SQLiteConnection {
             throw SQLiteError.openFailed(msg)
         }
         self.db = handle
+        // Intra-process writers already serialize through `queue`, but
+        // an external process (a second app instance, a debugging tool,
+        // Time Machine local snapshot tooling, etc.) opening the same
+        // file can trigger SQLITE_BUSY. Without a busy timeout that
+        // surfaces immediately as a hard `.stepFailed` error rather than
+        // a short, transparent wait-and-retry (P1-WR-005).
+        sqlite3_busy_timeout(handle, 5000)
         sqlite3_exec(handle, "PRAGMA foreign_keys = ON;", nil, nil, nil)
         queue.setSpecific(key: queueKey, value: ())
     }
