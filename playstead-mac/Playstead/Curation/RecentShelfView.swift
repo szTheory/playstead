@@ -2,13 +2,14 @@ import SwiftUI
 
 /// Recent over `RecentViewModel`, plus (plan 03-08 task 3) the pending/
 /// delivered play sessions `PlaySessionRecorder` owns — individually
-/// deletable, per this task's `<action>`. `sessionRecorder` is optional
-/// so this view still renders task 2's plain recently-played-games shelf
-/// wherever a `PlaySessionRecorder` isn't wired in yet.
+/// deletable, per this task's `<action>`. The session list is read from
+/// `viewModel.sessionListings` (cached, refresh()-driven), not queried
+/// directly from `body`; `RecentViewModel` renders task 2's plain
+/// recently-played-games shelf on its own wherever no `PlaySessionRecorder`
+/// was wired into the view model.
 struct RecentShelfView: View {
     let viewModel: RecentViewModel
     let catalogueByAssetSetID: [String: CatalogueEntry]
-    var sessionRecorder: PlaySessionRecorder?
 
     static let emptyExplanation = "Play a game to see it here."
 
@@ -31,19 +32,16 @@ struct RecentShelfView: View {
                 }
             }
 
-            if let sessionRecorder {
-                sessionsSection(sessionRecorder)
-            }
+            sessionsSection
         }
         .padding(.vertical, DesignTokens.Spacing.lg)
     }
 
     @ViewBuilder
-    private func sessionsSection(_ sessionRecorder: PlaySessionRecorder) -> some View {
-        let listings = sessionRecorder.listings()
-        if !listings.isEmpty {
+    private var sessionsSection: some View {
+        if !viewModel.sessionListings.isEmpty {
             List {
-                ForEach(listings, id: \.session.id) { listing in
+                ForEach(viewModel.sessionListings, id: \.session.id) { listing in
                     HStack {
                         Text(catalogueByAssetSetID[listing.session.assetSetID]?.displayTitle ?? listing.session.assetSetID)
                         Spacer()
@@ -51,7 +49,7 @@ struct RecentShelfView: View {
                             .font(.psLabel)
                             .foregroundStyle(DesignTokens.textMuted)
                         Button(role: .destructive) {
-                            _ = sessionRecorder.delete(listing.session.id)
+                            viewModel.deleteSession(listing.session.id)
                         } label: {
                             Image(systemName: "trash")
                         }
