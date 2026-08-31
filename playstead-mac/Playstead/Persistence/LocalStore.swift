@@ -33,8 +33,19 @@ final class LocalStore {
     /// An in-memory store used only if the on-disk store somehow fails to
     /// open (e.g. an unwritable Application Support directory) — the app
     /// still launches and shows an empty library rather than crashing.
+    ///
+    /// This is the app's last-resort safety net, so an in-memory open
+    /// failure (e.g. under extreme memory pressure — the exact condition
+    /// most likely to be present if we've already fallen back here) must
+    /// never surface as a silent, unexplained force-unwrap trap
+    /// (P1-WR-003). If SQLite genuinely cannot even open `:memory:`, the
+    /// app has no viable persistence path left; `fatalError` at least
+    /// crashes with a clear, diagnosable message instead of an opaque
+    /// `Fatal error: Unexpectedly found nil`.
     static func inMemoryFallback() -> LocalStore {
-        let connection = (try? SQLiteConnection(path: ":memory:"))!
+        guard let connection = try? SQLiteConnection(path: ":memory:") else {
+            fatalError("LocalStore.inMemoryFallback: SQLite could not open an in-memory database; no persistence path is available.")
+        }
         try? Migrations.run(on: connection)
         return LocalStore(connection: connection)
     }
