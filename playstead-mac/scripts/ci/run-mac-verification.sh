@@ -425,7 +425,7 @@ run_wave_0_adoption() {
   local ui_only=()
   local identifier
   for identifier in "${ui_identifiers[@]}"; do
-    ui_only+=("-only-testing:${identifier/./\/}")
+    ui_only+=("-only-testing:${identifier%%.*}/${identifier#*.}")
   done
   xcodebuild test-without-building -project "$PROJECT" -scheme "$SCHEME" \
     -destination 'platform=macOS' -derivedDataPath "$DERIVED_DATA" \
@@ -437,8 +437,8 @@ run_wave_0_adoption() {
     xcodebuild test-without-building -project "$PROJECT" -scheme "$SCHEME" \
       -destination 'platform=macOS' -derivedDataPath "$DERIVED_DATA" \
       -resultBundlePath "$snapshot_result" \
-      -only-testing:"${snapshot_identifier/./\/}" \
-      -only-testing:"${calibration_identifier/./\/}" "${signing[@]}"
+      -only-testing:"${snapshot_identifier%%.*}/${snapshot_identifier#*.}" \
+      -only-testing:"${calibration_identifier%%.*}/${calibration_identifier#*.}" "${signing[@]}"
   xcrun xcresulttool get test-results tests --path "$snapshot_result" --format json >"$snapshot_tests"
 
   : >"$records_file"

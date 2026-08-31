@@ -42,8 +42,8 @@ require_text "$runner" 'linux_jobs'
 require_text "$runner" 'trap cleanup_native_services EXIT'
 require_text "$runner" 'bootstrap.log'
 require_text "$runner" 'exec mix phx.server'
-require_text "$runner" 'ui_only+=("-only-testing:${identifier/./\/}")'
-require_text "$runner" '-only-testing:"${snapshot_identifier/./\/}"'
+require_text "$runner" 'ui_only+=("-only-testing:${identifier%%.*}/${identifier#*.}")'
+require_text "$runner" '-only-testing:"${snapshot_identifier%%.*}/${snapshot_identifier#*.}"'
 if grep -F '@testable import Playstead' "$ui_canary" >/dev/null; then
   printf 'XCUITest canaries must not link directly against the app module\n' >&2
   exit 1
