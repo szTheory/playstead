@@ -21,6 +21,11 @@ final class StubURLProtocol: URLProtocol {
             self.bodyChunks = bodyChunks
             self.failAfter = failAfter
         }
+
+        /// Convenience for the common single-chunk, non-interrupted case.
+        init(statusCode: Int, headers: [String: String], body: Data) {
+            self.init(statusCode: statusCode, headers: headers, bodyChunks: [body], failAfter: false)
+        }
     }
 
     /// One responder invoked per request; a test can inspect an
@@ -51,14 +56,24 @@ final class StubURLProtocol: URLProtocol {
             return
         }
 
-        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        for chunk in stub.bodyChunks {
-            client?.urlProtocol(self, didLoad: chunk)
-        }
-        if stub.failAfter {
-            client?.urlProtocol(self, didFailWithError: URLError(.networkConnectionLost))
-        } else {
-            client?.urlProtocolDidFinishLoading(self)
+        // Deliver off the calling queue with small pauses between chunks:
+        // `URLSession.bytes(for:)`'s AsyncBytes consumer needs scheduling
+        // opportunities to actually drain each `didLoad` chunk before a
+        // subsequent `didFailWithError`/`didFinishLoading` — delivering
+        // everything synchronously in one call risks the terminal event
+        // superseding buffered-but-unconsumed data.
+        DispatchQueue.global().async { [client, stub] in
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            for chunk in stub.bodyChunks {
+                Thread.sleep(forTimeInterval: 0.02)
+                client?.urlProtocol(self, didLoad: chunk)
+            }
+            Thread.sleep(forTimeInterval: 0.02)
+            if stub.failAfter {
+                client?.urlProtocol(self, didFailWithError: URLError(.networkConnectionLost))
+            } else {
+                client?.urlProtocolDidFinishLoading(self)
+            }
         }
     }
 

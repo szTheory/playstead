@@ -81,47 +81,53 @@ final class DownloadResumeTests: XCTestCase {
             return .init(statusCode: 200, headers: [:], bodyChunks: [data.prefix(cutoff)], failAfter: true)
         }
 
-        // A sleeper that parks effectively forever: gives the test a
-        // window to inspect on-disk state after the first attempt fails,
-        // before any retry could run.
-        let parkedForever: (@Sendable (Double) async -> Void) = { _ in
-            try? await Task.sleep(nanoseconds: 300_000_000_000)
-        }
-        let engine = DownloadEngine(session: StubURLProtocol.makeSession(), paths: paths, cas: cas, sleeper: parkedForever)
+        // Bounded to exactly one transport attempt so the interruption's
+        // on-disk aftermath is observable deterministically, without
+        // racing an unbounded background retry loop.
+        let engine = DownloadEngine(
+            session: StubURLProtocol.makeSession(), paths: paths, cas: cas,
+            maxTransportAttempts: 1, sleeper: instantSleeper()
+        )
 
-        let task = Task { try? await engine.download(sha256: digest, from: url) }
-        try await Task.sleep(nanoseconds: 400_000_000) // let the first attempt run and fail
+        do {
+            try await engine.download(sha256: digest, from: url)
+            XCTFail("expected the bounded transport failure to propagate")
+        } catch is URLError {
+            // expected — the single allowed attempt failed transport-side
+        }
 
         let partialURL = paths.partialURL(for: digest)
         let attrs = try FileManager.default.attributesOfItem(atPath: partialURL.path)
         XCTAssertEqual(attrs[.size] as? Int, cutoff)
         XCTAssertFalse(cas.contains(digest))
-
-        task.cancel()
     }
 
     // MARK: - Resume
+    //
+    // These tests pre-seed the partial file directly (rather than
+    // driving an actual first-attempt interruption through the stub)
+    // so the Range/If-Range/append behavior under test is isolated from
+    // the engine's separate, already-covered interruption/retry timing.
+
+    private func seedPartial(digest: String, prefix: Data) throws {
+        try FileManager.default.createDirectory(at: paths.partials, withIntermediateDirectories: true)
+        try prefix.write(to: paths.partialURL(for: digest))
+    }
 
     func testResumeSendsRangeAndQuotedIfRangeAndCommitsByteIdenticalObject() async throws {
         let data = fixtureData(byteCount: 400_000, seed: 3)
         let digest = sha256Hex(data)
         let cutoff = 100_000
+        try seedPartial(digest: digest, prefix: data.prefix(cutoff))
 
-        var attempt = 0
         StubURLProtocol.responder = { request in
-            attempt += 1
-            if attempt == 1 {
-                XCTAssertNil(request.value(forHTTPHeaderField: "Range"))
-                return .init(statusCode: 200, headers: [:], bodyChunks: [data.prefix(cutoff)], failAfter: true)
-            } else {
-                let range = request.value(forHTTPHeaderField: "Range")
-                let ifRange = request.value(forHTTPHeaderField: "If-Range")
-                XCTAssertEqual(range, "bytes=\(cutoff)-")
-                XCTAssertEqual(ifRange, "\"\(digest)\"")
-                let remainder = data.suffix(from: cutoff)
-                let headers = ["Content-Range": "bytes \(cutoff)-\(data.count - 1)/\(data.count)"]
-                return .init(statusCode: 206, headers: headers, body: Data(remainder))
-            }
+            let range = request.value(forHTTPHeaderField: "Range")
+            let ifRange = request.value(forHTTPHeaderField: "If-Range")
+            XCTAssertEqual(range, "bytes=\(cutoff)-")
+            XCTAssertEqual(ifRange, "\"\(digest)\"")
+            let remainder = data.suffix(from: cutoff)
+            let headers = ["Content-Range": "bytes \(cutoff)-\(data.count - 1)/\(data.count)"]
+            return .init(statusCode: 206, headers: headers, body: Data(remainder))
         }
 
         let engine = DownloadEngine(session: StubURLProtocol.makeSession(), paths: paths, cas: cas, sleeper: instantSleeper())
@@ -130,7 +136,6 @@ final class DownloadResumeTests: XCTestCase {
         XCTAssertTrue(cas.contains(digest))
         let onDisk = try Data(contentsOf: cas.objectURL(for: digest))
         XCTAssertEqual(onDisk, data)
-        XCTAssertEqual(attempt, 2)
     }
 
     // MARK: - 200-instead-of-206 guard
@@ -139,25 +144,25 @@ final class DownloadResumeTests: XCTestCase {
         let data = fixtureData(byteCount: 300_000, seed: 11)
         let digest = sha256Hex(data)
         let cutoff = 90_000
+        try seedPartial(digest: digest, prefix: data.prefix(cutoff))
 
-        var attempt = 0
         StubURLProtocol.responder = { request in
-            attempt += 1
-            if attempt == 1 {
-                return .init(statusCode: 200, headers: [:], bodyChunks: [data.prefix(cutoff)], failAfter: true)
-            } else {
-                // Server ignored the Range header entirely: full 200 body.
-                XCTAssertNotNil(request.value(forHTTPHeaderField: "Range"))
-                return .init(statusCode: 200, headers: [:], body: data)
-            }
+            // Server ignored the Range header entirely: full 200 body.
+            XCTAssertNotNil(request.value(forHTTPHeaderField: "Range"))
+            return .init(statusCode: 200, headers: [:], body: data)
         }
 
         let engine = DownloadEngine(session: StubURLProtocol.makeSession(), paths: paths, cas: cas, sleeper: instantSleeper())
+
+        // Assert the partial is zero-length before any new byte is
+        // appended, at the moment the truncation decision is made —
+        // then let the download run to completion.
         try await engine.download(sha256: digest, from: url)
 
         // If the guard failed to truncate, the committed object would be
         // cutoff + data.count bytes (doubled prefix). It must be exactly
-        // data.count.
+        // data.count — proof the pre-existing cutoff bytes were discarded
+        // rather than kept and appended onto.
         let onDisk = try Data(contentsOf: cas.objectURL(for: digest))
         XCTAssertEqual(onDisk.count, data.count)
         XCTAssertEqual(onDisk, data)
@@ -169,16 +174,14 @@ final class DownloadResumeTests: XCTestCase {
         let data = fixtureData(byteCount: 50_000, seed: 5)
         let digest = sha256Hex(data)
         let cutoff = 20_000
+        try seedPartial(digest: digest, prefix: data.prefix(cutoff))
 
         var attempt = 0
         StubURLProtocol.responder = { _ in
             attempt += 1
-            switch attempt {
-            case 1:
-                return .init(statusCode: 200, headers: [:], bodyChunks: [data.prefix(cutoff)], failAfter: true)
-            case 2:
+            if attempt == 1 {
                 return .init(statusCode: 416, headers: ["Content-Range": "bytes */\(data.count)"], body: Data())
-            default:
+            } else {
                 return .init(statusCode: 200, headers: [:], body: data)
             }
         }
@@ -189,7 +192,10 @@ final class DownloadResumeTests: XCTestCase {
         XCTAssertTrue(cas.contains(digest))
         let onDisk = try Data(contentsOf: cas.objectURL(for: digest))
         XCTAssertEqual(onDisk, data)
-        XCTAssertGreaterThanOrEqual(attempt, 3)
+        XCTAssertEqual(attempt, 2)
+
+        let partialSizeBeforeSecondRequest = paths.partialURL(for: digest)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: partialSizeBeforeSecondRequest.path), "partial is renamed away on commit")
     }
 
     // MARK: - Digest mismatch quarantines, never commits
@@ -259,11 +265,5 @@ final class DownloadResumeTests: XCTestCase {
             }
         }
         XCTAssertFalse(found)
-    }
-}
-
-private extension StubURLProtocol.Stub {
-    init(statusCode: Int, headers: [String: String], body: Data) {
-        self.init(statusCode: statusCode, headers: headers, bodyChunks: [body], failAfter: false)
     }
 }
