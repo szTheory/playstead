@@ -254,6 +254,32 @@ defmodule PlaysteadWeb.Api.V1.CurationController do
     end
   end
 
+  ## Continue dismissals (D-07)
+
+  @doc """
+  PUT /api/v1/curation/continue/:asset_set_id/dismiss — dismisses
+  `asset_set_id` from the calling user's Continue shelf. `Curation.
+  dismiss_continue/3` already existed for the LiveView console
+  (`dismiss-continue` event), but had no REST intent for the Mac
+  outbox to call; this mirrors the identical idempotent-PUT shape as
+  `create_favorite/2`.
+  """
+  def dismiss_continue(conn, %{"asset_set_id" => asset_set_id} = params) do
+    device = conn.assigns.current_device
+    key = conn.assigns.idempotency_key
+    fingerprint = conn.assigns.idempotency_fingerprint
+    id = params["id"] || Ecto.UUID.generate()
+
+    effect_fun = fn ->
+      case Curation.dismiss_continue(device.user_id, id, asset_set_id) do
+        {:ok, dismissal} -> {:ok, 200, dismissal_json(dismissal)}
+        {:error, reason} -> {:error, reason}
+      end
+    end
+
+    run_idempotent(conn, device, key, fingerprint, effect_fun)
+  end
+
   # D-09: the unit of truth is one row's position, named by its two
   # neighbours -- a client that submits a whole ordered list as truth
   # can silently discard a concurrent offline addition, so any
@@ -315,5 +341,9 @@ defmodule PlaysteadWeb.Api.V1.CurationController do
       asset_set_id: favorite.asset_set_id,
       inserted_at: favorite.inserted_at
     }
+  end
+
+  defp dismissal_json(dismissal) do
+    %{id: dismissal.id, asset_set_id: dismissal.asset_set_id}
   end
 end

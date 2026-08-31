@@ -102,6 +102,17 @@ final class CurationStore {
         try localStore.connection.execute("DELETE FROM curation_collections WHERE id = ?;", params: [id])
     }
 
+    /// A targeted UPDATE (plan 03-08 task 2) rather than a full upsert —
+    /// a plain re-`upsertCollection` would clobber `created_at` since
+    /// the caller applying an optimistic rename never knows the row's
+    /// original creation timestamp.
+    func renameCollection(id: String, name: String, updatedAt: String?) throws {
+        try localStore.connection.execute(
+            "UPDATE curation_collections SET name = ?, updated_at = ? WHERE id = ?;",
+            params: [name, updatedAt, id]
+        )
+    }
+
     func fetchCollections() -> [CurationCollectionRow] {
         (try? localStore.connection.query(
             "SELECT id, name, created_at, updated_at FROM curation_collections ORDER BY id ASC;"
@@ -134,6 +145,38 @@ final class CurationStore {
 
     func tombstoneCollectionMember(id: String) throws {
         try localStore.connection.execute("DELETE FROM curation_collection_members WHERE id = ?;", params: [id])
+    }
+
+    /// Deletes every member of `collectionID` — used as part of a
+    /// collection's optimistic local delete (its members have no
+    /// meaning once the collection itself is gone locally).
+    func tombstoneCollectionMembersByCollection(_ collectionID: String) throws {
+        try localStore.connection.execute(
+            "DELETE FROM curation_collection_members WHERE collection_id = ?;", params: [collectionID]
+        )
+    }
+
+    /// A targeted UPDATE for a move-shaped intent's optimistic
+    /// reposition — never touches `collection_id`/`asset_set_id`.
+    func updateCollectionMemberPosition(id: String, position: String) throws {
+        try localStore.connection.execute(
+            "UPDATE curation_collection_members SET position = ? WHERE id = ?;", params: [position, id]
+        )
+    }
+
+    func fetchCollectionMember(id: String) -> CurationCollectionMemberRow? {
+        (try? localStore.connection.query(
+            "SELECT id, collection_id, asset_set_id, position, added_at FROM curation_collection_members WHERE id = ?;",
+            params: [id]
+        ) { row in
+            CurationCollectionMemberRow(
+                id: row.string(0) ?? "",
+                collectionID: row.string(1) ?? "",
+                assetSetID: row.string(2) ?? "",
+                position: row.string(3) ?? "",
+                addedAt: row.string(4)
+            )
+        })?.first
     }
 
     func fetchCollectionMembers() -> [CurationCollectionMemberRow] {
@@ -170,6 +213,22 @@ final class CurationStore {
         try localStore.connection.execute("DELETE FROM curation_queue_items WHERE id = ?;", params: [id])
     }
 
+    func updateQueueItemPosition(id: String, position: String) throws {
+        try localStore.connection.execute(
+            "UPDATE curation_queue_items SET position = ? WHERE id = ?;", params: [position, id]
+        )
+    }
+
+    func fetchQueueItem(id: String) -> CurationQueueItemRow? {
+        (try? localStore.connection.query(
+            "SELECT id, asset_set_id, position, added_at FROM curation_queue_items WHERE id = ?;", params: [id]
+        ) { row in
+            CurationQueueItemRow(
+                id: row.string(0) ?? "", assetSetID: row.string(1) ?? "", position: row.string(2) ?? "", addedAt: row.string(3)
+            )
+        })?.first
+    }
+
     func fetchQueueItems() -> [CurationQueueItemRow] {
         (try? localStore.connection.query(
             "SELECT id, asset_set_id, position, added_at FROM curation_queue_items ORDER BY position ASC;"
@@ -198,6 +257,19 @@ final class CurationStore {
 
     func tombstoneContinueDismissal(id: String) throws {
         try localStore.connection.execute("DELETE FROM curation_continue_dismissals WHERE id = ?;", params: [id])
+    }
+
+    /// Un-dismisses `assetSetID` from Continue by its natural key, not
+    /// its row id — used by `PlaySessionRecorder.began(assetSetID:)`
+    /// (plan 03-08 task 3) to locally restore a dismissed game to
+    /// Continue the moment it is played again, since the journal's
+    /// `continue_dismissal` payload carries no `dismissed_at` for a
+    /// time-based read-side derivation (see `ContinueViewModel`'s doc
+    /// comment).
+    func tombstoneContinueDismissalByAssetSet(_ assetSetID: String) throws {
+        try localStore.connection.execute(
+            "DELETE FROM curation_continue_dismissals WHERE asset_set_id = ?;", params: [assetSetID]
+        )
     }
 
     func fetchContinueDismissals() -> [CurationContinueDismissalRow] {
