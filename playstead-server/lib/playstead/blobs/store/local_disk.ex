@@ -451,9 +451,24 @@ defmodule Playstead.Blobs.Store.LocalDisk do
     end
   end
 
+  # P5-WR-003: `sha256` used to be joined into the path with no
+  # validation of its own, relying entirely on callers (today, only
+  # `BlobsController`, which first requires an exact DB match) to
+  # filter out path-traversal characters before this function ever
+  # sees them. Guard the function itself so any future caller inherits
+  # the same defense in depth rather than a directory-traversal
+  # primitive with no validation.
   @doc false
-  def object_path(blob_path, sha256) do
-    <<a::binary-size(2), b::binary-size(2), _rest::binary>> = sha256
-    Path.join([blob_path, "objects", "sha256", a, b, sha256])
+  def object_path(blob_path, sha256) when byte_size(sha256) == 64 do
+    if String.match?(sha256, ~r/\A[0-9a-f]{64}\z/) do
+      <<a::binary-size(2), b::binary-size(2), _rest::binary>> = sha256
+      Path.join([blob_path, "objects", "sha256", a, b, sha256])
+    else
+      raise ArgumentError, "invalid sha256: #{inspect(sha256)}"
+    end
+  end
+
+  def object_path(_blob_path, sha256) do
+    raise ArgumentError, "invalid sha256: #{inspect(sha256)}"
   end
 end
