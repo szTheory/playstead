@@ -41,10 +41,23 @@ final class Outbox {
     /// Applies `intent`'s optimistic local write and enqueues it,
     /// atomically. Returns the durable entry `OutboxWorker` will later
     /// drain.
+    ///
+    /// The `Idempotency-Key` sent on the wire (P1 D-20's idempotency
+    /// mechanism) is anchored on this newly generated `entryID`, not on
+    /// the intent's own semantic target-row id: `OutboxWorker` sends this
+    /// same stored value on the first attempt and on every retry *of this
+    /// entry*, so a request that succeeded but whose response was never
+    /// observed replays the original effect instead of duplicating it —
+    /// while two *distinct* intents enqueued against the same row (e.g.
+    /// two successive renames before the first is acknowledged) each get
+    /// their own entry, and therefore their own key, so the second
+    /// mutation is never mistaken by the server for a replay of the first
+    /// (P4-CR-001).
     @discardableResult
     func enqueue(_ intent: CurationIntent, at now: Date = Date()) throws -> OutboxEntry {
         let entryID = UUID().uuidString
         let createdAt = ISO8601DateFormatter().string(from: now)
+        let idempotencyKey = "\(intent.kind.rawValue):\(entryID)"
         let payloadData = try JSONEncoder().encode(intent.envelope)
         let payloadJSON = String(data: payloadData, encoding: .utf8) ?? "{}"
 
@@ -56,12 +69,12 @@ final class Outbox {
                     (id, kind, payload_json, idempotency_key, state, attempt_count, created_at, last_error_code)
                 VALUES (?, ?, ?, ?, 'pending', 0, ?, NULL);
                 """,
-                params: [entryID, intent.kind.rawValue, payloadJSON, intent.idempotencyKey, createdAt]
+                params: [entryID, intent.kind.rawValue, payloadJSON, idempotencyKey, createdAt]
             )
         }
 
         return OutboxEntry(
-            id: entryID, kind: intent.kind, intent: intent, idempotencyKey: intent.idempotencyKey,
+            id: entryID, kind: intent.kind, intent: intent, idempotencyKey: idempotencyKey,
             state: .pending, attemptCount: 0, createdAt: createdAt, lastErrorCode: nil
         )
     }

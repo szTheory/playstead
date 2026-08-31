@@ -129,6 +129,27 @@ final class OutboxTests: XCTestCase {
         XCTAssertNotNil(keys[0])
     }
 
+    // MARK: - Two distinct intents on the same row must never collide on
+    // idempotency key (P4-CR-001): each enqueued entry gets its own key,
+    // derived from the outbox entry's own id, not the target row's id.
+
+    func test_twoDistinctIntentsOnTheSameRow_getDistinctIdempotencyKeys() async throws {
+        try curationStore.upsertCollection(id: "col-1", name: "Original", createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z")
+
+        try outbox.enqueue(.collectionRename(collectionID: "col-1", name: "A"))
+        try outbox.enqueue(.collectionRename(collectionID: "col-1", name: "B"))
+
+        StubURLProtocol.responder = { _ in StubURLProtocol.Stub(statusCode: 200, headers: [:], body: Data("{}".utf8)) }
+        _ = await makeWorker().drainOnce()
+
+        XCTAssertEqual(StubURLProtocol.requestLog.count, 2, "both distinct renames must actually be sent")
+        let keys = StubURLProtocol.requestLog.map { $0.value(forHTTPHeaderField: "Idempotency-Key") }
+        XCTAssertNotEqual(
+            keys[0], keys[1],
+            "two different mutations of the same row must never share an idempotency key — a server that replays the first response for the second would silently drop the second mutation"
+        )
+    }
+
     // MARK: - A permanent rejection reverts the local row and surfaces
     // the server's problem code to the user.
 

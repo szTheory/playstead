@@ -56,11 +56,12 @@ struct CurationIntentEnvelope: Codable, Equatable {
 /// One curation mutation, modeled as an enumeration whose associated
 /// payload field names match the server changeset fields from plan
 /// 03-04 exactly (D-20's natural-key + idempotency-key mechanism,
-/// unchanged from Phase 1). `id` is both the client-generated row
-/// identifier — the row's own natural key on the server — and the seed
-/// of this intent's idempotency key, so a repeated insert converges on
-/// one row and a repeated request replays the first response rather
-/// than producing a second effect.
+/// unchanged from Phase 1). `id` is the client-generated row identifier —
+/// the row's own natural key on the server. The idempotency key sent on
+/// the wire is derived per *enqueued outbox entry*, not from this intent
+/// alone (see `Outbox.enqueue`) — anchoring it on the intent's own
+/// target-row id would collide whenever two distinct mutations land on
+/// the same row before the first is acknowledged (P4-CR-001).
 ///
 /// Move-shaped intents (`collectionMemberMove`/`queueMove`) carry a
 /// `position` that is purely a local optimistic placeholder computed by
@@ -121,38 +122,6 @@ enum CurationIntent: Equatable {
         case .playSessionDelete: return .playSessionDelete
         }
     }
-
-    /// The value this intent's idempotency key is seeded from: the new
-    /// row's own client-generated id for a create-shaped intent, or the
-    /// target's own local row id for a remove/rename/delete/move-shaped
-    /// one (there is no new row to name, so the target itself anchors
-    /// the key — sending the identical intent twice must produce the
-    /// identical key both times).
-    private var anchorID: String {
-        switch self {
-        case .favoriteAdd(let id, _): return id
-        case .favoriteRemove(let rowID, _): return rowID
-        case .collectionCreate(let id, _): return id
-        case .collectionRename(let collectionID, _): return collectionID
-        case .collectionDelete(let collectionID): return collectionID
-        case .collectionMemberAdd(let id, _, _, _): return id
-        case .collectionMemberRemove(let rowID, _, _): return rowID
-        case .collectionMemberMove(let rowID, _, _, _, _, _): return rowID
-        case .queueEnqueue(let id, _, _): return id
-        case .queueDequeue(let rowID, _): return rowID
-        case .queueMove(let rowID, _, _, _, _): return rowID
-        case .continueDismiss(let id, _): return id
-        case .playSessionRecord(let id, _, _, _): return id
-        case .playSessionDelete(let id): return id
-        }
-    }
-
-    /// Stable across every attempt of this exact intent (P1 D-20's
-    /// idempotency mechanism) — `OutboxWorker` sends this same value as
-    /// the `Idempotency-Key` header on the first attempt and on every
-    /// retry, so a request that succeeded but whose response was never
-    /// observed replays the original effect instead of duplicating it.
-    var idempotencyKey: String { "\(kind.rawValue):\(anchorID)" }
 
     /// The local `curation_*` row this intent creates or targets.
     var localRowID: String {
