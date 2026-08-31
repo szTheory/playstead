@@ -10,7 +10,7 @@ final class QueueViewModel {
     private let outbox: Outbox
 
     private(set) var items: [CurationQueueItemRow] = []
-    private var previewOrder: [String]?
+    private let reorderSession = ReorderSession()
 
     init(curationStore: CurationStore, outbox: Outbox) {
         self.curationStore = curationStore
@@ -49,32 +49,23 @@ final class QueueViewModel {
     // MARK: - Reorder (settles to exactly one intent per gesture)
 
     func beginReorder() {
-        previewOrder = items.map(\.assetSetID)
+        reorderSession.begin(order: items.map(\.assetSetID))
     }
 
     func previewMove(assetSetID: String, to index: Int) {
-        guard var order = previewOrder else { return }
-        order.removeAll { $0 == assetSetID }
-        let clamped = max(0, min(index, order.count))
-        order.insert(assetSetID, at: clamped)
-        previewOrder = order
+        reorderSession.previewMove(id: assetSetID, to: index)
     }
 
     @discardableResult
     func commitReorder(assetSetID: String) -> Bool {
-        defer { previewOrder = nil }
-        guard let order = previewOrder, let movedIndex = order.firstIndex(of: assetSetID) else { return false }
+        guard let move = reorderSession.commit(id: assetSetID, positionOf: { id in items.first(where: { $0.assetSetID == id })?.position }) else {
+            return false
+        }
         guard let row = items.first(where: { $0.assetSetID == assetSetID }) else { return false }
 
-        let beforeID = movedIndex > 0 ? order[movedIndex - 1] : nil
-        let afterID = movedIndex < order.count - 1 ? order[movedIndex + 1] : nil
-        let beforePosition = beforeID.flatMap { id in items.first(where: { $0.assetSetID == id })?.position }
-        let afterPosition = afterID.flatMap { id in items.first(where: { $0.assetSetID == id })?.position }
-        let newPosition = FractionalPosition.between(beforePosition, afterPosition)
-
         guard (try? outbox.enqueue(.queueMove(
-            rowID: row.id, assetSetID: assetSetID, position: newPosition,
-            beforeAssetSetID: beforeID, afterAssetSetID: afterID
+            rowID: row.id, assetSetID: assetSetID, position: move.position,
+            beforeAssetSetID: move.beforeID, afterAssetSetID: move.afterID
         ))) != nil else { return false }
         return true
     }

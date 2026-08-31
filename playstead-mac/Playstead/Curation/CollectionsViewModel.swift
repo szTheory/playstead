@@ -11,10 +11,10 @@ final class CollectionsViewModel {
     private let outbox: Outbox
 
     private(set) var collections: [CurationCollectionRow] = []
-    /// In-memory only, mutated by `previewMoveMember` while a drag
-    /// gesture is in progress — never written to the outbox until
-    /// `commitReorderMembers` settles it into exactly one intent.
-    private var previewMemberOrder: [String: [String]] = [:]
+    /// One `ReorderSession` per collection currently mid-drag — never
+    /// written to the outbox until `commitReorderMembers` settles it
+    /// into exactly one intent.
+    private var reorderSessions: [String: ReorderSession] = [:]
 
     init(curationStore: CurationStore, outbox: Outbox) {
         self.curationStore = curationStore
@@ -83,18 +83,16 @@ final class CollectionsViewModel {
     /// Snapshots `collectionID`'s current member order into an
     /// in-memory preview — call once when a drag gesture begins.
     func beginReorderMembers(_ collectionID: String) {
-        previewMemberOrder[collectionID] = members(of: collectionID).map(\.assetSetID)
+        let session = ReorderSession()
+        session.begin(order: members(of: collectionID).map(\.assetSetID))
+        reorderSessions[collectionID] = session
     }
 
     /// Mutates only the in-memory preview order — call as many times as
     /// the drag gesture updates (no outbox write, no network, no
     /// intermediate position ever sent).
     func previewMoveMember(_ collectionID: String, assetSetID: String, to index: Int) {
-        guard var order = previewMemberOrder[collectionID] else { return }
-        order.removeAll { $0 == assetSetID }
-        let clamped = max(0, min(index, order.count))
-        order.insert(assetSetID, at: clamped)
-        previewMemberOrder[collectionID] = order
+        reorderSessions[collectionID]?.previewMove(id: assetSetID, to: index)
     }
 
     /// Settles the drag gesture: computes the moved item's final
@@ -103,20 +101,17 @@ final class CollectionsViewModel {
     /// ordered list.
     @discardableResult
     func commitReorderMembers(_ collectionID: String, assetSetID: String) -> Bool {
-        defer { previewMemberOrder[collectionID] = nil }
-        guard let order = previewMemberOrder[collectionID], let movedIndex = order.firstIndex(of: assetSetID) else { return false }
-        guard let row = members(of: collectionID).first(where: { $0.assetSetID == assetSetID }) else { return false }
-
-        let beforeID = movedIndex > 0 ? order[movedIndex - 1] : nil
-        let afterID = movedIndex < order.count - 1 ? order[movedIndex + 1] : nil
+        defer { reorderSessions[collectionID] = nil }
+        guard let session = reorderSessions[collectionID] else { return false }
         let existing = members(of: collectionID)
-        let beforePosition = beforeID.flatMap { id in existing.first(where: { $0.assetSetID == id })?.position }
-        let afterPosition = afterID.flatMap { id in existing.first(where: { $0.assetSetID == id })?.position }
-        let newPosition = FractionalPosition.between(beforePosition, afterPosition)
+        guard let move = session.commit(id: assetSetID, positionOf: { id in existing.first(where: { $0.assetSetID == id })?.position }) else {
+            return false
+        }
+        guard let row = existing.first(where: { $0.assetSetID == assetSetID }) else { return false }
 
         guard (try? outbox.enqueue(.collectionMemberMove(
-            rowID: row.id, collectionID: collectionID, assetSetID: assetSetID, position: newPosition,
-            beforeAssetSetID: beforeID, afterAssetSetID: afterID
+            rowID: row.id, collectionID: collectionID, assetSetID: assetSetID, position: move.position,
+            beforeAssetSetID: move.beforeID, afterAssetSetID: move.afterID
         ))) != nil else { return false }
         return true
     }
