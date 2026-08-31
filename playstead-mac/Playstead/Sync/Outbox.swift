@@ -1,5 +1,16 @@
 import Foundation
 
+enum OutboxError: Error, Equatable {
+    /// `JSONEncoder`'s output was somehow not valid UTF-8 (never actually
+    /// observed — `JSONEncoder` always produces valid UTF-8 — but a
+    /// silent `"{}"` substitution here would durably persist a payload
+    /// that can never decode back into the real intent, becoming an
+    /// unrecoverable poison entry with no path to recovery (P4-WR-007).
+    /// Failing `enqueue` loudly instead means the optimistic local write
+    /// never happens for a payload that could not be durably recorded.
+    case payloadEncodingFailed
+}
+
 enum OutboxEntryState: String, Equatable {
     case pending
     case inFlight = "in_flight"
@@ -88,7 +99,9 @@ final class Outbox {
         let createdAt = ISO8601DateFormatter().string(from: now)
         let idempotencyKey = "\(intent.kind.rawValue):\(entryID)"
         let payloadData = try JSONEncoder().encode(intent.envelope)
-        let payloadJSON = String(data: payloadData, encoding: .utf8) ?? "{}"
+        guard let payloadJSON = String(data: payloadData, encoding: .utf8) else {
+            throw OutboxError.payloadEncodingFailed
+        }
 
         try localStore.transaction {
             try intent.applyOptimistically(to: self.curationStore, at: now)
