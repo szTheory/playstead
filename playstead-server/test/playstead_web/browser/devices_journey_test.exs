@@ -20,7 +20,9 @@ defmodule PlaysteadWeb.Browser.DevicesJourneyTest do
       |> log_in_via_cookie(user, token_authenticated_at: DateTime.utc_now(:second))
       |> visit_live("/devices")
       |> assert_has(css("#display-code-#{request.id}", text: request.display_code))
-      |> assert_has(css("#pairing-request-#{request.id}-claimed-name", text: "Owner's MacBook Pro"))
+      |> assert_has(
+        css("#pairing-request-#{request.id}-claimed-name", text: "Owner's MacBook Pro")
+      )
       |> assert_has(
         css("#pairing-request-#{request.id}-requesting-from", text: "from an external address")
       )
