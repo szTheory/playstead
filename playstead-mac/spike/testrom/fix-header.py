@@ -4,6 +4,9 @@ GBA header checksum algorithm: -(sum(bytes[0xA0:0xBD]) + 0x19) & 0xFF.
 """
 import sys
 
+if len(sys.argv) != 2:
+    print("usage: fix-header.py <rom-path>", file=sys.stderr)
+    sys.exit(64)
 path = sys.argv[1]
 with open(path, "r+b") as f:
     data = bytearray(f.read())
