@@ -23,7 +23,9 @@ struct PlaysteadApp: App {
 
 /// Shared, observable app-wide dependencies constructed once at launch.
 /// Kept intentionally small in this tracer plan: a local store, an API
-/// client (nil until a paired credential exists), the cache/download/
+/// client (always constructed; pairing state itself is tracked
+/// internally by `APIClient`, which surfaces `.notPaired` from its own
+/// request methods until a credential exists), the cache/download/
 /// preflight layer, and the adapter host once the pin loads.
 @MainActor
 @Observable
