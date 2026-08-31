@@ -9,6 +9,8 @@ defmodule Playstead.ReadinessTest do
   # `summary/1` is pure over its env map, so these run `async: true` with
   # no `System.put_env/2` — the volumes row is pinned to a writable temp
   # dir so the assertion is about the https row, not this machine's disk.
+  @blob_path_env "PLAYSTEAD_BLOB_PATH"
+
   defp env(extra) do
     Map.merge(%{"PLAYSTEAD_BLOB_PATH" => System.tmp_dir!()}, extra)
   end
@@ -128,11 +130,83 @@ defmodule Playstead.ReadinessTest do
   defp atomicity_row(env),
     do: env |> Readiness.summary() |> Enum.find(&(&1.id == :blob_volume_atomicity))
 
+  # Points the mountinfo seam somewhere for the duration of one test. The
+  # previous version of the test below asserted `refute
+  # File.exists?("/proc/self/mountinfo")` — a claim about the developer's
+  # operating system rather than about this module. On macOS that passed
+  # while never reaching the degradation path; on a Linux CI runner it
+  # failed on its first line. Driving the seam exercises the real behaviour
+  # on every OS.
+  defp put_mountinfo(path) do
+    previous = Application.get_env(:playstead, :mountinfo_path)
+    Application.put_env(:playstead, :mountinfo_path, path)
+
+    on_exit(fn ->
+      case previous do
+        nil -> Application.delete_env(:playstead, :mountinfo_path)
+        prev -> Application.put_env(:playstead, :mountinfo_path, prev)
+      end
+    end)
+  end
+
+  defp write_mountinfo!(contents) do
+    path =
+      Path.join(
+        System.tmp_dir!(),
+        "playstead-mountinfo-#{System.unique_integer([:positive])}"
+      )
+
+    File.write!(path, contents)
+    on_exit(fn -> File.rm_rf!(path) end)
+    path
+  end
+
   test "the same-volume check degrades to a non-error state when mountinfo is unavailable" do
-    refute File.exists?("/proc/self/mountinfo")
+    put_mountinfo(Path.join(System.tmp_dir!(), "playstead-no-such-mountinfo"))
 
     assert %{id: :blob_volume_atomicity, state: state} = atomicity_row(env(%{}))
     assert state in [:ok, :warning]
+  end
+
+  # These two pass an explicit blob path matching the fixture's mount
+  # points. The default `env/0` helper pins PLAYSTEAD_BLOB_PATH to a temp
+  # dir, which no fixture line covers -- both checks would then fall into
+  # the "could not verify" branch and report :ok, passing vacuously for the
+  # opposite of the reason under test.
+  @fixture_blob_path "/app/blobs"
+
+  test "the same-volume check passes when tmp/ and objects/ share one mount device" do
+    path =
+      write_mountinfo!("""
+      1 0 8:1 / / rw,relatime - ext4 /dev/sda1 rw
+      2 1 8:1 / /app/blobs rw,relatime - ext4 /dev/sda1 rw
+      """)
+
+    put_mountinfo(path)
+
+    assert %{id: :blob_volume_atomicity, state: :ok, message: message} =
+             atomicity_row(env(%{@blob_path_env => @fixture_blob_path}))
+
+    assert message =~ "same filesystem"
+  end
+
+  test "the same-volume check warns when tmp/ and objects/ sit on different devices" do
+    # The exact misconfiguration D-11 exists to catch: objects/ bind-mounted
+    # onto a second filesystem, which silently turns File.rename/2 from an
+    # atomic move into copy+delete and reopens the partial-write window.
+    path =
+      write_mountinfo!("""
+      1 0 8:1 / / rw,relatime - ext4 /dev/sda1 rw
+      2 1 8:1 / /app/blobs rw,relatime - ext4 /dev/sda1 rw
+      3 1 8:2 / /app/blobs/objects rw,relatime - ext4 /dev/sdb1 rw
+      """)
+
+    put_mountinfo(path)
+
+    assert %{id: :blob_volume_atomicity, state: :warning, message: message} =
+             atomicity_row(env(%{@blob_path_env => @fixture_blob_path}))
+
+    assert message =~ "different filesystems"
   end
 
   # --- free space (D-10) ----------------------------------------------------

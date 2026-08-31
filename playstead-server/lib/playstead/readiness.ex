@@ -86,6 +86,7 @@ defmodule Playstead.Readiness do
 
   @blob_path_env "PLAYSTEAD_BLOB_PATH"
   @default_blob_path "/app/blobs"
+  @default_mountinfo_path "/proc/self/mountinfo"
   @anonymous_volume_id ~r/\/volumes\/([0-9a-f]{64})\/_data(\s|$)/
 
   defp volumes_check(env) do
@@ -134,8 +135,17 @@ defmodule Playstead.Readiness do
     e -> {:warning, "#{path} could not be checked: #{Exception.message(e)}"}
   end
 
+  # Seam so the mountinfo-dependent checks are testable off Linux. Before
+  # this existed the "degrades when mountinfo is unavailable" test asserted
+  # `refute File.exists?("/proc/self/mountinfo")`, which is a statement
+  # about the developer's OS, not about this module: it passed on macOS
+  # without ever reaching the degradation path, and failed outright on a
+  # Linux CI runner. Production never sets this.
+  defp mountinfo_path,
+    do: Application.get_env(:playstead, :mountinfo_path, @default_mountinfo_path)
+
   defp anonymous_volume?(path) do
-    with {:ok, mountinfo} <- File.read("/proc/self/mountinfo"),
+    with {:ok, mountinfo} <- File.read(mountinfo_path()),
          [line] <- matching_mount_lines(mountinfo, path) do
       Regex.match?(@anonymous_volume_id, line)
     else
@@ -268,7 +278,7 @@ defmodule Playstead.Readiness do
   # elsewhere, which is exactly the misconfiguration this check exists
   # to catch.
   defp mount_device(path) do
-    with {:ok, mountinfo} <- File.read("/proc/self/mountinfo") do
+    with {:ok, mountinfo} <- File.read(mountinfo_path()) do
       mountinfo
       |> String.split("\n", trim: true)
       |> Enum.map(&parse_mountinfo_line/1)
