@@ -54,14 +54,35 @@ final class AdapterWiringTests: XCTestCase {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 
-    /// A stand-in application bundle laid out exactly as the pin
-    /// describes, whose program file is a real, runnable executable —
-    /// no emulator is available in this environment, so `/bin/echo`
-    /// stands in for one, exactly as `PlaySessionTests` already does.
-    private func makeRunnableAdapterBundle() throws -> URL {
-        let pin = try AdapterPin.load()
-        let appURL = tempRoot.appendingPathComponent("Stand-In.app", isDirectory: true)
-        let executableURL = appURL.appendingPathComponent(pin.launch.executableRelativePath)
+    /// Raised when the stand-in binary could not be re-signed — see
+    /// `installStandInExecutable` for why that is fatal to the fixture.
+    struct StandInSigningFailure: Error { let status: Int32 }
+
+    /// Places a real, runnable stand-in executable at
+    /// `appURL/executableRelativePath` — no emulator is available in this
+    /// environment, so `/bin/echo` stands in for one, exactly as
+    /// `PlaySessionTests` already does.
+    ///
+    /// **Why the copy is re-signed.** macOS routes a spawn of a file it
+    /// recognises as an *application bundle's main executable* through a
+    /// security assessment before it lets the child run. It applies that
+    /// recognition when the bundle carries a `Contents/Info.plist`, and —
+    /// absent one — when the executable's own name matches the enclosing
+    /// `.app`'s. `/bin/echo`'s signature is only valid at its platform
+    /// path, so a plain copy fails that assessment, and the failure mode
+    /// is silent: `Process.run()` succeeds, the child is left suspended
+    /// at `_dyld_start` forever, and `terminationHandler` therefore never
+    /// fires. Ad-hoc re-signing the copy makes it valid where it now
+    /// lives, which is exactly the property the real pinned adapter (a
+    /// signed, notarised `mGBA.app`) already has.
+    ///
+    /// Signing here rather than at each call site is deliberate: without
+    /// it a fixture is launchable only by the accident of what its
+    /// executable happens to be named relative to its bundle.
+    private nonisolated static func installStandInExecutable(
+        in appURL: URL, at executableRelativePath: String
+    ) throws {
+        let executableURL = appURL.appendingPathComponent(executableRelativePath)
         try FileManager.default.createDirectory(
             at: executableURL.deletingLastPathComponent(), withIntermediateDirectories: true
         )
@@ -69,6 +90,27 @@ final class AdapterWiringTests: XCTestCase {
         try FileManager.default.setAttributes(
             [.posixPermissions: 0o755], ofItemAtPath: executableURL.path
         )
+
+        let codesign = Process()
+        codesign.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        codesign.arguments = ["--force", "--sign", "-", executableURL.path]
+        codesign.standardOutput = FileHandle.nullDevice
+        codesign.standardError = FileHandle.nullDevice
+        try codesign.run()
+        codesign.waitUntilExit()
+        // A stand-in that cannot be re-signed would launch and then hang
+        // forever rather than fail, so this refuses loudly and up front.
+        guard codesign.terminationStatus == 0 else {
+            throw StandInSigningFailure(status: codesign.terminationStatus)
+        }
+    }
+
+    /// A stand-in application bundle laid out exactly as the pin
+    /// describes, whose program file is a real, runnable executable.
+    private func makeRunnableAdapterBundle() throws -> URL {
+        let pin = try AdapterPin.load()
+        let appURL = tempRoot.appendingPathComponent("Stand-In.app", isDirectory: true)
+        try Self.installStandInExecutable(in: appURL, at: pin.launch.executableRelativePath)
         return appURL
     }
 
@@ -182,14 +224,7 @@ final class AdapterWiringTests: XCTestCase {
             },
             archiveExpander: { _, destinationDir in
                 let appURL = destinationDir.appendingPathComponent("Stand-In.app", isDirectory: true)
-                let executableURL = appURL.appendingPathComponent(pin.launch.executableRelativePath)
-                try FileManager.default.createDirectory(
-                    at: executableURL.deletingLastPathComponent(), withIntermediateDirectories: true
-                )
-                try FileManager.default.copyItem(at: URL(fileURLWithPath: "/bin/echo"), to: executableURL)
-                try FileManager.default.setAttributes(
-                    [.posixPermissions: 0o755], ofItemAtPath: executableURL.path
-                )
+                try AdapterWiringTests.installStandInExecutable(in: appURL, at: pin.launch.executableRelativePath)
                 return appURL
             }
         )
@@ -356,13 +391,17 @@ final class AdapterWiringTests: XCTestCase {
 
     // MARK: - Fixtures
 
-    /// The first execution of a freshly written binary in a test process
-    /// pays a one-off system security-assessment cost (measured at ~4s
-    /// here, and longer when the suite runs its bundles in parallel).
-    /// This is a generous ceiling on that, not a tolerance for a slow
-    /// launch: every subsequent launch in the same process completes in
-    /// well under a second.
-    private static let firstLaunchTimeout: TimeInterval = 60
+    /// A launch of a correctly signed stand-in completes in ~0.2s, so
+    /// this is headroom for a loaded machine, not a tolerance for a slow
+    /// launch.
+    ///
+    /// It was previously 60s to absorb a supposed one-off "security
+    /// assessment cost". That cost was not a cost at all: an unsigned
+    /// stand-in is never released by macOS, so the wait was unbounded and
+    /// the ceiling only decided how long the suite hung before failing.
+    /// `installStandInExecutable` removes the cause, so the ceiling can
+    /// be tight enough to fail fast if it ever returns.
+    private static let firstLaunchTimeout: TimeInterval = 15
 
     private static let fixturePinJSON = """
     {
