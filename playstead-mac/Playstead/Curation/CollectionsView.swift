@@ -4,7 +4,18 @@ import SwiftUI
 /// new one. Selecting a collection navigates to `CollectionDetailView`.
 struct CollectionsView: View {
     let viewModel: CollectionsViewModel
+    /// Which collection the shell should show members for. A binding
+    /// rather than local `@State` because the detail pane lives outside
+    /// this view; it defaults to a constant so the existing
+    /// `CollectionsView(viewModel:)` call shape (and its tests) keeps
+    /// working as a plain, non-selectable list.
+    @Binding var selectedCollectionID: String?
     @State private var newCollectionName = ""
+
+    init(viewModel: CollectionsViewModel, selectedCollectionID: Binding<String?> = .constant(nil)) {
+        self.viewModel = viewModel
+        self._selectedCollectionID = selectedCollectionID
+    }
 
     static let emptyExplanation = "Create a collection to group games your way."
 
@@ -29,8 +40,8 @@ struct CollectionsView: View {
                     .foregroundStyle(DesignTokens.textMuted)
                     .accessibilityLabel(Self.emptyExplanation)
             } else {
-                List(viewModel.collections, id: \.id) { collection in
-                    Text(collection.name)
+                List(viewModel.collections, id: \.id, selection: $selectedCollectionID) { collection in
+                    Text(collection.name).tag(collection.id)
                 }
             }
         }

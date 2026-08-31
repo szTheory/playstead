@@ -93,8 +93,28 @@ final class LibraryViewModel {
         SystemRegistry.all.map(\.id).filter { !nonEmptySystemIDs.contains($0) }
     }
 
+    /// The one predicate for "unidentified", used both by the sidebar
+    /// (should the Unidentified entry exist at all?) and by the section
+    /// itself (what does it list?) — two copies of this rule would drift.
+    static func isUnidentified(_ entry: CatalogueEntry) -> Bool {
+        entry.system == "unknown" || entry.displayTitle.isEmpty
+    }
+
     var hasUnidentifiedEntries: Bool {
-        catalogue.contains { $0.system == "unknown" || $0.displayTitle.isEmpty }
+        catalogue.contains(where: Self.isUnidentified)
+    }
+
+    /// Everything the Unidentified sidebar section lists.
+    var unidentifiedCatalogue: [CatalogueEntry] {
+        catalogue.filter(Self.isUnidentified)
+    }
+
+    /// The catalogue narrowed to one system, through the same
+    /// `CatalogueStore.filteredQuery` path the filter chips use
+    /// (`FilterTests` pins that behavior) — the sidebar's system sections
+    /// are a filter, not a second query.
+    func catalogue(forSystemID systemID: String) -> [CatalogueEntry] {
+        catalogueStore.filteredQuery(searchTerm: searchTerm, systemID: systemID, availability: selectedAvailability)
     }
 
     /// "Last synced {relative time}" copy for the offline indicator

@@ -53,12 +53,45 @@ struct GameRowView: View {
                 }
             }
             Spacer()
+            curationButtons
             actionButton
         }
         .padding(.vertical, 4)
         .task {
             refreshStatus()
         }
+    }
+
+    /// Favorite and Queue, the two curation mutations reachable from any
+    /// library row. Both go through `AppEnvironment`'s shared view models,
+    /// so the intent lands in the one shared `Outbox` and the drain
+    /// trigger fires — the row is where the curation slice actually
+    /// becomes reachable from the shipped app.
+    @ViewBuilder
+    private var curationButtons: some View {
+        let isFavorited = environment.favoritesViewModel.isFavorited(assetSetID: entry.id)
+        let isQueued = environment.queueViewModel.isQueued(assetSetID: entry.id)
+
+        Button(isFavorited ? "Unfavorite" : "Favorite") {
+            environment.toggleFavorite(assetSetID: entry.id)
+        }
+        .accessibilityLabel(Self.favoriteActionLabel(title: entry.displayTitle, isFavorited: isFavorited))
+
+        Button(isQueued ? "Remove from Queue" : "Add to Queue") {
+            environment.toggleQueued(assetSetID: entry.id)
+        }
+        .accessibilityLabel(Self.queueActionLabel(title: entry.displayTitle, isQueued: isQueued))
+    }
+
+    /// Accessible names are the action verb plus its subject
+    /// (03-UI-SPEC.md's QUAL-01 floor), pure so they can be asserted
+    /// without hosting a live view.
+    static func favoriteActionLabel(title: String, isFavorited: Bool) -> String {
+        isFavorited ? "Remove \(title) from Favorites" : "Add \(title) to Favorites"
+    }
+
+    static func queueActionLabel(title: String, isQueued: Bool) -> String {
+        isQueued ? "Remove \(title) from Queue" : "Add \(title) to Queue"
     }
 
     @ViewBuilder
@@ -140,9 +173,18 @@ struct GameRowView: View {
             let biosPath = environment.biosStore.managedRecord(forSystem: entry.system)
                 .map { environment.biosStore.managedPath(forSHA256: $0.sha256).path }
 
+            // Recent and Continue exist only because sessions are
+            // recorded; `PlaySessionRecorder` never sits between the user
+            // and the launch (every write inside it swallows its own
+            // failure), so this cannot make a launch fail.
+            let sessionID = environment.playSessionRecorder.began(assetSetID: entry.id)
+            environment.refreshCurationViewModels()
+
             try await adapterHost.launch(romPath: romURL.path, saveDir: saveDir.path, biosPath: biosPath) { exit in
                 Task { @MainActor in
                     lastExit = exit
+                    environment.playSessionRecorder.ended(sessionID)
+                    environment.refreshCurationViewModels()
                 }
             }
         } catch {
