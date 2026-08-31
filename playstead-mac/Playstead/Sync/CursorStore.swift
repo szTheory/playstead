@@ -60,11 +60,4 @@ final class CursorStore {
         )
     }
 
-    /// Deletes the stored cursor — the first step of a cursor-expired
-    /// reset, always inside the same transaction as clearing the
-    /// catalogue/curation tables so the client can never observe a
-    /// cleared read model paired with a stale cursor.
-    func clear() throws {
-        try localStore.connection.execute("DELETE FROM sync_cursor;")
-    }
 }
