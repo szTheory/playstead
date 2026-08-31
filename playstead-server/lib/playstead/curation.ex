@@ -93,7 +93,7 @@ defmodule Playstead.Curation do
   """
   @spec remove_favorite(pos_integer(), Ecto.UUID.t()) :: {:ok, :removed} | {:error, term()}
   def remove_favorite(user_id, asset_set_id) do
-    case Repo.get_by(Favorite, user_id: user_id, asset_set_id: asset_set_id) do
+    case get_by_safe(Favorite, user_id: user_id, asset_set_id: asset_set_id) do
       nil ->
         {:ok, :removed}
 
@@ -129,27 +129,32 @@ defmodule Playstead.Curation do
   @spec create_collection(pos_integer(), Ecto.UUID.t(), String.t()) ::
           {:ok, Collection.t()} | {:error, term()}
   def create_collection(user_id, id, name) do
-    with :ok <- check_collection_cap(user_id) do
+    # P5-WR-001: the cap check and the insert used to be a plain
+    # read-then-write outside any lock, so two concurrent requests from
+    # the same user's paired devices could both read a count under the
+    # cap and both insert. Take a per-user advisory lock for the
+    # duration of this transaction so a concurrent cap check/insert for
+    # the same user serializes behind it instead of racing.
+    Ecto.Multi.new()
+    |> Ecto.Multi.run(:lock, fn repo, _changes -> acquire_cap_lock(repo, :collection, user_id) end)
+    |> Ecto.Multi.run(:cap, fn _repo, _changes -> as_multi_result(check_collection_cap(user_id)) end)
+    |> Ecto.Multi.insert(:collection, fn _changes ->
       position = Position.last(max_position(Collection, user_id: user_id))
 
-      changeset =
-        Collection.create_changeset(%Collection{}, %{
-          id: id,
-          user_id: user_id,
-          name: Catalogue.sanitize_title(name),
-          position: position
-        })
-
-      Ecto.Multi.new()
-      |> Ecto.Multi.insert(:collection, changeset)
-      |> Ecto.Multi.run(:journal, fn _repo, %{collection: collection} ->
-        ChangeJournal.append(user_id, :curation, collection.id, CurationPayload.build(collection))
-      end)
-      |> Repo.transaction()
-      |> case do
-        {:ok, %{collection: collection}} -> {:ok, collection}
-        {:error, _step, reason, _changes} -> {:error, reason}
-      end
+      Collection.create_changeset(%Collection{}, %{
+        id: id,
+        user_id: user_id,
+        name: Catalogue.sanitize_title(name),
+        position: position
+      })
+    end)
+    |> Ecto.Multi.run(:journal, fn _repo, %{collection: collection} ->
+      ChangeJournal.append(user_id, :curation, collection.id, CurationPayload.build(collection))
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{collection: collection}} -> {:ok, collection}
+      {:error, _step, reason, _changes} -> {:error, reason}
     end
   end
 
@@ -180,7 +185,7 @@ defmodule Playstead.Curation do
   """
   @spec delete_collection(pos_integer(), Ecto.UUID.t()) :: {:ok, :removed} | {:error, term()}
   def delete_collection(user_id, collection_id) do
-    case Repo.get_by(Collection, id: collection_id, user_id: user_id) do
+    case get_by_safe(Collection, id: collection_id, user_id: user_id) do
       nil ->
         {:ok, :removed}
 
@@ -244,21 +249,29 @@ defmodule Playstead.Curation do
           {:ok, CollectionMember.t()} | {:error, term()}
   def add_collection_member(user_id, collection_id, id, asset_set_id) do
     with {:ok, collection} <- verify_collection_ownership(user_id, collection_id),
-         :ok <- verify_asset_set_ownership(user_id, asset_set_id),
-         :ok <- check_member_cap(collection.id, asset_set_id) do
-      position = Position.last(max_position(CollectionMember, collection_id: collection.id))
-
-      changeset =
-        CollectionMember.create_changeset(%CollectionMember{}, %{
-          id: id,
-          user_id: user_id,
-          collection_id: collection.id,
-          asset_set_id: asset_set_id,
-          position: position
-        })
-
+         :ok <- verify_asset_set_ownership(user_id, asset_set_id) do
+      # P5-WR-001: lock per-collection so two concurrent adds to the same
+      # collection can't both observe a stale under-cap count.
       Ecto.Multi.new()
-      |> Ecto.Multi.insert(:member, changeset,
+      |> Ecto.Multi.run(:lock, fn repo, _changes ->
+        acquire_cap_lock(repo, :collection_member, collection.id)
+      end)
+      |> Ecto.Multi.run(:cap, fn _repo, _changes ->
+        as_multi_result(check_member_cap(collection.id, asset_set_id))
+      end)
+      |> Ecto.Multi.insert(
+        :member,
+        fn _changes ->
+          position = Position.last(max_position(CollectionMember, collection_id: collection.id))
+
+          CollectionMember.create_changeset(%CollectionMember{}, %{
+            id: id,
+            user_id: user_id,
+            collection_id: collection.id,
+            asset_set_id: asset_set_id,
+            position: position
+          })
+        end,
         on_conflict: {:replace, [:updated_at]},
         conflict_target: [:collection_id, :asset_set_id],
         returning: true
@@ -316,26 +329,37 @@ defmodule Playstead.Curation do
     after_id = Map.get(neighbours, :after_asset_set_id)
 
     with {:ok, _collection} <- verify_collection_ownership(user_id, collection_id),
-         {:ok, member} <- fetch_collection_member(collection_id, asset_set_id),
-         {:ok, before_pos} <- resolve_member_neighbour(collection_id, before_id),
-         {:ok, after_pos} <- resolve_member_neighbour(collection_id, after_id),
-         :ok <- validate_neighbour_order(before_pos, after_pos) do
-      if before_pos && after_pos && Position.needs_rebalance?(before_pos, after_pos) do
-        Repo.transaction(fn ->
-          with {:ok, _rebalanced} <- do_rebalance_collection(user_id, collection_id),
-               {:ok, before_pos2} <- resolve_member_neighbour(collection_id, before_id),
-               {:ok, after_pos2} <- resolve_member_neighbour(collection_id, after_id),
-               :ok <- validate_neighbour_order(before_pos2, after_pos2),
-               {:ok, updated} <-
-                 reposition_member(user_id, member, Position.between(before_pos2, after_pos2)) do
-            updated
-          else
+         {:ok, member} <- fetch_collection_member(collection_id, asset_set_id) do
+      # P5-WR-005: the whole read-resolve-write sequence runs inside one
+      # transaction, guarded by a per-collection advisory lock, so a
+      # concurrent move on the same collection blocks until this one
+      # commits rather than computing/writing a position from a stale
+      # read of the neighbours.
+      Repo.transaction(fn ->
+        with :ok <- lock_resource!(:collection_member, collection_id),
+             {:ok, before_pos} <- resolve_member_neighbour(collection_id, before_id),
+             {:ok, after_pos} <- resolve_member_neighbour(collection_id, after_id),
+             :ok <- validate_neighbour_order(before_pos, after_pos) do
+          result =
+            if before_pos && after_pos && Position.needs_rebalance?(before_pos, after_pos) do
+              with {:ok, _rebalanced} <- do_rebalance_collection(user_id, collection_id),
+                   {:ok, before_pos2} <- resolve_member_neighbour(collection_id, before_id),
+                   {:ok, after_pos2} <- resolve_member_neighbour(collection_id, after_id),
+                   :ok <- validate_neighbour_order(before_pos2, after_pos2) do
+                reposition_member(user_id, member, Position.between(before_pos2, after_pos2))
+              end
+            else
+              reposition_member(user_id, member, Position.between(before_pos, after_pos))
+            end
+
+          case result do
+            {:ok, updated} -> updated
             {:error, reason} -> Repo.rollback(reason)
           end
-        end)
-      else
-        reposition_member(user_id, member, Position.between(before_pos, after_pos))
-      end
+        else
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end)
     end
   end
 
@@ -366,20 +390,24 @@ defmodule Playstead.Curation do
   @spec enqueue(pos_integer(), Ecto.UUID.t(), Ecto.UUID.t()) ::
           {:ok, QueueItem.t()} | {:error, term()}
   def enqueue(user_id, id, asset_set_id) do
-    with :ok <- verify_asset_set_ownership(user_id, asset_set_id),
-         :ok <- check_queue_cap(user_id, asset_set_id) do
-      position = Position.last(max_position(QueueItem, user_id: user_id))
-
-      changeset =
-        QueueItem.create_changeset(%QueueItem{}, %{
-          id: id,
-          user_id: user_id,
-          asset_set_id: asset_set_id,
-          position: position
-        })
-
+    with :ok <- verify_asset_set_ownership(user_id, asset_set_id) do
+      # P5-WR-001: lock per-user so two concurrent enqueues (e.g. from
+      # two paired devices) can't both observe a stale under-cap count.
       Ecto.Multi.new()
-      |> Ecto.Multi.insert(:item, changeset,
+      |> Ecto.Multi.run(:lock, fn repo, _changes -> acquire_cap_lock(repo, :queue, user_id) end)
+      |> Ecto.Multi.run(:cap, fn _repo, _changes -> as_multi_result(check_queue_cap(user_id, asset_set_id)) end)
+      |> Ecto.Multi.insert(
+        :item,
+        fn _changes ->
+          position = Position.last(max_position(QueueItem, user_id: user_id))
+
+          QueueItem.create_changeset(%QueueItem{}, %{
+            id: id,
+            user_id: user_id,
+            asset_set_id: asset_set_id,
+            position: position
+          })
+        end,
         on_conflict: {:replace, [:updated_at]},
         conflict_target: [:user_id, :asset_set_id],
         returning: true
@@ -398,7 +426,7 @@ defmodule Playstead.Curation do
   @doc "Removes `asset_set_id` from `user_id`'s queue; a no-op if absent."
   @spec dequeue(pos_integer(), Ecto.UUID.t()) :: {:ok, :removed} | {:error, term()}
   def dequeue(user_id, asset_set_id) do
-    case Repo.get_by(QueueItem, user_id: user_id, asset_set_id: asset_set_id) do
+    case get_by_safe(QueueItem, user_id: user_id, asset_set_id: asset_set_id) do
       nil ->
         {:ok, :removed}
 
@@ -434,26 +462,36 @@ defmodule Playstead.Curation do
     before_id = Map.get(neighbours, :before_asset_set_id)
     after_id = Map.get(neighbours, :after_asset_set_id)
 
-    with {:ok, item} <- fetch_queue_item(user_id, asset_set_id),
-         {:ok, before_pos} <- resolve_queue_neighbour(user_id, before_id),
-         {:ok, after_pos} <- resolve_queue_neighbour(user_id, after_id),
-         :ok <- validate_neighbour_order(before_pos, after_pos) do
-      if before_pos && after_pos && Position.needs_rebalance?(before_pos, after_pos) do
-        Repo.transaction(fn ->
-          with {:ok, _rebalanced} <- do_rebalance_queue(user_id),
-               {:ok, before_pos2} <- resolve_queue_neighbour(user_id, before_id),
-               {:ok, after_pos2} <- resolve_queue_neighbour(user_id, after_id),
-               :ok <- validate_neighbour_order(before_pos2, after_pos2),
-               {:ok, updated} <-
-                 reposition_queue_item(user_id, item, Position.between(before_pos2, after_pos2)) do
-            updated
-          else
+    with {:ok, item} <- fetch_queue_item(user_id, asset_set_id) do
+      # P5-WR-005: same per-resource advisory lock discipline as
+      # `move_collection_member/4` — the whole read-resolve-write
+      # sequence runs inside one transaction guarded by a per-user
+      # queue lock.
+      Repo.transaction(fn ->
+        with :ok <- lock_resource!(:queue, user_id),
+             {:ok, before_pos} <- resolve_queue_neighbour(user_id, before_id),
+             {:ok, after_pos} <- resolve_queue_neighbour(user_id, after_id),
+             :ok <- validate_neighbour_order(before_pos, after_pos) do
+          result =
+            if before_pos && after_pos && Position.needs_rebalance?(before_pos, after_pos) do
+              with {:ok, _rebalanced} <- do_rebalance_queue(user_id),
+                   {:ok, before_pos2} <- resolve_queue_neighbour(user_id, before_id),
+                   {:ok, after_pos2} <- resolve_queue_neighbour(user_id, after_id),
+                   :ok <- validate_neighbour_order(before_pos2, after_pos2) do
+                reposition_queue_item(user_id, item, Position.between(before_pos2, after_pos2))
+              end
+            else
+              reposition_queue_item(user_id, item, Position.between(before_pos, after_pos))
+            end
+
+          case result do
+            {:ok, updated} -> updated
             {:error, reason} -> Repo.rollback(reason)
           end
-        end)
-      else
-        reposition_queue_item(user_id, item, Position.between(before_pos, after_pos))
-      end
+        else
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end)
     end
   end
 
@@ -518,7 +556,7 @@ defmodule Playstead.Curation do
   """
   @spec delete_play_session(pos_integer(), Ecto.UUID.t()) :: {:ok, :removed} | {:error, term()}
   def delete_play_session(user_id, session_id) do
-    case Repo.get_by(PlaySession, id: session_id, user_id: user_id) do
+    case get_by_safe(PlaySession, id: session_id, user_id: user_id) do
       nil ->
         {:ok, :removed}
 
@@ -651,7 +689,7 @@ defmodule Playstead.Curation do
   @spec undismiss_continue(pos_integer(), Ecto.UUID.t() | nil, Ecto.UUID.t()) ::
           {:ok, :removed} | {:error, term()}
   def undismiss_continue(user_id, _id, asset_set_id) do
-    case Repo.get_by(ContinueDismissal, user_id: user_id, asset_set_id: asset_set_id) do
+    case get_by_safe(ContinueDismissal, user_id: user_id, asset_set_id: asset_set_id) do
       nil ->
         {:ok, :removed}
 
@@ -702,31 +740,45 @@ defmodule Playstead.Curation do
   # the calling user, regardless of whether the id is well-formed —
   # a guessed or reused id from another user must never resolve.
   defp verify_asset_set_ownership(user_id, asset_set_id) do
-    case Repo.get_by(AssetSet, id: asset_set_id, user_id: user_id) do
+    case get_by_safe(AssetSet, id: asset_set_id, user_id: user_id) do
       nil -> {:error, :not_found}
       %AssetSet{} -> :ok
     end
   end
 
   defp verify_collection_ownership(user_id, collection_id) do
-    case Repo.get_by(Collection, id: collection_id, user_id: user_id) do
+    case get_by_safe(Collection, id: collection_id, user_id: user_id) do
       nil -> {:error, :not_found}
       %Collection{} = collection -> {:ok, collection}
     end
   end
 
   defp fetch_collection_member(collection_id, asset_set_id) do
-    case Repo.get_by(CollectionMember, collection_id: collection_id, asset_set_id: asset_set_id) do
+    case get_by_safe(CollectionMember, collection_id: collection_id, asset_set_id: asset_set_id) do
       nil -> {:error, :not_found}
       %CollectionMember{} = member -> {:ok, member}
     end
   end
 
   defp fetch_queue_item(user_id, asset_set_id) do
-    case Repo.get_by(QueueItem, user_id: user_id, asset_set_id: asset_set_id) do
+    case get_by_safe(QueueItem, user_id: user_id, asset_set_id: asset_set_id) do
       nil -> {:error, :not_found}
       %QueueItem{} = item -> {:ok, item}
     end
+  end
+
+  # P5-WR-002: every id above is a client-controlled path segment cast
+  # into a `binary_id`/UUID-typed Ecto field. `Repo.get_by/2` raises
+  # `Ecto.Query.CastError` at query-build time for a malformed value
+  # (unlike `Ecto.Changeset.cast/3`, which returns an invalid
+  # changeset) — that used to surface as a raw exception (and,
+  # depending on the rescue path, a generic 500) instead of the
+  # correctness-appropriate "not found". Treat a bad cast exactly like
+  # "no matching row".
+  defp get_by_safe(queryable, clauses) do
+    Repo.get_by(queryable, clauses)
+  rescue
+    Ecto.Query.CastError -> nil
   end
 
   # P5-CR-001: `Position.between/2` requires `low < high` and otherwise
@@ -892,6 +944,36 @@ defmodule Playstead.Curation do
     )
     |> Repo.one()
   end
+
+  # P5-WR-001: takes a Postgres transaction-scoped advisory lock keyed
+  # on `{resource, key}` so a concurrent cap-check-then-insert for the
+  # same resource (e.g. the same user's collections, or the same
+  # collection's members) serializes behind whichever request acquires
+  # it first, rather than racing on a plain read-then-write. The lock
+  # is released automatically at transaction commit/rollback.
+  defp acquire_cap_lock(repo, resource, key) do
+    repo.query!("SELECT pg_advisory_xact_lock($1)", [advisory_lock_key(resource, key)])
+    {:ok, :locked}
+  end
+
+  # P5-WR-005: takes the same transaction-scoped advisory lock as
+  # `acquire_cap_lock/3` but for callers already inside a
+  # `Repo.transaction/1` block (rather than building an `Ecto.Multi`),
+  # e.g. the move/reorder read-resolve-write sequences. Blocks a
+  # concurrent mover for the same resource until this transaction
+  # commits or rolls back, rather than letting both work from a stale
+  # read of the neighbours' positions.
+  defp lock_resource!(resource, key) do
+    Repo.query!("SELECT pg_advisory_xact_lock($1)", [advisory_lock_key(resource, key)])
+    :ok
+  end
+
+  defp advisory_lock_key(resource, key), do: :erlang.phash2({resource, key})
+
+  # `check_*_cap/1,2` return a plain `:ok | {:error, _}`, but
+  # `Ecto.Multi.run/3` callbacks must return `{:ok, _} | {:error, _}`.
+  defp as_multi_result(:ok), do: {:ok, :ok}
+  defp as_multi_result({:error, _reason} = error), do: error
 
   defp check_collection_cap(user_id) do
     count = Repo.aggregate(from(c in Collection, where: c.user_id == ^user_id), :count)
