@@ -64,8 +64,23 @@ parse_boolean_env = fn var, default ->
   end
 end
 
+# The container paths are the right defaults under Docker, where the
+# compose file bind-mounts `./inbox:/app/inbox:ro`. They are the wrong
+# defaults for a developer running natively via `mix phx.server`, where
+# `/app` does not exist: the import UI would show an empty folder with no
+# explanation. In `:dev` the default is therefore the repo's own `inbox/`
+# directory, which is where the compose mount points at anyway.
+# `PLAYSTEAD_INBOX_PATH` still overrides in every environment, and prod
+# (and therefore the shipped image) is untouched.
+default_inbox_path =
+  if config_env() == :dev do
+    Path.join(File.cwd!(), "inbox")
+  else
+    "/app/inbox"
+  end
+
 config :playstead,
-  inbox_path: System.get_env("PLAYSTEAD_INBOX_PATH", "/app/inbox"),
+  inbox_path: System.get_env("PLAYSTEAD_INBOX_PATH", default_inbox_path),
   export_path: System.get_env("PLAYSTEAD_EXPORT_PATH", "/app/exports"),
   import_concurrency: parse_integer_env.("PLAYSTEAD_IMPORT_CONCURRENCY", 2),
   import_verify: parse_boolean_env.("PLAYSTEAD_IMPORT_VERIFY", true),

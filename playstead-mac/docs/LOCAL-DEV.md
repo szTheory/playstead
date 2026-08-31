@@ -56,12 +56,15 @@ cd playstead-server
 # binaries (this first run needs network access).
 mix setup
 
-# The inbox/export paths default to the *container* paths /app/inbox and
-# /app/exports even in dev, which do not exist on a Mac. Point them at real
-# local directories or the import UI will silently show an empty folder.
-mkdir -p inbox exports
-export PLAYSTEAD_INBOX_PATH="$PWD/inbox"
+# The inbox defaults to this repo's own ./inbox in dev, so nothing to do
+# there — drop ROMs straight into playstead-server/inbox/. The export path
+# still defaults to the *container* path /app/exports, which does not exist
+# on a Mac, so point it at a real local directory.
+mkdir -p exports
 export PLAYSTEAD_EXPORT_PATH="$PWD/exports"
+
+# Optional: PLAYSTEAD_INBOX_PATH still overrides the default in every
+# environment, if you keep your ROMs somewhere else.
 
 mix phx.server
 ```
@@ -105,9 +108,9 @@ Two things that will confuse you:
 
 ## 2. Import ROMs
 
-1. **Put files in the inbox.** Copy ROMs into the directory you set as
-   `PLAYSTEAD_INBOX_PATH` (above, `playstead-server/inbox/`). Under Docker this
-   is `./inbox`, mounted read-only at `/app/inbox`.
+1. **Put files in the inbox.** Copy ROMs into `playstead-server/inbox/` — the
+   dev default, and the same directory Docker bind-mounts read-only at
+   `/app/inbox`. Set `PLAYSTEAD_INBOX_PATH` if you keep them elsewhere.
 
 2. **Stage them.** Go to <http://localhost:4000/import/sessions>, click
    **Preview inbox folder**. You get a readout like
@@ -380,6 +383,6 @@ from what the test suite asserts.
 | `pair-dev.sh`: "Could not write the credential to the login Keychain" | Login keychain locked (`security unlock-keychain`), or an access dialog was dismissed. The device *is* paired server-side — revoke it at `/devices` before re-running. |
 | Authenticated request returns 401 | Device was revoked at `/devices`. Re-pair. |
 | `/setup` returns 404 | An owner already exists. `mix ecto.reset` to start over. |
-| "Preview inbox folder" shows `0 files, 0 bytes` | `PLAYSTEAD_INBOX_PATH` unset, so it defaults to the container path `/app/inbox`. Export it and restart the server. |
+| "Preview inbox folder" shows `0 files, 0 bytes` | The folder really is empty — in dev the inbox defaults to `playstead-server/inbox/`, so copy ROMs there. The readiness panel's inbox row names the exact path being scanned. |
 | App can't reach the server over https | Expected — see [A note on TLS](#a-note-on-tls). Use loopback HTTP. |
 | A ROM imported but won't play | It is probably an archive. Check `/attention` → **Archives kept unopened**. Extract it and re-import. |

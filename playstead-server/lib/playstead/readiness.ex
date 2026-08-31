@@ -160,10 +160,19 @@ defmodule Playstead.Readiness do
   # mount as broken.
 
   @inbox_path_env "PLAYSTEAD_INBOX_PATH"
-  @default_inbox_path "/app/inbox"
+
+  # Falls back to whatever `config :playstead, :inbox_path` resolved to
+  # rather than re-hardcoding the container path. `runtime.exs` already
+  # decides that per environment (the repo's own `inbox/` in `:dev`, the
+  # bind-mount target `/app/inbox` elsewhere), and this row must name the
+  # folder the import UI actually scans — a readiness panel reporting on
+  # a different directory than the one being read is worse than no row.
+  defp default_inbox_path do
+    Application.get_env(:playstead, :inbox_path) || "/app/inbox"
+  end
 
   defp inbox_check(env) do
-    path = env[@inbox_path_env] || @default_inbox_path
+    path = env[@inbox_path_env] || default_inbox_path()
 
     case File.ls(path) do
       {:ok, _entries} ->
@@ -184,7 +193,7 @@ defmodule Playstead.Readiness do
         id: :inbox,
         state: :warning,
         message:
-          "#{env[@inbox_path_env] || @default_inbox_path} could not be checked: " <>
+          "#{env[@inbox_path_env] || default_inbox_path()} could not be checked: " <>
             "#{Exception.message(e)}. Configure the compose bind mount `./inbox:/app/inbox:ro`."
       }
   end

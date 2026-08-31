@@ -42,3 +42,10 @@ npm-debug.log
 # Platform-specific esbuild/tailwind binaries downloaded by their Mix tasks.
 /esbuild-*
 /tailwind-*
+
+# The dev inbox (config/runtime.exs points :inbox_path here in :dev, and
+# docker-compose bind-mounts it read-only at /app/inbox). Its README is
+# tracked so the folder exists on a fresh clone; the ROMs you drop in are
+# yours, not the repo's.
+/inbox/*
+!/inbox/README.md
