@@ -15,10 +15,24 @@ enum Migrations {
                 id TEXT PRIMARY KEY,
                 system TEXT NOT NULL,
                 display_title TEXT NOT NULL,
-                tags_json TEXT NOT NULL
+                tags_json TEXT NOT NULL,
+                search_blob TEXT NOT NULL DEFAULT '',
+                availability TEXT NOT NULL DEFAULT 'server_only'
             );
             """
         )
+        // Defensive column adds for a pre-03-06 dev database that already
+        // has `catalogue_entries` without these columns — `CREATE TABLE
+        // IF NOT EXISTS` above is a no-op against an existing table, so
+        // these idempotent-via-try? ALTERs are what actually upgrades it.
+        // A brand new database already has both columns from the CREATE
+        // TABLE above; these simply no-op (duplicate-column error,
+        // swallowed) in that case.
+        try? connection.execute("ALTER TABLE catalogue_entries ADD COLUMN search_blob TEXT NOT NULL DEFAULT '';")
+        try? connection.execute("ALTER TABLE catalogue_entries ADD COLUMN availability TEXT NOT NULL DEFAULT 'server_only';")
+        try connection.execute("CREATE INDEX IF NOT EXISTS idx_catalogue_entries_search_blob ON catalogue_entries(search_blob);")
+        try connection.execute("CREATE INDEX IF NOT EXISTS idx_catalogue_entries_system ON catalogue_entries(system);")
+        try connection.execute("CREATE INDEX IF NOT EXISTS idx_catalogue_entries_availability ON catalogue_entries(availability);")
         try connection.execute(
             """
             CREATE TABLE IF NOT EXISTS catalogue_members (
