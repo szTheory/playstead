@@ -316,12 +316,22 @@ start_native_services() {
   export PLAYSTEAD_MAC_CI_ROOT="$server_root"
   export MAC_CI_DATABASE_URL="ecto://${pg_user}@127.0.0.1:${pg_port}/playstead_mac_ci"
 
-  (
+  # Dependency compilation and migrations can exceed the server readiness
+  # deadline on a cold hosted image. Finish that bootstrap synchronously so
+  # the deadline measures Phoenix startup rather than package installation.
+  if ! (
     cd "$REPO_ROOT/playstead-server"
     mix deps.get
     mix ecto.migrate
-    mix phx.server >"$NATIVE_ROOT/phoenix.log" 2>&1
-  ) &
+  ) >"$NATIVE_ROOT/bootstrap.log" 2>&1; then
+    tail -n 120 "$NATIVE_ROOT/bootstrap.log" >&2
+    die "native Phoenix bootstrap failed"
+  fi
+
+  (
+    cd "$REPO_ROOT/playstead-server"
+    exec mix phx.server
+  ) >"$NATIVE_ROOT/phoenix.log" 2>&1 &
   PHOENIX_PID=$!
 
   local ready=false
@@ -330,10 +340,16 @@ start_native_services() {
       ready=true
       break
     fi
-    kill -0 "$PHOENIX_PID" 2>/dev/null || die "native Phoenix exited before health"
+    if ! kill -0 "$PHOENIX_PID" 2>/dev/null; then
+      tail -n 120 "$NATIVE_ROOT/phoenix.log" >&2
+      die "native Phoenix exited before health"
+    fi
     sleep 1
   done
-  [ "$ready" = true ] || die "native Phoenix health deadline exceeded"
+  if [ "$ready" != true ]; then
+    tail -n 120 "$NATIVE_ROOT/phoenix.log" >&2
+    die "native Phoenix health deadline exceeded"
+  fi
 }
 
 write_adoption_evidence() {

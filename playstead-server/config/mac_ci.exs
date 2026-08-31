@@ -4,7 +4,9 @@ import Config
 # It deliberately does not inherit the test transaction owner, endpoint
 # isolation plug, or Oban's manual test engine: XCUITest is an external client
 # and must observe ordinary transaction and process ownership.
-native_root = System.get_env("PLAYSTEAD_MAC_CI_ROOT", Path.join(System.tmp_dir!(), "playstead-mac-ci"))
+native_root =
+  System.get_env("PLAYSTEAD_MAC_CI_ROOT", Path.join(System.tmp_dir!(), "playstead-mac-ci"))
+
 System.put_env("PLAYSTEAD_INBOX_PATH", Path.join(native_root, "inbox"))
 System.put_env("PLAYSTEAD_BLOB_PATH", Path.join(native_root, "blobs"))
 System.put_env("PLAYSTEAD_EXPORT_PATH", Path.join(native_root, "exports"))
