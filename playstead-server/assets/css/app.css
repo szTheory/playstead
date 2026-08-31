@@ -161,3 +161,180 @@
 [data-phx-session], [data-phx-teleported-src] { display: contents }
 
 /* This file is for your main application CSS */
+
+/* ---------------------------------------------------------------------
+   Phase 3 library/curation console (03-UI-SPEC.md). Two new, deliberately
+   disjoint color vocabularies: system identity and content status. They
+   never share a literal value with each other or with Phase 1's semantic
+   roles (D-13) — no state is ever conveyed by color alone (QUAL-01).
+   ------------------------------------------------------------------- */
+:root {
+  /* System Identity Palette — monogram tile background and, at reduced
+     opacity, the meta-line system chip. Never conveys state or health. */
+  --system-accent-gba: #6366f1;
+  --system-accent-gb: #65a30d;
+  --system-accent-gbc: #0d9488;
+  --system-accent-nes: #b91c1c;
+  --system-accent-snes: #a21caf;
+  --system-accent-md: #1d4ed8;
+  --system-accent-psx: #57534e;
+  --system-accent-unknown: #64748b;
+
+  /* Status Ladder Palette — the one status slot on a card, and the
+     storage view. Never conveys system identity. */
+  --status-attention: #f59e0b;
+  --status-missing-dependency: #ea580c;
+  --status-downloading: #0ea5e9;
+  --status-queued: #9ca3af;
+  --status-verified: #16a34a;
+  --status-pinned: #15803d;
+  --status-server-only: #94a3b8;
+  --status-safe-to-evict: #78716c;
+}
+
+/* Game card — three-zone anatomy, fixed landscape tile (D-12/D-13). Fixed
+   size is deliberate: D-16 requires zero skeletons and stable row heights
+   for a 500-item library, only possible if geometry never depends on
+   content length. */
+.game-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  width: 280px;
+  height: 158px;
+  padding: 16px;
+  border-radius: 0.5rem;
+  border: 1px solid #334155;
+  background-color: #1e293b;
+  overflow: hidden;
+}
+
+.game-card:hover,
+.game-card:focus-visible {
+  border-color: #38bdf8;
+}
+
+.game-card-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.game-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 0;
+}
+
+.system-monogram {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.5em;
+  padding: 2px 6px;
+  border-radius: 0.25rem;
+  color: #f1f5f9;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.unidentified-badge {
+  white-space: nowrap;
+}
+
+/* Shelves — horizontal, keyboard-scrollable rows (D-11). */
+.library-shelf-track {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding-block: 4px;
+  scroll-snap-type: x proximity;
+}
+
+.library-shelf-item {
+  scroll-snap-align: start;
+  flex: none;
+}
+
+/* Status slot — one indicator, glyph + shape + color together, never
+   color alone (D-13). Shapes are distinct clip-paths per rank so the
+   badge silhouette itself, not only its color, carries the meaning. */
+.status-slot {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  padding: 2px 6px;
+  border-width: 1px;
+  border-style: solid;
+}
+
+.status-slot-glyph {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  background-color: currentColor;
+}
+
+.status-badge-triangle {
+  clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+}
+
+.status-badge-hexagon {
+  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+}
+
+.status-badge-ring {
+  border-radius: 9999px;
+  background-color: transparent;
+}
+
+.status-badge-rounded-square {
+  border-radius: 0.375rem;
+}
+
+.status-badge-teardrop {
+  border-radius: 50% 50% 50% 0;
+}
+
+.status-badge-circle-filled {
+  border-radius: 9999px;
+}
+
+.status-badge-cloud {
+  border-radius: 9999px 9999px 0.5rem 0.5rem;
+}
+
+/* Filter chips — pressed state carries a visible non-color signal
+   (border weight + `aria-pressed`), never color alone. */
+.filter-chip[aria-pressed="true"] {
+  border-width: 2px;
+  font-weight: 600;
+}
+
+/* Sidebar. */
+.library-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Motion budget (D-16): progress fill is continuous and information-
+   bearing, so it is retained under reduced motion; everything else
+   collapses to an instant swap. */
+.status-slot-downloading .status-slot-glyph,
+.status-slot-verified .status-slot-glyph,
+.status-slot-pinned .status-slot-glyph {
+  transition: opacity 150ms ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-slot-downloading .status-slot-glyph,
+  .status-slot-verified .status-slot-glyph,
+  .status-slot-pinned .status-slot-glyph {
+    transition: none;
+  }
+}

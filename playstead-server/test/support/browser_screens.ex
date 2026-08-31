@@ -13,7 +13,7 @@ defmodule PlaysteadWeb.BrowserScreens do
   import Playstead.PairingFixtures
   import Playstead.TlsFixtures
 
-  alias Playstead.{Accounts, Import, Pairing, Repo, Setup}
+  alias Playstead.{Accounts, Curation, Import, Pairing, Repo, Setup}
 
   @screens [
     :login,
@@ -26,6 +26,8 @@ defmodule PlaysteadWeb.BrowserScreens do
     :import_sessions,
     :library,
     :library_detail,
+    :library_collections,
+    :library_collection_detail,
     :attention,
     :exports,
     :reference_packs
@@ -43,6 +45,8 @@ defmodule PlaysteadWeb.BrowserScreens do
   def path(:import_sessions), do: "/import/sessions"
   def path(:library), do: "/library"
   def path(:library_detail), do: "/library/:id"
+  def path(:library_collections), do: "/library/collections"
+  def path(:library_collection_detail), do: "/library/collections/:id"
   def path(:attention), do: "/attention"
   def path(:exports), do: "/exports"
   def path(:reference_packs), do: "/reference-packs"
@@ -174,6 +178,46 @@ defmodule PlaysteadWeb.BrowserScreens do
       |> visit_live("/library/#{receipt.asset_set_id}")
 
     {session, %{user: user, receipt: receipt}}
+  end
+
+  def open(session, :library_collections) do
+    {user, receipt} = seed_library_asset()
+    {:ok, collection} = Curation.create_collection(user.id, Ecto.UUID.generate(), "My Favorites")
+
+    {:ok, _member} =
+      Curation.add_collection_member(
+        user.id,
+        collection.id,
+        Ecto.UUID.generate(),
+        receipt.asset_set_id
+      )
+
+    session =
+      session
+      |> log_in_via_cookie(user, token_authenticated_at: DateTime.utc_now(:second))
+      |> visit_live(path(:library_collections))
+
+    {session, %{user: user, collection: collection}}
+  end
+
+  def open(session, :library_collection_detail) do
+    {user, receipt} = seed_library_asset()
+    {:ok, collection} = Curation.create_collection(user.id, Ecto.UUID.generate(), "My Favorites")
+
+    {:ok, _member} =
+      Curation.add_collection_member(
+        user.id,
+        collection.id,
+        Ecto.UUID.generate(),
+        receipt.asset_set_id
+      )
+
+    session =
+      session
+      |> log_in_via_cookie(user, token_authenticated_at: DateTime.utc_now(:second))
+      |> visit_live("/library/collections/#{collection.id}")
+
+    {session, %{user: user, collection: collection}}
   end
 
   def open(session, :attention) do

@@ -8,7 +8,16 @@ defmodule PlaysteadWeb.Browser.PaletteTest do
 
   alias PlaysteadWeb.BrowserScreens
 
-  @palette ~w(#0F172A #1E293B #38BDF8 #EF4444 #4ADE80 #FBBF24 #F1F5F9 #94A3B8 #334155)
+  # Phase 1's nine-hex console palette, plus the two Phase 3 vocabularies
+  # 03-UI-SPEC.md adds alongside it (never replacing it): system identity
+  # (monogram tiles, meta-line chips) and the status ladder (one status
+  # slot per card, the storage view). Both are deliberately disjoint from
+  # each other and from Phase 1's semantic roles — see 03-UI-SPEC.md
+  # § Color — so they are additive here, not a relaxation of the rule.
+  @system_accents ~w(#6366F1 #65A30D #0D9488 #B91C1C #A21CAF #1D4ED8 #57534E #64748B)
+  @status_ladder ~w(#F59E0B #EA580C #0EA5E9 #9CA3AF #16A34A #15803D #94A3B8 #78716C)
+  @palette ~w(#0F172A #1E293B #38BDF8 #EF4444 #4ADE80 #FBBF24 #F1F5F9 #94A3B8 #334155) ++
+             @system_accents ++ @status_ladder
   @accent "#38BDF8"
   @destructive "#EF4444"
   @success "#4ADE80"
@@ -17,13 +26,13 @@ defmodule PlaysteadWeb.Browser.PaletteTest do
   # Where the accent may appear: primary CTAs, the display code, code-role
   # text, the "(this device)" marker, the info flash, and the focus ring
   # (any focused element).
-  @accent_ids ~w(login_submit sudo_submit recovery_submit setup_token_submit owner_submit continue_to_readiness finish_setup flash-info import-pack-submit)
+  @accent_ids ~w(login_submit sudo_submit recovery_submit setup_token_submit owner_submit continue_to_readiness finish_setup flash-info import-pack-submit create-collection-submit)
   @accent_prefixes ~r/^(display-code-|approve-|recovery-code-|confirm-import-)/
   @accent_suffixes ~r/(-rename-save|-current)$/
 
   # Where destructive red may appear: Deny / Revoke controls, the Expired
   # marker, the error flash, and inline validation errors.
-  @destructive_prefixes ~r/^(deny-|flash-error)/
+  @destructive_prefixes ~r/^(deny-|flash-error|delete-collection-)/
   @destructive_suffixes ~r/(-revoke|-expired|_error)$/
 
   for screen <- BrowserScreens.screens() do

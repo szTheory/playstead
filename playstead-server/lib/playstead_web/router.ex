@@ -394,6 +394,8 @@ defmodule PlaysteadWeb.Router do
     live_session :library,
       on_mount: [{PlaysteadWeb.UserAuth, :mount_current_scope}] do
       live "/library", LibraryLive, :index
+      live "/library/collections", CollectionsLive, :index
+      live "/library/collections/:id", CollectionsLive, :show
       live "/library/:id", LibraryLive, :show
     end
   end
