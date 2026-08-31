@@ -7,10 +7,11 @@ diff_base: c90348e6b5b8c0a202b3e696bb106a0b97b496d1^
 partitions: 6
 files_reviewed: 184
 findings:
-  critical: 12
+  critical: 14
   warning: 33
   info: 12
-  total: 57
+  total: 59
+review_completeness: amended — see 'Findings this review initially missed'
 status: issues_found
 files_reviewed_list:
   - playstead-mac/.gitignore
@@ -215,8 +216,53 @@ prefixed `P1-`..`P6-` by partition and are unique across the whole report.
 | P6 | server tests + migrations, spike toolchain, docs | 49 | 1 | 5 | 1 |
 | **Total** | | **184** | **12** | **33** | **12** |
 
+## ⚠ Findings this review initially missed
+
+This report was regenerated on 2026-08-31 by six partitioned reviewers, overwriting the
+previous `03-REVIEW.md` (commit `f12e4c4`). **Two CRITICAL path-traversal findings from that
+earlier review were not re-discovered by any partition, and the overwrite removed the only
+record of them.** They were recovered from git and are restored below. Both were confirmed
+still live in the source at the time of recovery — the re-review's silence was a false
+negative, not evidence of a fix.
+
+Root cause of the miss: the partitioned reviewers were each given a directory slice and
+asked to look for defects within it. CR-01/CR-02 are a *data-flow* defect — a server-supplied
+string crossing from `Net/` (partition 1) into `Cache/` and `App/` path construction
+(partitions 1 and 2) — and no single partition's prompt framed the trust boundary that makes
+it critical. Partition-scoped review is structurally weak at cross-cutting taint flows.
+Treat that as a known limitation of this report, not just of these two findings.
+
+Both are now FIXED in commit `56781ec` (validation at ingest in `SnapshotClient`/`CatalogueStore`
+plus throwing, allowlist-validated path accessors in `App/PathSafety.swift`), with 16
+regression tests in `PlaysteadTests/SecurityTests/PathTraversalTests.swift` that assert on
+filesystem outcome rather than return values.
+
+### P0-CR-001 (was CR-01): Path traversal via unvalidated catalogue member filename
+
+`Cache/LaunchMaterializer.swift:49` built its destination as
+`directory.appendingPathComponent(member.declaredName)`, where `declaredName` is
+`AssetMember.name` decoded verbatim from `/api/v1/snapshot` and `/api/v1/changes` with no
+bare-filename check. `FileManager.copyItem` then wrote verified cache content to the resolved
+path, so a compromised or spoofed paired server could write attacker-chosen bytes to an
+attacker-chosen path (`~/Library/LaunchAgents/…`, `~/.zshrc`, any login-executed dotfile).
+Materially worse than usual because `Playstead.entitlements` intentionally sets
+`com.apple.security.app-sandbox` to `false`, so there is no OS containment backstop.
+
+### P0-CR-002 (was CR-02): Unvalidated server-supplied `sha256` as a path component
+
+`App/AppPaths.swift`'s `objectURL(for:)` / `partialURL(for:)` spliced the server-supplied
+`sha256` straight into path components with no hex-digest format check, reached from
+`CASManager`, `DownloadEngine`, `PreflightChecker`, `ReadinessEngine`, and
+`LaunchMaterializer`. The digest check provides no integrity backstop here, because the
+payload is only verified to hash to that same attacker-chosen string. Same arbitrary-file-write
+class as P0-CR-001.
+
+---
+
 ## Critical findings at a glance
 
+- **P0-CR-001** Server-declared member filename spliced into a launch path — arbitrary file write (missed by this review; recovered, now fixed).
+- **P0-CR-002** Server-declared `sha256` spliced into cache paths — same class (missed by this review; recovered, now fixed).
 - **P1-CR-001** `DownloadCoordinator` retries permanently-failing downloads with no backoff or attempt cap.
 - **P1-CR-002** `EvictionPlanner.execute` deletes CAS file and DB row non-atomically — crash leaves a false `verifiedLocal`.
 - **P1-CR-003** Device-paired bearer token stored `AfterFirstUnlock` (not `...ThisDeviceOnly`) — syncs via iCloud Keychain.
