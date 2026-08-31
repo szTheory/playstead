@@ -54,40 +54,15 @@ final class LocalStore {
     /// transaction. A full replace (rather than a diff) is correct here
     /// because `/api/v1/snapshot`'s `catalogue` branch is itself a full
     /// as-of-cursor snapshot, not an incremental delta.
+    ///
+    /// Delegates to `CatalogueStore.replaceAll`, which populates
+    /// `search_blob` via `upsert` — this used to be a second, divergent
+    /// insert implementation that never touched `search_blob`, leaving it
+    /// at its column-default `''` for every snapshot-bootstrapped entry
+    /// and silently breaking `CatalogueStore.filteredQuery`'s search until
+    /// the next real `upsert` (P1-IN-002).
     func replaceCatalogue(_ entries: [CatalogueEntry]) throws {
-        try connection.transaction {
-            try connection.execute("DELETE FROM catalogue_members;")
-            try connection.execute("DELETE FROM catalogue_entries;")
-
-            for entry in entries {
-                let tagsData = (try? JSONEncoder().encode(entry.tags)) ?? Data("{}".utf8)
-                let tagsJSON = String(data: tagsData, encoding: .utf8) ?? "{}"
-
-                try connection.execute(
-                    "INSERT INTO catalogue_entries (id, system, display_title, tags_json) VALUES (?, ?, ?, ?);",
-                    params: [entry.id, entry.system, entry.displayTitle, tagsJSON]
-                )
-
-                for member in entry.members {
-                    try connection.execute(
-                        """
-                        INSERT INTO catalogue_members
-                            (asset_set_id, ordinal, role, required, sha256, size, name)
-                        VALUES (?, ?, ?, ?, ?, ?, ?);
-                        """,
-                        params: [
-                            entry.id,
-                            member.ordinal,
-                            member.role,
-                            member.required ? 1 : 0,
-                            member.sha256,
-                            member.size,
-                            member.name
-                        ]
-                    )
-                }
-            }
-        }
+        try CatalogueStore(localStore: self).replaceAll(entries)
     }
 
     /// Reads every persisted catalogue entry, joined with its members,
