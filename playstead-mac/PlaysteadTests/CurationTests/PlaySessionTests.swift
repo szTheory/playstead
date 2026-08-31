@@ -200,7 +200,13 @@ final class PlaySessionTests: XCTestCase {
         let pin = try JSONDecoder().decode(AdapterPin.self, from: Data(pinJSON.utf8))
 
         let emulatorDir = tempRoot.appendingPathComponent("emulators").appendingPathComponent(pin.emulator).appendingPathComponent(pin.version)
-        try JSONEncoder().encode(InstallVerifyRecord(sha256: pin.sha256)).write(to: emulatorDir.appendingPathComponent(".install-verify.json"))
+        // The archive digest is what the pin describes; the executable
+        // digest is the separate baseline the launch re-hashes against.
+        try JSONEncoder().encode(InstallVerifyRecord(
+            archiveSHA256: pin.sha256,
+            executableSHA256: echoDigest,
+            executablePath: echoDestination.path
+        )).write(to: emulatorDir.appendingPathComponent(".install-verify.json"))
 
         let host = AdapterHost(pin: pin, emulatorsRoot: tempRoot.appendingPathComponent("emulators"))
 

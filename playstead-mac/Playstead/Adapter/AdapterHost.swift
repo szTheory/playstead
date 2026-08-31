@@ -1,12 +1,29 @@
 import Foundation
 import AppKit
 
-/// Recorded once at emulator install time (a later plan's job — this
-/// tracer plan does not build the installer) and re-checked on every
-/// launch by `AdapterHost.verifyInstalledDigest()`. The spike proved
-/// the binary once; the app re-proves it every time.
+/// Written at install/select time by `AdapterInstaller` and re-checked on
+/// every launch by `AdapterHost.verifyInstalledDigest()`. The spike
+/// proved the binary once; the app re-proves it every time.
+///
+/// Carries the installation's **two distinct digests** (see
+/// `AdapterInstallation`): the archive digest that was checked against
+/// `AdapterPin.sha256` at download time, and the expanded executable's
+/// own digest, which is the value a launch re-hashes against. A record
+/// written by an older build (which stored a single `sha256` field whose
+/// value was the archive digest) fails to decode here and is treated as
+/// unrecorded — fail-closed, which forces a re-install rather than
+/// trusting an ambiguous digest.
 struct InstallVerifyRecord: Codable, Equatable {
-    let sha256: String
+    /// `nil` for a user-selected installation, which never had an archive.
+    let archiveSHA256: String?
+    let executableSHA256: String
+    let executablePath: String
+
+    private enum CodingKeys: String, CodingKey {
+        case archiveSHA256 = "archive_sha256"
+        case executableSHA256 = "executable_sha256"
+        case executablePath = "executable_path"
+    }
 }
 
 /// Keeps every launched emulator process terminated when the app quits,
@@ -94,6 +111,13 @@ actor AdapterHost {
     /// unchanged for any caller that never sets it.
     private var installState: AdapterInstallState = .notInstalled
 
+    /// The digest of the *executable* this installation is supposed to
+    /// be — recorded by `AdapterInstaller` at install/select time and
+    /// re-hashed against the live file on every launch. Never
+    /// `pin.sha256`: that digest describes the published archive, a
+    /// different byte stream, and comparing the two can never succeed.
+    private var expectedExecutableSHA256: String?
+
     /// The controller mapping `ControllerSettingsView`/`ControllerHost`
     /// currently have active for the assigned controller, injected into
     /// every subsequent launch's rendered arguments. `nil` (the default)
@@ -115,6 +139,18 @@ actor AdapterHost {
     /// rather than a failed process spawn.
     func setInstallState(_ state: AdapterInstallState) {
         installState = state
+        expectedExecutableSHA256 = nil
+    }
+
+    /// The call site `AdapterInstaller`'s install/select result flows
+    /// through: records both the path to launch and the executable digest
+    /// every later launch re-hashes against, so the live re-verification
+    /// below has something it can actually compare to.
+    func setInstallation(_ installation: AdapterInstallation) {
+        installState = .installed(
+            executablePath: installation.executablePath, verified: installation.verified
+        )
+        expectedExecutableSHA256 = installation.executableSHA256
     }
 
     /// Sets (or clears, with `nil`) the controller mapping every
@@ -212,61 +248,70 @@ actor AdapterHost {
             // mismatch rather than being masked by an unrelated
             // "file not found" if its path also happens not to resolve.
             guard verified else {
-                throw LaunchError.digestMismatch(expected: pin.sha256, actual: "unverified-selection")
+                throw LaunchError.digestMismatch(
+                    expected: expectedExecutableSHA256 ?? "recorded-executable-digest",
+                    actual: "unverified-selection"
+                )
             }
             guard FileManager.default.fileExists(atPath: path) else {
                 throw LaunchError.emulatorNotInstalled
             }
-            try reverifyLiveDigest(at: path)
+            guard let expected = expectedExecutableSHA256 ?? recordedInstallVerify()?.executableSHA256 else {
+                // An install state handed over without an executable
+                // digest baseline cannot be re-verified, and launching
+                // unverified bytes is exactly what this gate exists to
+                // refuse.
+                throw LaunchError.digestMismatch(
+                    expected: "recorded-executable-digest", actual: "unrecorded"
+                )
+            }
+            try reverifyLiveDigest(at: path, expected: expected)
             return
         }
 
         guard FileManager.default.fileExists(atPath: executableURL.path) else {
             throw LaunchError.emulatorNotInstalled
         }
-        guard
-            let data = try? Data(contentsOf: installVerifyURL),
-            let record = try? JSONDecoder().decode(InstallVerifyRecord.self, from: data)
-        else {
+        guard let record = recordedInstallVerify() else {
             throw LaunchError.digestMismatch(expected: pin.sha256, actual: "unrecorded")
         }
-        guard record.sha256 == pin.sha256 else {
-            throw LaunchError.digestMismatch(expected: pin.sha256, actual: record.sha256)
+        // Supply chain: when this installation came from a download, the
+        // archive it was expanded from must still name the pinned
+        // release. `pin.sha256` is compared here — against the archive
+        // digest — and nowhere else.
+        if let archiveDigest = record.archiveSHA256, archiveDigest != pin.sha256 {
+            throw LaunchError.digestMismatch(expected: pin.sha256, actual: archiveDigest)
         }
-        // The cached record only proves the digest matched at some past
-        // install/select moment — it says nothing about the bytes
-        // currently on disk. Re-hash the live file every launch, exactly
-        // as `InstallVerifyRecord`'s own doc comment promises ("the app
-        // re-proves it every time"), so a binary swapped or corrupted
-        // after install is caught here instead of trusted forever
-        // (P2-CR-001).
-        try reverifyLiveDigest(at: executableURL.path)
+        // Integrity: the cached record only proves the digest matched at
+        // some past install/select moment — it says nothing about the
+        // bytes currently on disk. Re-hash the live executable every
+        // launch, exactly as `InstallVerifyRecord`'s own doc comment
+        // promises ("the app re-proves it every time"), so a binary
+        // swapped or corrupted after install is caught here instead of
+        // trusted forever (P2-CR-001).
+        try reverifyLiveDigest(at: executableURL.path, expected: record.executableSHA256)
+    }
+
+    private func recordedInstallVerify() -> InstallVerifyRecord? {
+        guard let data = try? Data(contentsOf: installVerifyURL) else { return nil }
+        return try? JSONDecoder().decode(InstallVerifyRecord.self, from: data)
     }
 
     /// Re-hashes the file currently on disk at `path` and confirms it
-    /// still matches `pin.sha256` — the actual "re-proves it every time"
-    /// check neither the cached-record fallback nor the install-state
-    /// fast path performed before this fix.
+    /// still matches the digest recorded for this installation's
+    /// **executable** — the actual "re-proves it every time" check.
     ///
-    /// NOTE for whoever wires `setInstallState` to a real `install()`
-    /// call site: `AdapterInstaller.install()` currently validates the
-    /// *downloaded archive's* digest against `pin.sha256`, not the
-    /// *expanded executable's* digest — the two are different byte
-    /// streams (an archive/disk-image vs. its unpacked binary) and will
-    /// not compare equal here. `selectExisting()` already hashes the
-    /// resolved executable directly, so that flow is consistent with
-    /// this check. Before wiring `install()`'s result into
-    /// `setInstallState`, either (a) also record and compare against the
-    /// expanded executable's own digest (not `pin.sha256` directly), or
-    /// (b) confirm `pin.sha256` is meant to describe the expanded
-    /// executable and adjust `install()` to hash post-expansion instead
-    /// of the archive. This is a real design decision, not a mechanical
-    /// fix — see P2-CR-001 in 03-REVIEW.md.
-    private func reverifyLiveDigest(at path: String) throws {
+    /// `expected` is deliberately a parameter rather than `pin.sha256`:
+    /// the pin's digest describes the published *archive*, so hashing an
+    /// expanded executable and comparing it to the pin could never
+    /// succeed and made every launch fail with `digestMismatch`. The
+    /// archive is still verified against the pin — at download time, in
+    /// `AdapterInstaller.install()`, which is where the archive exists.
+    private func reverifyLiveDigest(at path: String, expected: String) throws {
         var hasher = try StreamingSHA256.resume(from: URL(fileURLWithPath: path))
         let actualDigest = hasher.finalizeHex()
-        guard actualDigest == pin.sha256 else {
-            throw LaunchError.digestMismatch(expected: pin.sha256, actual: actualDigest)
+        guard actualDigest == expected else {
+            throw LaunchError.digestMismatch(expected: expected, actual: actualDigest)
         }
     }
 

@@ -16,6 +16,11 @@ struct AdapterCapabilityCard: Equatable {
     /// built before any BIOS has been evaluated correctly renders the
     /// no-BIOS caveat.
     var hasManagedBIOS: Bool = false
+    /// How this installation got here. A downloaded install had its
+    /// archive checked against the pin; a user-selected build never had
+    /// an archive to check, so the card must not restate the pinned
+    /// build's support claims for it.
+    var provenance: AdapterProvenance = .pinnedRelease
 
     /// Shown whenever no BIOS is present and the adapter's built-in
     /// high-level implementation covers the system — so a user who later
@@ -48,9 +53,15 @@ struct AdapterCapabilityCard: Equatable {
         case .notInstalled:
             return "Not installed."
         case .installed(_, let verified):
-            return verified
-                ? "Installed and verified — matches the pinned release."
-                : "Installed, but unverified — this build's digest does not match the pinned release. Support claims for the pinned build may not apply."
+            guard verified else {
+                return "Installed, but unverified — this installation has no recorded digest to re-check on launch. Support claims for the pinned build do not apply."
+            }
+            switch provenance {
+            case .pinnedRelease:
+                return "Installed and verified — matches the pinned release."
+            case .userSelected:
+                return "Installed, but unverified against the pinned release — this is a build you selected, re-checked against its own recorded digest on every launch. Support claims for the pinned build may not apply."
+            }
         }
     }
 
@@ -67,11 +78,17 @@ struct AdapterCapabilityCard: Equatable {
 extension AdapterCapabilityCard {
     /// Derives `hasManagedBIOS` from `BiosStore` rather than requiring
     /// every caller to query it separately (plan 03-09 task 2).
-    init(descriptor: AdapterDescriptor, installState: AdapterInstallState, biosStore: BiosStore) {
+    init(
+        descriptor: AdapterDescriptor,
+        installState: AdapterInstallState,
+        provenance: AdapterProvenance = .pinnedRelease,
+        biosStore: BiosStore
+    ) {
         self.init(
             descriptor: descriptor,
             installState: installState,
-            hasManagedBIOS: biosStore.hasManagedBIOS(forSystem: descriptor.system)
+            hasManagedBIOS: biosStore.hasManagedBIOS(forSystem: descriptor.system),
+            provenance: provenance
         )
     }
 }

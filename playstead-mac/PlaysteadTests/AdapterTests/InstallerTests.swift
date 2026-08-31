@@ -141,6 +141,15 @@ final class InstallerTests: XCTestCase {
 
         let first = try await installer.install()
         XCTAssertTrue(first.verified)
+        // The two digests are distinct facts about distinct byte
+        // streams: the archive's digest is what was checked against the
+        // pin, and the expanded executable's own digest is the baseline
+        // launch re-hashes against. Conflating them made every launch
+        // fail with a digest mismatch.
+        XCTAssertEqual(first.provenance, .pinnedRelease)
+        XCTAssertEqual(first.archiveSHA256, pin.sha256)
+        XCTAssertEqual(first.executableSHA256, sha256Hex(Data("binary".utf8)))
+        XCTAssertNotEqual(first.executableSHA256, first.archiveSHA256)
         XCTAssertEqual(expander.invocationCount, 1)
         XCTAssertEqual(installationCount(), 1)
 
@@ -169,7 +178,7 @@ final class InstallerTests: XCTestCase {
 
     // MARK: - Selecting an existing installation
 
-    func testSelectingExistingInstallationWithMismatchedDigestRecordsUnverifiedAndCardRendersLabel() async throws {
+    func testSelectingExistingInstallationRecordsItsOwnExecutableDigestAndCardSaysItIsUnverifiedAgainstThePin() async throws {
         let selectedRoot = tempRoot.appendingPathComponent("user-selected", isDirectory: true)
         let appURL = selectedRoot.appendingPathComponent("Other.app", isDirectory: true)
         let execDir = appURL.appendingPathComponent(pin.launch.executableRelativePath).deletingLastPathComponent()
@@ -179,16 +188,27 @@ final class InstallerTests: XCTestCase {
         let installer = AdapterInstaller(pin: pin, emulatorsRoot: emulatorsRoot, localStore: localStore)
         let selected = try await installer.selectExisting(appURL: appURL)
 
-        XCTAssertFalse(selected.verified)
-        XCTAssertNotEqual(selected.sha256, pin.sha256)
+        // There is no archive in this path, so nothing here could ever
+        // be compared against the pin's *archive* digest. What is
+        // recorded instead is the selected executable's own digest — a
+        // real integrity baseline that every launch re-hashes against.
+        XCTAssertEqual(selected.provenance, .userSelected)
+        XCTAssertNil(selected.archiveSHA256)
+        XCTAssertTrue(selected.verified, "a user-selected build has a recorded executable-digest baseline")
+        XCTAssertEqual(selected.executableSHA256, sha256Hex(Data("a completely different build".utf8)))
+        XCTAssertNotEqual(selected.executableSHA256, pin.sha256)
         XCTAssertEqual(installationCount(), 1)
 
+        // The card must still refuse to restate the pinned build's
+        // support claims for a build that was never checked against it.
         let catalog = AdapterCatalog(pin: pin)
         let card = AdapterCapabilityCard(
             descriptor: catalog.descriptor,
-            installState: .installed(executablePath: selected.executablePath, verified: selected.verified)
+            installState: .installed(executablePath: selected.executablePath, verified: selected.verified),
+            provenance: selected.provenance
         )
         XCTAssertTrue(card.installationLabelText.lowercased().contains("unverified"))
+        XCTAssertFalse(card.installationLabelText.lowercased().contains("matches the pinned release"))
     }
 
     // MARK: - AdapterHost refuses launch against an unverified selection

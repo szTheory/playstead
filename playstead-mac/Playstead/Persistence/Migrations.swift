@@ -278,12 +278,25 @@ enum Migrations {
                 version TEXT NOT NULL,
                 executable_path TEXT NOT NULL,
                 sha256 TEXT NOT NULL,
+                archive_sha256 TEXT,
+                provenance TEXT NOT NULL DEFAULT 'pinnedRelease',
                 verified INTEGER NOT NULL,
                 installed_at TEXT NOT NULL,
                 UNIQUE(emulator, version)
             );
             """
         )
+        // `sha256` on this table is the *expanded executable's* digest —
+        // the baseline every launch re-hashes against. `archive_sha256`
+        // is the separate digest of the downloaded release archive, the
+        // only value ever compared against `AdapterPin.sha256`, and it is
+        // NULL for a user-selected installation that never had an
+        // archive. The two are deliberately distinct columns because they
+        // are different byte streams (see `AdapterInstallation`).
+        // Idempotent ALTERs upgrade a pre-existing dev database; they
+        // no-op (duplicate column, swallowed) on a fresh one.
+        try? connection.execute("ALTER TABLE adapter_installations ADD COLUMN archive_sha256 TEXT;")
+        try? connection.execute("ALTER TABLE adapter_installations ADD COLUMN provenance TEXT NOT NULL DEFAULT 'pinnedRelease';")
 
         // Plan 03-09 task 2: one row per accepted, digest-validated BIOS
         // file copied into managed storage. `managed_filename` is derived

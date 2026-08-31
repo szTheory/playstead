@@ -97,8 +97,15 @@ final class AdapterPinTests: XCTestCase {
         try FileManager.default.createDirectory(at: executableDir, withIntermediateDirectories: true)
         try Data("fake-binary".utf8).write(to: executableDir.appendingPathComponent("mGBA"))
 
-        // Recorded install-time digest deliberately does not match the pin.
-        let mismatchRecord = InstallVerifyRecord(sha256: String(repeating: "0", count: 64))
+        // The archive this installation came from matched the pin, but
+        // the recorded digest of the *expanded executable* deliberately
+        // does not match the binary now on disk — the case a live
+        // re-hash on every launch exists to catch.
+        let mismatchRecord = InstallVerifyRecord(
+            archiveSHA256: pin.sha256,
+            executableSHA256: String(repeating: "0", count: 64),
+            executablePath: executableDir.appendingPathComponent("mGBA").path
+        )
         try JSONEncoder().encode(mismatchRecord).write(to: emulatorDir.appendingPathComponent(".install-verify.json"))
 
         let host = AdapterHost(pin: pin, emulatorsRoot: tempRoot.appendingPathComponent("emulators"))

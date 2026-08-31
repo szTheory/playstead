@@ -7,15 +7,51 @@ enum AdapterInstallError: Error, Equatable {
     case executableNotFound
 }
 
-/// One row of `adapter_installations`: where the resolved executable
-/// lives, its own computed digest, and whether that digest matches the
-/// pin. `verified == false` is a legal, presented state — a user may
-/// select a different build; the interface just has to say so honestly.
+/// How an installation came to be on disk — the fact that decides which
+/// digest could ever have been checked against the pin.
+enum AdapterProvenance: String, Equatable {
+    /// Downloaded from the pin's own `download_url`, with the downloaded
+    /// **archive**'s digest checked against `AdapterPin.sha256` before
+    /// anything was expanded. This is the supply-chain proof.
+    case pinnedRelease
+    /// The user pointed at an application bundle they already had. There
+    /// is no archive in this path, so nothing can be compared against
+    /// `AdapterPin.sha256` — the interface must not claim otherwise.
+    case userSelected
+}
+
+/// One row of `adapter_installations`.
+///
+/// **Two digests, deliberately distinct** — conflating them is the exact
+/// defect this shape exists to make impossible:
+///
+/// * `archiveSHA256` is the digest of the downloaded *release archive*,
+///   and it is the only value `AdapterPin.sha256` is ever compared
+///   against. It exists only for `.pinnedRelease`.
+/// * `executableSHA256` is the digest of the *expanded executable file*
+///   this installation actually launches. It is recorded here at
+///   install/select time and re-hashed on every single launch by
+///   `AdapterHost.verifyInstalledDigest()`.
+///
+/// The two are different byte streams and can never compare equal; any
+/// code that checks one against the other is a bug.
 struct AdapterInstallation: Equatable {
     let emulator: String
     let version: String
     let executablePath: String
-    let sha256: String
+    /// Digest of the downloaded release archive, already checked against
+    /// `AdapterPin.sha256`. `nil` for a user-selected installation, which
+    /// never had an archive.
+    let archiveSHA256: String?
+    /// Digest of the resolved executable on disk — the baseline every
+    /// later launch re-hashes against.
+    let executableSHA256: String
+    let provenance: AdapterProvenance
+    /// Whether this installation carries a usable integrity baseline:
+    /// its executable digest was recorded, and (for `.pinnedRelease`) the
+    /// archive it came from matched the pin. This is **not** a claim that
+    /// a user-selected build *is* the pinned build — `provenance` says
+    /// that, and the capability card renders it.
     let verified: Bool
 }
 
@@ -100,10 +136,13 @@ actor AdapterInstaller {
         }
 
         let archiveURL = try await downloadArchive(pin.downloadURL)
-        let digest = try hashFile(archiveURL)
-        guard digest == pin.sha256 else {
+        // Supply-chain check: the pin's digest describes the published
+        // *archive*, so this — and only this — is what it is compared
+        // against. Nothing is expanded until it passes.
+        let archiveDigest = try hashFile(archiveURL)
+        guard archiveDigest == pin.sha256 else {
             try? FileManager.default.removeItem(at: archiveURL)
-            throw AdapterInstallError.digestMismatch(expected: pin.sha256, actual: digest)
+            throw AdapterInstallError.digestMismatch(expected: pin.sha256, actual: archiveDigest)
         }
 
         try FileManager.default.createDirectory(at: emulatorDirectory, withIntermediateDirectories: true)
@@ -124,69 +163,123 @@ actor AdapterInstaller {
             throw AdapterInstallError.executableNotFound
         }
 
-        try recordInstallation(executablePath: executableURL.path, sha256: digest, verified: true)
-        try? JSONEncoder().encode(InstallVerifyRecord(sha256: digest)).write(to: installVerifyURL)
+        // Integrity baseline: the *expanded executable*'s own digest,
+        // computed after expansion. This is a different byte stream from
+        // the archive above, and it is what every subsequent launch
+        // re-hashes and compares against.
+        let executableDigest = try hashFile(executableURL)
 
-        return AdapterInstallation(
+        let installation = AdapterInstallation(
             emulator: pin.emulator, version: pin.version,
-            executablePath: executableURL.path, sha256: digest, verified: true
+            executablePath: executableURL.path,
+            archiveSHA256: archiveDigest, executableSHA256: executableDigest,
+            provenance: .pinnedRelease, verified: true
         )
+        try recordInstallation(installation)
+        writeInstallVerifyRecord(for: installation)
+        return installation
     }
 
     /// Registers an existing installation the user already has at
-    /// `appURL` (an `.app` bundle they select) without downloading
-    /// anything. Computes the resolved executable's own digest and
-    /// records whether it matches the pin — a mismatch is recorded, not
-    /// rejected: the user may use a different build, but the interface
-    /// has to say so rather than presenting the same support claim for a
-    /// different binary.
+    /// `appURL` (an application bundle they select) without downloading
+    /// anything, recording the resolved executable's own digest as this
+    /// installation's integrity baseline.
+    ///
+    /// There is no archive in this path, so `AdapterPin.sha256` — which
+    /// describes the published *archive* — has nothing here to be
+    /// compared against, and comparing it to an executable digest would
+    /// be a category error that can never succeed. The installation is
+    /// therefore recorded with `provenance == .userSelected` and a valid
+    /// integrity baseline: launch re-hashes the very bytes the user
+    /// chose, and the capability card states plainly that this build was
+    /// never verified against the pinned release, so the pinned build's
+    /// support claims are not restated for it.
     func selectExisting(appURL: URL) throws -> AdapterInstallation {
         let executableURL = appURL.appendingPathComponent(pin.launch.executableRelativePath)
         guard FileManager.default.fileExists(atPath: executableURL.path) else {
             throw AdapterInstallError.executableNotFound
         }
-        let digest = try hashFile(executableURL)
-        let verified = digest == pin.sha256
-        try recordInstallation(executablePath: executableURL.path, sha256: digest, verified: verified)
-        return AdapterInstallation(
+        let executableDigest = try hashFile(executableURL)
+        let installation = AdapterInstallation(
             emulator: pin.emulator, version: pin.version,
-            executablePath: executableURL.path, sha256: digest, verified: verified
+            executablePath: executableURL.path,
+            archiveSHA256: nil, executableSHA256: executableDigest,
+            provenance: .userSelected, verified: true
         )
+        try recordInstallation(installation)
+        writeInstallVerifyRecord(for: installation)
+        return installation
+    }
+
+    /// The recorded installation for this pin, if any — the composition
+    /// root reads this at launch so an install performed in a previous
+    /// session is restored rather than silently forgotten.
+    func currentInstallation() -> AdapterInstallation? {
+        existingInstallation()
     }
 
     private func existingInstallation() -> AdapterInstallation? {
+        Self.recordedInstallation(pin: pin, localStore: localStore)
+    }
+
+    /// Reads the recorded installation row without entering the actor — a
+    /// pure local read, so the composition root can restore install state
+    /// synchronously while it is still assembling itself.
+    nonisolated static func recordedInstallation(pin: AdapterPin, localStore: LocalStore) -> AdapterInstallation? {
         let rows = (try? localStore.connection.query(
-            "SELECT executable_path, sha256, verified FROM adapter_installations WHERE emulator = ? AND version = ?;",
+            """
+            SELECT executable_path, sha256, archive_sha256, provenance, verified
+            FROM adapter_installations WHERE emulator = ? AND version = ?;
+            """,
             params: [pin.emulator, pin.version]
         ) { row -> AdapterInstallation in
             AdapterInstallation(
-                emulator: self.pin.emulator,
-                version: self.pin.version,
+                emulator: pin.emulator,
+                version: pin.version,
                 executablePath: row.string(0) ?? "",
-                sha256: row.string(1) ?? "",
-                verified: (row.int(2) ?? 0) != 0
+                archiveSHA256: row.string(2),
+                executableSHA256: row.string(1) ?? "",
+                provenance: AdapterProvenance(rawValue: row.string(3) ?? "") ?? .pinnedRelease,
+                verified: (row.int(4) ?? 0) != 0
             )
         }) ?? []
         return rows.first
     }
 
-    private func recordInstallation(executablePath: String, sha256: String, verified: Bool) throws {
+    private func recordInstallation(_ installation: AdapterInstallation) throws {
         try localStore.connection.execute(
             """
             INSERT INTO adapter_installations
-                (id, emulator, version, executable_path, sha256, verified, installed_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+                (id, emulator, version, executable_path, sha256, archive_sha256, provenance, verified, installed_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(emulator, version) DO UPDATE SET
                 executable_path = excluded.executable_path,
                 sha256 = excluded.sha256,
+                archive_sha256 = excluded.archive_sha256,
+                provenance = excluded.provenance,
                 verified = excluded.verified,
                 installed_at = excluded.installed_at;
             """,
             params: [
-                idGenerator(), pin.emulator, pin.version, executablePath, sha256,
-                verified ? 1 : 0, ISO8601DateFormatter().string(from: now())
+                idGenerator(), pin.emulator, pin.version, installation.executablePath,
+                installation.executableSHA256, installation.archiveSHA256,
+                installation.provenance.rawValue,
+                installation.verified ? 1 : 0, ISO8601DateFormatter().string(from: now())
             ]
         )
+    }
+
+    /// Mirrors the installation's two digests into the on-disk record
+    /// `AdapterHost` falls back to when no install state has been handed
+    /// to it in this process (a cold start that has not yet restored one).
+    private func writeInstallVerifyRecord(for installation: AdapterInstallation) {
+        try? FileManager.default.createDirectory(at: emulatorDirectory, withIntermediateDirectories: true)
+        let record = InstallVerifyRecord(
+            archiveSHA256: installation.archiveSHA256,
+            executableSHA256: installation.executableSHA256,
+            executablePath: installation.executablePath
+        )
+        try? JSONEncoder().encode(record).write(to: installVerifyURL)
     }
 
     private func hashFile(_ url: URL) throws -> String {
