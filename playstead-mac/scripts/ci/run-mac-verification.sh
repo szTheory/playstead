@@ -420,7 +420,8 @@ run_wave_0_adoption() {
   local calibration_identifier="PlaysteadTests.SnapshotHarnessCanaryTests/testMeaningfulMutationFailsAndCalibratedNoisePasses"
 
   xcodebuild build-for-testing -project "$PROJECT" -scheme "$SCHEME" \
-    -destination 'platform=macOS' -derivedDataPath "$DERIVED_DATA" "${signing[@]}"
+    -destination 'platform=macOS' -derivedDataPath "$DERIVED_DATA" \
+    "${signing[@]}" PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT="$snapshot_output"
 
   local ui_only=()
   local identifier
@@ -433,12 +434,12 @@ run_wave_0_adoption() {
   xcrun xcresulttool get test-results tests --path "$ui_result" --format json >"$ui_tests"
 
   mkdir -p "$snapshot_output"
-  PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT="$snapshot_output" \
-    xcodebuild test-without-building -project "$PROJECT" -scheme "$SCHEME" \
-      -destination 'platform=macOS' -derivedDataPath "$DERIVED_DATA" \
-      -resultBundlePath "$snapshot_result" \
-      -only-testing:"${snapshot_identifier%%.*}/${snapshot_identifier#*.}" \
-      -only-testing:"${calibration_identifier%%.*}/${calibration_identifier#*.}" "${signing[@]}"
+  xcodebuild test-without-building -project "$PROJECT" -scheme "$SCHEME" \
+    -destination 'platform=macOS' -derivedDataPath "$DERIVED_DATA" \
+    -resultBundlePath "$snapshot_result" \
+    -only-testing:"${snapshot_identifier%%.*}/${snapshot_identifier#*.}" \
+    -only-testing:"${calibration_identifier%%.*}/${calibration_identifier#*.}" \
+    "${signing[@]}" PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT="$snapshot_output"
   xcrun xcresulttool get test-results tests --path "$snapshot_result" --format json >"$snapshot_tests"
 
   : >"$records_file"

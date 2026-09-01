@@ -40,9 +40,13 @@ final class SnapshotHarnessCanaryTests: XCTestCase {
 
     func testMeaningfulMutationFailsAndCalibratedNoisePasses() throws {
         let output = try outputDirectory()
-        let reference = image(pixel: NSColor(calibratedWhite: 0.5, alpha: 1))
-        let mutation = image(pixel: NSColor(calibratedWhite: 0.9, alpha: 1))
-        let calibratedNoise = image(pixel: NSColor(calibratedWhite: 0.501, alpha: 1))
+        // `NSBitmapImageRep` is calibrated RGB. Supplying grayscale-space
+        // colors can yield transparent pixels on macOS 26, making distinct
+        // inputs compare equal. Keep all calibration fixtures in the
+        // representation's explicit color space.
+        let reference = image(pixel: NSColor(calibratedRed: 0.5, green: 0.5, blue: 0.5, alpha: 1))
+        let mutation = image(pixel: NSColor(calibratedRed: 0.9, green: 0.9, blue: 0.9, alpha: 1))
+        let calibratedNoise = image(pixel: NSColor(calibratedRed: 0.501, green: 0.501, blue: 0.501, alpha: 1))
 
         XCTAssertNotNil(
             verifySnapshot(

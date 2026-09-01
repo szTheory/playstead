@@ -15,6 +15,7 @@ require_text() {
 }
 
 project="$MAC_ROOT/Playstead.xcodeproj/project.pbxproj"
+scheme="$MAC_ROOT/Playstead.xcodeproj/xcshareddata/xcschemes/Playstead.xcscheme"
 lockfile="$MAC_ROOT/Playstead.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
 config="$REPO_ROOT/playstead-server/config/mac_ci.exs"
 runner="$MAC_ROOT/scripts/ci/run-mac-verification.sh"
@@ -22,7 +23,7 @@ workflow="$REPO_ROOT/.github/workflows/ci.yml"
 ui_canary="$MAC_ROOT/PlaysteadUITests/HostedRunnerCanaryTests.swift"
 app_entry="$MAC_ROOT/Playstead/App/PlaysteadApp.swift"
 
-for file in "$project" "$lockfile" "$config" "$runner" "$workflow" "$ui_canary" "$app_entry"; do
+for file in "$project" "$scheme" "$lockfile" "$config" "$runner" "$workflow" "$ui_canary" "$app_entry"; do
   [ -f "$file" ] || { printf 'required topology file missing: %s\n' "$file" >&2; exit 1; }
 done
 
@@ -45,6 +46,8 @@ require_text "$runner" 'bootstrap.log'
 require_text "$runner" 'exec mix phx.server'
 require_text "$runner" 'ui_only+=("-only-testing:${identifier%%.*}/${identifier#*.}")'
 require_text "$runner" '-only-testing:"${snapshot_identifier%%.*}/${snapshot_identifier#*.}"'
+require_text "$runner" 'PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT="$snapshot_output"'
+require_text "$scheme" 'key="PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT" value="$(PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT)" isEnabled="YES"'
 if grep -F '@testable import Playstead' "$ui_canary" >/dev/null; then
   printf 'XCUITest canaries must not link directly against the app module\n' >&2
   exit 1

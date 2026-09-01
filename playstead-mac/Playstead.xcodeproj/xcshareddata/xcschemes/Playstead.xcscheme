@@ -30,6 +30,9 @@
       <BuildableProductRunnable runnableDebuggingMode="0">
          <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="44DC10C2CEB44A12A91241F2" BuildableName="Playstead.app" BlueprintName="Playstead" ReferencedContainer="container:Playstead.xcodeproj"/>
       </BuildableProductRunnable>
+      <EnvironmentVariables>
+         <EnvironmentVariable key="PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT" value="$(PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT)" isEnabled="YES"/>
+      </EnvironmentVariables>
    </LaunchAction>
    <ProfileAction buildConfiguration="Release" shouldUseLaunchSchemeArgsEnv="YES" savedToolIdentifier="" useCustomWorkingDirectory="NO" debugDocumentVersioning="YES">
       <BuildableProductRunnable runnableDebuggingMode="0">
