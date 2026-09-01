@@ -3,7 +3,7 @@ set -euo pipefail
 
 die() { printf '%s\n' "$*" >&2; exit 1; }
 
-[ "$#" -ge 1 ] || die "usage: live-server.sh prepare|second ROOT"
+[ "$#" -ge 1 ] || die "usage: live-server.sh prepare|second|verify ROOT"
 action="$1"
 root="${2:-}"
 [ -n "$root" ] && [ "${root#/}" != "$root" ] || die "an absolute run-owned root is required"
@@ -71,6 +71,49 @@ PY
     ;;
   second)
     (cd "$server_root" && mix playstead.mac_ci_fixture second --output "$control/second-sentinel.json") >/dev/null
+    ;;
+  verify)
+    python3 - "$root" "$(dirname "$PLAYSTEAD_MAC_CI_ROOT")/phoenix.log" <<'PY'
+import pathlib, sqlite3, sys
+root, log_path = map(pathlib.Path, sys.argv[1:])
+if not root.is_dir() or not log_path.is_file():
+    raise SystemExit("live-server verification inputs are missing")
+
+lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+snapshot_success = 0
+pending_snapshot = False
+blob_requests = 0
+for line in lines:
+    if " /api/v1/blobs/" in line:
+        blob_requests += 1
+    if "GET /api/v1/snapshot" in line:
+        pending_snapshot = True
+        continue
+    if pending_snapshot and "Sent 200" in line:
+        snapshot_success += 1
+        pending_snapshot = False
+    elif pending_snapshot and any(method in line for method in ("GET /", "POST /", "PUT /", "PATCH /", "DELETE /")):
+        pending_snapshot = False
+
+if snapshot_success != 2:
+    raise SystemExit(f"expected exactly two successful snapshot requests, got {snapshot_success}")
+if blob_requests != 0:
+    raise SystemExit(f"expected zero blob requests, got {blob_requests}")
+
+database = root / "playstead.sqlite3"
+with sqlite3.connect(database) as connection:
+    cursor = connection.execute("SELECT cursor FROM sync_cursor WHERE id = 1").fetchone()
+    titles = {row[0] for row in connection.execute("SELECT display_title FROM catalogue_entries")}
+if not cursor or not cursor[0]:
+    raise SystemExit("stored snapshot cursor is empty")
+if titles != {"Playstead CI Sentinel One", "Playstead CI Sentinel Two"}:
+    raise SystemExit("fresh mirror does not contain exactly both synthetic sentinels")
+for name in ("objects", "partials"):
+    directory = root / name
+    if not directory.is_dir() or any(directory.iterdir()):
+        raise SystemExit(f"{name} must exist and remain empty")
+print("live-server: two snapshots, Keychain relaunch, and zero blob routes verified")
+PY
     ;;
   *) die "unknown live-server action" ;;
 esac
