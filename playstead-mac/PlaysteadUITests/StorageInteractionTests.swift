@@ -3,7 +3,10 @@ import XCTest
 @MainActor
 final class StorageInteractionTests: XCTestCase {
     private var harness: UITestHarness!
-    private let quotaDownloadAction = "playstead.game.00000000-0000-7000-8000-000000000042.download"
+    private let quotaDownloadAssetID = "00000000-0000-7000-8000-000000000042"
+    private var quotaDownloadAction: String {
+        "playstead.game.\(quotaDownloadAssetID).download"
+    }
 
     override func setUpWithError() throws {
         continueAfterFailure = false

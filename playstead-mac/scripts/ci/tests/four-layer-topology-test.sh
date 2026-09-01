@@ -243,7 +243,8 @@ grep -F 'static func downloadActionIdentifier(assetSetID: String) -> String' "$G
 grep -F '@FocusState private var downloadActionHasFocus: Bool' "$GAME_ROW" >/dev/null
 grep -F '.focused($downloadActionHasFocus)' "$GAME_ROW" >/dev/null
 grep -F '.accessibilityIdentifier(Self.downloadActionIdentifier(assetSetID: entry.id))' "$GAME_ROW" >/dev/null
-grep -F 'playstead.game.00000000-0000-7000-8000-000000000042.download' "$STORAGE_TEST" >/dev/null
+grep -F 'private let quotaDownloadAssetID = "00000000-0000-7000-8000-000000000042"' "$STORAGE_TEST" >/dev/null
+grep -F '"playstead.game.\(quotaDownloadAssetID).download"' "$STORAGE_TEST" >/dev/null
 grep -F 'action.frame,' "$STORAGE_TEST" >/dev/null
 grep -F 'exactIdentity.frame,' "$STORAGE_TEST" >/dev/null
 grep -F 'List(selection: $selectedListEntryID)' "$LIBRARY_SHELL" >/dev/null
