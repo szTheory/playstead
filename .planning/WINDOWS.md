@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 9
+open_count: 10
 waived_count: 1
 fixed_count: 2
-total_count: 12
-last_updated: 2026-09-01T06:29:59.112Z
+total_count: 13
+last_updated: 2026-09-01T06:44:32.931Z
 ---
 
 # Broken Windows Ledger
@@ -27,6 +27,7 @@ last_updated: 2026-09-01T06:29:59.112Z
 | 10 | 03.5 | unrun-verify | playstead-mac/PlaysteadUITests/CurationInteractionTests.swift |  | Task 2 full CurationInteractionTests UI-layer verification requires the centrally orchestrated hosted macOS runner; local app launch is prohibited by the no-password safety boundary. | open |  | 2026-09-01T06:29:58.948Z |  |
 | 11 | 03.5 | deviation | playstead-mac/Playstead/Library/ShelfView.swift |  | Plan path corrected from nonexistent Curation/ShelfView.swift to the production Library/ShelfView.swift location. | open |  | 2026-09-01T06:29:59.030Z |  |
 | 12 | 03.5 | deviation | playstead-mac/Playstead/UITesting/DeterministicProfile.swift |  | Added compile-gated UUID-only persisted profile support required to prove process-relaunch durability without touching Plan 07 storage production files. | open |  | 2026-09-01T06:29:59.112Z |  |
+| 13 | 03.5 | deviation | playstead-mac/scripts/ci/run-mac-verification.sh |  | Hosted run 33478091423 exposed an EXIT trap that referenced function-local keyboard state after scope unwind and masked the underlying early build result; fixed in a4ef343 with globally initialized guarded cleanup and pre-capture failure regression. | open |  | 2026-09-01T06:44:32.931Z |  |
 
 ````json
 [
@@ -172,6 +173,18 @@ last_updated: 2026-09-01T06:29:59.112Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-01T06:29:59.112Z",
+    "resolved_at": null
+  },
+  {
+    "id": 13,
+    "kind": "deviation",
+    "phase": "03.5",
+    "file": "playstead-mac/scripts/ci/run-mac-verification.sh",
+    "line": null,
+    "description": "Hosted run 33478091423 exposed an EXIT trap that referenced function-local keyboard state after scope unwind and masked the underlying early build result; fixed in a4ef343 with globally initialized guarded cleanup and pre-capture failure regression.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-01T06:44:32.931Z",
     "resolved_at": null
   }
 ]

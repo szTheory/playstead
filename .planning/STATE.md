@@ -4,11 +4,11 @@ milestone: v1.0
 current_phase: 03.5
 current_phase_name: Mac Verification Automation
 status: executing
-stopped_at: Completed 03.5-06-PLAN.md; hosted UI verification pending central orchestration
-last_updated: "2026-09-01T06:31:35.044Z"
+stopped_at: Plan 03.5-06 cleanup blocker repaired; rerun combined hosted Wave 6 to expose or clear underlying build result
+last_updated: "2026-09-01T06:44:33.384Z"
 last_activity: 2026-08-31
 last_activity_desc: Phase 03.5 execution started
-state_head: c80e466dc44c8e6883d6bdcbe87c7d6c0ed305c7
+state_head: a4ef3430d65b31aaf2a128c12241dcc5d8071fa4
 progress:
   total_phases: 6
   completed_phases: 2
@@ -144,6 +144,7 @@ Progress: [██████████] 100% (Phase 02)
 - [Phase 03.5]: Plan 03.5-06: Drag and keyboard reorder converge on one settleMove production path per curation surface.
 - [Phase 03.5]: Plan 03.5-06: Persisted UI relaunch profiles accept only UUID tokens resolved beneath a fixed temporary parent.
 - [Phase 03.5]: Plan 03.5-06: Compile-gated curation evidence is bounded to synthetic row IDs, outbox count, and sorted catalogue digests.
+- [Phase 03.5]: Plan 03.5-06 follow-up: EXIT traps own globally initialized keyboard-mode state and restore only after capture, preserving underlying early hosted failures.
 
 ### Pending Todos
 
@@ -174,6 +175,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-01T06:31:34.973Z
-Stopped at: Completed 03.5-06-PLAN.md; hosted UI verification pending central orchestration
+Last session: 2026-09-01T06:44:33.278Z
+Stopped at: Plan 03.5-06 cleanup blocker repaired; rerun combined hosted Wave 6 to expose or clear underlying build result
 Resume file: None
