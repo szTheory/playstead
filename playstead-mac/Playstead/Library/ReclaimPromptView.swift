@@ -128,7 +128,6 @@ struct ReclaimPromptView: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Reclaim storage")
         .accessibilityIdentifier(AccessibilityIdentifiers.Surface.reclaim)
-        .focusSection()
         .animation(
             .easeInOut(duration: StorageMotionContract.duration(for: .eviction, reduceMotion: reduceMotion)),
             value: candidates.count

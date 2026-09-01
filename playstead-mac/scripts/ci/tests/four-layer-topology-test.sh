@@ -173,6 +173,8 @@ for path in map(pathlib.Path, sys.argv[1:]):
         raise SystemExit(f"{path.name}: candidate title is missing its stable row identity")
     if ".playsteadFocusable(identifier: Automation.candidateToggle(slot))" not in source:
         raise SystemExit(f"{path.name}: candidate select control is missing its independent identity")
+    if path == pathlib.Path(sys.argv[1]) and ".focusSection()" in source:
+        raise SystemExit("ReclaimPromptView: nested focus section must not rewrite the sheet accessibility subtree")
 print("storage selection reset contract: passed")
 PY
 grep -F 'VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm)' "$STORAGE_VIEW" >/dev/null

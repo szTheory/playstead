@@ -163,10 +163,8 @@ final class StorageInteractionTests: XCTestCase {
     private func requireInitialReclaimEvidence() {
         harness.require([
             "playstead.reclaim.shortfall",
-            "playstead.reclaim.candidate.0",
-            "playstead.reclaim.candidate.0.toggle",
-            "playstead.reclaim.confirm",
-            "playstead.reclaim.cancel"
+            "playstead.reclaim.selection",
+            "playstead.reclaim.candidate.0"
         ])
         assertValue("playstead.reclaim.shortfall", equals: "48")
         assertValue("playstead.reclaim.selection", equals: "count=0;bytes=0")
@@ -175,6 +173,7 @@ final class StorageInteractionTests: XCTestCase {
     }
 
     private func selectReclaimCandidate() {
+        harness.require(["playstead.reclaim.candidate.0.toggle"])
         harness.focusContainedAction(
             "playstead.reclaim.candidate.0.toggle",
             rootIdentifier: "playstead.surface.reclaim"
@@ -187,6 +186,11 @@ final class StorageInteractionTests: XCTestCase {
 
     private func confirmReclaimAndVerifyCanonicalRows() throws {
         let reclaimRoot = harness.element("playstead.surface.reclaim")
+        harness.require([
+            "playstead.reclaim.confirm",
+            "playstead.reclaim.cancel"
+        ])
+        try harness.audit(.action, rootIdentifier: "playstead.surface.reclaim")
         harness.focusContainedAction(
             "playstead.reclaim.confirm",
             rootIdentifier: "playstead.surface.reclaim"
@@ -202,10 +206,7 @@ final class StorageInteractionTests: XCTestCase {
         waitForValue("playstead.reclaim.shortfall", equals: "16")
         waitForValue("playstead.reclaim.selection", equals: "count=0;bytes=0")
         XCTAssertEqual(elements("playstead.reclaim.candidate").count, 0)
-        harness.validateSemanticTargets([
-            .init("playstead.reclaim.cancel", type: .button)
-        ])
-        try harness.audit(.action, rootIdentifier: "playstead.surface.reclaim")
+        harness.validateSemanticTargets([.init("playstead.reclaim.cancel", type: .button)])
         harness.focusContainedAction(
             "playstead.reclaim.cancel",
             rootIdentifier: "playstead.surface.reclaim"
@@ -253,6 +254,7 @@ final class StorageInteractionTests: XCTestCase {
     }
 
     private func confirmStorageReclaimAndVerifyCanonicalRows() throws {
+        try harness.audit(.action, rootIdentifier: "playstead.surface.storage")
         harness.focusContainedAction(
             "playstead.storage.reclaim",
             rootIdentifier: "playstead.surface.storage"
@@ -264,7 +266,6 @@ final class StorageInteractionTests: XCTestCase {
             equals: "used=0;candidate-count=0;pinned-count=0;unreferenced-count=0;quarantined-count=0"
         )
         XCTAssertEqual(elements("playstead.storage.candidate").count, 0)
-        try harness.audit(.action, rootIdentifier: "playstead.surface.storage")
         dismissSheet(root: "playstead.surface.storage")
         XCTAssertTrue(harness.app.staticTexts["Synthetic Reclaim Candidate"].exists)
         XCTAssertTrue(harness.app.staticTexts["Synthetic Quota Download"].exists)
