@@ -55,6 +55,31 @@ final class LiveServerSnapshotTests: XCTestCase {
         XCTAssertTrue(row.label.contains(first.title))
         XCTAssertFalse(try storedCursor(root: runRoot).isEmpty)
         try assertNoGameBytes(root: runRoot)
+
+        launched.terminate()
+        try runFixture("second", root: runRoot)
+        let second = try sentinel(at: runRoot.appendingPathComponent("control/second-sentinel.json"))
+        XCTAssertNotEqual(second.assetSetID, first.assetSetID)
+
+        for suffix in ["", "-wal", "-shm"] {
+            try? FileManager.default.removeItem(
+                at: URL(fileURLWithPath: runRoot.appendingPathComponent("playstead.sqlite3").path + suffix)
+            )
+        }
+        launched.launchEnvironment.removeValue(forKey: "PLAYSTEAD_UI_TEST_CREDENTIAL_HANDOFF")
+        launched.launch()
+
+        XCTAssertTrue(launched.descendants(matching: .any)["playstead.surface.library"].waitForExistence(timeout: 20))
+        XCTAssertTrue(launched.buttons["playstead.control.show-list"].waitForExistence(timeout: 10))
+        launched.buttons["playstead.control.show-list"].click()
+        for sentinel in [first, second] {
+            let refreshedRow = launched.descendants(matching: .any)["playstead.game.\(sentinel.assetSetID).summary"]
+            XCTAssertTrue(refreshedRow.waitForExistence(timeout: 10))
+            XCTAssertTrue(refreshedRow.label.contains(sentinel.title))
+        }
+        XCTAssertFalse(try storedCursor(root: runRoot).isEmpty)
+        try assertNoGameBytes(root: runRoot)
+        try runFixture("verify", root: runRoot)
     }
 
     private struct Control: Decodable {
