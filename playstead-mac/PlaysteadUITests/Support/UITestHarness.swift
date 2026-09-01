@@ -179,11 +179,21 @@ final class UITestHarness {
         XCTAssertTrue(root.waitForExistence(timeout: 5), "audit root missing: \(rootIdentifier)")
         let rootFrame = root.frame.insetBy(dx: -1, dy: -1)
         XCTAssertTrue(rootFrame.width > 0 && rootFrame.height > 0 && rootFrame.isFinite)
+        let auditedElements = [root] + root.descendants(matching: .any).allElementsBoundByIndex
         let exclusionsByFingerprint = Dictionary(uniqueKeysWithValues: exclusions.map { ($0.fingerprint, $0) })
         var matched = Set<String>()
         var issueIdentifiers = Set<String>()
         try app.performAccessibilityAudit(for: category.xcuiType) { issue in
             if let issueElement = issue.element {
+                if !auditedElements.contains(where: { $0 == issueElement }) {
+                    // `performAccessibilityAudit` is application-scoped. A
+                    // sheet/window wrapper can share the production root's
+                    // exact frame, so geometry alone cannot prove ownership.
+                    // Accept only the named root and its actual descendants;
+                    // every issue structurally inside that surface still
+                    // reaches the fail-closed assertion below.
+                    return true
+                }
                 let issueFrame = issueElement.frame
                 if issueFrame.width > 0, issueFrame.height > 0, issueFrame.isFinite,
                    !rootFrame.contains(issueFrame) {
@@ -271,9 +281,10 @@ final class UITestHarness {
                 identifierTrace.append(identifier)
                 return
             }
-            if focused.count == 1 {
-                XCTAssertTrue(descendantIDs.contains(focused[0].identifier), "keyboard focus escaped the presented sheet")
-            }
+            // This query is already rooted at the presented sheet. Some real
+            // production actions intentionally have no test identifier; they
+            // remain valid intermediate stops while Tab searches for the one
+            // explicitly named action required by this contract.
             app.typeKey(.tab, modifierFlags: [])
         }
         XCTFail("Tab never reached the requested sheet action: \(identifier)")

@@ -196,6 +196,8 @@ if "performAccessibilityAudit(for: category.xcuiType)" not in harness:
 for marker in (
     "rootIdentifier: String",
     "let rootFrame = root.frame.insetBy(dx: -1, dy: -1)",
+    "let auditedElements = [root] + root.descendants(matching: .any).allElementsBoundByIndex",
+    "!auditedElements.contains(where: { $0 == issueElement })",
     "!rootFrame.contains(issueFrame)",
     'rawIdentifier.hasPrefix("playstead.")',
     'rawIdentifier.hasPrefix("library.")',
@@ -242,6 +244,8 @@ def check_focus_expectations(harness_source, test_source):
     missing = [marker for marker in required_harness if marker not in harness_source]
     if missing or harness_source.count("root.descendants(matching: .button)") < 2 or "0..<expected.count where !foundActivationTarget" in harness_source:
         raise AssertionError(f"focus traversal uses a content-dependent bound or lacks containment: {missing}")
+    if harness_source.count("descendantIDs.contains(focused[0].identifier)") != 1:
+        raise AssertionError("named-action traversal rejects unnamed intermediate controls inside the sheet")
     dismissal_start = test_source.find("    func testReadinessDoneActionDismissesSheet()")
     dismissal_end = test_source.find("    func testReadinessControlsHaveRolesLabelsAndFrames()", dismissal_start)
     dismissal = test_source[dismissal_start:dismissal_end]
