@@ -1,0 +1,108 @@
+{
+  "adoption_layer": "github-hosted",
+  "canaries": [
+    {
+      "discovered": true,
+      "execution_count": 1,
+      "identifier": "PlaysteadUITests.HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner",
+      "outcome": "passed",
+      "skipped": false
+    },
+    {
+      "discovered": true,
+      "execution_count": 1,
+      "identifier": "PlaysteadUITests.HostedRunnerCanaryTests/testFullKeyboardAccessCanaryFocusesAndActivatesTwoControls",
+      "outcome": "passed",
+      "skipped": false
+    },
+    {
+      "discovered": true,
+      "execution_count": 1,
+      "identifier": "PlaysteadUITests.HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice",
+      "outcome": "passed",
+      "skipped": false
+    },
+    {
+      "discovered": true,
+      "execution_count": 1,
+      "identifier": "PlaysteadTests.SnapshotHarnessCanaryTests/testIntentionalMismatchProducesReviewableTriplet",
+      "outcome": "passed",
+      "skipped": false
+    },
+    {
+      "discovered": true,
+      "execution_count": 1,
+      "identifier": "native.postgresql17-phoenix-health",
+      "outcome": "passed",
+      "skipped": false
+    }
+  ],
+  "conclusion": "success",
+  "event": "push",
+  "fingerprint": {
+    "architecture": "arm64",
+    "macos": "26.5.2",
+    "macos_build": "25F84",
+    "runner_image": "macos26",
+    "runner_image_version": "20260728.0273.1",
+    "xcode": [
+      "Xcode 26.6",
+      "Build version 17F113"
+    ]
+  },
+  "head_branch": "main",
+  "head_ref": "refs/heads/main",
+  "head_sha": "fcadbb3aca4db711d67b65eefdfc5bee1302b0c4",
+  "jobs": {
+    "linux_compose_smoke": {
+      "conclusion": "success",
+      "name": "docker compose cold start",
+      "status": "completed"
+    },
+    "linux_test": {
+      "conclusion": "success",
+      "name": "mix precommit (unit + LiveView + browser + integration)",
+      "status": "completed"
+    },
+    "macos_adoption": {
+      "conclusion": "success",
+      "name": "macOS 26 adoption canaries",
+      "status": "completed"
+    }
+  },
+  "linux_jobs": {
+    "compose_smoke": "success",
+    "test": "success"
+  },
+  "native_health": {
+    "cleanup_complete": true,
+    "loopback_only": true,
+    "phoenix_healthy": true,
+    "postgresql_major": 17
+  },
+  "run": {
+    "conclusion": "success",
+    "event": "push",
+    "head_sha": "fcadbb3aca4db711d67b65eefdfc5bee1302b0c4",
+    "ref": "refs/heads/main",
+    "run_id": "33456009811",
+    "status": "completed",
+    "url": "https://github.com/szTheory/playstead/actions/runs/33456009811",
+    "workflow": "ci"
+  },
+  "run_id": 33456009811,
+  "schema_version": 1,
+  "snapshot_calibration": {
+    "mutation_failed": true,
+    "noise_passed": true
+  },
+  "snapshot_triplets": [
+    "actual.png",
+    "diff.png",
+    "reference.png"
+  ],
+  "source": "github-hosted",
+  "status": "completed",
+  "url": "https://github.com/szTheory/playstead/actions/runs/33456009811",
+  "workflow_name": "ci"
+}
