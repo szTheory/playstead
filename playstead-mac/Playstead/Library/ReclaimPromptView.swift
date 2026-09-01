@@ -61,14 +61,14 @@ struct ReclaimPromptView: View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             Text(Self.shortfallStatement(limitHit: limitHit, shortfallBytes: shortfallBytes))
                 .font(.psBody)
-                .foregroundStyle(DesignTokens.textPrimary)
+                .foregroundStyle(.primary)
                 .accessibilityLabel("Storage shortfall")
                 .accessibilityValue(String(shortfallBytes))
                 .accessibilityIdentifier(Automation.shortfall)
 
             Text(Self.serverRetainsStatement)
                 .font(.psLabel)
-                .foregroundStyle(DesignTokens.textMuted)
+                .foregroundStyle(.secondary)
 
             if canRaiseQuota {
                 Button("Raise quota", action: onRaiseQuota)
@@ -77,7 +77,7 @@ struct ReclaimPromptView: View {
 
             Text("\(selected.count) selected — \(Self.formatBytes(selectedBytes))")
                 .font(.psLabel)
-                .foregroundStyle(DesignTokens.textMuted)
+                .foregroundStyle(.secondary)
                 .accessibilityLabel("Reclaim selection")
                 .accessibilityValue("count=\(selected.count);bytes=\(selectedBytes)")
                 .accessibilityIdentifier(Automation.selection)
@@ -85,28 +85,32 @@ struct ReclaimPromptView: View {
             if candidates.isEmpty {
                 Text("Nothing to reclaim yet.")
                     .font(.psLabel)
-                    .foregroundStyle(DesignTokens.textMuted)
+                    .foregroundStyle(.secondary)
             } else {
-                List(Array(candidates.enumerated()), id: \.element.id) { slot, candidate in
-                    HStack {
-                        Text(candidate.title)
-                        Spacer()
-                        Text(Self.formatBytes(candidate.bytes))
-                            .foregroundStyle(DesignTokens.textMuted)
-                        Button(selected.contains(candidate.id) ? "Deselect" : "Select") {
-                            if selected.contains(candidate.id) {
-                                selected.remove(candidate.id)
-                            } else {
-                                selected.insert(candidate.id)
+                VStack(spacing: 0) {
+                    ForEach(Array(candidates.enumerated()), id: \.element.id) { slot, candidate in
+                        HStack {
+                            Text(candidate.title)
+                            Spacer()
+                            Text(Self.formatBytes(candidate.bytes))
+                                .foregroundStyle(.secondary)
+                            Button(selected.contains(candidate.id) ? "Deselect" : "Select") {
+                                if selected.contains(candidate.id) {
+                                    selected.remove(candidate.id)
+                                } else {
+                                    selected.insert(candidate.id)
+                                }
                             }
+                            .accessibilityLabel("Select \(candidate.title) for reclaim")
+                            .playsteadFocusable(identifier: Automation.candidateToggle(slot))
                         }
-                        .accessibilityLabel("Select \(candidate.title) for reclaim")
-                        .playsteadFocusable(identifier: Automation.candidateToggle(slot))
+                        .accessibilityElement(children: .contain)
+                        .accessibilityLabel(candidate.title)
+                        .accessibilityValue("bytes=\(candidate.bytes);selected=\(selected.contains(candidate.id))")
+                        .accessibilityIdentifier(Automation.candidate(slot))
+                        .frame(minHeight: DesignTokens.InteractiveTarget.minimum)
+                        Divider()
                     }
-                    .accessibilityElement(children: .contain)
-                    .accessibilityLabel(candidate.title)
-                    .accessibilityValue("bytes=\(candidate.bytes);selected=\(selected.contains(candidate.id))")
-                    .accessibilityIdentifier(Automation.candidate(slot))
                 }
 
                 Button("Reclaim selected") { onReclaim(selected) }

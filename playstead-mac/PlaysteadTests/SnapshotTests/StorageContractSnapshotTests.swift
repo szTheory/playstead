@@ -57,6 +57,8 @@ final class StorageContractSnapshotTests: XCTestCase {
         XCTAssertEqual(candidates.map(\.bytes), [32 * 1024 * 1024, 16 * 1024 * 1024])
         XCTAssertEqual(candidates.reduce(0) { $0 + $1.bytes }, 48 * 1024 * 1024)
         XCTAssertFalse(downloads.map(\.title).contains(where: \.isEmpty))
+        XCTAssertLessThanOrEqual(StorageContractSheet.requiredWidth, 1_440)
+        XCTAssertLessThanOrEqual(StorageContractSheet.requiredHeight, 1_520)
 
         try PlaysteadSnapshot.assertContactSheet(
             StorageContractSheet(downloads: downloads, candidates: candidates),
@@ -93,6 +95,14 @@ final class StorageContractSnapshotTests: XCTestCase {
 }
 
 private struct StorageContractSheet: View {
+    static let panelWidth: CGFloat = 680
+    static let panelHeight: CGFloat = 440
+    static let spacing: CGFloat = DesignTokens.Spacing.lg
+    static let outerPadding: CGFloat = DesignTokens.Spacing.lg
+    static let titleReserve: CGFloat = 40
+    static let requiredWidth = (panelWidth * 2) + spacing + (outerPadding * 2)
+    static let requiredHeight = (panelHeight * 3) + (spacing * 3) + (outerPadding * 2) + titleReserve
+
     let downloads: [DownloadRow]
     let candidates: [EvictionCandidate]
 
@@ -173,29 +183,18 @@ private struct StorageContractSheet: View {
                             onRemoveQuarantined: { _ in }
                         )
                     }
-                    contractPanel("Reclaim and Storage — honest empty") {
-                        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-                            ReclaimPromptView(
-                                limitHit: .floor,
-                                shortfallBytes: 8 * 1024 * 1024,
-                                canRaiseQuota: false,
-                                candidates: [],
-                                onRaiseQuota: {},
-                                onReclaim: { _ in },
-                                onCancel: {}
-                            )
-                            StorageView(
-                                totalUsedBytes: 0,
-                                quotaBytes: quota.quotaBytes,
-                                floorBytes: quota.floorBytes,
-                                candidates: [],
-                                pinnedGames: [],
-                                unreferencedObjects: [],
-                                quarantinedPartials: [],
-                                onReclaim: { _ in },
-                                onRemoveQuarantined: { _ in }
-                            )
-                        }
+                    contractPanel("Storage — honest empty") {
+                        StorageView(
+                            totalUsedBytes: 0,
+                            quotaBytes: quota.quotaBytes,
+                            floorBytes: quota.floorBytes,
+                            candidates: [],
+                            pinnedGames: [],
+                            unreferencedObjects: [],
+                            quarantinedPartials: [],
+                            onReclaim: { _ in },
+                            onRemoveQuarantined: { _ in }
+                        )
                     }
                 }
             }
@@ -211,9 +210,13 @@ private struct StorageContractSheet: View {
             Text(title).font(.psHeading)
             content()
         }
-        .frame(width: 680, height: 440, alignment: .topLeading)
         .padding(DesignTokens.Spacing.sm)
-        .background(DesignTokens.border.opacity(0.2))
+        .frame(width: Self.panelWidth, height: Self.panelHeight, alignment: .topLeading)
+        .background(Color.primary.opacity(0.06))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.secondary.opacity(0.35))
+        }
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }

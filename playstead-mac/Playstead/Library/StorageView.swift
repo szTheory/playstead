@@ -83,27 +83,27 @@ struct StorageView: View {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                 Text("Storage")
                     .font(.psHeading)
-                    .foregroundStyle(DesignTokens.textPrimary)
+                    .foregroundStyle(.primary)
                 Text("\(Self.formatBytes(totalUsedBytes)) used of \(Self.formatBytes(quotaBytes)) quota — \(Self.formatBytes(floorBytes)) always kept free")
                     .font(.psBody)
-                    .foregroundStyle(DesignTokens.textPrimary)
+                    .foregroundStyle(.primary)
                     .accessibilityLabel("Storage inventory state")
                     .accessibilityValue(stateValue)
                     .accessibilityIdentifier(Automation.state)
                 Text(Self.serverRetainsStatement)
                     .font(.psLabel)
-                    .foregroundStyle(DesignTokens.textMuted)
+                    .foregroundStyle(.secondary)
             }
 
             if !pinnedGames.isEmpty {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                     Text("Protected (pinned)")
                         .font(.psLabelEmphasized)
-                        .foregroundStyle(DesignTokens.textPrimary)
+                        .foregroundStyle(.primary)
                     ForEach(Array(pinnedGames.enumerated()), id: \.element.id) { slot, game in
                         Text(game.title)
                             .font(.psLabel)
-                            .foregroundStyle(DesignTokens.textMuted)
+                            .foregroundStyle(.secondary)
                             .accessibilityLabel("\(game.title), protected from reclaim")
                             .accessibilityIdentifier(Automation.pinned(slot))
                     }
@@ -113,37 +113,41 @@ struct StorageView: View {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                 Text("Safe to remove")
                     .font(.psLabelEmphasized)
-                    .foregroundStyle(DesignTokens.textPrimary)
+                    .foregroundStyle(.primary)
                 if candidates.isEmpty {
                     Text("Nothing to reclaim yet.")
                         .font(.psLabel)
-                        .foregroundStyle(DesignTokens.textMuted)
+                        .foregroundStyle(.secondary)
                 } else {
-                    List(Array(candidates.enumerated()), id: \.element.id) { slot, candidate in
-                        HStack {
-                            Text(candidate.title)
-                            Spacer()
-                            Text(Self.formatBytes(candidate.bytes))
-                                .foregroundStyle(DesignTokens.textMuted)
-                            Button(selected.contains(candidate.id) ? "Deselect" : "Select") {
-                                if selected.contains(candidate.id) {
-                                    selected.remove(candidate.id)
-                                } else {
-                                    selected.insert(candidate.id)
+                    VStack(spacing: 0) {
+                        ForEach(Array(candidates.enumerated()), id: \.element.id) { slot, candidate in
+                            HStack {
+                                Text(candidate.title)
+                                Spacer()
+                                Text(Self.formatBytes(candidate.bytes))
+                                    .foregroundStyle(.secondary)
+                                Button(selected.contains(candidate.id) ? "Deselect" : "Select") {
+                                    if selected.contains(candidate.id) {
+                                        selected.remove(candidate.id)
+                                    } else {
+                                        selected.insert(candidate.id)
+                                    }
                                 }
+                                .accessibilityLabel("Select \(candidate.title) for reclaim")
+                                .playsteadFocusable(identifier: Automation.candidateToggle(slot))
                             }
-                            .accessibilityLabel("Select \(candidate.title) for reclaim")
-                            .playsteadFocusable(identifier: Automation.candidateToggle(slot))
+                            .accessibilityElement(children: .contain)
+                            .accessibilityLabel("\(candidate.title) can be removed to free up space — it will stay on your server.")
+                            .accessibilityValue("bytes=\(candidate.bytes);selected=\(selected.contains(candidate.id))")
+                            .accessibilityIdentifier(Automation.candidate(slot))
+                            .frame(minHeight: DesignTokens.InteractiveTarget.minimum)
+                            Divider()
                         }
-                        .accessibilityElement(children: .contain)
-                        .accessibilityLabel("\(candidate.title) can be removed to free up space — it will stay on your server.")
-                        .accessibilityValue("bytes=\(candidate.bytes);selected=\(selected.contains(candidate.id))")
-                        .accessibilityIdentifier(Automation.candidate(slot))
                     }
                 }
                 Text("\(selected.count) selected — \(Self.formatBytes(selectedBytes))")
                     .font(.psLabel)
-                    .foregroundStyle(DesignTokens.textMuted)
+                    .foregroundStyle(.secondary)
                     .accessibilityLabel("Storage reclaim selection")
                     .accessibilityValue("count=\(selected.count);bytes=\(selectedBytes)")
                     .accessibilityIdentifier(Automation.selection)
@@ -160,7 +164,7 @@ struct StorageView: View {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                     Text("Unreferenced")
                         .font(.psLabelEmphasized)
-                        .foregroundStyle(DesignTokens.textPrimary)
+                        .foregroundStyle(.primary)
                     ForEach(Array(unreferencedObjects.enumerated()), id: \.element.id) { slot, object in
                         HStack {
                             Text(object.sha256)
@@ -168,7 +172,7 @@ struct StorageView: View {
                             Spacer()
                             Text(Self.formatBytes(object.bytes))
                         }
-                        .foregroundStyle(DesignTokens.textMuted)
+                        .foregroundStyle(.secondary)
                         .accessibilityIdentifier(Automation.unreferenced(slot))
                     }
                 }
@@ -178,7 +182,7 @@ struct StorageView: View {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                     Text("Quarantined partials")
                         .font(.psLabelEmphasized)
-                        .foregroundStyle(DesignTokens.textPrimary)
+                        .foregroundStyle(.primary)
                     ForEach(Array(quarantinedPartials.enumerated()), id: \.element.id) { slot, partial in
                         HStack {
                             Text((partial.path as NSString).lastPathComponent)
@@ -187,7 +191,7 @@ struct StorageView: View {
                             Button("Remove") { onRemoveQuarantined(partial.path) }
                                 .playsteadFocusable(identifier: Automation.removeQuarantined(slot))
                         }
-                        .foregroundStyle(DesignTokens.textMuted)
+                        .foregroundStyle(.secondary)
                         .accessibilityIdentifier(Automation.quarantined(slot))
                     }
                 }

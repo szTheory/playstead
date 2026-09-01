@@ -34,22 +34,22 @@ struct QuotaSettingsView: View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             Text("Storage")
                 .font(.psHeading)
-                .foregroundStyle(DesignTokens.textPrimary)
+                .foregroundStyle(.primary)
 
             Text("\(Self.formatBytes(usedBytes)) used of \(Self.formatBytes(policy.quotaBytes)) quota")
                 .font(.psBody)
-                .foregroundStyle(DesignTokens.textPrimary)
+                .foregroundStyle(.primary)
                 .accessibilityLabel("Storage quota state")
                 .accessibilityValue(stateValue)
                 .accessibilityIdentifier(Automation.state)
 
             Text("Free-space floor: \(Self.formatBytes(policy.floorBytes)) always kept free")
                 .font(.psLabel)
-                .foregroundStyle(DesignTokens.textMuted)
+                .foregroundStyle(.secondary)
 
             Text(Self.floorPrecedenceStatement)
                 .font(.psLabel)
-                .foregroundStyle(DesignTokens.textMuted)
+                .foregroundStyle(.secondary)
 
             HStack(spacing: DesignTokens.Spacing.sm) {
                 Text("Quota: \(Self.formatBytes(policy.quotaBytes))")

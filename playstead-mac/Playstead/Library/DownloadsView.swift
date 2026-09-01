@@ -65,22 +65,28 @@ struct DownloadsView: View {
             } else {
                 Text(Self.summary(for: rows))
                     .font(.psLabel)
-                    .foregroundStyle(DesignTokens.textMuted)
+                    .foregroundStyle(.secondary)
                     .padding(.horizontal, DesignTokens.Spacing.md)
                     .accessibilityLabel("Download queue summary")
                     .accessibilityValue(Self.summary(for: rows))
                     .accessibilityIdentifier(Automation.summary)
 
-                List(Array(rows.enumerated()), id: \.element.id) { slot, row in
-                    DownloadQueueRowView(
-                        row: row,
-                        automationSlot: slot,
-                        onPause: onPause,
-                        onResume: onResume,
-                        onCancel: onCancel,
-                        onMoveUp: onMoveUp,
-                        onMoveDown: onMoveDown
-                    )
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(Array(rows.enumerated()), id: \.element.id) { slot, row in
+                            DownloadQueueRowView(
+                                row: row,
+                                automationSlot: slot,
+                                onPause: onPause,
+                                onResume: onResume,
+                                onCancel: onCancel,
+                                onMoveUp: onMoveUp,
+                                onMoveDown: onMoveDown
+                            )
+                            .padding(.horizontal, DesignTokens.Spacing.md)
+                            Divider()
+                        }
+                    }
                 }
             }
         }
@@ -122,10 +128,10 @@ private struct DownloadQueueRowView: View {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                 Text(displayTitle)
                     .font(.psLabelEmphasized)
-                    .foregroundStyle(DesignTokens.textPrimary)
+                    .foregroundStyle(.primary)
                 Text(stateLabel)
                     .font(.psLabel)
-                    .foregroundStyle(DesignTokens.textMuted)
+                    .foregroundStyle(.secondary)
                     .accessibilityLabel("Download state")
                     .accessibilityValue(row.state.rawValue)
                     .accessibilityIdentifier(DownloadsView.Automation.state(automationSlot))
