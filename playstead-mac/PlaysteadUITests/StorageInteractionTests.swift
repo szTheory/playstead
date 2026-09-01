@@ -71,6 +71,11 @@ final class StorageInteractionTests: XCTestCase {
         openReclaimPrompt()
     }
 
+    func testReclaimRouteSettlesToUniqueDownloadTrigger() {
+        navigateToQuotaFixtureList()
+        _ = waitForUniqueDownloadAction()
+    }
+
     func testReclaimPromptInitialStateIsExact() {
         openReclaimPrompt()
         requireInitialReclaimEvidence()
@@ -235,6 +240,14 @@ final class StorageInteractionTests: XCTestCase {
     }
 
     private func openReclaimPrompt() {
+        navigateToQuotaFixtureList()
+        focusAndActivateUniqueDownload()
+
+        let reclaimRoot = harness.element("playstead.surface.reclaim")
+        XCTAssertTrue(reclaimRoot.waitForExistence(timeout: 5))
+    }
+
+    private func navigateToQuotaFixtureList() {
         launchStorageProfile(.quotaBlockReclaim)
         harness.traverseExactFocusSequence(
             [
@@ -244,10 +257,6 @@ final class StorageInteractionTests: XCTestCase {
             ],
             activate: "playstead.control.show-list"
         )
-        focusAndActivateButton(label: "Download")
-
-        let reclaimRoot = harness.element("playstead.surface.reclaim")
-        XCTAssertTrue(reclaimRoot.waitForExistence(timeout: 5))
     }
 
     private func requireInitialReclaimEvidence() {
@@ -380,9 +389,25 @@ final class StorageInteractionTests: XCTestCase {
         XCTAssertFalse(harness.element(root).waitForExistence(timeout: 2))
     }
 
-    private func focusAndActivateButton(label: String) {
-        let target = harness.app.buttons[label]
-        XCTAssertTrue(target.waitForExistence(timeout: 5))
+    private func waitForUniqueDownloadAction() -> XCUIElement {
+        let downloads = harness.app.buttons.matching(
+            NSPredicate(format: "label == %@", "Download")
+        )
+        let exactlyOne = NSPredicate { _, _ in downloads.count == 1 }
+        let expectation = XCTNSPredicateExpectation(predicate: exactlyOne, object: nil)
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [expectation], timeout: 5),
+            .completed,
+            "quota fixture did not settle to exactly one Download action"
+        )
+        XCTAssertEqual(downloads.count, 1)
+        let target = downloads.firstMatch
+        XCTAssertTrue(target.exists)
+        return target
+    }
+
+    private func focusAndActivateUniqueDownload() {
+        let target = waitForUniqueDownloadAction()
         for _ in 0..<24 {
             if target.value(forKey: "hasKeyboardFocus") as? Bool == true {
                 target.typeKey(.space, modifierFlags: [])
@@ -390,7 +415,7 @@ final class StorageInteractionTests: XCTestCase {
             }
             harness.app.typeKey(.tab, modifierFlags: [])
         }
-        XCTFail("Tab never reached button labelled \(label)")
+        XCTFail("Tab never reached the unique settled Download action")
     }
 
     private func elements(_ identifierPrefix: String) -> [XCUIElement] {

@@ -590,6 +590,7 @@ PY
     --required-test PlaysteadUITests.CurationInteractionTests/testKeyboardReorderRetainsFocusAndSurvivesRelaunch \
     --required-test PlaysteadUITests.StorageInteractionTests/testDownloadsPauseResumeFlow \
     --required-test PlaysteadUITests.StorageInteractionTests/testQuotaEditAndFocusRestoration \
+    --required-test PlaysteadUITests.StorageInteractionTests/testReclaimRouteSettlesToUniqueDownloadTrigger \
     --required-test PlaysteadUITests.StorageInteractionTests/testReclaimPromptPresentsProductionRoot \
     --required-test PlaysteadUITests.StorageInteractionTests/testReclaimPromptInitialStateIsExact \
     --required-test PlaysteadUITests.StorageInteractionTests/testReclaimPromptRowIdentityExists \

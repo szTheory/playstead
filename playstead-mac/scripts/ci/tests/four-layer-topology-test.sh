@@ -150,10 +150,13 @@ if grep -E 'testFiveShelves(AndDurableDragReorder|RenderExactFixtures)|test(Favo
   printf 'broad curation UI identity must remain split into exact hosted stages\n' >&2
   exit 1
 fi
-grep -F 'withVelocity: XCUIGestureVelocity.slow' "$CURATION_TEST" >/dev/null
-grep -F 'thenHoldForDuration: 0.5' "$CURATION_TEST" >/dev/null
+grep -F 'third.click(forDuration: 1, thenDragTo: first)' "$CURATION_TEST" >/dev/null
 grep -F 'harness.app.cells.containing(.any, identifier: identifier)' "$CURATION_TEST" >/dev/null
 [ "$(grep -c 'harness.relaunch' "$CURATION_TEST")" -eq 4 ]
+if grep -F 'typeKey(.space' "$CURATION_TEST" >/dev/null; then
+  printf 'curation keyboard tests must not double-activate focusContainedAction\n' >&2
+  exit 1
+fi
 grep -F 'harness.element(collectionRowID, type: .button)' "$CURATION_TEST" >/dev/null
 if grep -F 'try fixture.assertExactState()' "$UI_BOOTSTRAP" >/dev/null; then
   printf 'bootstrap must preserve makeFixture relaunch validation instead of requiring fresh positions\n' >&2
@@ -162,6 +165,7 @@ fi
 for stage in \
   testDownloadsPauseResumeFlow \
   testQuotaEditAndFocusRestoration \
+  testReclaimRouteSettlesToUniqueDownloadTrigger \
   testReclaimPromptPresentsProductionRoot \
   testReclaimPromptInitialStateIsExact \
   testReclaimPromptRowIdentityExists \
