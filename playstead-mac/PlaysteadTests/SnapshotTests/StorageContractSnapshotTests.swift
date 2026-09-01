@@ -57,6 +57,9 @@ final class StorageContractSnapshotTests: XCTestCase {
         XCTAssertEqual(candidates.map(\.bytes), [32 * 1024 * 1024, 16 * 1024 * 1024])
         XCTAssertEqual(candidates.reduce(0) { $0 + $1.bytes }, 48 * 1024 * 1024)
         XCTAssertFalse(downloads.map(\.title).contains(where: \.isEmpty))
+        let exactDigest = String(repeating: "d", count: 64)
+        XCTAssertEqual(StorageView.displayDigest(exactDigest), "dddddddd…dddddddd")
+        XCTAssertEqual(exactDigest.count, 64)
         XCTAssertLessThanOrEqual(StorageContractSheet.requiredWidth, 1_440)
         XCTAssertLessThanOrEqual(StorageContractSheet.requiredHeight, 1_520)
 

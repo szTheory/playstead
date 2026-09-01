@@ -48,6 +48,14 @@ struct StorageView: View {
         ByteFormatting.formatBytes(bytes)
     }
 
+    /// A cache-object digest is evidence, not a useful 64-character visual
+    /// label. Keep both ends visible for recognition while exposing the exact
+    /// digest through accessibility below.
+    static func displayDigest(_ sha256: String) -> String {
+        guard sha256.count > 17 else { return sha256 }
+        return "\(sha256.prefix(8))…\(sha256.suffix(8))"
+    }
+
     /// The plain statement that reclaiming here never touches the
     /// server's copy — always rendered, regardless of candidate count.
     static let serverRetainsStatement = "The server keeps everything, no matter what you reclaim here."
@@ -79,7 +87,7 @@ struct StorageView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                 Text("Storage")
                     .font(.psHeading)
@@ -167,12 +175,14 @@ struct StorageView: View {
                         .foregroundStyle(.primary)
                     ForEach(Array(unreferencedObjects.enumerated()), id: \.element.id) { slot, object in
                         HStack {
-                            Text(object.sha256)
+                            Text(Self.displayDigest(object.sha256))
                                 .font(.system(.footnote, design: .monospaced))
                             Spacer()
                             Text(Self.formatBytes(object.bytes))
                         }
                         .foregroundStyle(.secondary)
+                        .accessibilityLabel("Unreferenced cache object")
+                        .accessibilityValue("sha256=\(object.sha256);bytes=\(object.bytes)")
                         .accessibilityIdentifier(Automation.unreferenced(slot))
                     }
                 }
@@ -197,7 +207,7 @@ struct StorageView: View {
                 }
             }
         }
-        .padding(DesignTokens.Spacing.lg)
+        .padding(DesignTokens.Spacing.md)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Storage inventory")
         .accessibilityIdentifier(Automation.root)
