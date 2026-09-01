@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 11
+open_count: 12
 waived_count: 1
 fixed_count: 2
-total_count: 14
-last_updated: 2026-09-01T07:44:47.355Z
+total_count: 15
+last_updated: 2026-09-01T08:14:14.831Z
 ---
 
 # Broken Windows Ledger
@@ -29,6 +29,7 @@ last_updated: 2026-09-01T07:44:47.355Z
 | 12 | 03.5 | deviation | playstead-mac/Playstead/UITesting/DeterministicProfile.swift |  | Added compile-gated UUID-only persisted profile support required to prove process-relaunch durability without touching Plan 07 storage production files. | open |  | 2026-09-01T06:29:59.112Z |  |
 | 13 | 03.5 | deviation | playstead-mac/scripts/ci/run-mac-verification.sh |  | Hosted run 33478091423 exposed an EXIT trap that referenced function-local keyboard state after scope unwind and masked the underlying early build result; fixed in a4ef343 with globally initialized guarded cleanup and pre-capture failure regression. | open |  | 2026-09-01T06:44:32.931Z |  |
 | 14 | 03.5 | deviation | playstead-mac/PlaysteadUITests/CurationInteractionTests.swift |  | Split broad hosted curation UI identity into three exact stages and changed drag to the deterministic last-row-to-first boundary after run 33481640835. | open |  | 2026-09-01T07:44:47.355Z |  |
+| 15 | 03.5 | deviation | playstead-mac/Playstead/UITesting/UITestBootstrap.swift |  | Hosted run 33483731474 exposed redundant fresh-position validation on persisted reorder relaunch plus stale shelf selectors; fixed and split into nine exact curation stages. | open |  | 2026-09-01T08:14:14.831Z |  |
 
 ````json
 [
@@ -198,6 +199,18 @@ last_updated: 2026-09-01T07:44:47.355Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-01T07:44:47.355Z",
+    "resolved_at": null
+  },
+  {
+    "id": 15,
+    "kind": "deviation",
+    "phase": "03.5",
+    "file": "playstead-mac/Playstead/UITesting/UITestBootstrap.swift",
+    "line": null,
+    "description": "Hosted run 33483731474 exposed redundant fresh-position validation on persisted reorder relaunch plus stale shelf selectors; fixed and split into nine exact curation stages.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-01T08:14:14.831Z",
     "resolved_at": null
   }
 ]
