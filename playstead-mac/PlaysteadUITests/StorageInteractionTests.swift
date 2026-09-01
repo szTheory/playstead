@@ -79,7 +79,7 @@ final class StorageInteractionTests: XCTestCase {
 
     func testReclaimRouteKeyboardFocusOwnsUniqueDownloadTrigger() {
         navigateToQuotaFixtureList()
-        _ = focusUniqueDownloadAction()
+        selectQuotaDownloadByKeyboard()
     }
 
     func testReclaimRouteDirectActivationDispatchesQuotaEffect() {
@@ -93,7 +93,7 @@ final class StorageInteractionTests: XCTestCase {
 
     func testReclaimRouteActivationDispatchesQuotaEffect() {
         navigateToQuotaFixtureList()
-        focusAndActivateUniqueDownload()
+        activateSelectedDownloadByKeyboard()
         XCTAssertTrue(
             harness.element("playstead.surface.reclaim").waitForExistence(timeout: 5),
             "focused Download action did not present the quota reclaim effect"
@@ -265,7 +265,7 @@ final class StorageInteractionTests: XCTestCase {
 
     private func openReclaimPrompt() {
         navigateToQuotaFixtureList()
-        focusAndActivateUniqueDownload()
+        activateSelectedDownloadByKeyboard()
 
         let reclaimRoot = harness.element("playstead.surface.reclaim")
         XCTAssertTrue(reclaimRoot.waitForExistence(timeout: 5))
@@ -437,29 +437,31 @@ final class StorageInteractionTests: XCTestCase {
         return action
     }
 
-    private func focusUniqueDownloadAction() -> XCUIElement {
-        let target = waitForUniqueDownloadAction()
-        // Unlike a sheet-local search, the library traversal crosses the
-        // command bar, search/filter controls, layout controls, and both
-        // rows. Keep the search bounded, but do not mistake the harness's
-        // sheet-sized 24-stop bound for the whole-window focus cycle.
-        for _ in 0..<64 {
-            if target.value(forKey: "hasKeyboardFocus") as? Bool == true {
-                return target
-            }
-            harness.app.typeKey(.tab, modifierFlags: [])
+    private func selectQuotaDownloadByKeyboard() {
+        _ = waitForUniqueDownloadAction()
+        let list = harness.element("playstead.surface.game-list")
+        XCTAssertTrue(list.waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            list.value(forKey: "hasKeyboardFocus") as? Bool == true,
+            "activating List must transfer keyboard focus to its production selection model"
+        )
+
+        let selection = harness.element("playstead.library.list-selection")
+        XCTAssertTrue(selection.waitForExistence(timeout: 5))
+        for _ in 0..<2 where selection.value as? String != quotaDownloadAssetID {
+            list.typeKey(.downArrow, modifierFlags: [])
         }
-        XCTFail("Tab never reached the unique settled Download action")
-        return target
+        XCTAssertEqual(selection.value as? String, quotaDownloadAssetID)
+        XCTAssertTrue(list.value(forKey: "hasKeyboardFocus") as? Bool == true)
+
+        let command = harness.element("playstead.control.download-selected", type: .button)
+        XCTAssertTrue(command.waitForExistence(timeout: 5))
+        XCTAssertTrue(command.isEnabled)
     }
 
-    private func focusAndActivateUniqueDownload() {
-        let target = focusUniqueDownloadAction()
-        XCTAssertTrue(target.value(forKey: "hasKeyboardFocus") as? Bool == true)
-        // Match the proven Downloads and Quota paths: dispatch to the exact
-        // XCUIElement that already owns focus, never to an application-wide
-        // route that could resolve a different responder.
-        target.typeKey(.space, modifierFlags: [])
+    private func activateSelectedDownloadByKeyboard() {
+        selectQuotaDownloadByKeyboard()
+        harness.app.typeKey("d", modifierFlags: [.command])
     }
 
     private func elements(_ identifierPrefix: String) -> [XCUIElement] {

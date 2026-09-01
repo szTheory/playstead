@@ -17,6 +17,14 @@ enum GameRowStatus: Equatable {
     case error(String)
 }
 
+/// One selection-scoped command emitted by the library composition root.
+/// The sequence makes repeated requests for the same asset observable while
+/// the asset id ensures exactly one row handles each command.
+struct LibraryDownloadCommand: Equatable {
+    let sequence: Int
+    let assetSetID: String
+}
+
 /// A functional (not yet visually designed) row for one catalogue entry:
 /// title, system, and exactly one status-appropriate action. The visual
 /// identity, shelves, sidebar, and status vocabulary are plan 03-06's
@@ -24,6 +32,7 @@ enum GameRowStatus: Equatable {
 /// the tracer can prove the read-download-play path end to end.
 struct GameRowView: View {
     let entry: CatalogueEntry
+    var downloadCommand: LibraryDownloadCommand?
 
     @Environment(AppEnvironment.self) private var environment
     @State private var status: GameRowStatus = .needsDownload
@@ -98,6 +107,10 @@ struct GameRowView: View {
         .padding(.vertical, 4)
         .task {
             refreshStatus()
+        }
+        .onChange(of: downloadCommand) { _, command in
+            guard command?.assetSetID == entry.id else { return }
+            Task { await download() }
         }
         .sheet(isPresented: $showsReadinessSheet) {
             ReadinessSheetView(

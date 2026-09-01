@@ -13,6 +13,7 @@ CURATION_TEST="${MAC_ROOT}/PlaysteadUITests/CurationInteractionTests.swift"
 UI_BOOTSTRAP="${MAC_ROOT}/Playstead/UITesting/UITestBootstrap.swift"
 STORAGE_TEST="${MAC_ROOT}/PlaysteadUITests/StorageInteractionTests.swift"
 GAME_ROW="${MAC_ROOT}/Playstead/Library/GameRowView.swift"
+LIBRARY_SHELL="${MAC_ROOT}/Playstead/Library/LibraryShellView.swift"
 RECLAIM_VIEW="${MAC_ROOT}/Playstead/Library/ReclaimPromptView.swift"
 STORAGE_VIEW="${MAC_ROOT}/Playstead/Library/StorageView.swift"
 WORKFLOW="${REPO_ROOT}/.github/workflows/ci.yml"
@@ -22,7 +23,7 @@ PROMPT_SAFETY="${MAC_ROOT}/scripts/ci/tests/keychain-prompt-safety-test.sh"
 KEYBOARD_CLEANUP="${MAC_ROOT}/scripts/ci/tests/keyboard-mode-cleanup-test.sh"
 SWIFT_SEMANTIC="${MAC_ROOT}/scripts/ci/tests/wave6-swift-semantic-test.sh"
 
-for file in "$RUNNER" "$SCHEME" "$APP_ENTRY" "$PROFILE_TEST" "$UI_CANARY" "$CURATION_TEST" "$UI_BOOTSTRAP" "$STORAGE_TEST" "$GAME_ROW" "$RECLAIM_VIEW" "$STORAGE_VIEW" "$WORKFLOW" "$REFRESH_WORKFLOW" "$SANITIZER" "$PROMPT_SAFETY" "$KEYBOARD_CLEANUP" "$SWIFT_SEMANTIC"; do
+for file in "$RUNNER" "$SCHEME" "$APP_ENTRY" "$PROFILE_TEST" "$UI_CANARY" "$CURATION_TEST" "$UI_BOOTSTRAP" "$STORAGE_TEST" "$GAME_ROW" "$LIBRARY_SHELL" "$RECLAIM_VIEW" "$STORAGE_VIEW" "$WORKFLOW" "$REFRESH_WORKFLOW" "$SANITIZER" "$PROMPT_SAFETY" "$KEYBOARD_CLEANUP" "$SWIFT_SEMANTIC"; do
   [ -f "$file" ] || { printf 'four-layer topology file missing: %s\n' "$file" >&2; exit 1; }
 done
 for plan in Unit Rendering UI LiveServer; do
@@ -245,12 +246,31 @@ grep -F '.accessibilityIdentifier(Self.downloadActionIdentifier(assetSetID: entr
 grep -F 'playstead.game.00000000-0000-7000-8000-000000000042.download' "$STORAGE_TEST" >/dev/null
 grep -F 'action.frame,' "$STORAGE_TEST" >/dev/null
 grep -F 'exactIdentity.frame,' "$STORAGE_TEST" >/dev/null
-grep -F 'for _ in 0..<64 {' "$STORAGE_TEST" >/dev/null
-grep -F 'target.typeKey(.space, modifierFlags: [])' "$STORAGE_TEST" >/dev/null
-if grep -F 'harness.app.typeKey(.space' "$STORAGE_TEST" >/dev/null; then
-  printf 'storage keyboard activation must target the already-focused exact button\n' >&2
+grep -F 'List(entries, selection: $selectedListEntryID)' "$LIBRARY_SHELL" >/dev/null
+grep -F '.focused($libraryListHasFocus)' "$LIBRARY_SHELL" >/dev/null
+grep -F '.keyboardShortcut("d", modifiers: [.command])' "$LIBRARY_SHELL" >/dev/null
+grep -F 'downloadCommand = LibraryDownloadCommand(' "$LIBRARY_SHELL" >/dev/null
+grep -F '.onChange(of: downloadCommand)' "$GAME_ROW" >/dev/null
+[ "$(grep -Fc '.keyboardShortcut("d", modifiers: [.command])' "$LIBRARY_SHELL")" -eq 1 ]
+if grep -F '.keyboardShortcut(' "$GAME_ROW" >/dev/null; then
+  printf 'row-local duplicate download shortcuts are forbidden\n' >&2
   exit 1
 fi
+grep -F 'list.value(forKey: "hasKeyboardFocus") as? Bool == true' "$STORAGE_TEST" >/dev/null
+grep -F 'XCTAssertEqual(selection.value as? String, quotaDownloadAssetID)' "$STORAGE_TEST" >/dev/null
+grep -F 'harness.app.typeKey("d", modifierFlags: [.command])' "$STORAGE_TEST" >/dev/null
+python3 - "$GAME_ROW" "$LIBRARY_SHELL" <<'PY'
+import pathlib, sys
+
+row = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+shell = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8")
+handler = row.split(".onChange(of: downloadCommand)", 1)[1].split(".sheet(isPresented: $showsReadinessSheet)", 1)[0]
+if "guard command?.assetSetID == entry.id" not in handler or "Task { await download() }" not in handler:
+    raise SystemExit("selected Download command must reach exactly its row's production download method")
+request = shell.split("private func requestSelectedDownload()", 1)[1].split("\n    }", 1)[0]
+if "guard let entry = selectedDownloadEntry" not in request or "assetSetID: entry.id" not in request:
+    raise SystemExit("Download command must be scoped to the selected eligible asset")
+PY
 python3 - "$GAME_ROW" <<'PY'
 import pathlib, sys
 

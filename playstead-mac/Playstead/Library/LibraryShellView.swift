@@ -19,9 +19,13 @@ struct LibraryShellView: View {
     @State private var presentedSurface: ShellSurface?
     @State private var searchText = ""
     @State private var libraryLayout: LibraryLayout = .cards
+    @State private var selectedListEntryID: String?
+    @State private var downloadCommand: LibraryDownloadCommand?
+    @State private var downloadCommandSequence = 0
     @State private var presentedReadinessEntry: CatalogueEntry?
     @FocusState private var focusedShellControl: ShellSurface?
     @FocusState private var focusedSheetDismissal: Bool
+    @FocusState private var libraryListHasFocus: Bool
     /// Bumped by every storage action so the presented sheet re-reads the
     /// real stores. Pins, the queue and the quota policy live in SQLite,
     /// not in an observable view model, so nothing else would invalidate
@@ -330,12 +334,23 @@ struct LibraryShellView: View {
             HStack {
                 Button("Cards") { libraryLayout = .cards }
                     .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.showCards)
-                Button("List") { libraryLayout = .list }
+                Button("List") { showLibraryList() }
                     .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.showList)
                 if let entry = library.filteredCatalogue.first {
                     Button("Check readiness") { presentedReadinessEntry = entry }
                         .accessibilityLabel("Check launch readiness")
                         .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.openReadiness)
+                }
+                if libraryLayout == .list {
+                    Text(selectedListEntryTitle.map { "Selected: \($0)" } ?? "No game selected")
+                        .font(.psLabel)
+                        .foregroundStyle(.secondary)
+                        .accessibilityValue(selectedListEntryID ?? "none")
+                        .accessibilityIdentifier("playstead.library.list-selection")
+                    Button("Download selected") { requestSelectedDownload() }
+                        .disabled(selectedDownloadEntry == nil)
+                        .keyboardShortcut("d", modifiers: [.command])
+                        .playsteadFocusable(identifier: "playstead.control.download-selected")
                 }
             }
 
@@ -361,10 +376,7 @@ struct LibraryShellView: View {
                 .accessibilityLabel("Game cards")
                 .accessibilityIdentifier(AccessibilityIdentifiers.Surface.gameCard)
             case .list:
-                Group { catalogueList(library.filteredCatalogue) }
-                    .accessibilityElement(children: .contain)
-                    .accessibilityLabel("Game list")
-                    .accessibilityIdentifier(AccessibilityIdentifiers.Surface.gameList)
+                catalogueList(library.filteredCatalogue)
             }
         }
         .padding(.horizontal, DesignTokens.Spacing.md)
@@ -404,9 +416,14 @@ struct LibraryShellView: View {
     }
 
     private func catalogueList(_ entries: [CatalogueEntry]) -> some View {
-        List(entries) { entry in
-            GameRowView(entry: entry)
+        List(entries, selection: $selectedListEntryID) { entry in
+            GameRowView(entry: entry, downloadCommand: downloadCommand)
+                .tag(entry.id)
+                .accessibilityIdentifier("playstead.game.\(entry.id).row")
         }
+        .focused($libraryListHasFocus)
+        .accessibilityLabel("Game list")
+        .accessibilityIdentifier(AccessibilityIdentifiers.Surface.gameList)
         .overlay {
             if entries.isEmpty {
                 ContentUnavailableView(
@@ -416,6 +433,43 @@ struct LibraryShellView: View {
                 )
             }
         }
+    }
+
+    private var selectedListEntryTitle: String? {
+        library.filteredCatalogue.first { $0.id == selectedListEntryID }?.displayTitle
+    }
+
+    private var selectedDownloadEntry: CatalogueEntry? {
+        guard let entry = library.filteredCatalogue.first(where: { $0.id == selectedListEntryID }),
+              GameRowView.status(for: environment.readinessReport(for: entry)) == .needsDownload else {
+            return nil
+        }
+        return entry
+    }
+
+    /// A macOS List owns keyboard selection; its embedded buttons are not a
+    /// guaranteed Tab sequence. Activating List therefore establishes an
+    /// exact selected row and moves focus into the List. Arrow keys change the
+    /// selection and the single ⌘D command acts on only that selected row.
+    private func showLibraryList() {
+        let entries = library.filteredCatalogue
+        if !entries.contains(where: { $0.id == selectedListEntryID }) {
+            selectedListEntryID = entries.first?.id
+        }
+        libraryLayout = .list
+        Task { @MainActor in
+            await Task.yield()
+            libraryListHasFocus = true
+        }
+    }
+
+    private func requestSelectedDownload() {
+        guard let entry = selectedDownloadEntry else { return }
+        downloadCommandSequence += 1
+        downloadCommand = LibraryDownloadCommand(
+            sequence: downloadCommandSequence,
+            assetSetID: entry.id
+        )
     }
 }
 
