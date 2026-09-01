@@ -42,6 +42,7 @@ require_text "$runner" 'postgresql@17'
 require_text "$runner" 'MIX_ENV=mac_ci'
 require_text "$runner" 'snapshot_triplets'
 require_text "$runner" 'linux_jobs'
+require_text "$runner" 'verify_result() ('
 require_text "$runner" 'trap cleanup_native_services EXIT'
 require_text "$runner" 'bootstrap.log'
 require_text "$runner" 'exec mix phx.server'
@@ -50,6 +51,10 @@ require_text "$runner" '-only-testing:"${snapshot_identifier%%.*}/${snapshot_ide
 require_text "$runner" 'PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT="$snapshot_output"'
 require_text "$scheme" 'key="PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT" value="$(PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT)" isEnabled="YES"'
 require_text "$snapshot_canary" 'appendingPathComponent(".snapshot-testing", isDirectory: true)'
+if grep -F "trap 'rm -f \"\$required_file\"' RETURN" "$runner" >/dev/null; then
+  printf 'verifier temp-file cleanup must not leak a RETURN trap\n' >&2
+  exit 1
+fi
 if grep -F '@testable import Playstead' "$ui_canary" >/dev/null; then
   printf 'XCUITest canaries must not link directly against the app module\n' >&2
   exit 1

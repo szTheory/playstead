@@ -23,12 +23,12 @@ require_value() {
   [ -n "$value" ] || die "$flag requires a value"
 }
 
-verify_result() {
+verify_result() (
   local evidence="$1"
   shift
   local required_file expected_workflow expected_event expected_ref expected_sha expected_run_id
   required_file="$(mktemp "${TMPDIR:-/tmp}/playstead-required-canaries.XXXXXX")"
-  trap 'rm -f "$required_file"' RETURN
+  trap 'rm -f "$required_file"' EXIT
   expected_workflow=""
   expected_event=""
   expected_ref=""
@@ -147,7 +147,7 @@ scan(data)
 
 print(f"verified {len(required)} exact hosted canary result(s)")
 PY
-}
+)
 
 validate_hosted_run() {
   local metadata="$1"
