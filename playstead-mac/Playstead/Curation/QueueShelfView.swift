@@ -8,14 +8,6 @@ import SwiftUI
 struct QueueShelfView: View {
     let viewModel: QueueViewModel
     let catalogueByAssetSetID: [String: CatalogueEntry]
-    @FocusState private var focusedReorderAction: ReorderAction?
-
-    private struct ReorderAction: Hashable {
-        enum Direction: Hashable { case up, down }
-
-        let itemID: String
-        let direction: Direction
-    }
 
     static let emptyExplanation = "Add a game to your queue to keep it in mind."
 
@@ -60,22 +52,20 @@ struct QueueShelfView: View {
         _ item: CurationQueueItemRow,
         title: String,
         index: Int,
-        direction: ReorderAction.Direction
+        direction: QueueReorderDirection
     ) -> some View {
-        let action = ReorderAction(itemID: item.id, direction: direction)
         let isUp = direction == .up
         return Button {
             settleMove(assetSetID: item.assetSetID, to: isUp ? index - 1 : index + 1)
-            focusedReorderAction = action
         } label: {
             Label(isUp ? "Move Up" : "Move Down", systemImage: isUp ? "arrow.up" : "arrow.down")
         }
         .disabled(
             isUp ? index == viewModel.items.startIndex : index == viewModel.items.index(before: viewModel.items.endIndex)
         )
-        .focused($focusedReorderAction, equals: action)
         .accessibilityLabel("Move \(title) \(isUp ? "up" : "down")")
-        .accessibilityIdentifier(
+        .frame(minWidth: DesignTokens.InteractiveTarget.minimum, minHeight: DesignTokens.InteractiveTarget.minimum)
+        .playsteadFocusable(identifier:
             "playstead.curation.queue-item.\(item.id).move-\(isUp ? "up" : "down")"
         )
     }
@@ -93,4 +83,9 @@ struct QueueShelfView: View {
         viewModel.commitReorder(assetSetID: assetSetID)
         viewModel.refresh()
     }
+}
+
+private enum QueueReorderDirection {
+    case up
+    case down
 }

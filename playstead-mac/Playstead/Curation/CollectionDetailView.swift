@@ -8,17 +8,9 @@ struct CollectionDetailView: View {
     let viewModel: CollectionsViewModel
     let collectionID: String
     let catalogueByAssetSetID: [String: CatalogueEntry]
-    @FocusState private var focusedReorderAction: ReorderAction?
 #if UI_TESTING
     @Environment(AppEnvironment.self) private var environment
 #endif
-
-    private struct ReorderAction: Hashable {
-        enum Direction: Hashable { case up, down }
-
-        let memberID: String
-        let direction: Direction
-    }
 
     static let emptyExplanation = "This collection has no games yet."
 
@@ -74,20 +66,18 @@ struct CollectionDetailView: View {
         _ member: CurationCollectionMemberRow,
         title: String,
         index: Int,
-        direction: ReorderAction.Direction
+        direction: ReorderDirection
     ) -> some View {
-        let action = ReorderAction(memberID: member.id, direction: direction)
         let isUp = direction == .up
         return Button {
             settleMove(assetSetID: member.assetSetID, to: isUp ? index - 1 : index + 1)
-            focusedReorderAction = action
         } label: {
             Label(isUp ? "Move Up" : "Move Down", systemImage: isUp ? "arrow.up" : "arrow.down")
         }
         .disabled(isUp ? index == members.startIndex : index == members.index(before: members.endIndex))
-        .focused($focusedReorderAction, equals: action)
         .accessibilityLabel("Move \(title) \(isUp ? "up" : "down")")
-        .accessibilityIdentifier(
+        .frame(minWidth: DesignTokens.InteractiveTarget.minimum, minHeight: DesignTokens.InteractiveTarget.minimum)
+        .playsteadFocusable(identifier:
             "playstead.curation.collection-member.\(member.id).move-\(isUp ? "up" : "down")"
         )
     }
@@ -105,4 +95,9 @@ struct CollectionDetailView: View {
         viewModel.commitReorderMembers(collectionID, assetSetID: assetSetID)
         viewModel.refresh()
     }
+}
+
+private enum ReorderDirection {
+    case up
+    case down
 }
