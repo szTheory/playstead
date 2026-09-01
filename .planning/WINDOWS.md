@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 18
+open_count: 19
 waived_count: 1
 fixed_count: 2
-total_count: 21
-last_updated: 2026-09-01T11:39:10.783Z
+total_count: 22
+last_updated: 2026-09-01T12:13:48.616Z
 ---
 
 # Broken Windows Ledger
@@ -36,6 +36,7 @@ last_updated: 2026-09-01T11:39:10.783Z
 | 19 | 03.5 | deviation | playstead-mac/PlaysteadUITests/CurationInteractionTests.swift |  | Hosted run 33495336534 proved routes and cells but no mutations: switched touch-style press-drag to macOS click-drag and removed duplicate Space after focusContainedAction. | open |  | 2026-09-01T10:33:18.230Z |  |
 | 20 | 03.5 | deviation | playstead-mac/PlaysteadUITests/CurationInteractionTests.swift |  | Hosted run 33498048537 proved focusContainedAction is focus-only; restored one Space, isolated Move Up availability/click, and held the macOS drag destination. | open |  | 2026-09-01T11:04:38.825Z |  |
 | 21 | 03.5 | deviation | playstead-mac/Playstead/Curation/CollectionsViewModel.swift |  | Hosted run 33500660524 exposed an unobserved SQLite member query; refresh now publishes a member revision so optimistic reorder and bounded evidence invalidate. | open |  | 2026-09-01T11:39:10.783Z |  |
+| 22 | 03.5 | deviation | playstead-mac/Playstead/Curation/CollectionDetailView.swift |  | Hosted run 33503640089 isolated keyboard focus ownership; collection and queue reorder actions now bind stable identity and focus on the final button through playsteadFocusable. | open |  | 2026-09-01T12:13:48.616Z |  |
 
 ````json
 [
@@ -289,6 +290,18 @@ last_updated: 2026-09-01T11:39:10.783Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-01T11:39:10.783Z",
+    "resolved_at": null
+  },
+  {
+    "id": 22,
+    "kind": "deviation",
+    "phase": "03.5",
+    "file": "playstead-mac/Playstead/Curation/CollectionDetailView.swift",
+    "line": null,
+    "description": "Hosted run 33503640089 isolated keyboard focus ownership; collection and queue reorder actions now bind stable identity and focus on the final button through playsteadFocusable.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-01T12:13:48.616Z",
     "resolved_at": null
   }
 ]
