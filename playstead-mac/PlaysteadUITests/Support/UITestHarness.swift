@@ -108,10 +108,26 @@ final class UITestHarness {
         assertExactlyOneFocusedAction(expected: expected[expected.count - 1])
 
         let activationTarget = element(identifier, type: .button)
+        guard let activationIndex = identifiers.firstIndex(of: identifier) else {
+            return XCTFail("activation target is not part of the test-owned focus sequence")
+        }
         var foundActivationTarget = hasKeyboardFocus(activationTarget)
-        for _ in 0..<expected.count where !foundActivationTarget {
+        var nextDeclaredIndex = 0
+        for _ in 0..<24 where !foundActivationTarget {
             app.typeKey(.tab, modifierFlags: [])
-            foundActivationTarget = hasKeyboardFocus(activationTarget)
+            let focusedDeclared = expected.indices.filter { hasKeyboardFocus(expected[$0]) }
+            if !focusedDeclared.isEmpty {
+                XCTAssertEqual(
+                    focusedDeclared,
+                    [nextDeclaredIndex],
+                    "activation search crossed declared controls out of cyclic order"
+                )
+                if focusedDeclared[0] == activationIndex {
+                    foundActivationTarget = true
+                    break
+                }
+                nextDeclaredIndex = (nextDeclaredIndex + 1) % expected.count
+            }
         }
         XCTAssertTrue(foundActivationTarget, "activation target was absent from the exact focus sequence")
         assertExactlyOneFocusedAction(expected: activationTarget)
@@ -165,6 +181,37 @@ final class UITestHarness {
             app.typeKey(.tab, modifierFlags: [])
         }
         XCTFail("keyboard focus escaped the presented sheet: \(rootIdentifier)")
+    }
+
+    /// Moves focus to one independently named action without assuming that a
+    /// prior containment assertion happened to land on it. `typeKey` sends to
+    /// the currently focused control on macOS; querying a different element
+    /// does not transfer keyboard focus to that element.
+    func focusContainedAction(_ identifier: String, rootIdentifier: String) {
+        let root = element(rootIdentifier)
+        let target = element(identifier, type: .button)
+        XCTAssertTrue(root.waitForExistence(timeout: 5))
+        XCTAssertTrue(target.waitForExistence(timeout: 5))
+        let descendantIDs = Set(
+            root.descendants(matching: .button).allElementsBoundByIndex
+                .map(\.identifier)
+                .filter { !$0.isEmpty }
+        )
+        XCTAssertTrue(descendantIDs.contains(identifier), "requested action is outside the presented sheet")
+
+        for _ in 0..<24 {
+            let focused = app.buttons.matching(NSPredicate(format: "hasKeyboardFocus == true")).allElementsBoundByIndex
+            XCTAssertLessThanOrEqual(focused.count, 1, "multiple sheet actions report keyboard focus")
+            if focused.count == 1, focused[0].identifier == identifier {
+                identifierTrace.append(identifier)
+                return
+            }
+            if focused.count == 1 {
+                XCTAssertTrue(descendantIDs.contains(focused[0].identifier), "keyboard focus escaped the presented sheet")
+            }
+            app.typeKey(.tab, modifierFlags: [])
+        }
+        XCTFail("Tab never reached the requested sheet action: \(identifier)")
     }
 
     func sanitizedTrace() -> String {

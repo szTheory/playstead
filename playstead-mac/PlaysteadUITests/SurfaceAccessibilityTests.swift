@@ -83,6 +83,10 @@ final class SurfaceAccessibilityTests: XCTestCase {
             .init("playstead.control.open-controller-settings", type: .button),
             .init("playstead.control.choose-bios", type: .button)
         ])
+        harness.focusContainedAction(
+            "playstead.control.done",
+            rootIdentifier: "playstead.surface.readiness"
+        )
         harness.element("playstead.control.done", type: .button).typeKey(.space, modifierFlags: [])
         XCTAssertFalse(harness.element("playstead.surface.readiness").waitForExistence(timeout: 2))
     }

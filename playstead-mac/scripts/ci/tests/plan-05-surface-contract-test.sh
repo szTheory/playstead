@@ -75,6 +75,36 @@ if "AUDIT-DISCOVERY" in harness or "Thread.sleep" in harness or "sleep(" in harn
 if "identifiers.map" not in harness or "identifiers.isEmpty" not in harness:
     raise SystemExit("exact test-owned focus sequence contract is missing")
 
+def check_focus_expectations(harness_source, test_source):
+    required_harness = (
+        "for _ in 0..<24 where !foundActivationTarget",
+        "activation search crossed declared controls out of cyclic order",
+        "func focusContainedAction(_ identifier: String, rootIdentifier: String)",
+        "requested action is outside the presented sheet",
+    )
+    missing = [marker for marker in required_harness if marker not in harness_source]
+    if missing or "0..<expected.count where !foundActivationTarget" in harness_source:
+        raise AssertionError(f"focus traversal uses a content-dependent bound or lacks containment: {missing}")
+    focus_call = test_source.find("harness.focusContainedAction(")
+    done_activation = test_source.find('harness.element("playstead.control.done", type: .button).typeKey')
+    if focus_call < 0 or done_activation < 0 or focus_call > done_activation:
+        raise AssertionError("Done receives Space before the test explicitly moves sheet focus to Done")
+
+check_focus_expectations(harness, tests)
+for marker, source_name in (
+    ("for _ in 0..<24 where !foundActivationTarget", "harness"),
+    ("func focusContainedAction(_ identifier: String, rootIdentifier: String)", "harness"),
+    ("harness.focusContainedAction(", "tests"),
+):
+    mutated_harness = harness.replace(marker, "removed.focus.contract", 1) if source_name == "harness" else harness
+    mutated_tests = tests.replace(marker, "removed.focus.contract", 1) if source_name == "tests" else tests
+    try:
+        check_focus_expectations(mutated_harness, mutated_tests)
+    except AssertionError:
+        pass
+    else:
+        raise SystemExit(f"focus expectation meta-test did not fail after removing {marker}")
+
 def check_ui_profile_launch(harness_source):
     assignments = dict(re.findall(r'app\.launchEnvironment\["([A-Z0-9_]+)"\] = (.+)', harness_source))
     expected = {
