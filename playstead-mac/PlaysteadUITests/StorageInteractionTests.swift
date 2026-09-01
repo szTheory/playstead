@@ -67,22 +67,90 @@ final class StorageInteractionTests: XCTestCase {
         exerciseQuotaAndFocusRestoration()
     }
 
-    func testReclaimPromptShowsExactEligibleCandidate() {
+    func testReclaimPromptPresentsProductionRoot() {
+        openReclaimPrompt()
+    }
+
+    func testReclaimPromptInitialStateIsExact() {
         openReclaimPrompt()
         requireInitialReclaimEvidence()
     }
 
-    func testReclaimPromptSelectionTracksExactBytes() {
+    func testReclaimPromptRowIdentityExists() {
         openReclaimPrompt()
-        requireInitialReclaimEvidence()
+        harness.require(["playstead.reclaim.candidate.0"])
+        XCTAssertEqual(elements("playstead.reclaim.candidate").count, 1)
+    }
+
+    func testReclaimPromptRowValueIsExact() {
+        openReclaimPrompt()
+        harness.require(["playstead.reclaim.candidate.0"])
+        assertValue("playstead.reclaim.candidate.0", equals: "bytes=32;selected=false")
+    }
+
+    func testReclaimPromptToggleBelongsToPrompt() {
+        openReclaimPrompt()
+        harness.require(["playstead.reclaim.candidate.0.toggle"])
+        harness.focusContainedAction(
+            "playstead.reclaim.candidate.0.toggle",
+            rootIdentifier: "playstead.surface.reclaim"
+        )
+    }
+
+    func testReclaimPromptSelectionTextTracksExactBytes() {
+        openReclaimPrompt()
         selectReclaimCandidate()
     }
 
-    func testReclaimPromptConfirmationRemovesExactEligibleBytes() throws {
+    func testReclaimPromptConfirmBecomesEnabled() {
         openReclaimPrompt()
-        requireInitialReclaimEvidence()
         selectReclaimCandidate()
-        try confirmReclaimAndVerifyCanonicalRows()
+        assertEnabled("playstead.reclaim.confirm")
+    }
+
+    func testReclaimPromptActionsPassLiveAudit() throws {
+        openReclaimPrompt()
+        selectReclaimCandidate()
+        try harness.audit(.action, rootIdentifier: "playstead.surface.reclaim")
+    }
+
+    func testReclaimPromptConfirmRemovesExactEligibleBytes() {
+        openReclaimPrompt()
+        selectReclaimCandidate()
+        activateReclaimAndVerifyMutation()
+    }
+
+    func testReclaimPromptPostMutationPreservesCanonicalRows() {
+        openReclaimPrompt()
+        selectReclaimCandidate()
+        activateReclaimAndVerifyMutation()
+        dismissReclaimAndAssertCanonicalRows()
+    }
+
+    func testStorageInventoryPresentsProductionRoot() {
+        openEligibleStorageInventory()
+        harness.require(["playstead.storage.inventory"])
+    }
+
+    func testStorageInventoryRowIdentityExists() {
+        openEligibleStorageInventory()
+        harness.require(["playstead.storage.candidate.0"])
+        XCTAssertEqual(elements("playstead.storage.candidate").count, 1)
+    }
+
+    func testStorageInventoryRowValueIsExact() {
+        openEligibleStorageInventory()
+        harness.require(["playstead.storage.candidate.0"])
+        assertValue("playstead.storage.candidate.0", equals: "bytes=32;selected=false")
+    }
+
+    func testStorageInventoryToggleBelongsToSurface() {
+        openEligibleStorageInventory()
+        harness.require(["playstead.storage.candidate.0.toggle"])
+        harness.focusContainedAction(
+            "playstead.storage.candidate.0.toggle",
+            rootIdentifier: "playstead.surface.storage"
+        )
     }
 
     func testStorageInventorySelectionTracksExactBytes() {
@@ -91,11 +159,33 @@ final class StorageInteractionTests: XCTestCase {
         selectStorageCandidate()
     }
 
-    func testStorageInventoryReclaimRemovesOnlyEligibleCopy() throws {
+    func testStorageInventoryConfirmBecomesEnabled() {
         openEligibleStorageInventory()
         requireInitialStorageEvidence()
         selectStorageCandidate()
-        try confirmStorageReclaimAndVerifyCanonicalRows()
+        assertEnabled("playstead.storage.reclaim")
+    }
+
+    func testStorageInventoryActionsPassLiveAudit() throws {
+        openEligibleStorageInventory()
+        requireInitialStorageEvidence()
+        selectStorageCandidate()
+        try harness.audit(.action, rootIdentifier: "playstead.surface.storage")
+    }
+
+    func testStorageInventoryConfirmMutationRemovesOnlyEligibleCopy() {
+        openEligibleStorageInventory()
+        requireInitialStorageEvidence()
+        selectStorageCandidate()
+        activateStorageReclaimAndVerifyMutation()
+    }
+
+    func testStorageInventoryPostMutationPreservesCanonicalRows() {
+        openEligibleStorageInventory()
+        requireInitialStorageEvidence()
+        selectStorageCandidate()
+        activateStorageReclaimAndVerifyMutation()
+        dismissStorageAndAssertCanonicalRows()
     }
 
     func testStorageInventoryProtectsPinnedCopy() {
@@ -163,13 +253,10 @@ final class StorageInteractionTests: XCTestCase {
     private func requireInitialReclaimEvidence() {
         harness.require([
             "playstead.reclaim.shortfall",
-            "playstead.reclaim.selection",
-            "playstead.reclaim.candidate.0"
+            "playstead.reclaim.selection"
         ])
         assertValue("playstead.reclaim.shortfall", equals: "48")
         assertValue("playstead.reclaim.selection", equals: "count=0;bytes=0")
-        XCTAssertEqual(elements("playstead.reclaim.candidate").count, 1)
-        assertValue("playstead.reclaim.candidate.0", equals: "bytes=32;selected=false")
     }
 
     private func selectReclaimCandidate() {
@@ -184,13 +271,8 @@ final class StorageInteractionTests: XCTestCase {
         assertValue("playstead.reclaim.candidate.0", equals: "bytes=32;selected=true")
     }
 
-    private func confirmReclaimAndVerifyCanonicalRows() throws {
-        let reclaimRoot = harness.element("playstead.surface.reclaim")
-        harness.require([
-            "playstead.reclaim.confirm",
-            "playstead.reclaim.cancel"
-        ])
-        try harness.audit(.action, rootIdentifier: "playstead.surface.reclaim")
+    private func activateReclaimAndVerifyMutation() {
+        assertEnabled("playstead.reclaim.confirm")
         harness.focusContainedAction(
             "playstead.reclaim.confirm",
             rootIdentifier: "playstead.surface.reclaim"
@@ -202,11 +284,14 @@ final class StorageInteractionTests: XCTestCase {
         // so the real retry reopens with no eligible cached rows. This is
         // an exact, observable proof that 32 bytes were removed and the
         // target was not silently treated as downloaded.
-        XCTAssertTrue(reclaimRoot.waitForExistence(timeout: 5))
         waitForValue("playstead.reclaim.shortfall", equals: "16")
         waitForValue("playstead.reclaim.selection", equals: "count=0;bytes=0")
         XCTAssertEqual(elements("playstead.reclaim.candidate").count, 0)
         harness.validateSemanticTargets([.init("playstead.reclaim.cancel", type: .button)])
+    }
+
+    private func dismissReclaimAndAssertCanonicalRows() {
+        let reclaimRoot = harness.element("playstead.surface.reclaim")
         harness.focusContainedAction(
             "playstead.reclaim.cancel",
             rootIdentifier: "playstead.surface.reclaim"
@@ -214,8 +299,8 @@ final class StorageInteractionTests: XCTestCase {
         harness.element("playstead.reclaim.cancel", type: .button)
             .typeKey(.space, modifierFlags: [])
         XCTAssertFalse(reclaimRoot.waitForExistence(timeout: 2))
-        XCTAssertTrue(harness.app.staticTexts["Synthetic Reclaim Candidate"].exists)
-        XCTAssertTrue(harness.app.staticTexts["Synthetic Quota Download"].exists)
+        assertCanonicalRow(title: "Synthetic Reclaim Candidate")
+        assertCanonicalRow(title: "Synthetic Quota Download")
     }
 
     private func openEligibleStorageInventory() {
@@ -253,8 +338,8 @@ final class StorageInteractionTests: XCTestCase {
         assertValue("playstead.storage.candidate.0", equals: "bytes=32;selected=true")
     }
 
-    private func confirmStorageReclaimAndVerifyCanonicalRows() throws {
-        try harness.audit(.action, rootIdentifier: "playstead.surface.storage")
+    private func activateStorageReclaimAndVerifyMutation() {
+        assertEnabled("playstead.storage.reclaim")
         harness.focusContainedAction(
             "playstead.storage.reclaim",
             rootIdentifier: "playstead.surface.storage"
@@ -266,9 +351,12 @@ final class StorageInteractionTests: XCTestCase {
             equals: "used=0;candidate-count=0;pinned-count=0;unreferenced-count=0;quarantined-count=0"
         )
         XCTAssertEqual(elements("playstead.storage.candidate").count, 0)
+    }
+
+    private func dismissStorageAndAssertCanonicalRows() {
         dismissSheet(root: "playstead.surface.storage")
-        XCTAssertTrue(harness.app.staticTexts["Synthetic Reclaim Candidate"].exists)
-        XCTAssertTrue(harness.app.staticTexts["Synthetic Quota Download"].exists)
+        assertCanonicalRow(title: "Synthetic Reclaim Candidate")
+        assertCanonicalRow(title: "Synthetic Quota Download")
     }
 
     private func launchStorageProfile(_ profile: UITestHarness.Profile) {
@@ -322,6 +410,19 @@ final class StorageInteractionTests: XCTestCase {
         let element = harness.element(identifier)
         XCTAssertTrue(element.waitForExistence(timeout: 5), "missing value element: \(identifier)")
         XCTAssertEqual(element.value as? String, expected)
+    }
+
+    private func assertEnabled(_ identifier: String) {
+        let action = harness.element(identifier, type: .button)
+        XCTAssertTrue(action.waitForExistence(timeout: 5), "missing action: \(identifier)")
+        XCTAssertTrue(action.isEnabled, "action is disabled: \(identifier)")
+    }
+
+    private func assertCanonicalRow(title: String) {
+        let row = harness.app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label BEGINSWITH %@", title))
+            .firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5), "canonical row missing: \(title)")
     }
 
     private func waitForValue(_ identifier: String, equals expected: String) {

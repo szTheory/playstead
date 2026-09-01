@@ -126,8 +126,12 @@ for stage in \
   testCollectionsShelfRendersExactSeededRoute \
   testQueueShelfRendersHonestEmptyFixture \
   testRecentShelfRendersHonestEmptyFixture \
+  testCollectionDetailOpensExactSeededState \
+  testCollectionDragTargetsOwnDistinctListCells \
   testDragReorderProducesOneEffect \
   testDragReorderSurvivesRelaunch \
+  testKeyboardReorderProducesOneEffectAndRetainsFocus \
+  testKeyboardReorderSurvivesRelaunch \
   testKeyboardReorderRetainsFocusAndSurvivesRelaunch; do
   grep -F -- "--required-test PlaysteadUITests.CurationInteractionTests/${stage}" "$RUNNER" >/dev/null
 done
@@ -135,9 +139,10 @@ if grep -E 'testFiveShelves(AndDurableDragReorder|RenderExactFixtures)|test(Favo
   printf 'broad curation UI identity must remain split into exact hosted stages\n' >&2
   exit 1
 fi
-grep -F 'third.press(forDuration: 1, thenDragTo: first)' "$CURATION_TEST" >/dev/null
-grep -F 'cells.containing(.any, identifier: rowID(1))' "$CURATION_TEST" >/dev/null
-[ "$(grep -c 'harness.relaunch' "$CURATION_TEST")" -eq 3 ]
+grep -F 'withVelocity: XCUIGestureVelocity.slow' "$CURATION_TEST" >/dev/null
+grep -F 'thenHoldForDuration: 0.5' "$CURATION_TEST" >/dev/null
+grep -F 'harness.app.cells.containing(.any, identifier: identifier)' "$CURATION_TEST" >/dev/null
+[ "$(grep -c 'harness.relaunch' "$CURATION_TEST")" -eq 4 ]
 grep -F 'harness.element(collectionRowID, type: .button)' "$CURATION_TEST" >/dev/null
 if grep -F 'try fixture.assertExactState()' "$UI_BOOTSTRAP" >/dev/null; then
   printf 'bootstrap must preserve makeFixture relaunch validation instead of requiring fresh positions\n' >&2
@@ -146,15 +151,29 @@ fi
 for stage in \
   testDownloadsPauseResumeFlow \
   testQuotaEditAndFocusRestoration \
-  testReclaimPromptShowsExactEligibleCandidate \
-  testReclaimPromptSelectionTracksExactBytes \
-  testReclaimPromptConfirmationRemovesExactEligibleBytes \
+  testReclaimPromptPresentsProductionRoot \
+  testReclaimPromptInitialStateIsExact \
+  testReclaimPromptRowIdentityExists \
+  testReclaimPromptRowValueIsExact \
+  testReclaimPromptToggleBelongsToPrompt \
+  testReclaimPromptSelectionTextTracksExactBytes \
+  testReclaimPromptConfirmBecomesEnabled \
+  testReclaimPromptActionsPassLiveAudit \
+  testReclaimPromptConfirmRemovesExactEligibleBytes \
+  testReclaimPromptPostMutationPreservesCanonicalRows \
+  testStorageInventoryPresentsProductionRoot \
+  testStorageInventoryRowIdentityExists \
+  testStorageInventoryRowValueIsExact \
+  testStorageInventoryToggleBelongsToSurface \
   testStorageInventorySelectionTracksExactBytes \
-  testStorageInventoryReclaimRemovesOnlyEligibleCopy \
+  testStorageInventoryConfirmBecomesEnabled \
+  testStorageInventoryActionsPassLiveAudit \
+  testStorageInventoryConfirmMutationRemovesOnlyEligibleCopy \
+  testStorageInventoryPostMutationPreservesCanonicalRows \
   testStorageInventoryProtectsPinnedCopy; do
   grep -F -- "--required-test PlaysteadUITests.StorageInteractionTests/${stage}" "$RUNNER" >/dev/null
 done
-if grep -E 'testDownloadsQuotaReclaimAndStorageFlows|testReclaimPromptRemovesExactEligibleBytes|testStorageInventoryReclaimsOnlyEligibleCopies' "$RUNNER" "$STORAGE_TEST" >/dev/null; then
+if grep -E 'testDownloadsQuotaReclaimAndStorageFlows|testReclaimPrompt(ShowsExactEligibleCandidate|SelectionTracksExactBytes|ConfirmationRemovesExactEligibleBytes)|testStorageInventory(ReclaimsOnlyEligibleCopies|ReclaimRemovesOnlyEligibleCopy)' "$RUNNER" "$STORAGE_TEST" >/dev/null; then
   printf 'broad storage UI identity must remain split into exact hosted stages\n' >&2
   exit 1
 fi

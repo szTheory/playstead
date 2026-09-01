@@ -581,16 +581,34 @@ PY
     --required-test PlaysteadUITests.CurationInteractionTests/testCollectionsShelfRendersExactSeededRoute \
     --required-test PlaysteadUITests.CurationInteractionTests/testQueueShelfRendersHonestEmptyFixture \
     --required-test PlaysteadUITests.CurationInteractionTests/testRecentShelfRendersHonestEmptyFixture \
+    --required-test PlaysteadUITests.CurationInteractionTests/testCollectionDetailOpensExactSeededState \
+    --required-test PlaysteadUITests.CurationInteractionTests/testCollectionDragTargetsOwnDistinctListCells \
     --required-test PlaysteadUITests.CurationInteractionTests/testDragReorderProducesOneEffect \
     --required-test PlaysteadUITests.CurationInteractionTests/testDragReorderSurvivesRelaunch \
+    --required-test PlaysteadUITests.CurationInteractionTests/testKeyboardReorderProducesOneEffectAndRetainsFocus \
+    --required-test PlaysteadUITests.CurationInteractionTests/testKeyboardReorderSurvivesRelaunch \
     --required-test PlaysteadUITests.CurationInteractionTests/testKeyboardReorderRetainsFocusAndSurvivesRelaunch \
     --required-test PlaysteadUITests.StorageInteractionTests/testDownloadsPauseResumeFlow \
     --required-test PlaysteadUITests.StorageInteractionTests/testQuotaEditAndFocusRestoration \
-    --required-test PlaysteadUITests.StorageInteractionTests/testReclaimPromptShowsExactEligibleCandidate \
-    --required-test PlaysteadUITests.StorageInteractionTests/testReclaimPromptSelectionTracksExactBytes \
-    --required-test PlaysteadUITests.StorageInteractionTests/testReclaimPromptConfirmationRemovesExactEligibleBytes \
+    --required-test PlaysteadUITests.StorageInteractionTests/testReclaimPromptPresentsProductionRoot \
+    --required-test PlaysteadUITests.StorageInteractionTests/testReclaimPromptInitialStateIsExact \
+    --required-test PlaysteadUITests.StorageInteractionTests/testReclaimPromptRowIdentityExists \
+    --required-test PlaysteadUITests.StorageInteractionTests/testReclaimPromptRowValueIsExact \
+    --required-test PlaysteadUITests.StorageInteractionTests/testReclaimPromptToggleBelongsToPrompt \
+    --required-test PlaysteadUITests.StorageInteractionTests/testReclaimPromptSelectionTextTracksExactBytes \
+    --required-test PlaysteadUITests.StorageInteractionTests/testReclaimPromptConfirmBecomesEnabled \
+    --required-test PlaysteadUITests.StorageInteractionTests/testReclaimPromptActionsPassLiveAudit \
+    --required-test PlaysteadUITests.StorageInteractionTests/testReclaimPromptConfirmRemovesExactEligibleBytes \
+    --required-test PlaysteadUITests.StorageInteractionTests/testReclaimPromptPostMutationPreservesCanonicalRows \
+    --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventoryPresentsProductionRoot \
+    --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventoryRowIdentityExists \
+    --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventoryRowValueIsExact \
+    --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventoryToggleBelongsToSurface \
     --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventorySelectionTracksExactBytes \
-    --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventoryReclaimRemovesOnlyEligibleCopy \
+    --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventoryConfirmBecomesEnabled \
+    --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventoryActionsPassLiveAudit \
+    --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventoryConfirmMutationRemovesOnlyEligibleCopy \
+    --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventoryPostMutationPreservesCanonicalRows \
     --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventoryProtectsPinnedCopy
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
 
