@@ -51,7 +51,7 @@ non_required_failure = {
     "name": "testSyntheticFailure()",
     "result": "Failed",
     "failureSummaries": [
-        {"message": "XCTAssertTrue failed - PLAYSTEAD_A11Y_ISSUES[parentChild]=playstead.surface.library,unidentified"}
+        {"message": "XCTAssertTrue failed - PLAYSTEAD_A11Y_ISSUES[parentChild]=playstead.surface.library@role-3,unidentified@role-64"}
     ],
 }
 data = {
@@ -80,8 +80,8 @@ assert summary["failed_tests"] == [{"identifier": "SurfaceAccessibilityTests/tes
 assert summary["audit_issue_count"] == 2
 assert summary["audit_issues_truncated"] is False
 assert summary["audit_issues"] == [
-    {"test_identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "category": "parentChild", "element_identifier": "playstead.surface.library"},
-    {"test_identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "category": "parentChild", "element_identifier": "unidentified"},
+    {"test_identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "category": "parentChild", "element_identifier": "playstead.surface.library", "element_role": "role-3"},
+    {"test_identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "category": "parentChild", "element_identifier": "unidentified", "element_role": "role-64"},
 ]
 assert set(summary) == {"schema_version", "layer", "executed_test_count", "required_tests", "failed_test_count", "failed_tests_truncated", "failed_tests", "audit_issue_count", "audit_issues_truncated", "audit_issues"}
 PY

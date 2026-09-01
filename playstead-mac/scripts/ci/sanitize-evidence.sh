@@ -122,7 +122,7 @@ def validate_test_evidence(data, relative):
     if (not audit_truncated and audit_count != len(audit_issues)) or (audit_truncated and (audit_count <= 50 or len(audit_issues) != 50)):
         raise SystemExit(f"audit issue truncation metadata is inconsistent: {relative}")
     for record in audit_issues:
-        if not isinstance(record, dict) or set(record) != {"test_identifier", "category", "element_identifier"}:
+        if not isinstance(record, dict) or set(record) != {"test_identifier", "category", "element_identifier", "element_role"}:
             raise SystemExit(f"audit issue contains non-allowlisted fields: {relative}")
         if not isinstance(record.get("test_identifier"), str) or not test_identifier.fullmatch(record["test_identifier"]):
             raise SystemExit(f"audit issue test identifier is not canonical: {relative}")
@@ -131,6 +131,9 @@ def validate_test_evidence(data, relative):
         element_identifier = record.get("element_identifier")
         if not isinstance(element_identifier, str) or not re.fullmatch(r"(?:playstead|library)\.[a-z0-9]+(?:[.-][a-z0-9]+)*|unidentified", element_identifier):
             raise SystemExit(f"audit issue element identifier is not allowlisted: {relative}")
+        element_role = record.get("element_role")
+        if not isinstance(element_role, str) or not re.fullmatch(r"role-(?:[0-9]|[1-7][0-9]|8[0-2])", element_role):
+            raise SystemExit(f"audit issue element role is not allowlisted: {relative}")
     required = data.get("required_tests")
     if not isinstance(required, list):
         raise SystemExit(f"required_tests is malformed: {relative}")

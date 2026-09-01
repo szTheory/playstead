@@ -197,6 +197,7 @@ for marker in (
     'rawIdentifier.hasPrefix("playstead.")',
     'rawIdentifier.hasPrefix("library.")',
     "hasOnlyAllowedCharacters",
+    'boundedRole = "role-\\(issue.element?.elementType.rawValue ?? 0)"',
     ': "unidentified"',
     "PLAYSTEAD_A11Y_ISSUES[\\(category.rawValue)]",
     "XCTAssertTrue(",
@@ -323,14 +324,16 @@ def check_hosted_audit_repairs(shell_source, readiness_source, card_source, slot
     required_shell = (
         "@FocusState private var focusedSheetDismissal: Bool",
         ".focused($focusedSheetDismissal)",
-        ".onAppear { focusedSheetDismissal = true }",
+        ".focusSection()",
+        ".defaultFocus($focusedSheetDismissal, true)",
         ".background(DesignTokens.background.ignoresSafeArea())",
         ".preferredColorScheme(.dark)",
     )
     required_readiness = (
         "@FocusState private var doneHasFocus: Bool",
         ".focused($doneHasFocus)",
-        ".onAppear { doneHasFocus = true }",
+        ".focusSection()",
+        ".defaultFocus($doneHasFocus, true)",
         ".background(DesignTokens.background.ignoresSafeArea())",
         ".preferredColorScheme(.dark)",
     )
@@ -338,7 +341,10 @@ def check_hosted_audit_repairs(shell_source, readiness_source, card_source, slot
     missing += [marker for marker in required_readiness if marker not in readiness_source]
     if missing or shell_source.count(".background(DesignTokens.background.ignoresSafeArea())") < 2:
         raise AssertionError(f"sheet focus or explicit dark canvas regressed: {missing}")
-    if ".accessibilityElement(children: .ignore)" not in card_source or ".accessibilityElement(children: .combine)" in card_source:
+    focus_modifier = card_source.find(".playsteadFocusable(identifier: Self.accessibilityIdentifier)")
+    card_element = card_source.find(".accessibilityElement(children: .ignore)")
+    card_label = card_source.find(".accessibilityLabel(accessibleLabel)")
+    if focus_modifier < 0 or not (focus_modifier < card_element < card_label) or ".accessibilityElement(children: .combine)" in card_source:
         raise AssertionError("described game card exposes a conflicting nested accessibility subtree")
     if '?? ""' in slot_source or "Color.clear" not in slot_source or ".accessibilityHidden(true)" not in slot_source:
         raise AssertionError("empty status slot can become an undescribed accessibility element")
@@ -349,9 +355,9 @@ check_hosted_audit_repairs(shell, readiness, game_card, status_slot, readiness_r
 
 for marker, source_name in (
     ("@FocusState private var focusedSheetDismissal: Bool", "shell"),
-    (".onAppear { focusedSheetDismissal = true }", "shell"),
+    (".defaultFocus($focusedSheetDismissal, true)", "shell"),
     ("@FocusState private var doneHasFocus: Bool", "readiness"),
-    (".onAppear { doneHasFocus = true }", "readiness"),
+    (".defaultFocus($doneHasFocus, true)", "readiness"),
     (".accessibilityElement(children: .ignore)", "card"),
     ("Color.clear", "slot"),
     ('.accessibilityLabel("\\(label). \\(check.finding)")', "report"),

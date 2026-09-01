@@ -121,7 +121,8 @@ struct LibraryShellView: View {
             .accessibilityElement(children: .contain)
             .accessibilityLabel(Self.title(for: surface))
             .accessibilityIdentifier(Self.surfaceIdentifier(for: surface))
-            .onAppear { focusedSheetDismissal = true }
+            .focusSection()
+            .defaultFocus($focusedSheetDismissal, true)
             .onExitCommand { presentedSurface = nil }
         }
         .onChange(of: presentedSurface) { previous, current in

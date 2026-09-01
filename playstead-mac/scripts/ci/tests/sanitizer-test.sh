@@ -37,7 +37,7 @@ make_valid() {
   mkdir -p "$root/evidence/snapshot-triplet" "$root/evidence/logs" "$root/raw/Unit.xcresult" "$root/DerivedData"
   printf '%s\n' '{"schema_version":1,"architecture":"arm64","xcode":["Xcode 26.6","Build version 17F113"]}' >"$root/evidence/environment-fingerprint.json"
   printf '%s\n' '{"schema_version":1,"build_count":1,"automatic_retries":0,"aggregate_outcome":"failed","layers":[]}' >"$root/evidence/layers.json"
-  printf '%s\n' '{"schema_version":1,"layer":"ui","executed_test_count":2,"required_tests":[{"identifier":"PlaysteadUITests.HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice","discovered":true,"execution_count":1,"skipped":false,"outcome":"passed"}],"failed_test_count":1,"failed_tests_truncated":false,"failed_tests":[{"identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","outcome":"failed"}],"audit_issue_count":1,"audit_issues_truncated":false,"audit_issues":[{"test_identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","category":"parentChild","element_identifier":"playstead.surface.library"}]}' >"$root/evidence/ui-tests.json"
+  printf '%s\n' '{"schema_version":1,"layer":"ui","executed_test_count":2,"required_tests":[{"identifier":"PlaysteadUITests.HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice","discovered":true,"execution_count":1,"skipped":false,"outcome":"passed"}],"failed_test_count":1,"failed_tests_truncated":false,"failed_tests":[{"identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","outcome":"failed"}],"audit_issue_count":1,"audit_issues_truncated":false,"audit_issues":[{"test_identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","category":"parentChild","element_identifier":"playstead.surface.library","element_role":"role-3"}]}' >"$root/evidence/ui-tests.json"
   printf 'safe app event at /Users/example/private/location\n' >"$root/evidence/logs/app.log"
   printf 'server health passed\n' >"$root/evidence/logs/server.log"
   printf '\211PNG\r\n\032\nreference' >"$root/evidence/snapshot-triplet/reference.png"
@@ -58,7 +58,7 @@ import json, pathlib, sys
 data = json.loads(pathlib.Path(sys.argv[1]).read_text())
 assert data["failed_tests"] == [{"identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "outcome": "failed"}]
 assert all(set(record) == {"identifier", "outcome"} for record in data["failed_tests"])
-assert data["audit_issues"] == [{"test_identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "category": "parentChild", "element_identifier": "playstead.surface.library"}]
+assert data["audit_issues"] == [{"test_identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "category": "parentChild", "element_identifier": "playstead.surface.library", "element_role": "role-3"}]
 PY
 PASS_COUNT=$((PASS_COUNT + 1))
 
@@ -102,6 +102,16 @@ path.write_text(json.dumps(data))
 PY
 expect_fail unsafe_audit_id "$SANITIZER" --input "$unsafe_audit_id" --output "$TMP_ROOT/unsafe-audit-id-output"
 
+unsafe_audit_role="$TMP_ROOT/unsafe-audit-role"
+make_valid "$unsafe_audit_role"
+python3 - "$unsafe_audit_role/evidence/ui-tests.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1]); data = json.loads(path.read_text())
+data["audit_issues"][0]["element_role"] = "button /Users/example/private"
+path.write_text(json.dumps(data))
+PY
+expect_fail unsafe_audit_role "$SANITIZER" --input "$unsafe_audit_role" --output "$TMP_ROOT/unsafe-audit-role-output"
+
 unbounded="$TMP_ROOT/unbounded"
 make_valid "$unbounded"
 python3 - "$unbounded/evidence/ui-tests.json" <<'PY'
@@ -119,7 +129,7 @@ python3 - "$unbounded_audit/evidence/ui-tests.json" <<'PY'
 import json, pathlib, sys
 path = pathlib.Path(sys.argv[1]); data = json.loads(path.read_text())
 data["audit_issues"] = [
-    {"test_identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","category":"parentChild","element_identifier":f"playstead.surface.synthetic-{index}"}
+    {"test_identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","category":"parentChild","element_identifier":f"playstead.surface.synthetic-{index}","element_role":"role-3"}
     for index in range(51)
 ]
 data["audit_issue_count"] = 51

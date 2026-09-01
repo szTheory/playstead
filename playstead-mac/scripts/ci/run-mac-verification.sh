@@ -317,7 +317,7 @@ def normalized_outcome(result):
 
 nodes = []
 audit_issues = []
-audit_pattern = re.compile(r"PLAYSTEAD_A11Y_ISSUES\[([A-Za-z]+)\]=([a-z0-9.,-]+)")
+audit_pattern = re.compile(r"PLAYSTEAD_A11Y_ISSUES\[([A-Za-z]+)\]=([a-z0-9.,@-]+)")
 
 def strings(value):
     if isinstance(value, str):
@@ -341,11 +341,13 @@ def walk(value):
             for diagnostic in strings(value):
                 for match in audit_pattern.finditer(diagnostic):
                     category, identifiers = match.groups()
-                    for element_identifier in identifiers.split(","):
+                    for element in identifiers.split(","):
+                        element_identifier, element_role = element.split("@", 1)
                         audit_issues.append({
                             "test_identifier": test_identifier,
                             "category": category,
                             "element_identifier": element_identifier,
+                            "element_role": element_role,
                         })
         for child in value.values():
             walk(child)
@@ -388,7 +390,7 @@ all_failed = sorted(
 max_failed_tests = 50
 all_audit_issues = sorted(
     {tuple(sorted(record.items())) for record in audit_issues},
-    key=lambda fields: dict(fields)["test_identifier"] + "|" + dict(fields)["category"] + "|" + dict(fields)["element_identifier"],
+    key=lambda fields: dict(fields)["test_identifier"] + "|" + dict(fields)["category"] + "|" + dict(fields)["element_identifier"] + "|" + dict(fields)["element_role"],
 )
 max_audit_issues = 50
 

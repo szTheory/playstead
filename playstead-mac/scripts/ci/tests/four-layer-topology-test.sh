@@ -124,7 +124,7 @@ grep -F '"audit_issues": [dict(fields) for fields in all_audit_issues[:max_audit
 grep -F 'len(failed) > 50' "$SANITIZER" >/dev/null
 grep -F 'len(audit_issues) > 50' "$SANITIZER" >/dev/null
 grep -F '{"identifier", "outcome"}' "$SANITIZER" >/dev/null
-grep -F '{"test_identifier", "category", "element_identifier"}' "$SANITIZER" >/dev/null
+grep -F '{"test_identifier", "category", "element_identifier", "element_role"}' "$SANITIZER" >/dev/null
 
 "$PROMPT_SAFETY"
 

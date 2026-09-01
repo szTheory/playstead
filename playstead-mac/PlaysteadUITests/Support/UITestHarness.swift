@@ -189,8 +189,9 @@ final class UITestHarness {
             let boundedIdentifier = hasSourceControlledPrefix && hasOnlyAllowedCharacters
                 ? rawIdentifier
                 : "unidentified"
+            let boundedRole = "role-\(issue.element?.elementType.rawValue ?? 0)"
             if issueIdentifiers.count < 50 {
-                issueIdentifiers.insert(boundedIdentifier)
+                issueIdentifiers.insert("\(boundedIdentifier)@\(boundedRole)")
             }
             // Collect only bounded source-controlled identity, then fail below.
             // Returning true here suppresses XCTest's raw issue text/attachments,

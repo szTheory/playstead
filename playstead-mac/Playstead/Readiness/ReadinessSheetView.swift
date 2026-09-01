@@ -81,7 +81,8 @@ struct ReadinessSheetView: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Game readiness")
         .accessibilityIdentifier(AccessibilityIdentifiers.Surface.readiness)
-        .onAppear { doneHasFocus = true }
+        .focusSection()
+        .defaultFocus($doneHasFocus, true)
         .onExitCommand(perform: onClose)
     }
 
