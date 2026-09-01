@@ -64,7 +64,7 @@ struct GameRowView: View {
                     .font(.headline)
                 Text(entry.system)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.primary)
                 if case .error(let message) = status {
                     Text(message)
                         .font(.caption2)
@@ -73,14 +73,16 @@ struct GameRowView: View {
                 if let blockingReport, let first = blockingReport.checks.first(where: { $0.outcome.isBlocking }) {
                     Text(Self.blockingSummary(first))
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.primary)
                 }
                 if let lastExit {
                     Text("Last exit: \(String(describing: lastExit))")
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.primary)
                 }
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(rowSummaryAccessibilityLabel)
             Spacer()
             curationButtons
             actionButton
@@ -112,6 +114,15 @@ struct GameRowView: View {
         .sheet(isPresented: $showsReclaimPrompt) {
             reclaimPrompt
         }
+    }
+
+    private var rowSummaryAccessibilityLabel: String {
+        var parts = [entry.displayTitle, SystemRegistry.entry(for: entry.system).displayName]
+        if let blockingReport,
+           let first = blockingReport.checks.first(where: { $0.outcome.isBlocking }) {
+            parts.append(Self.blockingSummary(first))
+        }
+        return parts.joined(separator: ", ")
     }
 
     /// The blocked-capacity surface. Every button here does real work

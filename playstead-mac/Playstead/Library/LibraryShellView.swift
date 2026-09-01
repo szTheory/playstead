@@ -20,16 +20,17 @@ struct LibraryShellView: View {
     @State private var searchText = ""
     @State private var libraryLayout: LibraryLayout = .cards
     @State private var presentedReadinessEntry: CatalogueEntry?
+    @FocusState private var focusedShellControl: ShellSurface?
     /// Bumped by every storage action so the presented sheet re-reads the
     /// real stores. Pins, the queue and the quota policy live in SQLite,
     /// not in an observable view model, so nothing else would invalidate
     /// the sheet's body.
     @State private var storageRevision = 0
 
-    /// The app-wide surfaces reached from the toolbar rather than the
+    /// The app-wide surfaces reached from the labeled command bar rather than the
     /// source list. The sidebar's section order is a frozen navigation
     /// contract (D-14), so a surface that is about the app as a whole —
-    /// the adapter, the download queue, the cache — is a toolbar
+    /// the adapter, the download queue, the cache — is a command-bar
     /// affordance instead of a ninth source-list row.
     enum ShellSurface: String, Identifiable, CaseIterable {
         case adapter
@@ -44,7 +45,7 @@ struct LibraryShellView: View {
         case list
     }
 
-    /// The toolbar label and sheet title for each surface — a pure
+    /// The command label and sheet title for each surface — a pure
     /// function, so a test can assert every surface actually routes
     /// somewhere rather than opening a blank sheet.
     static func title(for surface: ShellSurface) -> String {
@@ -81,30 +82,18 @@ struct LibraryShellView: View {
             )
             .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 320)
         } detail: {
-            detail
-                .navigationTitle(Self.title(for: selection ?? .home))
-        }
-        .toolbar {
-            // Each app-wide surface's own entry point, independent of any
-            // one title's row. `DownloadsView`, `StorageView` and
-            // `QuotaSettingsView` had no reachable call site at all
-            // before these buttons existed.
-            ToolbarItem {
-                Button(Self.title(for: .downloads)) { presentedSurface = .downloads }
-                    .accessibilityLabel("Download queue")
-                    .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.openDownloads)
-            }
-            ToolbarItem {
-                Button(Self.title(for: .storage)) { presentedSurface = .storage }
-                    .accessibilityLabel("Storage and quota settings")
-                    .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.openStorage)
-            }
-            ToolbarItem {
-                Button(Self.title(for: .adapter)) { presentedSurface = .adapter }
-                    .accessibilityLabel("Adapter setup")
-                    .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.openAdapter)
+            VStack(alignment: .leading, spacing: 0) {
+                libraryCommandBar
+                Text(Self.title(for: selection ?? .home))
+                    .font(.psHeading)
+                    .foregroundStyle(DesignTokens.textPrimary)
+                    .padding(.horizontal, DesignTokens.Spacing.md)
+                detail
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .background(DesignTokens.background.ignoresSafeArea())
+        .preferredColorScheme(.dark)
         .sheet(item: $presentedSurface) { surface in
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
                 surfaceContent(surface)
@@ -119,8 +108,13 @@ struct LibraryShellView: View {
             .environment(environment)
             .frame(minWidth: 560, minHeight: 380)
             .accessibilityElement(children: .contain)
+            .accessibilityLabel(Self.title(for: surface))
             .accessibilityIdentifier(Self.surfaceIdentifier(for: surface))
             .onExitCommand { presentedSurface = nil }
+        }
+        .onChange(of: presentedSurface) { previous, current in
+            guard current == nil, let previous else { return }
+            focusedShellControl = previous
         }
         .sheet(item: $presentedReadinessEntry) { entry in
             ReadinessSheetView(
@@ -144,7 +138,53 @@ struct LibraryShellView: View {
         }
     }
 
-    /// Each toolbar surface's real content. Every value handed to these
+    /// A normal in-window command group avoids the unlabeled system Touch Bar
+    /// node produced by SwiftUI's macOS toolbar bridge while keeping the three
+    /// app-wide destinations visible and keyboard reachable. Focus is owned by
+    /// this composition root so dismissing a sheet can deterministically return
+    /// it to the exact command that opened the sheet.
+    private var libraryCommandBar: some View {
+        HStack(spacing: DesignTokens.Spacing.sm) {
+            shellCommandButton(.downloads, accessibilityLabel: "Download queue")
+            shellCommandButton(.storage, accessibilityLabel: "Storage and quota settings")
+            shellCommandButton(.adapter, accessibilityLabel: "Adapter setup")
+            Spacer()
+        }
+        .padding(.horizontal, DesignTokens.Spacing.md)
+        .padding(.vertical, DesignTokens.Spacing.sm)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Library actions")
+    }
+
+    private func shellCommandButton(
+        _ surface: ShellSurface,
+        accessibilityLabel: String
+    ) -> some View {
+        Button(Self.title(for: surface)) {
+            focusedShellControl = surface
+            presentedSurface = surface
+        }
+        .focused($focusedShellControl, equals: surface)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityIdentifier(controlIdentifier(for: surface))
+        .overlay {
+            RoundedRectangle(cornerRadius: PlaysteadFocusRing.cornerRadius)
+                .stroke(PlaysteadFocusRing.color, lineWidth: PlaysteadFocusRing.lineWidth)
+                .opacity(PlaysteadFocusRing.opacity(isFocused: focusedShellControl == surface))
+                .accessibilityHidden(true)
+                .allowsHitTesting(false)
+        }
+    }
+
+    private func controlIdentifier(for surface: ShellSurface) -> String {
+        switch surface {
+        case .adapter: return AccessibilityIdentifiers.Control.openAdapter
+        case .downloads: return AccessibilityIdentifiers.Control.openDownloads
+        case .storage: return AccessibilityIdentifiers.Control.openStorage
+        }
+    }
+
+    /// Each command-bar surface's real content. Every value handed to these
     /// views is read from the app's shared stores at body-evaluation time
     /// and every callback does real work against them — no placeholders,
     /// no locally-constructed second copy of a store.

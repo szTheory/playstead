@@ -39,6 +39,10 @@ enum DesignTokens {
     static let focusRing = Color(hex: 0x38BDF8)
     /// Delete-collection and remove-downloaded-copy confirmation buttons only.
     static let destructive = Color(hex: 0xEF4444)
+    /// The inherited dominant console surface. Native views use the same
+    /// explicit dark canvas so the fixed light text roles never land on an
+    /// uncontrolled light system background.
+    static let background = Color(hex: 0x0F172A)
     static let textPrimary = Color(hex: 0xF1F5F9)
     static let textMuted = Color(hex: 0x94A3B8)
     static let border = Color(hex: 0x334155)

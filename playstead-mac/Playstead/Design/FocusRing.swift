@@ -30,6 +30,7 @@ private struct PlaysteadFocusableModifier: ViewModifier {
                 RoundedRectangle(cornerRadius: PlaysteadFocusRing.cornerRadius)
                     .stroke(PlaysteadFocusRing.color, lineWidth: PlaysteadFocusRing.lineWidth)
                     .opacity(PlaysteadFocusRing.opacity(isFocused: ownsFocus))
+                    .accessibilityHidden(true)
                     .allowsHitTesting(false)
             }
     }
