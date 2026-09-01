@@ -1,0 +1,32 @@
+name: macOS snapshot candidates
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot-candidates:
+    name: render named snapshot candidates
+    runs-on: macos-26
+    timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Render candidate-only reference, actual, and diff images
+        working-directory: playstead-mac
+        run: scripts/ci/run-mac-verification.sh --run-snapshot-candidates
+
+      - name: Prove the workflow did not rewrite repository baselines
+        run: git diff --exit-code
+
+      - name: Upload named snapshot candidates
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-26-xcode-26.6-snapshot-candidates
+          path: playstead-mac/.build/ci/snapshot-candidates
+          if-no-files-found: error
+          retention-days: 7

@@ -14,6 +14,8 @@ ADOPTION_EVIDENCE="${EVIDENCE_ROOT}/wave-0-adoption.json"
 FOUR_LAYER_ROOT="${BUILD_ROOT}/four-layer"
 FOUR_LAYER_RAW="${FOUR_LAYER_ROOT}/raw"
 FOUR_LAYER_EVIDENCE="${FOUR_LAYER_ROOT}/evidence"
+FAILURE_EVIDENCE="${BUILD_ROOT}/failure-evidence"
+SNAPSHOT_CANDIDATES="${BUILD_ROOT}/snapshot-candidates"
 
 die() {
   printf 'mac verification: %s\n' "$*" >&2
@@ -204,8 +206,9 @@ assert_hosted_environment() {
 }
 
 write_fingerprint() {
-  mkdir -p "$EVIDENCE_ROOT"
-  python3 - "$EVIDENCE_ROOT/environment-fingerprint.json" <<'PY'
+  local output="${1:-$EVIDENCE_ROOT/environment-fingerprint.json}"
+  mkdir -p "$(dirname "$output")"
+  python3 - "$output" <<'PY'
 import json, os, platform, subprocess, sys
 
 def output(*cmd):
@@ -425,6 +428,7 @@ run_four_layer_verification() {
 
   rm -rf "$FOUR_LAYER_ROOT" "$DERIVED_DATA"
   mkdir -p "$FOUR_LAYER_RAW" "$FOUR_LAYER_EVIDENCE/snapshot-triplet"
+  write_fingerprint "$FOUR_LAYER_EVIDENCE/environment-fingerprint.json"
   defaults write NSGlobalDomain AppleKeyboardUIMode -int 3
 
   run_with_deadline 1200 "${FOUR_LAYER_RAW}/build.log" \
@@ -432,7 +436,22 @@ run_four_layer_verification() {
       -destination 'platform=macOS' -derivedDataPath "$DERIVED_DATA" \
       "${signing[@]}" PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT="${FOUR_LAYER_EVIDENCE}/snapshot-triplet" \
       PLAYSTEAD_SNAPSHOT_RECORDING=0 || build_status=$?
-  [ "$build_status" -eq 0 ] || die "four-layer build-for-testing failed (status $build_status)"
+  if [ "$build_status" -ne 0 ]; then
+    python3 - "$FOUR_LAYER_EVIDENCE/layers.json" "$build_status" <<'PY'
+import json, pathlib, sys
+path, status = sys.argv[1:]
+pathlib.Path(path).write_text(json.dumps({
+    "schema_version": 1,
+    "build_count": 1,
+    "automatic_retries": 0,
+    "aggregate_outcome": "failed",
+    "build_exit_status": int(status),
+    "layers": [],
+}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
+    "${SCRIPT_DIR}/sanitize-evidence.sh" --input "$FOUR_LAYER_ROOT" --output "$FAILURE_EVIDENCE"
+    return 1
+  fi
 
   run_test_layer unit Unit 900 \
     --required-test PlaysteadTests.KeychainScopingTests/testScopedMatchQueryRestrictsSearchWithoutSelectingAnAddDestination \
@@ -470,6 +489,12 @@ pathlib.Path(path).write_text(json.dumps({
 }, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PY
 
+  if [ "$aggregate" -ne 0 ]; then
+    "${SCRIPT_DIR}/sanitize-evidence.sh" --input "$FOUR_LAYER_ROOT" --output "$FAILURE_EVIDENCE" || aggregate=1
+  else
+    rm -rf "$FAILURE_EVIDENCE"
+  fi
+
   if [ -n "$previous_keyboard_mode" ]; then
     defaults write NSGlobalDomain AppleKeyboardUIMode -int "$previous_keyboard_mode"
   else
@@ -477,6 +502,42 @@ PY
   fi
   trap - EXIT
   return "$aggregate"
+}
+
+run_snapshot_candidates() {
+  assert_hosted_environment
+  local candidate_derived="${BUILD_ROOT}/snapshot-candidate-derived"
+  local candidate_work="${BUILD_ROOT}/snapshot-candidate-work"
+  local candidate_result="${candidate_work}/Rendering.xcresult"
+  local candidate_json="${candidate_work}/rendering-tests.json"
+  local candidate_summary="${candidate_work}/rendering-summary.json"
+  local candidate_triplet="${candidate_work}/snapshot-triplet"
+  local signing=(CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=)
+
+  rm -rf "$candidate_derived" "$candidate_work" "$SNAPSHOT_CANDIDATES"
+  mkdir -p "$candidate_work" "$candidate_triplet" "$SNAPSHOT_CANDIDATES"
+  xcodebuild build-for-testing -project "$PROJECT" -scheme "$SCHEME" \
+    -destination 'platform=macOS' -derivedDataPath "$candidate_derived" \
+    "${signing[@]}" PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT="$candidate_triplet" \
+    PLAYSTEAD_SNAPSHOT_RECORDING=0
+  xcodebuild test-without-building -project "$PROJECT" -scheme "$SCHEME" \
+    -testPlan Rendering -destination 'platform=macOS' \
+    -derivedDataPath "$candidate_derived" -resultBundlePath "$candidate_result" \
+    "${signing[@]}" PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT="$candidate_triplet" \
+    PLAYSTEAD_SNAPSHOT_RECORDING=0
+  xcrun xcresulttool get test-results tests --path "$candidate_result" --compact >"$candidate_json"
+  verify_layer_result "$candidate_json" rendering "$candidate_summary" \
+    --required-test PlaysteadTests.SnapshotHarnessCanaryTests/testIntentionalMismatchProducesReviewableTriplet \
+    --required-test PlaysteadTests.SnapshotHarnessCanaryTests/testMeaningfulMutationFailsAndCalibratedNoisePasses
+
+  local part
+  for part in reference actual diff; do
+    [ -s "$candidate_triplet/${part}.png" ] || die "snapshot candidate is missing ${part}.png"
+    install -m 0644 "$candidate_triplet/${part}.png" \
+      "$SNAPSHOT_CANDIDATES/snapshot-harness-canary.${part}.png"
+  done
+  [ "$(find "$SNAPSHOT_CANDIDATES" -type f | wc -l | tr -d ' ')" -eq 3 ] || \
+    die "candidate output must contain exactly one named reference/actual/diff triplet"
 }
 
 NATIVE_ROOT=""
@@ -695,6 +756,10 @@ run_layer_verifier_self_tests() {
   "${SCRIPT_DIR}/tests/four-layer-verifier-test.sh"
 }
 
+run_sanitizer_self_tests() {
+  "${SCRIPT_DIR}/tests/sanitizer-test.sh"
+}
+
 verify_four_layer_topology() {
   "${SCRIPT_DIR}/tests/four-layer-topology-test.sh"
 }
@@ -708,8 +773,10 @@ usage() {
 Usage:
   run-mac-verification.sh --run-wave-0-adoption
   run-mac-verification.sh --run-four-layer-verification
+  run-mac-verification.sh --run-snapshot-candidates
   run-mac-verification.sh --verify-layer-result FILE LAYER OUTPUT --required-test ID [...]
   run-mac-verification.sh --self-test-result-verifier
+  run-mac-verification.sh --self-test-sanitizer [--verify-four-layer-topology]
   run-mac-verification.sh --verify-four-layer-topology
   run-mac-verification.sh --verify-result FILE --required-canary ID [expected metadata]
   run-mac-verification.sh --validate-hosted-run FILE [expected metadata]
@@ -724,12 +791,25 @@ case "$1" in
   --validate-hosted-run) require_value "$1" "${2:-}"; metadata="$2"; shift 2; validate_hosted_run "$metadata" "$@" ;;
   --run-wave-0-adoption) shift; [ "$#" -eq 0 ] || die "unexpected adoption arguments"; run_wave_0_adoption ;;
   --run-four-layer-verification) shift; [ "$#" -eq 0 ] || die "unexpected four-layer arguments"; run_four_layer_verification ;;
+  --run-snapshot-candidates) shift; [ "$#" -eq 0 ] || die "unexpected snapshot candidate arguments"; run_snapshot_candidates ;;
   --verify-layer-result)
     require_value "$1" "${2:-}"; require_value "$1" "${3:-}"; require_value "$1" "${4:-}"
     test_results="$2"; layer="$3"; output="$4"; shift 4
     verify_layer_result "$test_results" "$layer" "$output" "$@"
     ;;
   --self-test-result-verifier) shift; [ "$#" -eq 0 ] || die "unexpected verifier self-test arguments"; run_layer_verifier_self_tests ;;
+  --self-test-sanitizer)
+    shift
+    verify_topology_after=false
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        --verify-four-layer-topology) verify_topology_after=true; shift ;;
+        *) die "unknown sanitizer self-test argument: $1" ;;
+      esac
+    done
+    run_sanitizer_self_tests
+    [ "$verify_topology_after" = false ] || verify_four_layer_topology
+    ;;
   --verify-four-layer-topology) shift; [ "$#" -eq 0 ] || die "unexpected topology arguments"; verify_four_layer_topology ;;
   --verify-wave-0-topology) shift; [ "$#" -eq 0 ] || die "unexpected topology arguments"; verify_topology ;;
   --self-test-wave-0-verifier|--self-test-hosted-run-validator)

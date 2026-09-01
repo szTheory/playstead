@@ -108,6 +108,15 @@ jobs:
         working-directory: playstead-mac
         run: scripts/ci/run-mac-verification.sh --run-four-layer-verification
 
+      - name: Upload sanitized Mac failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-verification-failure
+          path: playstead-mac/.build/ci/failure-evidence
+          if-no-files-found: error
+          retention-days: 7
+
   # Cold-start deployment proof (docker build + compose up from destroyed
   # volumes + restart). It is slow (~5 min) and only changes when the
   # deployment surface does, so it runs on main and on PRs that touch it.
