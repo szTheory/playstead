@@ -575,7 +575,10 @@ PY
     --required-test PlaysteadUITests.CurationInteractionTests/testFiveShelvesRenderExactFixtures \
     --required-test PlaysteadUITests.CurationInteractionTests/testDragReorderProducesOneEffectAndSurvivesRelaunch \
     --required-test PlaysteadUITests.CurationInteractionTests/testKeyboardReorderRetainsFocusAndSurvivesRelaunch \
-    --required-test PlaysteadUITests.StorageInteractionTests/testDownloadsQuotaReclaimAndStorageFlows
+    --required-test PlaysteadUITests.StorageInteractionTests/testDownloadsPauseResumeFlow \
+    --required-test PlaysteadUITests.StorageInteractionTests/testQuotaEditAndFocusRestoration \
+    --required-test PlaysteadUITests.StorageInteractionTests/testReclaimPromptRemovesExactEligibleBytes \
+    --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventoryReclaimsOnlyEligibleCopies
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
 
   run_test_layer live-server LiveServer 900 \

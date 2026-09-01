@@ -13,7 +13,7 @@ final class StorageInteractionTests: XCTestCase {
         harness = nil
     }
 
-    func testDownloadsQuotaReclaimAndStorageFlows() throws {
+    func testDownloadsPauseResumeFlow() throws {
         launchStorageProfile(.pausedActiveQueue)
         openSurface(
             control: "playstead.control.open-downloads",
@@ -61,9 +61,17 @@ final class StorageInteractionTests: XCTestCase {
         ])
         try harness.audit(.action, rootIdentifier: "playstead.surface.downloads")
         XCTAssertFalse(harness.sanitizedTrace().isEmpty)
+    }
 
+    func testQuotaEditAndFocusRestoration() {
         exerciseQuotaAndFocusRestoration()
+    }
+
+    func testReclaimPromptRemovesExactEligibleBytes() throws {
         try exerciseReclaimPrompt()
+    }
+
+    func testStorageInventoryReclaimsOnlyEligibleCopies() throws {
         try exerciseStorageInventory()
     }
 
