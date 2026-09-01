@@ -448,10 +448,13 @@ final class StorageInteractionTests: XCTestCase {
 
         let selection = harness.element("playstead.library.list-selection")
         XCTAssertTrue(selection.waitForExistence(timeout: 5))
-        for _ in 0..<2 where selection.value as? String != quotaDownloadAssetID {
+        for _ in 0..<2 {
+            let currentSelection = selection.value as? String
+            if currentSelection == quotaDownloadAssetID { break }
             list.typeKey(.downArrow, modifierFlags: [])
         }
-        XCTAssertEqual(selection.value as? String, quotaDownloadAssetID)
+        let settledSelection = selection.value as? String
+        XCTAssertEqual(settledSelection, quotaDownloadAssetID)
         XCTAssertTrue(list.value(forKey: "hasKeyboardFocus") as? Bool == true)
 
         let command = harness.element("playstead.control.download-selected", type: .button)

@@ -263,7 +263,14 @@ if grep -F '.keyboardShortcut(' "$GAME_ROW" >/dev/null; then
   exit 1
 fi
 grep -F 'list.value(forKey: "hasKeyboardFocus") as? Bool == true' "$STORAGE_TEST" >/dev/null
-grep -F 'XCTAssertEqual(selection.value as? String, quotaDownloadAssetID)' "$STORAGE_TEST" >/dev/null
+grep -F 'let currentSelection = selection.value as? String' "$STORAGE_TEST" >/dev/null
+grep -F 'if currentSelection == quotaDownloadAssetID { break }' "$STORAGE_TEST" >/dev/null
+grep -F 'let settledSelection = selection.value as? String' "$STORAGE_TEST" >/dev/null
+grep -F 'XCTAssertEqual(settledSelection, quotaDownloadAssetID)' "$STORAGE_TEST" >/dev/null
+if grep -F 'where selection.value as? String' "$STORAGE_TEST" >/dev/null; then
+  printf 'XCUI selection casts must be materialized before control-flow predicates\n' >&2
+  exit 1
+fi
 grep -F 'harness.app.typeKey("d", modifierFlags: [.command])' "$STORAGE_TEST" >/dev/null
 python3 - "$GAME_ROW" "$LIBRARY_SHELL" <<'PY'
 import pathlib, sys
