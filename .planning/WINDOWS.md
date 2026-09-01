@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 22
+open_count: 23
 waived_count: 1
 fixed_count: 2
-total_count: 25
-last_updated: 2026-09-01T14:17:23.468Z
+total_count: 26
+last_updated: 2026-09-01T14:56:43.305Z
 ---
 
 # Broken Windows Ledger
@@ -40,6 +40,7 @@ last_updated: 2026-09-01T14:17:23.468Z
 | 23 | 03.5 | deviation | playstead-mac/PlaysteadUITests/CurationInteractionTests.swift |  | Hosted run 33506605120 exposed app-scoped Space dispatch plus a missing combined-path activation; both keyboard paths now send one Space through the exact focused button. | open |  | 2026-09-01T12:48:01.842Z |  |
 | 24 | 03.5 | deviation | playstead-mac/PlaysteadUITests/CurationInteractionTests.swift |  | Hosted run 33510034845 exposed an impossible retained-focus assertion on a Move Up button disabled by reaching the first boundary; the keyboard proof now moves last-to-middle while preserving exact effect/order/boundary/durability checks. | open |  | 2026-09-01T13:28:24.085Z |  |
 | 25 | 03.5 | deviation | playstead-mac/PlaysteadUITests/CurationInteractionTests.swift |  | Hosted run 33513649409 lacked keyboard stage detail; curation now uses exact-target canary focus detection and bounded safe focus/effect/retention test IDs. | open |  | 2026-09-01T14:17:23.468Z |  |
+| 26 | 03.5 | deviation | playstead-mac/scripts/ci/run-mac-verification.sh |  | Hosted run 33518726537 executed but did not report the three curation keyboard stage tests; all are now required evidence before any production command-model change. | open |  | 2026-09-01T14:56:43.305Z |  |
 
 ````json
 [
@@ -341,6 +342,18 @@ last_updated: 2026-09-01T14:17:23.468Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-01T14:17:23.468Z",
+    "resolved_at": null
+  },
+  {
+    "id": 26,
+    "kind": "deviation",
+    "phase": "03.5",
+    "file": "playstead-mac/scripts/ci/run-mac-verification.sh",
+    "line": null,
+    "description": "Hosted run 33518726537 executed but did not report the three curation keyboard stage tests; all are now required evidence before any production command-model change.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-01T14:56:43.305Z",
     "resolved_at": null
   }
 ]
