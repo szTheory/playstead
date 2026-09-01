@@ -26,13 +26,13 @@ final class CurationInteractionTests: XCTestCase {
         first.press(forDuration: 1, thenDragTo: third)
 
         let draggedOrder = [memberID(2), memberID(3), memberID(1)]
-        assertExactCollectionOrder(draggedOrder, in: harness)
         assertEvidence(order: draggedOrder, outboxCount: 1, in: harness)
+        assertExactCollectionOrder(draggedOrder, in: harness)
 
         harness.relaunch(settledAt: "playstead.surface.library")
         openSyntheticCollection(in: harness)
-        assertExactCollectionOrder(draggedOrder, in: harness)
         assertEvidence(order: draggedOrder, outboxCount: 1, in: harness)
+        assertExactCollectionOrder(draggedOrder, in: harness)
 
         let firstMoveUp = harness.element(moveID(memberID(2), direction: "up"), type: .button)
         let lastMoveDown = harness.element(moveID(memberID(1), direction: "down"), type: .button)
@@ -48,8 +48,8 @@ final class CurationInteractionTests: XCTestCase {
         keyboardMoveButton.typeKey(.space, modifierFlags: [])
 
         let keyboardOrder = [memberID(2), memberID(1), memberID(3)]
-        assertExactCollectionOrder(keyboardOrder, in: harness)
         assertEvidence(order: keyboardOrder, outboxCount: 2, in: harness)
+        assertExactCollectionOrder(keyboardOrder, in: harness)
         waitForKeyboardFocus(keyboardMoveButton)
         assertEnabled(
             false,
@@ -62,30 +62,35 @@ final class CurationInteractionTests: XCTestCase {
 
         harness.relaunch(settledAt: "playstead.surface.library")
         openSyntheticCollection(in: harness)
-        assertExactCollectionOrder(keyboardOrder, in: harness)
         assertEvidence(order: keyboardOrder, outboxCount: 2, in: harness)
+        assertExactCollectionOrder(keyboardOrder, in: harness)
     }
 
     private func assertExactFiveShelfFixture(in harness: UITestHarness) {
         selectSidebar("Continue", in: harness)
-        XCTAssertTrue(harness.element("playstead.surface.shelf.continue").waitForExistence(timeout: 5))
-        XCTAssertTrue(harness.app.staticTexts["Play something, and pick up where you left off here."].exists)
+        XCTAssertTrue(harness.app.staticTexts["Play something, and pick up where you left off here."].waitForExistence(timeout: 5))
+        assertSyntheticGamesVisible(0, in: harness)
 
         selectSidebar("Favorites", in: harness)
         XCTAssertTrue(harness.element("playstead.surface.shelf.favorites").waitForExistence(timeout: 5))
         XCTAssertEqual(harness.app.descendants(matching: .any).matching(identifier: "library.card").count, 1)
 
         selectSidebar("Collections", in: harness)
-        XCTAssertTrue(harness.element("playstead.surface.collections").waitForExistence(timeout: 5))
         XCTAssertEqual(harness.app.staticTexts.matching(NSPredicate(format: "label == %@", "Synthetic Collection")).count, 1)
 
         selectSidebar("Queue", in: harness)
         XCTAssertTrue(harness.element("playstead.surface.shelf.play-queue").waitForExistence(timeout: 5))
-        XCTAssertTrue(harness.app.staticTexts["Add a game to your queue to keep it in mind."].exists)
+        XCTAssertTrue(harness.app.staticTexts["Add a game to your queue to keep it in mind."].waitForExistence(timeout: 5))
+        assertSyntheticGamesVisible(0, in: harness)
 
         selectSidebar("Recent", in: harness)
-        XCTAssertTrue(harness.element("playstead.surface.shelf.recent").waitForExistence(timeout: 5))
-        XCTAssertTrue(harness.app.staticTexts["Play a game to see it here."].exists)
+        XCTAssertTrue(harness.app.staticTexts["Play a game to see it here."].waitForExistence(timeout: 5))
+        assertSyntheticGamesVisible(0, in: harness)
+    }
+
+    private func assertSyntheticGamesVisible(_ expected: Int, in harness: UITestHarness) {
+        let games = harness.app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Synthetic Game "))
+        XCTAssertEqual(games.count, expected)
     }
 
     private func openSyntheticCollection(in harness: UITestHarness) {
@@ -103,6 +108,14 @@ final class CurationInteractionTests: XCTestCase {
     }
 
     private func assertExactCollectionOrder(_ expected: [String], in harness: UITestHarness) {
+        let allRows = harness.app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH %@ AND NOT identifier CONTAINS %@",
+                "playstead.curation.collection-member.",
+                ".move-"
+            )
+        )
+        XCTAssertEqual(allRows.count, 3)
         let rows = expected.map { harness.element("playstead.curation.collection-member.\($0)") }
         for row in rows { XCTAssertTrue(row.waitForExistence(timeout: 5)) }
         let visualOrder = rows.sorted { $0.frame.minY < $1.frame.minY }.map(\.identifier)
