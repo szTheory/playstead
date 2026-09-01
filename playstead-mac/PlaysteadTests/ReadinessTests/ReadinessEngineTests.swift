@@ -19,11 +19,9 @@ final class ReadinessEngineTests: XCTestCase {
         downloadQueue = DownloadQueue(localStore: localStore)
         saveDir = tempRoot.appendingPathComponent("saves", isDirectory: true)
         try FileManager.default.createDirectory(at: saveDir, withIntermediateDirectories: true)
-        StubURLProtocol.reset()
     }
 
     override func tearDownWithError() throws {
-        StubURLProtocol.reset()
         // Restore write permission before cleanup, in case a test made
         // the save directory read-only.
         try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: saveDir.path)
@@ -284,17 +282,32 @@ final class ReadinessEngineTests: XCTestCase {
     // MARK: - Zero network calls
 
     func testEvaluationMakesNoNetworkRequestsEvenWhenAllRequestsWouldFail() throws {
-        let member = try seedVerifiedObject(seed: "a")
-        StubURLProtocol.responder = { _ in
-            XCTFail("ReadinessEngine.evaluate must never attempt a network request")
-            return StubURLProtocol.Stub(statusCode: 500, headers: [:], body: Data())
-        }
+        // Do not use the process-global protocol spy here. Its request log is
+        // shared by every Unit test class, while ReadinessEngine does not
+        // receive the spy's session; a concurrent download/sync test can
+        // therefore make this test fail without ReadinessEngine networking.
+        // Pin the actual dependency boundary instead: adding a direct network
+        // primitive/client to the engine source makes this regression fail.
+        let engineSourceURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent() // ReadinessTests
+            .deletingLastPathComponent() // PlaysteadTests
+            .deletingLastPathComponent() // playstead-mac
+            .appendingPathComponent("Playstead/Readiness/ReadinessEngine.swift")
+        let engineSource = try String(contentsOf: engineSourceURL, encoding: .utf8)
+        let forbiddenNetworkDependencies = [
+            "URLSession", "URLRequest", "URLProtocol", "APIClient", "SnapshotClient", "import Network"
+        ]
+        XCTAssertEqual(
+            forbiddenNetworkDependencies.filter(engineSource.contains),
+            [],
+            "ReadinessEngine must retain an entirely local dependency boundary"
+        )
 
+        let member = try seedVerifiedObject(seed: "a")
         let engine = makeEngine()
         let report = engine.evaluate(assetSetID: "g1", requiredMembers: [member])
 
         XCTAssertTrue(report.isReady)
-        XCTAssertTrue(StubURLProtocol.requestLog.isEmpty)
     }
 
     // MARK: - Play control availability
