@@ -244,19 +244,25 @@ final class CurationInteractionTests: XCTestCase {
         assertEnabled(false, element: harness.element(moveID(memberID(1), direction: "up"), type: .button))
         assertEnabled(false, element: harness.element(moveID(memberID(3), direction: "down"), type: .button))
 
-        let keyboardMove = moveID(memberID(2), direction: "up")
+        // Move the last member into the middle so the exact Move Up action
+        // remains enabled after settlement and can legitimately retain focus.
+        // Moving member 2 to the first boundary would disable the focused
+        // control, forcing AppKit to transfer focus before we could prove the
+        // plan's retained-focus requirement.
+        let keyboardMove = moveID(memberID(3), direction: "up")
         // focusContainedAction performs only the focus transition. Space is
         // sent exactly once, after the helper returns.
         harness.focusContainedAction(keyboardMove, rootIdentifier: "playstead.surface.collection-detail")
         let button = harness.element(keyboardMove, type: .button)
         button.typeKey(.space, modifierFlags: [])
 
-        let order = [memberID(2), memberID(1), memberID(3)]
+        let order = [memberID(1), memberID(3), memberID(2)]
         assertEvidence(order: order, outboxCount: 1, in: harness)
         assertExactCollectionOrder(order, in: harness)
         waitForKeyboardFocus(button)
-        assertEnabled(false, element: harness.element(moveID(memberID(2), direction: "up"), type: .button))
-        assertEnabled(false, element: harness.element(moveID(memberID(3), direction: "down"), type: .button))
+        assertEnabled(true, element: button)
+        assertEnabled(false, element: harness.element(moveID(memberID(1), direction: "up"), type: .button))
+        assertEnabled(false, element: harness.element(moveID(memberID(2), direction: "down"), type: .button))
         return (order, button)
     }
 

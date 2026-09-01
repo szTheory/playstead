@@ -186,6 +186,8 @@ if grep -F 'harness.app.typeKey(.space' "$CURATION_TEST" >/dev/null; then
   printf 'curation keyboard activation must target the already-focused exact button\n' >&2
   exit 1
 fi
+[ "$(grep -Fc 'let keyboardMove = moveID(memberID(3), direction: "up")' "$CURATION_TEST")" -eq 1 ]
+grep -F 'assertEnabled(true, element: button)' "$CURATION_TEST" >/dev/null
 grep -F 'harness.element(collectionRowID, type: .button)' "$CURATION_TEST" >/dev/null
 if grep -F 'try fixture.assertExactState()' "$UI_BOOTSTRAP" >/dev/null; then
   printf 'bootstrap must preserve makeFixture relaunch validation instead of requiring fresh positions\n' >&2
