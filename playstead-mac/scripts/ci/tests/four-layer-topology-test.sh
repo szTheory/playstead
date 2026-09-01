@@ -225,17 +225,22 @@ if grep -E 'testDownloadsQuotaReclaimAndStorageFlows|testReclaimPrompt(ShowsExac
   exit 1
 fi
 grep -F 'static func downloadActionIdentifier(assetSetID: String) -> String' "$GAME_ROW" >/dev/null
-grep -F '.playsteadFocusable(identifier: Self.downloadActionIdentifier(assetSetID: entry.id))' "$GAME_ROW" >/dev/null
+grep -F '@FocusState private var downloadActionHasFocus: Bool' "$GAME_ROW" >/dev/null
+grep -F '.focused($downloadActionHasFocus)' "$GAME_ROW" >/dev/null
+grep -F '.accessibilityIdentifier(Self.downloadActionIdentifier(assetSetID: entry.id))' "$GAME_ROW" >/dev/null
 grep -F 'playstead.game.00000000-0000-7000-8000-000000000042.download' "$STORAGE_TEST" >/dev/null
 python3 - "$GAME_ROW" <<'PY'
 import pathlib, sys
 
 source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
 download = source.split('Button("Download")', 1)[1].split('case .downloading:', 1)[0]
-focusable = download.find(".focusable()")
-owned = download.find(".playsteadFocusable(identifier: Self.downloadActionIdentifier(assetSetID: entry.id))")
-if focusable < 0 or owned < 0 or focusable >= owned:
-    raise SystemExit("Download must opt into focus before binding its exact Playstead focus owner")
+focused = download.find(".focused($downloadActionHasFocus)")
+identified = download.find(".accessibilityIdentifier(Self.downloadActionIdentifier(assetSetID: entry.id))")
+ring = download.find("PlaysteadFocusRing.opacity(isFocused: downloadActionHasFocus)")
+if min(focused, identified, ring) < 0 or not focused < identified < ring:
+    raise SystemExit("Download must bind row-owned focus, exact AX identity, and its visible ring on one Button")
+if ".focusable()" in download or ".playsteadFocusable(" in download:
+    raise SystemExit("Download must not create a modifier-owned or duplicate focus participant inside List")
 PY
 python3 - "$RECLAIM_VIEW" "$STORAGE_VIEW" <<'PY'
 import pathlib, sys

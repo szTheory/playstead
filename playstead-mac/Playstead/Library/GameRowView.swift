@@ -34,6 +34,10 @@ struct GameRowView: View {
     /// blocked — the row never remembers a stale refusal.
     @State private var quotaBlock: QuotaVerdict?
     @State private var showsReclaimPrompt = false
+    /// Owned by the stable row rather than a modifier hosted inside `List`.
+    /// This keeps SwiftUI focus and the final actionable AX button on the
+    /// same identity when a row is recycled or its status is refreshed.
+    @FocusState private var downloadActionHasFocus: Bool
     /// Bumped after a pin toggle so the row re-reads `PinStore` (pins
     /// live in SQLite, not in an observable view model).
     @State private var pinRevision = 0
@@ -221,12 +225,15 @@ struct GameRowView: View {
         switch status {
         case .needsDownload:
             Button("Download") { Task { await download() } }
-                // A Button is implicitly focusable in a plain stack, but this
-                // action lives inside a macOS List row. Opt in before binding
-                // Playstead's FocusState so Tab and the visible ring share the
-                // same final button node.
-                .focusable()
-                .playsteadFocusable(identifier: Self.downloadActionIdentifier(assetSetID: entry.id))
+                .focused($downloadActionHasFocus)
+                .accessibilityIdentifier(Self.downloadActionIdentifier(assetSetID: entry.id))
+                .overlay {
+                    RoundedRectangle(cornerRadius: PlaysteadFocusRing.cornerRadius)
+                        .stroke(PlaysteadFocusRing.color, lineWidth: PlaysteadFocusRing.lineWidth)
+                        .opacity(PlaysteadFocusRing.opacity(isFocused: downloadActionHasFocus))
+                        .accessibilityHidden(true)
+                        .allowsHitTesting(false)
+                }
         case .downloading:
             ProgressView().controlSize(.small)
         case .ready:
