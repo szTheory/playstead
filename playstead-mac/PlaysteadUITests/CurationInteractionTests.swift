@@ -33,6 +33,37 @@ final class CurationInteractionTests: XCTestCase {
         openSyntheticCollection(in: harness)
         assertExactCollectionOrder(draggedOrder, in: harness)
         assertEvidence(order: draggedOrder, outboxCount: 1, in: harness)
+
+        let firstMoveUp = harness.element(moveID(memberID(2), direction: "up"), type: .button)
+        let lastMoveDown = harness.element(moveID(memberID(1), direction: "down"), type: .button)
+        assertEnabled(false, element: firstMoveUp)
+        assertEnabled(false, element: lastMoveDown)
+
+        let keyboardMove = moveID(memberID(1), direction: "up")
+        harness.focusContainedAction(
+            keyboardMove,
+            rootIdentifier: "playstead.surface.collection-detail"
+        )
+        let keyboardMoveButton = harness.element(keyboardMove, type: .button)
+        keyboardMoveButton.typeKey(.space, modifierFlags: [])
+
+        let keyboardOrder = [memberID(2), memberID(1), memberID(3)]
+        assertExactCollectionOrder(keyboardOrder, in: harness)
+        assertEvidence(order: keyboardOrder, outboxCount: 2, in: harness)
+        waitForKeyboardFocus(keyboardMoveButton)
+        assertEnabled(
+            false,
+            element: harness.element(moveID(memberID(2), direction: "up"), type: .button)
+        )
+        assertEnabled(
+            false,
+            element: harness.element(moveID(memberID(3), direction: "down"), type: .button)
+        )
+
+        harness.relaunch(settledAt: "playstead.surface.library")
+        openSyntheticCollection(in: harness)
+        assertExactCollectionOrder(keyboardOrder, in: harness)
+        assertEvidence(order: keyboardOrder, outboxCount: 2, in: harness)
     }
 
     private func assertExactFiveShelfFixture(in harness: UITestHarness) {
@@ -94,12 +125,29 @@ final class CurationInteractionTests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed)
     }
 
+    private func waitForKeyboardFocus(_ element: XCUIElement) {
+        let predicate = NSPredicate(format: "hasKeyboardFocus == true")
+        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
+        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed)
+    }
+
+    private func assertEnabled(_ expected: Bool, element: XCUIElement) {
+        XCTAssertTrue(element.waitForExistence(timeout: 5))
+        let predicate = NSPredicate(format: "enabled == %@", NSNumber(value: expected))
+        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
+        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed)
+    }
+
     private func evidence(order: [String], outboxCount: Int) -> String {
         "order=\(order.joined(separator: ","));outbox=\(outboxCount);catalogue=\(Self.catalogueFingerprint)"
     }
 
     private func rowID(_ ordinal: Int) -> String {
         "playstead.curation.collection-member.\(memberID(ordinal))"
+    }
+
+    private func moveID(_ memberID: String, direction: String) -> String {
+        "playstead.curation.collection-member.\(memberID).move-\(direction)"
     }
 
     private func memberID(_ ordinal: Int) -> String {
