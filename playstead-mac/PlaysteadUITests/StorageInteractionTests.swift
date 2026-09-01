@@ -3,6 +3,7 @@ import XCTest
 @MainActor
 final class StorageInteractionTests: XCTestCase {
     private var harness: UITestHarness!
+    private let quotaDownloadAction = "playstead.game.00000000-0000-7000-8000-000000000042.download"
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -415,8 +416,9 @@ final class StorageInteractionTests: XCTestCase {
             "quota fixture did not settle to exactly one Download action"
         )
         XCTAssertEqual(downloads.count, 1)
-        let target = downloads.firstMatch
-        XCTAssertTrue(target.exists)
+        let target = harness.element(quotaDownloadAction, type: .button)
+        XCTAssertTrue(target.waitForExistence(timeout: 5))
+        XCTAssertEqual(target.label, "Download")
         return target
     }
 

@@ -57,6 +57,10 @@ struct GameRowView: View {
         return nil
     }
 
+    static func downloadActionIdentifier(assetSetID: String) -> String {
+        "playstead.game.\(assetSetID).download"
+    }
+
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
@@ -217,6 +221,7 @@ struct GameRowView: View {
         switch status {
         case .needsDownload:
             Button("Download") { Task { await download() } }
+                .playsteadFocusable(identifier: Self.downloadActionIdentifier(assetSetID: entry.id))
         case .downloading:
             ProgressView().controlSize(.small)
         case .ready:

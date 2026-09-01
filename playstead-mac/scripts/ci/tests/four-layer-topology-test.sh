@@ -11,6 +11,7 @@ UI_CANARY="${MAC_ROOT}/PlaysteadUITests/HostedRunnerCanaryTests.swift"
 CURATION_TEST="${MAC_ROOT}/PlaysteadUITests/CurationInteractionTests.swift"
 UI_BOOTSTRAP="${MAC_ROOT}/Playstead/UITesting/UITestBootstrap.swift"
 STORAGE_TEST="${MAC_ROOT}/PlaysteadUITests/StorageInteractionTests.swift"
+GAME_ROW="${MAC_ROOT}/Playstead/Library/GameRowView.swift"
 RECLAIM_VIEW="${MAC_ROOT}/Playstead/Library/ReclaimPromptView.swift"
 STORAGE_VIEW="${MAC_ROOT}/Playstead/Library/StorageView.swift"
 WORKFLOW="${REPO_ROOT}/.github/workflows/ci.yml"
@@ -20,7 +21,7 @@ PROMPT_SAFETY="${MAC_ROOT}/scripts/ci/tests/keychain-prompt-safety-test.sh"
 KEYBOARD_CLEANUP="${MAC_ROOT}/scripts/ci/tests/keyboard-mode-cleanup-test.sh"
 SWIFT_SEMANTIC="${MAC_ROOT}/scripts/ci/tests/wave6-swift-semantic-test.sh"
 
-for file in "$RUNNER" "$SCHEME" "$APP_ENTRY" "$UI_CANARY" "$CURATION_TEST" "$UI_BOOTSTRAP" "$STORAGE_TEST" "$RECLAIM_VIEW" "$STORAGE_VIEW" "$WORKFLOW" "$REFRESH_WORKFLOW" "$SANITIZER" "$PROMPT_SAFETY" "$KEYBOARD_CLEANUP" "$SWIFT_SEMANTIC"; do
+for file in "$RUNNER" "$SCHEME" "$APP_ENTRY" "$UI_CANARY" "$CURATION_TEST" "$UI_BOOTSTRAP" "$STORAGE_TEST" "$GAME_ROW" "$RECLAIM_VIEW" "$STORAGE_VIEW" "$WORKFLOW" "$REFRESH_WORKFLOW" "$SANITIZER" "$PROMPT_SAFETY" "$KEYBOARD_CLEANUP" "$SWIFT_SEMANTIC"; do
   [ -f "$file" ] || { printf 'four-layer topology file missing: %s\n' "$file" >&2; exit 1; }
 done
 for plan in Unit Rendering UI LiveServer; do
@@ -194,6 +195,9 @@ if grep -E 'testDownloadsQuotaReclaimAndStorageFlows|testReclaimPrompt(ShowsExac
   printf 'broad storage UI identity must remain split into exact hosted stages\n' >&2
   exit 1
 fi
+grep -F 'static func downloadActionIdentifier(assetSetID: String) -> String' "$GAME_ROW" >/dev/null
+grep -F '.playsteadFocusable(identifier: Self.downloadActionIdentifier(assetSetID: entry.id))' "$GAME_ROW" >/dev/null
+grep -F 'playstead.game.00000000-0000-7000-8000-000000000042.download' "$STORAGE_TEST" >/dev/null
 python3 - "$RECLAIM_VIEW" "$STORAGE_VIEW" <<'PY'
 import pathlib, sys
 
