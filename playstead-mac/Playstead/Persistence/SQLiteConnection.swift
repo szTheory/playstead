@@ -60,7 +60,17 @@ final class SQLiteConnection {
     }
 
     deinit {
-        sqlite3_close(db)
+        close()
+    }
+
+    /// Closes the handle before an isolated test root is removed.
+    /// Idempotent so normal deinitialization may follow explicit teardown.
+    func close() {
+        queue.sync {
+            guard let db else { return }
+            sqlite3_close(db)
+            self.db = nil
+        }
     }
 
     /// Runs `body`, synchronously hopping onto `queue` unless the caller

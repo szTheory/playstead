@@ -12,7 +12,10 @@ struct PlaysteadApp: App {
     var body: some Scene {
         WindowGroup {
 #if DEBUG
-            if ProcessInfo.processInfo.environment["PLAYSTEAD_WAVE_0_LAUNCH_CANARY"] == "1" {
+#if UI_TESTING
+            if UITestBootstrap.isRequested() {
+                UITestProfileRootView()
+            } else if ProcessInfo.processInfo.environment["PLAYSTEAD_WAVE_0_LAUNCH_CANARY"] == "1" {
                 HostedRunnerLaunchCanaryView()
             } else if ProcessInfo.processInfo.environment["PLAYSTEAD_WAVE_0_FOCUS_CANARY"] == "1" {
                 HostedRunnerFocusCanaryView()
@@ -20,12 +23,42 @@ struct PlaysteadApp: App {
                 ProductionRootView()
             }
 #else
+            if ProcessInfo.processInfo.environment["PLAYSTEAD_WAVE_0_LAUNCH_CANARY"] == "1" {
+                HostedRunnerLaunchCanaryView()
+            } else if ProcessInfo.processInfo.environment["PLAYSTEAD_WAVE_0_FOCUS_CANARY"] == "1" {
+                HostedRunnerFocusCanaryView()
+            } else {
+                ProductionRootView()
+            }
+#endif
+#else
             ProductionRootView()
 #endif
         }
         .windowResizability(.contentSize)
     }
 }
+
+#if UI_TESTING
+/// The real library shell backed by one validated, isolated production-store profile.
+private struct UITestProfileRootView: View {
+    @State private var session: UITestProfileSession
+
+    init() {
+        do {
+            _session = State(initialValue: try UITestBootstrap.makeSession())
+        } catch {
+            fatalError("UI-testing bootstrap failed closed: \(error)")
+        }
+    }
+
+    var body: some View {
+        LibraryShellView()
+            .environment(session.environment)
+            .frame(minWidth: 960, minHeight: 560)
+    }
+}
+#endif
 
 /// Owns production dependencies only when the production root is selected.
 ///
@@ -159,6 +192,11 @@ final class AppEnvironment {
     /// discovered lazily by whichever view happens to render first.
     let motionPreference = MotionPreference()
     private(set) var apiClient: APIClient?
+#if UI_TESTING
+    /// Set before a deterministic profile shell renders. This prevents the
+    /// background sync and download paths from consulting any Keychain or network.
+    private(set) var uiTestingBlocksExternalIO = false
+#endif
     private(set) var adapterHost: AdapterHost?
     private(set) var adapterPinLoadError: Error?
 
@@ -242,15 +280,47 @@ final class AppEnvironment {
     /// directory, a stubbed `URLProtocol`, and a `Reachability` it can
     /// drive by hand. Production calls `AppEnvironment()` and gets exactly
     /// what it always did.
-    init(
+    convenience init(
         paths: AppPaths = AppPaths(),
         apiClient: APIClient? = nil,
         reachability: Reachability = Reachability(),
         downloadSession: URLSession? = nil
     ) {
+        let store = (try? LocalStore(paths: paths)) ?? LocalStore.inMemoryFallback()
+        self.init(
+            paths: paths,
+            openedStore: store,
+            apiClient: apiClient,
+            reachability: reachability,
+            downloadSession: downloadSession
+        )
+    }
+
+#if UI_TESTING
+    convenience init(
+        uiTestingPaths paths: AppPaths,
+        localStore: LocalStore,
+        reachability: Reachability
+    ) {
+        self.init(
+            paths: paths,
+            openedStore: localStore,
+            apiClient: nil,
+            reachability: reachability,
+            downloadSession: nil
+        )
+    }
+#endif
+
+    private init(
+        paths: AppPaths,
+        openedStore store: LocalStore,
+        apiClient: APIClient?,
+        reachability: Reachability,
+        downloadSession: URLSession?
+    ) {
         self.appPaths = paths
         self.downloadSessionOverride = downloadSession
-        let store = (try? LocalStore(paths: paths)) ?? LocalStore.inMemoryFallback()
         self.localStore = store
         self.controllerMappingStore = ControllerMappingStore(localStore: store)
         self.biosStore = BiosStore(localStore: store, managedDirectory: paths.bios, references: [])
@@ -365,6 +435,12 @@ final class AppEnvironment {
     deinit {
         reachability.removeObserver(reachabilityToken)
     }
+
+#if UI_TESTING
+    func blockExternalIOForUITesting() {
+        uiTestingBlocksExternalIO = true
+    }
+#endif
 
     /// Drain trigger 3/3, called from `PlaysteadApp`'s `scenePhase`
     /// observer. Also re-reads the local model, since a background stretch

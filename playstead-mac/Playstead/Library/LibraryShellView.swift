@@ -262,6 +262,9 @@ extension AppEnvironment {
     /// exists — avoids surfacing `.notPaired` as a scary-looking error on
     /// a fresh, unpaired install.
     func apiClientIfAvailable() async -> APIClient? {
+#if UI_TESTING
+        guard !uiTestingBlocksExternalIO else { return nil }
+#endif
         guard let client = apiClient else { return nil }
         let hasCredential = await client.credential != nil
         return hasCredential ? client : nil
