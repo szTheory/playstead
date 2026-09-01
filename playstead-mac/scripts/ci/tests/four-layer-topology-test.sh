@@ -13,8 +13,9 @@ REFRESH_WORKFLOW="${REPO_ROOT}/.github/workflows/mac-snapshot-refresh.yml"
 SANITIZER="${MAC_ROOT}/scripts/ci/sanitize-evidence.sh"
 PROMPT_SAFETY="${MAC_ROOT}/scripts/ci/tests/keychain-prompt-safety-test.sh"
 KEYBOARD_CLEANUP="${MAC_ROOT}/scripts/ci/tests/keyboard-mode-cleanup-test.sh"
+SWIFT_SEMANTIC="${MAC_ROOT}/scripts/ci/tests/wave6-swift-semantic-test.sh"
 
-for file in "$RUNNER" "$SCHEME" "$APP_ENTRY" "$UI_CANARY" "$WORKFLOW" "$REFRESH_WORKFLOW" "$SANITIZER" "$PROMPT_SAFETY" "$KEYBOARD_CLEANUP"; do
+for file in "$RUNNER" "$SCHEME" "$APP_ENTRY" "$UI_CANARY" "$WORKFLOW" "$REFRESH_WORKFLOW" "$SANITIZER" "$PROMPT_SAFETY" "$KEYBOARD_CLEANUP" "$SWIFT_SEMANTIC"; do
   [ -f "$file" ] || { printf 'four-layer topology file missing: %s\n' "$file" >&2; exit 1; }
 done
 for plan in Unit Rendering UI LiveServer; do
@@ -129,5 +130,6 @@ grep -F '{"test_identifier", "category", "element_identifier", "element_role"}' 
 
 "$PROMPT_SAFETY"
 bash "$KEYBOARD_CLEANUP"
+bash "$SWIFT_SEMANTIC"
 
 printf 'four-layer topology contract: passed\n'

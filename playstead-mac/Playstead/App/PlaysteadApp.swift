@@ -482,7 +482,7 @@ final class AppEnvironment {
             .joined(separator: ",")
         let catalogueFingerprint = catalogueStore.fetchAll()
             .flatMap(\.members)
-            .map(\.sha256)
+            .compactMap(\.sha256)
             .sorted()
             .joined(separator: ",")
         return "order=\(order);outbox=\(outbox.listAll().count);catalogue=\(catalogueFingerprint)"

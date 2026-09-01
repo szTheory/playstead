@@ -229,8 +229,8 @@ final class DeterministicProfileFixture {
             throw DeterministicProfileError.stateMismatch("only the curation profile supports relaunch")
         }
         let members = curationStore.fetchCollectionMembers()
-        let digests = catalogueStore.fetchAll().flatMap(\.members).map(\.sha256).sorted()
-        let expectedDigests = Self.catalogueEntries(count: 3).flatMap(\.members).map(\.sha256).sorted()
+        let digests = catalogueStore.fetchAll().flatMap(\.members).compactMap(\.sha256).sorted()
+        let expectedDigests = Self.catalogueEntries(count: 3).flatMap(\.members).compactMap(\.sha256).sorted()
         guard catalogueStore.count() == 3,
               curationStore.fetchFavorites().count == 1,
               curationStore.fetchCollections().count == 1,
