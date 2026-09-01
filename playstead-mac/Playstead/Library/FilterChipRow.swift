@@ -22,6 +22,10 @@ struct FilterChipRow: View {
         chip.id == selectedID
     }
 
+    static func accessibilityIdentifier(for chipID: String) -> String {
+        "library.filter.\(chipID)"
+    }
+
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: DesignTokens.Spacing.sm) {
@@ -48,5 +52,6 @@ struct FilterChipRow: View {
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
         .accessibilityLabel(chip.label)
+        .playsteadFocusable(identifier: Self.accessibilityIdentifier(for: chip.id))
     }
 }

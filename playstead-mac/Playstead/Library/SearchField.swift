@@ -6,11 +6,14 @@ import SwiftUI
 /// controller path to narrowing the library; keyboard/pointer remains
 /// the path to arbitrary text).
 struct SearchField: View {
+    static let accessibilityIdentifier = "library.search.field"
+
     @Binding var text: String
 
     var body: some View {
         TextField("Search your library", text: $text)
             .textFieldStyle(.roundedBorder)
             .accessibilityLabel("Search your library")
+            .playsteadFocusable(identifier: Self.accessibilityIdentifier)
     }
 }

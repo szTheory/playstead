@@ -6,6 +6,8 @@ import SwiftUI
 /// user preference toggle). Adapter/BIOS/controller settings never
 /// appear here or anywhere in library chrome.
 struct ShowAllSystemsControl: View {
+    static let accessibilityIdentifier = "library.systems.show-all"
+
     let hiddenCount: Int
     @Binding var isExpanded: Bool
 
@@ -20,6 +22,7 @@ struct ShowAllSystemsControl: View {
                 isExpanded.toggle()
             }
             .accessibilityLabel(text)
+            .playsteadFocusable(identifier: Self.accessibilityIdentifier)
         }
     }
 }
