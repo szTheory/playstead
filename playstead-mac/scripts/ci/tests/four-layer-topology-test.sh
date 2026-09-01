@@ -236,11 +236,16 @@ if grep -E 'testDownloadsQuotaReclaimAndStorageFlows|testReclaimPrompt(ShowsExac
   exit 1
 fi
 grep -F 'static func downloadActionIdentifier(assetSetID: String) -> String' "$GAME_ROW" >/dev/null
+grep -F 'static func summaryIdentifier(assetSetID: String) -> String' "$GAME_ROW" >/dev/null
+grep -F '.accessibilityIdentifier(Self.summaryIdentifier(assetSetID: entry.id))' "$GAME_ROW" >/dev/null
 grep -F '@FocusState private var downloadActionHasFocus: Bool' "$GAME_ROW" >/dev/null
 grep -F '.focused($downloadActionHasFocus)' "$GAME_ROW" >/dev/null
 grep -F '.accessibilityIdentifier(Self.downloadActionIdentifier(assetSetID: entry.id))' "$GAME_ROW" >/dev/null
 grep -F 'private let quotaDownloadAssetID = "00000000-0000-7000-8000-000000000042"' "$STORAGE_TEST" >/dev/null
+grep -F 'private let quotaReclaimAssetID = "00000000-0000-7000-8000-000000000041"' "$STORAGE_TEST" >/dev/null
 grep -F '"playstead.game.\(quotaDownloadAssetID).download"' "$STORAGE_TEST" >/dev/null
+grep -F 'harness.element("playstead.game.\(assetID).summary")' "$STORAGE_TEST" >/dev/null
+grep -F 'XCTAssertTrue(row.label.hasPrefix(title)' "$STORAGE_TEST" >/dev/null
 grep -F 'action.frame,' "$STORAGE_TEST" >/dev/null
 grep -F 'exactIdentity.frame,' "$STORAGE_TEST" >/dev/null
 grep -F 'List(selection: $selectedListEntryID)' "$LIBRARY_SHELL" >/dev/null

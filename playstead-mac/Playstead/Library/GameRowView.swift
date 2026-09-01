@@ -74,6 +74,10 @@ struct GameRowView: View {
         "playstead.game.\(assetSetID).download"
     }
 
+    static func summaryIdentifier(assetSetID: String) -> String {
+        "playstead.game.\(assetSetID).summary"
+    }
+
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
@@ -100,6 +104,7 @@ struct GameRowView: View {
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel(rowSummaryAccessibilityLabel)
+            .accessibilityIdentifier(Self.summaryIdentifier(assetSetID: entry.id))
             Spacer()
             curationButtons
             actionButton

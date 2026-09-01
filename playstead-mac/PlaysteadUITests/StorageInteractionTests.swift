@@ -3,6 +3,7 @@ import XCTest
 @MainActor
 final class StorageInteractionTests: XCTestCase {
     private var harness: UITestHarness!
+    private let quotaReclaimAssetID = "00000000-0000-7000-8000-000000000041"
     private let quotaDownloadAssetID = "00000000-0000-7000-8000-000000000042"
     private var quotaDownloadAction: String {
         "playstead.game.\(quotaDownloadAssetID).download"
@@ -335,8 +336,8 @@ final class StorageInteractionTests: XCTestCase {
         harness.element("playstead.reclaim.cancel", type: .button)
             .typeKey(.space, modifierFlags: [])
         XCTAssertFalse(reclaimRoot.waitForExistence(timeout: 2))
-        assertCanonicalRow(title: "Synthetic Reclaim Candidate")
-        assertCanonicalRow(title: "Synthetic Quota Download")
+        assertCanonicalRow(assetID: quotaReclaimAssetID, title: "Synthetic Reclaim Candidate")
+        assertCanonicalRow(assetID: quotaDownloadAssetID, title: "Synthetic Quota Download")
     }
 
     private func openEligibleStorageInventory() {
@@ -391,8 +392,8 @@ final class StorageInteractionTests: XCTestCase {
 
     private func dismissStorageAndAssertCanonicalRows() {
         dismissSheet(root: "playstead.surface.storage")
-        assertCanonicalRow(title: "Synthetic Reclaim Candidate")
-        assertCanonicalRow(title: "Synthetic Quota Download")
+        assertCanonicalRow(assetID: quotaReclaimAssetID, title: "Synthetic Reclaim Candidate")
+        assertCanonicalRow(assetID: quotaDownloadAssetID, title: "Synthetic Quota Download")
     }
 
     private func launchStorageProfile(_ profile: UITestHarness.Profile) {
@@ -495,11 +496,10 @@ final class StorageInteractionTests: XCTestCase {
         XCTAssertTrue(action.isEnabled, "action is disabled: \(identifier)")
     }
 
-    private func assertCanonicalRow(title: String) {
-        let row = harness.app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label BEGINSWITH %@", title))
-            .firstMatch
+    private func assertCanonicalRow(assetID: String, title: String) {
+        let row = harness.element("playstead.game.\(assetID).summary")
         XCTAssertTrue(row.waitForExistence(timeout: 5), "canonical row missing: \(title)")
+        XCTAssertTrue(row.label.hasPrefix(title), "canonical row label drifted: \(title)")
     }
 
     private func waitForValue(_ identifier: String, equals expected: String) {
