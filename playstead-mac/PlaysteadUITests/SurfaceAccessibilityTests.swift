@@ -14,7 +14,7 @@ final class SurfaceAccessibilityTests: XCTestCase {
     }
 
     func testLibrarySidebarUsesIndependentFocusAndLiveAudit() throws {
-        harness = UITestHarness(profile: "populated-curation-reorder")
+        harness = UITestHarness(profile: .populatedCurationReorder)
         harness.launch(settledAt: "playstead.surface.library")
 
         let requiredRoutes = [
@@ -51,7 +51,7 @@ final class SurfaceAccessibilityTests: XCTestCase {
     }
 
     func testContextualRoutesContainAndRestoreFocus() throws {
-        harness = UITestHarness(profile: "storage")
+        harness = UITestHarness(profile: .storage)
         harness.launch(settledAt: "playstead.surface.library")
 
         try harness.audit([

@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MAC_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 
 python3 - "$MAC_ROOT" <<'PY'
-import pathlib, sys
+import pathlib, re, sys
 
 root = pathlib.Path(sys.argv[1])
 identifiers = (root / "Playstead/Design/AccessibilityIdentifiers.swift").read_text()
@@ -20,6 +20,9 @@ readiness = (root / "Playstead/Readiness/ReadinessSheetView.swift").read_text()
 controller = (root / "Playstead/Controller/ControllerSettingsView.swift").read_text()
 harness = (root / "PlaysteadUITests/Support/UITestHarness.swift").read_text()
 tests = (root / "PlaysteadUITests/SurfaceAccessibilityTests.swift").read_text()
+bootstrap = (root / "Playstead/UITesting/UITestBootstrap.swift").read_text()
+profiles = (root / "Playstead/UITesting/DeterministicProfile.swift").read_text()
+app_root = (root / "Playstead/App/PlaysteadApp.swift").read_text()
 docs = (root / "docs/ACCESSIBILITY.md").read_text()
 
 routes = {
@@ -71,6 +74,37 @@ if "AUDIT-DISCOVERY" in harness or "Thread.sleep" in harness or "sleep(" in harn
     raise SystemExit("live harness contains a discovery bypass or fixed sleep")
 if "identifiers.map" not in harness or "identifiers.isEmpty" not in harness:
     raise SystemExit("exact test-owned focus sequence contract is missing")
+
+def check_ui_profile_launch(harness_source):
+    assignments = dict(re.findall(r'app\.launchEnvironment\["([A-Z0-9_]+)"\] = (.+)', harness_source))
+    expected = {
+        "PLAYSTEAD_UI_TESTING": '"1"',
+        "PLAYSTEAD_UI_TEST_PROFILE": "profile.rawValue",
+    }
+    if assignments != expected:
+        raise AssertionError(f"UI harness launch environment must be exactly mode + finite profile: {assignments}")
+    if "enum Profile: String, CaseIterable" not in harness_source:
+        raise AssertionError("UI harness profile selector is not finite")
+
+check_ui_profile_launch(harness)
+for key in ("PLAYSTEAD_UI_TESTING", "PLAYSTEAD_UI_TEST_PROFILE"):
+    try:
+        check_ui_profile_launch(harness.replace(f'app.launchEnvironment["{key}"]', 'removed.environment.key', 1))
+    except AssertionError:
+        pass
+    else:
+        raise SystemExit(f"UI launch environment meta-test did not fail after removing {key}")
+
+app_profiles = set(re.findall(r'case [A-Za-z0-9_]+ = "([a-z0-9-]+)"', profiles.split("static func parse", 1)[0]))
+harness_profiles = set(re.findall(r'case [A-Za-z0-9_]+ = "([a-z0-9-]+)"', harness.split("struct AuditTarget", 1)[0]))
+if harness_profiles != app_profiles or not harness_profiles:
+    raise SystemExit("XCUITest finite profile mirror drifted from the app profile allowlist")
+if 'static let modeKey = "PLAYSTEAD_UI_TESTING"' not in bootstrap or 'environment[modeKey] == "1"' not in bootstrap:
+    raise SystemExit("UI bootstrap mode gate is not fail closed")
+if "guard isRequested(environment: processEnvironment)" not in bootstrap or "DeterministicProfile.parse" not in bootstrap:
+    raise SystemExit("UI bootstrap bypasses mode/profile validation")
+if "APIClient.unpairedForUITesting()" not in app_root or "credential" in " ".join(re.findall(r'app\.launchEnvironment\["([^"]+)"\]', harness)).lower():
+    raise SystemExit("UI profile composition may use a credential override")
 
 def check_audit_repairs(shell_source, row_source, token_source, focus_source):
     required_shell = (

@@ -2,6 +2,17 @@ import XCTest
 
 @MainActor
 final class UITestHarness {
+    /// XCUITest is a separate target and cannot link the app target's
+    /// `DeterministicProfile` type. Keep this mirror finite and pin its raw
+    /// values against `UITestBootstrap` in the static source contract.
+    enum Profile: String, CaseIterable {
+        case emptyLibrary = "empty-library"
+        case populatedCurationReorder = "populated-curation-reorder"
+        case pausedActiveQueue = "paused-active-queue"
+        case quotaBlockReclaim = "quota-block-reclaim"
+        case storage = "storage"
+    }
+
     struct AuditTarget {
         let identifier: String
         let elementType: XCUIElement.ElementType
@@ -30,10 +41,15 @@ final class UITestHarness {
     let app: XCUIApplication
     private(set) var identifierTrace: [String] = []
 
-    init(profile: String) {
+    init(profile: Profile) {
         app = XCUIApplication()
         app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
-        app.launchEnvironment["PLAYSTEAD_UI_TEST_PROFILE"] = profile
+        // These literals intentionally mirror `UITestBootstrap.modeKey` and
+        // `.profileKey`: the UI-test target cannot link app-internal constants.
+        // Both are required. A profile name alone must never fall through to
+        // `ProductionRootView` and its login-Keychain composition.
+        app.launchEnvironment["PLAYSTEAD_UI_TESTING"] = "1"
+        app.launchEnvironment["PLAYSTEAD_UI_TEST_PROFILE"] = profile.rawValue
     }
 
     func launch(settledAt identifier: String, timeout: TimeInterval = 15) {
