@@ -420,7 +420,6 @@ struct LibraryShellView: View {
             ForEach(entries) { entry in
                 GameRowView(entry: entry, downloadCommand: downloadCommand)
                     .tag(entry.id)
-                    .accessibilityIdentifier("playstead.game.\(entry.id).row")
             }
         }
         .focused($libraryListHasFocus)

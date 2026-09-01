@@ -249,6 +249,10 @@ grep -F 'action.frame,' "$STORAGE_TEST" >/dev/null
 grep -F 'exactIdentity.frame,' "$STORAGE_TEST" >/dev/null
 grep -F 'List(selection: $selectedListEntryID)' "$LIBRARY_SHELL" >/dev/null
 grep -F 'ForEach(entries) { entry in' "$LIBRARY_SHELL" >/dev/null
+if grep -F '.accessibilityIdentifier("playstead.game.\(entry.id).row")' "$LIBRARY_SHELL" >/dev/null; then
+  printf 'selectable List row identity must not overwrite descendant Download AX identity\n' >&2
+  exit 1
+fi
 grep -F '.focused($libraryListHasFocus)' "$LIBRARY_SHELL" >/dev/null
 grep -F '.onAppear { libraryListHasFocus = true }' "$LIBRARY_SHELL" >/dev/null
 grep -F '.keyboardShortcut("d", modifiers: .command)' "$LIBRARY_SHELL" >/dev/null
