@@ -425,15 +425,25 @@ final class StorageInteractionTests: XCTestCase {
             "quota fixture did not settle to exactly one Download action"
         )
         XCTAssertEqual(downloads.count, 1)
-        let target = harness.element(quotaDownloadAction, type: .button)
-        XCTAssertTrue(target.waitForExistence(timeout: 5))
-        XCTAssertEqual(target.label, "Download")
-        return target
+        let action = downloads.firstMatch
+        let exactIdentity = harness.element(quotaDownloadAction, type: .button)
+        XCTAssertTrue(exactIdentity.waitForExistence(timeout: 5))
+        XCTAssertEqual(exactIdentity.label, "Download")
+        XCTAssertEqual(
+            action.frame,
+            exactIdentity.frame,
+            "the unique actionable Download must occupy the exact quota asset's AX frame"
+        )
+        return action
     }
 
     private func focusUniqueDownloadAction() -> XCUIElement {
         let target = waitForUniqueDownloadAction()
-        for _ in 0..<24 {
+        // Unlike a sheet-local search, the library traversal crosses the
+        // command bar, search/filter controls, layout controls, and both
+        // rows. Keep the search bounded, but do not mistake the harness's
+        // sheet-sized 24-stop bound for the whole-window focus cycle.
+        for _ in 0..<64 {
             if target.value(forKey: "hasKeyboardFocus") as? Bool == true {
                 return target
             }
@@ -446,7 +456,10 @@ final class StorageInteractionTests: XCTestCase {
     private func focusAndActivateUniqueDownload() {
         let target = focusUniqueDownloadAction()
         XCTAssertTrue(target.value(forKey: "hasKeyboardFocus") as? Bool == true)
-        harness.app.typeKey(.space, modifierFlags: [])
+        // Match the proven Downloads and Quota paths: dispatch to the exact
+        // XCUIElement that already owns focus, never to an application-wide
+        // route that could resolve a different responder.
+        target.typeKey(.space, modifierFlags: [])
     }
 
     private func elements(_ identifierPrefix: String) -> [XCUIElement] {

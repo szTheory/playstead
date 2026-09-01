@@ -231,6 +231,14 @@ grep -F '@FocusState private var downloadActionHasFocus: Bool' "$GAME_ROW" >/dev
 grep -F '.focused($downloadActionHasFocus)' "$GAME_ROW" >/dev/null
 grep -F '.accessibilityIdentifier(Self.downloadActionIdentifier(assetSetID: entry.id))' "$GAME_ROW" >/dev/null
 grep -F 'playstead.game.00000000-0000-7000-8000-000000000042.download' "$STORAGE_TEST" >/dev/null
+grep -F 'action.frame,' "$STORAGE_TEST" >/dev/null
+grep -F 'exactIdentity.frame,' "$STORAGE_TEST" >/dev/null
+grep -F 'for _ in 0..<64 {' "$STORAGE_TEST" >/dev/null
+grep -F 'target.typeKey(.space, modifierFlags: [])' "$STORAGE_TEST" >/dev/null
+if grep -F 'harness.app.typeKey(.space' "$STORAGE_TEST" >/dev/null; then
+  printf 'storage keyboard activation must target the already-focused exact button\n' >&2
+  exit 1
+fi
 python3 - "$GAME_ROW" <<'PY'
 import pathlib, sys
 
