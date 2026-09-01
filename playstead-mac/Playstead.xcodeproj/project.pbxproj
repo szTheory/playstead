@@ -401,6 +401,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "dev.playstead.mac";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG UI_TESTING $(inherited)";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
@@ -448,6 +449,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "dev.playstead.mac.PlaysteadTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "UI_TESTING $(inherited)";
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Playstead.app/Contents/MacOS/Playstead";
 			};
