@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 03.5
 current_phase_name: Mac Verification Automation
 status: executing
-stopped_at: Completed 03.5-04-PLAN.md
-last_updated: "2026-09-01T01:54:06.629Z"
+stopped_at: Completed 03.5-05-PLAN.md
+last_updated: "2026-09-01T06:15:52.643Z"
 last_activity: 2026-08-31
 last_activity_desc: Phase 03.5 execution started
-state_head: d04f6194abe471e8c9ccc12467ca0883cb4735eb
+state_head: c542e5ddf1a0d2198538398151ccdaf39b907e78
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 38
-  completed_plans: 33
+  completed_plans: 34
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: `.planning/PROJECT.md` (updated 2026-08-30)
 ## Current Position
 
 Phase: 03.5 (Mac Verification Automation) — EXECUTING
-Plan: 5 of 10
+Plan: 6 of 10
 Status: Ready to execute
 Last activity: 2026-08-31 — Phase 03.5 execution started
 
@@ -82,6 +82,7 @@ Progress: [██████████] 100% (Phase 02)
 | Phase 03.5-mac-verification-automation P02 | 17 min | 2 tasks | 14 files |
 | Phase 03.5 P03 | 16 min | 2 tasks | 12 files |
 | Phase 03.5-mac-verification-automation P04 | 9 min | 2 tasks | 10 files |
+| Phase 03.5 P05 | 256 min | 2 tasks | 29 files |
 
 ## Accumulated Context
 
@@ -135,6 +136,10 @@ Progress: [██████████] 100% (Phase 02)
 - [Phase 03.5]: All project image assertions enter through PlaysteadSnapshot with one fixed rendering environment and calibrated tolerance.
 - [Phase 03.5]: Card/status priority truth is independently authored and exhaustively checked across all 127 nonempty combinations.
 - [Phase 03.5]: Library references use only fixed synthetic fixtures and role-based control identifiers.
+- [Phase 03.5]: Unit and Rendering XCTest hosts select an inert DEBUG-only root before AppEnvironment construction; local UI and LiveServer layers remain default-deny.
+- [Phase 03.5]: Deterministic UI profiles require explicit mode plus a finite profile and inject a credential-free environment rather than falling back to the login Keychain.
+- [Phase 03.5]: Public accessibility audits fail closed for the named production root and actual descendants while excluding only application wrappers outside that structural subtree.
+- [Phase 03.5]: Hosted failure artifacts contain only bounded canonical test/audit identity and outcomes; raw logs, xcresults, paths, messages, and attachments stay excluded.
 
 ### Pending Todos
 
@@ -165,6 +170,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-01T01:54:06.568Z
-Stopped at: Completed 03.5-04-PLAN.md
+Last session: 2026-09-01T06:15:52.576Z
+Stopped at: Completed 03.5-05-PLAN.md
 Resume file: None
