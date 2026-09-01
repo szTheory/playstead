@@ -282,7 +282,7 @@ verify_layer_result() (
   [ -s "$required_file" ] || die "layer $layer requires at least one --required-test"
 
   python3 - "$test_results" "$required_file" "$layer" "$output" <<'PY'
-import json, pathlib, sys
+import json, pathlib, re, sys
 
 results_path, required_path, layer, output_path = sys.argv[1:]
 try:
@@ -294,12 +294,26 @@ if not isinstance(data, dict) or not isinstance(data.get("testNodes"), list):
     raise SystemExit(f"{layer}: Xcode test result schema is missing testNodes")
 
 def canonical(identifier):
-    body = identifier.split(".", 1)[1] if "." in identifier else identifier
+    body = identifier
     if "/" not in body:
         raise SystemExit(f"{layer}: malformed required test identifier: {identifier}")
     suite, method = body.split("/", 1)
+    suite = suite.rsplit(".", 1)[-1]
     method = method[:-2] if method.endswith("()") else method
-    return f"{suite}/{method}()"
+    value = f"{suite}/{method}()"
+    if len(value) > 240 or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.]*/[A-Za-z_][A-Za-z0-9_]*\(\)", value):
+        raise SystemExit(f"{layer}: malformed test identifier")
+    return value
+
+def normalized_outcome(result):
+    folded = result.strip().lower()
+    if folded in {"passed", "pass", "success", "succeeded"}:
+        return "passed"
+    if "skip" in folded:
+        return "skipped"
+    if folded in {"failed", "failure", "error", "expected failure", "unexpected failure"}:
+        return "failed"
+    return "unknown"
 
 nodes = []
 def walk(value):
@@ -309,7 +323,7 @@ def walk(value):
             result = value.get("result")
             if not isinstance(node_identifier, str) or not isinstance(result, str):
                 raise SystemExit(f"{layer}: malformed Test Case node")
-            nodes.append((node_identifier, result))
+            nodes.append((canonical(node_identifier), result))
         for child in value.values():
             walk(child)
     elif isinstance(value, list):
@@ -322,34 +336,48 @@ if not nodes:
     raise SystemExit(f"{layer}: result contains zero executed tests")
 
 records = []
+verification_errors = []
 for identifier in required:
     expected = canonical(identifier)
     matches = [result for node_identifier, result in nodes if node_identifier == expected]
-    if len(matches) != 1:
-        raise SystemExit(f"{layer}: required test execution count must equal 1: {identifier} (got {len(matches)})")
-    result = matches[0]
+    result = matches[0] if len(matches) == 1 else "Missing"
+    outcome = normalized_outcome(result) if matches else "missing"
     record = {
         "identifier": identifier,
-        "discovered": True,
-        "execution_count": 1,
-        "skipped": result == "Skipped",
-        "outcome": result.lower(),
+        "discovered": bool(matches),
+        "execution_count": len(matches),
+        "skipped": outcome == "skipped",
+        "outcome": outcome,
     }
     records.append(record)
+    if len(matches) != 1:
+        verification_errors.append(f"required test execution count must equal 1: {identifier} (got {len(matches)})")
     if record["skipped"]:
-        raise SystemExit(f"{layer}: required test was skipped: {identifier}")
-    if result != "Passed":
-        raise SystemExit(f"{layer}: required test did not pass: {identifier} ({result})")
+        verification_errors.append(f"required test was skipped: {identifier}")
+    elif outcome != "passed" and len(matches) == 1:
+        verification_errors.append(f"required test did not pass: {identifier} ({result})")
+
+all_failed = sorted(
+    ({"identifier": identifier, "outcome": normalized_outcome(result)}
+     for identifier, result in nodes if normalized_outcome(result) != "passed"),
+    key=lambda record: (record["identifier"], record["outcome"]),
+)
+max_failed_tests = 50
 
 summary = {
     "schema_version": 1,
     "layer": layer,
     "executed_test_count": len(nodes),
     "required_tests": records,
+    "failed_test_count": len(all_failed),
+    "failed_tests_truncated": len(all_failed) > max_failed_tests,
+    "failed_tests": all_failed[:max_failed_tests],
 }
 pathlib.Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 pathlib.Path(output_path).write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 print(f"{layer}: verified {len(required)} required test(s) across {len(nodes)} executed test(s)")
+if verification_errors:
+    raise SystemExit(f"{layer}: " + "; ".join(verification_errors))
 PY
 )
 

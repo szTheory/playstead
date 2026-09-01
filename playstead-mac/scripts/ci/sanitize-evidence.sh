@@ -81,6 +81,52 @@ def scan_json(value):
         if sensitive_text.search(value) or path_text.search(value):
             raise SystemExit("secret, content identifier, or local path found in structured evidence")
 
+test_identifier = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*/[A-Za-z_][A-Za-z0-9_]*\(\)$")
+
+def validate_test_evidence(data, relative):
+    allowed_keys = {
+        "schema_version", "layer", "executed_test_count", "required_tests",
+        "failed_test_count", "failed_tests_truncated", "failed_tests",
+    }
+    if not isinstance(data, dict) or set(data) != allowed_keys:
+        raise SystemExit(f"test evidence has unexpected schema: {relative}")
+    if data.get("schema_version") != 1 or not isinstance(data.get("layer"), str):
+        raise SystemExit(f"test evidence identity is malformed: {relative}")
+    if type(data.get("executed_test_count")) is not int or data["executed_test_count"] < 0:
+        raise SystemExit(f"test evidence execution count is malformed: {relative}")
+    failed = data.get("failed_tests")
+    failed_count = data.get("failed_test_count")
+    truncated = data.get("failed_tests_truncated")
+    if not isinstance(failed, list) or len(failed) > 50:
+        raise SystemExit(f"failed_tests exceeds its bounded allowlist: {relative}")
+    if type(failed_count) is not int or failed_count < len(failed) or type(truncated) is not bool:
+        raise SystemExit(f"failed_tests metadata is malformed: {relative}")
+    if (not truncated and failed_count != len(failed)) or (truncated and (failed_count <= 50 or len(failed) != 50)):
+        raise SystemExit(f"failed_tests truncation metadata is inconsistent: {relative}")
+    for record in failed:
+        if not isinstance(record, dict) or set(record) != {"identifier", "outcome"}:
+            raise SystemExit(f"failed test record contains non-allowlisted fields: {relative}")
+        identifier = record.get("identifier")
+        if not isinstance(identifier, str) or len(identifier) > 240 or not test_identifier.fullmatch(identifier):
+            raise SystemExit(f"failed test identifier is not canonical: {relative}")
+        if record.get("outcome") not in {"failed", "skipped", "unknown"}:
+            raise SystemExit(f"failed test outcome is not allowlisted: {relative}")
+    required = data.get("required_tests")
+    if not isinstance(required, list):
+        raise SystemExit(f"required_tests is malformed: {relative}")
+    for record in required:
+        if not isinstance(record, dict) or set(record) != {"identifier", "discovered", "execution_count", "skipped", "outcome"}:
+            raise SystemExit(f"required test record contains non-allowlisted fields: {relative}")
+        identifier = record.get("identifier")
+        if not isinstance(identifier, str) or len(identifier) > 240 or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.]*/[A-Za-z_][A-Za-z0-9_]*(?:\(\))?", identifier):
+            raise SystemExit(f"required test identifier is not canonical: {relative}")
+        if type(record.get("discovered")) is not bool or type(record.get("skipped")) is not bool:
+            raise SystemExit(f"required test flags are malformed: {relative}")
+        if type(record.get("execution_count")) is not int or record["execution_count"] < 0:
+            raise SystemExit(f"required test execution count is malformed: {relative}")
+        if record.get("outcome") not in {"passed", "failed", "skipped", "unknown", "missing"}:
+            raise SystemExit(f"required test outcome is not allowlisted: {relative}")
+
 def sanitize_log(raw):
     lines = []
     for line in raw.splitlines():
@@ -112,6 +158,8 @@ for item in allowed:
             data = json.loads(item.read_text(encoding="utf-8"))
         except Exception as exc:
             raise SystemExit(f"invalid JSON evidence {relative}: {exc}")
+        if relative.name.endswith("-tests.json"):
+            validate_test_evidence(data, relative)
         scan_json(data)
         destination.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     elif suffix == ".txt" or suffix == ".log":

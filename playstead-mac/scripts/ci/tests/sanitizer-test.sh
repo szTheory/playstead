@@ -37,7 +37,7 @@ make_valid() {
   mkdir -p "$root/evidence/snapshot-triplet" "$root/evidence/logs" "$root/raw/Unit.xcresult" "$root/DerivedData"
   printf '%s\n' '{"schema_version":1,"architecture":"arm64","xcode":["Xcode 26.6","Build version 17F113"]}' >"$root/evidence/environment-fingerprint.json"
   printf '%s\n' '{"schema_version":1,"build_count":1,"automatic_retries":0,"aggregate_outcome":"failed","layers":[]}' >"$root/evidence/layers.json"
-  printf '%s\n' '{"schema_version":1,"layer":"ui","executed_test_count":1,"required_tests":[{"identifier":"PlaysteadUITests.HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice","discovered":true,"execution_count":1,"skipped":false,"outcome":"passed"}]}' >"$root/evidence/ui-tests.json"
+  printf '%s\n' '{"schema_version":1,"layer":"ui","executed_test_count":2,"required_tests":[{"identifier":"PlaysteadUITests.HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice","discovered":true,"execution_count":1,"skipped":false,"outcome":"passed"}],"failed_test_count":1,"failed_tests_truncated":false,"failed_tests":[{"identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","outcome":"failed"}]}' >"$root/evidence/ui-tests.json"
   printf 'safe app event at /Users/example/private/location\n' >"$root/evidence/logs/app.log"
   printf 'server health passed\n' >"$root/evidence/logs/server.log"
   printf '\211PNG\r\n\032\nreference' >"$root/evidence/snapshot-triplet/reference.png"
@@ -53,6 +53,13 @@ grep -F '[PATH]' "$TMP_ROOT/output/logs/app.log" >/dev/null || { printf 'FAIL: l
 [ ! -e "$TMP_ROOT/output/raw" ]
 [ ! -e "$TMP_ROOT/output/DerivedData" ]
 PASS_COUNT=$((PASS_COUNT + 3))
+python3 - "$TMP_ROOT/output/ui-tests.json" <<'PY'
+import json, pathlib, sys
+data = json.loads(pathlib.Path(sys.argv[1]).read_text())
+assert data["failed_tests"] == [{"identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "outcome": "failed"}]
+assert all(set(record) == {"identifier", "outcome"} for record in data["failed_tests"])
+PY
+PASS_COUNT=$((PASS_COUNT + 1))
 
 secret_json="$TMP_ROOT/secret-json"
 make_valid "$secret_json"
@@ -63,6 +70,37 @@ content_id="$TMP_ROOT/content-id"
 make_valid "$content_id"
 printf '%s\n' '{"schema_version":1,"name":"private-game.nes"}' >"$content_id/evidence/layers.json"
 expect_fail content_identifier "$SANITIZER" --input "$content_id" --output "$TMP_ROOT/content-id-output"
+
+failure_message="$TMP_ROOT/failure-message"
+make_valid "$failure_message"
+python3 - "$failure_message/evidence/ui-tests.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1]); data = json.loads(path.read_text())
+data["failed_tests"][0]["message"] = "private diagnostic"
+path.write_text(json.dumps(data))
+PY
+expect_fail failure_message "$SANITIZER" --input "$failure_message" --output "$TMP_ROOT/failure-message-output"
+
+unsafe_test_id="$TMP_ROOT/unsafe-test-id"
+make_valid "$unsafe_test_id"
+python3 - "$unsafe_test_id/evidence/ui-tests.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1]); data = json.loads(path.read_text())
+data["failed_tests"][0]["identifier"] = "/Users/example/private/testFailure()"
+path.write_text(json.dumps(data))
+PY
+expect_fail unsafe_test_id "$SANITIZER" --input "$unsafe_test_id" --output "$TMP_ROOT/unsafe-test-id-output"
+
+unbounded="$TMP_ROOT/unbounded"
+make_valid "$unbounded"
+python3 - "$unbounded/evidence/ui-tests.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1]); data = json.loads(path.read_text())
+data["failed_tests"] = [{"identifier": f"SyntheticSuite/testFailure{index}()", "outcome": "failed"} for index in range(51)]
+data["failed_test_count"] = 51
+path.write_text(json.dumps(data))
+PY
+expect_fail unbounded "$SANITIZER" --input "$unbounded" --output "$TMP_ROOT/unbounded-output"
 
 oversized="$TMP_ROOT/oversized"
 make_valid "$oversized"

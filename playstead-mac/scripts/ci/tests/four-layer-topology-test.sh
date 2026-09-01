@@ -119,6 +119,9 @@ grep -F 'max_files = 40' "$SANITIZER" >/dev/null
 grep -F 'max_total = 12 * 1024 * 1024' "$SANITIZER" >/dev/null
 grep -F 'snapshot-triplet' "$SANITIZER" >/dev/null
 grep -F 'environment-fingerprint.json' "$SANITIZER" >/dev/null
+grep -F '"failed_tests": all_failed[:max_failed_tests]' "$RUNNER" >/dev/null
+grep -F 'len(failed) > 50' "$SANITIZER" >/dev/null
+grep -F '{"identifier", "outcome"}' "$SANITIZER" >/dev/null
 
 "$PROMPT_SAFETY"
 

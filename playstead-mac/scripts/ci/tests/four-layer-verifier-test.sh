@@ -45,10 +45,16 @@ case = {
     "name": "testScopedMatchQueryRestrictsSearchWithoutSelectingAnAddDestination()",
     "result": result,
 }
+non_required_failure = {
+    "nodeType": "Test Case",
+    "nodeIdentifier": "SurfaceAccessibilityTests/testSyntheticFailure()",
+    "name": "testSyntheticFailure()",
+    "result": "Failed",
+}
 data = {
     "testPlanConfigurations": [],
     "devices": [],
-    "testNodes": [{"nodeType": "Test Plan", "name": "Unit", "children": [case] * int(duplicates)}],
+    "testNodes": [{"nodeType": "Test Plan", "name": "Unit", "children": [case] * int(duplicates) + [non_required_failure]}],
 }
 json.dump(data, open(path, "w"))
 PY
@@ -62,12 +68,46 @@ verify_fixture() {
 valid="$TMP_ROOT/valid.json"
 write_fixture "$valid"
 expect_pass valid verify_fixture "$valid"
+python3 - "$TMP_ROOT/summary.json" <<'PY'
+import json, pathlib, sys
+summary = json.loads(pathlib.Path(sys.argv[1]).read_text())
+assert summary["failed_test_count"] == 1
+assert summary["failed_tests_truncated"] is False
+assert summary["failed_tests"] == [{"identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "outcome": "failed"}]
+assert set(summary) == {"schema_version", "layer", "executed_test_count", "required_tests", "failed_test_count", "failed_tests_truncated", "failed_tests"}
+PY
+PASS_COUNT=$((PASS_COUNT + 1))
 
 for result in Failed Skipped unknown; do
   fixture="$TMP_ROOT/${result}.json"
   write_fixture "$fixture" "$result"
   expect_fail "result_${result}" verify_fixture "$fixture"
+  [ -s "$TMP_ROOT/summary.json" ] || { printf 'FAIL: failing required test did not emit evidence\n' >&2; exit 1; }
 done
+
+bounded="$TMP_ROOT/bounded.json"
+python3 - "$bounded" <<'PY'
+import json, sys
+required = {"nodeType":"Test Case","nodeIdentifier":"KeychainScopingTests/testScopedMatchQueryRestrictsSearchWithoutSelectingAnAddDestination()","result":"Passed"}
+failed = [{"nodeType":"Test Case","nodeIdentifier":f"SyntheticSuite/testFailure{index}()","result":"Failed"} for index in range(55)]
+json.dump({"testNodes":[{"nodeType":"Test Plan","children":[required, *failed]}]}, open(sys.argv[1], "w"))
+PY
+expect_pass bounded verify_fixture "$bounded"
+python3 - "$TMP_ROOT/summary.json" <<'PY'
+import json, pathlib, sys
+summary = json.loads(pathlib.Path(sys.argv[1]).read_text())
+assert summary["failed_test_count"] == 55
+assert summary["failed_tests_truncated"] is True
+assert len(summary["failed_tests"]) == 50
+PY
+PASS_COUNT=$((PASS_COUNT + 1))
+
+unsafe_identifier="$TMP_ROOT/unsafe-identifier.json"
+python3 - "$unsafe_identifier" <<'PY'
+import json, sys
+json.dump({"testNodes":[{"nodeType":"Test Case","nodeIdentifier":"/Users/example/secret/testFailure()","result":"Failed"}]}, open(sys.argv[1], "w"))
+PY
+expect_fail unsafe_identifier verify_fixture "$unsafe_identifier"
 
 duplicate="$TMP_ROOT/duplicate.json"
 write_fixture "$duplicate" Passed 2
