@@ -65,6 +65,7 @@ struct BiosDropTargetView: View {
                 }
             }
             .accessibilityLabel("Choose BIOS file")
+            .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.chooseBios)
             statusView
         }
         .padding(DesignTokens.Spacing.lg)
@@ -74,6 +75,8 @@ struct BiosDropTargetView: View {
         )
         .onDrop(of: [UTType.fileURL], isTargeted: $isTargeted, perform: handleProviders)
         .accessibilityElement(children: .contain)
+        .accessibilityLabel("BIOS settings")
+        .accessibilityIdentifier(AccessibilityIdentifiers.Surface.bios)
     }
 
     static func defaultChooseFile() -> URL? {

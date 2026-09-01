@@ -31,6 +31,13 @@ struct ReadinessSheetView: View {
 
             ReadinessReportView(report: report, onRemedy: apply, onPlay: onPlay)
 
+            HStack(spacing: DesignTokens.Spacing.sm) {
+                Button("BIOS settings") { showsBiosDropTarget = true }
+                    .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.openBios)
+                Button("Controller settings") { showsInputSettings = true }
+                    .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.openControllerSettings)
+            }
+
             if showsAdapterSetup {
                 Divider()
                 AdapterSetupView()
@@ -55,10 +62,15 @@ struct ReadinessSheetView: View {
             HStack {
                 Spacer()
                 Button("Done", action: onClose)
+                    .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.done)
             }
         }
         .padding(DesignTokens.Spacing.lg)
         .frame(minWidth: 520)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Game readiness")
+        .accessibilityIdentifier(AccessibilityIdentifiers.Surface.readiness)
+        .onExitCommand(perform: onClose)
     }
 
     /// Routes one remedy to the surface that can actually resolve it.

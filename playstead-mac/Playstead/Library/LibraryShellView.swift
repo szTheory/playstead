@@ -17,6 +17,9 @@ struct LibraryShellView: View {
     @State private var selectedCollectionID: String?
     @State private var refreshError: String?
     @State private var presentedSurface: ShellSurface?
+    @State private var searchText = ""
+    @State private var libraryLayout: LibraryLayout = .cards
+    @State private var presentedReadinessEntry: CatalogueEntry?
     /// Bumped by every storage action so the presented sheet re-reads the
     /// real stores. Pins, the queue and the quota policy live in SQLite,
     /// not in an observable view model, so nothing else would invalidate
@@ -36,6 +39,11 @@ struct LibraryShellView: View {
         var id: String { rawValue }
     }
 
+    enum LibraryLayout: Hashable {
+        case cards
+        case list
+    }
+
     /// The toolbar label and sheet title for each surface — a pure
     /// function, so a test can assert every surface actually routes
     /// somewhere rather than opening a blank sheet.
@@ -44,6 +52,14 @@ struct LibraryShellView: View {
         case .adapter: return "Adapter"
         case .downloads: return "Downloads"
         case .storage: return "Storage"
+        }
+    }
+
+    static func surfaceIdentifier(for surface: ShellSurface) -> String {
+        switch surface {
+        case .adapter: return AccessibilityIdentifiers.Surface.adapter
+        case .downloads: return AccessibilityIdentifiers.Surface.downloads
+        case .storage: return AccessibilityIdentifiers.Surface.storage
         }
     }
 
@@ -76,14 +92,17 @@ struct LibraryShellView: View {
             ToolbarItem {
                 Button(Self.title(for: .downloads)) { presentedSurface = .downloads }
                     .accessibilityLabel("Download queue")
+                    .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.openDownloads)
             }
             ToolbarItem {
                 Button(Self.title(for: .storage)) { presentedSurface = .storage }
                     .accessibilityLabel("Storage and quota settings")
+                    .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.openStorage)
             }
             ToolbarItem {
                 Button(Self.title(for: .adapter)) { presentedSurface = .adapter }
                     .accessibilityLabel("Adapter setup")
+                    .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.openAdapter)
             }
         }
         .sheet(item: $presentedSurface) { surface in
@@ -92,12 +111,28 @@ struct LibraryShellView: View {
                 HStack {
                     Spacer()
                     Button("Done") { presentedSurface = nil }
+                        .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.done)
                 }
                 .padding(.horizontal, DesignTokens.Spacing.lg)
                 .padding(.bottom, DesignTokens.Spacing.lg)
             }
             .environment(environment)
             .frame(minWidth: 560, minHeight: 380)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier(Self.surfaceIdentifier(for: surface))
+            .onExitCommand { presentedSurface = nil }
+        }
+        .sheet(item: $presentedReadinessEntry) { entry in
+            ReadinessSheetView(
+                entry: entry,
+                report: environment.readinessReport(for: entry),
+                onRefresh: {},
+                onDownload: { presentedReadinessEntry = nil },
+                onPlay: { presentedReadinessEntry = nil },
+                onClose: { presentedReadinessEntry = nil }
+            )
+            .environment(environment)
+            .onExitCommand { presentedReadinessEntry = nil }
         }
         .task {
             // The window renders from the local mirror first (LIBR-01's
@@ -193,11 +228,12 @@ struct LibraryShellView: View {
     private var detail: some View {
         switch selection ?? .home {
         case .home:
-            catalogueList(library.catalogue)
+            homeLibrary
         case .continuePlaying:
             ScrollView { ContinueShelfView(viewModel: environment.continueViewModel, catalogueByAssetSetID: catalogueByAssetSetID) }
         case .favorites:
             ScrollView { FavoritesShelfView(viewModel: environment.favoritesViewModel, catalogueByAssetSetID: catalogueByAssetSetID) }
+                .accessibilityIdentifier(AccessibilityIdentifiers.Surface.gameCard)
         case .collections:
             collectionsDetail
         case .queue:
@@ -209,6 +245,80 @@ struct LibraryShellView: View {
         case .unidentified:
             catalogueList(library.unidentifiedCatalogue)
         }
+    }
+
+    private var homeLibrary: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            Group {
+                SearchField(text: Binding(
+                    get: { searchText },
+                    set: { value in
+                        searchText = value
+                        library.searchTerm = value
+                    }
+                ))
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Library search")
+            .accessibilityIdentifier(AccessibilityIdentifiers.Surface.search)
+
+            Group {
+                FilterChipRow(
+                    chips: library.nonEmptySystemIDs.sorted().map {
+                        FilterChip(id: $0, label: SystemRegistry.entry(for: $0).displayName)
+                    },
+                    selectedID: library.selectedSystemID,
+                    onSelect: { library.selectedSystemID = $0 }
+                )
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Library filters")
+            .accessibilityIdentifier(AccessibilityIdentifiers.Surface.filter)
+
+            HStack {
+                Button("Cards") { libraryLayout = .cards }
+                    .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.showCards)
+                Button("List") { libraryLayout = .list }
+                    .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.showList)
+                if let entry = library.filteredCatalogue.first {
+                    Button("Check readiness") { presentedReadinessEntry = entry }
+                        .accessibilityLabel("Check launch readiness")
+                        .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.openReadiness)
+                }
+            }
+
+            switch libraryLayout {
+            case .cards:
+                ScrollView {
+                    ShelfView(
+                        heading: "All games",
+                        items: library.filteredCatalogue.map {
+                            ShelfItem(
+                                id: $0.id,
+                                title: $0.displayTitle,
+                                systemID: $0.system,
+                                isUnidentified: LibraryViewModel.isUnidentified($0),
+                                statuses: [.serverOnly]
+                            )
+                        },
+                        layout: .grid,
+                        emptyExplanation: "No games match the current search and filters."
+                    )
+                }
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("Game cards")
+                .accessibilityIdentifier(AccessibilityIdentifiers.Surface.gameCard)
+            case .list:
+                Group { catalogueList(library.filteredCatalogue) }
+                    .accessibilityElement(children: .contain)
+                    .accessibilityLabel("Game list")
+                    .accessibilityIdentifier(AccessibilityIdentifiers.Surface.gameList)
+            }
+        }
+        .padding(.horizontal, DesignTokens.Spacing.md)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Library")
+        .accessibilityIdentifier(AccessibilityIdentifiers.Surface.library)
     }
 
     /// Collections list and, once one is picked, that collection's

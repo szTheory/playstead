@@ -31,6 +31,9 @@ struct ControllerSettingsView: View {
             }
         }
         .padding(DesignTokens.Spacing.md)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Controller settings")
+        .accessibilityIdentifier(AccessibilityIdentifiers.Surface.controllerSettings)
     }
 
     private var assignmentSection: some View {

@@ -796,6 +796,12 @@ run_selected_layer_tests() {
   local test_plan="Rendering"
   [ "$layer" != "ui" ] || test_plan="UI"
   [ "$layer" != "ui" ] || assert_local_app_launch_authorized
+  local previous_keyboard_mode=""
+  if [ "$layer" = "ui" ]; then
+    previous_keyboard_mode="$(defaults read NSGlobalDomain AppleKeyboardUIMode 2>/dev/null || true)"
+    trap 'if [ -n "$previous_keyboard_mode" ]; then defaults write NSGlobalDomain AppleKeyboardUIMode -int "$previous_keyboard_mode"; else defaults delete NSGlobalDomain AppleKeyboardUIMode 2>/dev/null || true; fi' EXIT
+    defaults write NSGlobalDomain AppleKeyboardUIMode -int 3
+  fi
   local signing=(CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=)
   local only_testing=()
   while [ "$#" -gt 0 ]; do
@@ -803,10 +809,19 @@ run_selected_layer_tests() {
     shift
   done
 
-  rm -rf "$selected_root"
+  mkdir -p "$selected_root"
   xcodebuild test -project "$PROJECT" -scheme "$SCHEME" -testPlan "$test_plan" \
     -destination 'platform=macOS' -derivedDataPath "$selected_root" \
     "${signing[@]}" "${only_testing[@]}"
+
+  if [ "$layer" = "ui" ]; then
+    if [ -n "$previous_keyboard_mode" ]; then
+      defaults write NSGlobalDomain AppleKeyboardUIMode -int "$previous_keyboard_mode"
+    else
+      defaults delete NSGlobalDomain AppleKeyboardUIMode 2>/dev/null || true
+    fi
+    trap - EXIT
+  fi
 }
 
 usage() {

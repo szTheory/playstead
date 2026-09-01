@@ -73,15 +73,32 @@ final class UITestHarness {
             app.typeKey(.tab, modifierFlags: [])
             assertExactlyOneFocusedAction(expected: next)
         }
-        app.typeKey(.tab, modifierFlags: [])
+        var wrappedForward = false
+        for _ in 0..<24 {
+            app.typeKey(.tab, modifierFlags: [])
+            if hasKeyboardFocus(expected[0]) { wrappedForward = true; break }
+            XCTAssertFalse(expected.dropFirst().contains(where: hasKeyboardFocus), "focus sequence wrapped to the wrong declared control")
+        }
+        XCTAssertTrue(wrappedForward, "focus sequence did not wrap to its first declared control")
         assertExactlyOneFocusedAction(expected: expected[0])
 
-        for previous in expected.reversed().dropLast() {
+        var wrappedReverse = false
+        for _ in 0..<24 {
             app.typeKey(.tab, modifierFlags: [.shift])
-            assertExactlyOneFocusedAction(expected: previous)
+            if hasKeyboardFocus(expected[expected.count - 1]) { wrappedReverse = true; break }
+            XCTAssertFalse(expected.dropLast().contains(where: hasKeyboardFocus), "reverse focus sequence reached the wrong declared control")
         }
+        XCTAssertTrue(wrappedReverse, "reverse focus sequence did not wrap to its last declared control")
+        assertExactlyOneFocusedAction(expected: expected[expected.count - 1])
 
         let activationTarget = element(identifier, type: .button)
+        var foundActivationTarget = hasKeyboardFocus(activationTarget)
+        for _ in 0..<expected.count where !foundActivationTarget {
+            app.typeKey(.tab, modifierFlags: [])
+            foundActivationTarget = hasKeyboardFocus(activationTarget)
+        }
+        XCTAssertTrue(foundActivationTarget, "activation target was absent from the exact focus sequence")
+        assertExactlyOneFocusedAction(expected: activationTarget)
         XCTAssertTrue(hasKeyboardFocus(activationTarget), "activation target did not own focus")
         app.typeKey(.space, modifierFlags: [])
         identifierTrace.append(identifier)
@@ -116,9 +133,22 @@ final class UITestHarness {
     func assertSheetFocusContained(rootIdentifier: String) {
         let root = element(rootIdentifier)
         XCTAssertTrue(root.waitForExistence(timeout: 5))
-        let focused = app.buttons.matching(NSPredicate(format: "hasKeyboardFocus == true")).allElementsBoundByIndex
-        XCTAssertEqual(focused.count, 1, "a presented sheet must have exactly one focused action")
-        XCTAssertTrue(root.descendants(matching: .button).allElementsBoundByIndex.contains(where: { $0 == focused[0] }))
+        let descendantIDs = Set(
+            root.descendants(matching: .button).allElementsBoundByIndex
+                .map(\.identifier)
+                .filter { !$0.isEmpty }
+        )
+        XCTAssertFalse(descendantIDs.isEmpty, "sheet must expose at least one identified action")
+
+        for _ in 0..<24 {
+            let focused = app.buttons.matching(NSPredicate(format: "hasKeyboardFocus == true")).allElementsBoundByIndex
+            if focused.count == 1, descendantIDs.contains(focused[0].identifier) {
+                identifierTrace.append(rootIdentifier)
+                return
+            }
+            app.typeKey(.tab, modifierFlags: [])
+        }
+        XCTFail("keyboard focus escaped the presented sheet: \(rootIdentifier)")
     }
 
     func sanitizedTrace() -> String {

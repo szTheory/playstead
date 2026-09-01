@@ -60,5 +60,8 @@ struct SidebarView: View {
                 .accessibilityLabel(entry.label)
         }
         .listStyle(.sidebar)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Library sections")
+        .accessibilityIdentifier(AccessibilityIdentifiers.Surface.sidebar)
     }
 }

@@ -42,6 +42,7 @@ struct AdapterSetupView: View {
                     }
                     .disabled(environment.adapterSetupPhase == .installing || environment.adapterCatalog == nil)
                     .accessibilityLabel(Self.installActionTitle(for: environment.adapterInstallState))
+                    .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.installAdapter)
 
                     Button("Choose an installed application…") {
                         guard let url = chooseApplication() else { return }
@@ -49,11 +50,14 @@ struct AdapterSetupView: View {
                     }
                     .disabled(environment.adapterSetupPhase == .installing || environment.adapterCatalog == nil)
                     .accessibilityLabel("Choose an adapter application already installed on this Mac")
+                    .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.chooseAdapter)
                 }
             }
             .padding(DesignTokens.Spacing.lg)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Adapter setup")
     }
 
     @ViewBuilder

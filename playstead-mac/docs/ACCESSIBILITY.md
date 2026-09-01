@@ -5,13 +5,16 @@ floor (03-UI-SPEC.md), and its current, honestly stated limits.
 
 ## What is delivered
 
-- **Keyboard reachability.** Every interactive element across the
-  library, shelves, list view, search, filter chips, storage, downloads,
-  collections, adapter settings, the BIOS drop target, the readiness
-  report, and controller settings is reachable by keyboard alone, in an
-  order matching the visual layout. Tab order is proven equal to
-  declared visual order per surface in
-  `PlaysteadTests/AccessibilityTests/AccessibilityAuditTests.swift`.
+- **Machine-checked keyboard reachability on the currently inventoried
+  surfaces.** `SurfaceAccessibilityTests` independently declares the
+  library's cards/list/readiness controls and is configured to traverse them
+  in both directions, through wrap, and activate the focused control with
+  Space against a launched app. It also covers the contextual adapter,
+  readiness, BIOS, and controller-settings routes, including sheet
+  containment, Escape/Done dismissal, and opener-focus restoration. Plans 06
+  and 07 add curation and storage inventories before Plan 09 performs the
+  complete all-surface aggregation. A hosted run is required evidence before
+  a release can claim these live checks passed.
 - **A visible focus indicator that is never suppressed for keyboard
   users.** `DesignTokens.focusRing` is the one focus-ring color token,
   reused nowhere else (never for a system or a status color).
@@ -53,14 +56,15 @@ floor (03-UI-SPEC.md), and its current, honestly stated limits.
   (`SearchField`) requires the keyboard — an on-screen keyboard for
   controller text entry is explicitly out of scope for this phase (see
   03-10-PLAN.md's `prohibitions`).
-- **The audit is an automated tree-walk plus a human check, not a
-  third-party conformance assessment.** `AccessibilityAuditTests` walks
-  a declarative manifest of each top-level surface's real accessible
-  names, traits, and declared order (this test target is headless-only;
-  see `FilterChipRow.isSelected`'s doc comment for this codebase's
-  established precedent of testing logic over a live rendered tree). No
-  formal external accessibility certification is claimed for this
-  release.
+- **The public accessibility audit is machine evidence, not experiential
+  VoiceOver review or certification.** `SurfaceAccessibilityTests` is
+  configured to launch a deterministic app profile and check stable roles,
+  labels, values, finite frames, exact focus behavior, and every supported
+  public audit category. Any audit
+  exclusion must name one stable identifier, one exact typed fingerprint, and
+  a rationale; unmatched issues fail closed. This does not establish speech
+  quality, rotor usefulness, navigation intuition, or usability with a human
+  VoiceOver workflow, and no third-party conformance certification is claimed.
 - **Controller hardware itself remains unproven.** The plan 03-01 spike
   recorded controller connect/disconnect recovery as
   FAIL/unproven — no physical or paired game controller was available in

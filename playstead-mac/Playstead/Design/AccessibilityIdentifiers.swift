@@ -50,10 +50,20 @@ enum AccessibilityIdentifiers {
         static let openDownloads = "playstead.control.open-downloads"
         static let openStorage = "playstead.control.open-storage"
         static let openAdapter = "playstead.control.open-adapter"
+        static let showCards = "playstead.control.show-cards"
+        static let showList = "playstead.control.show-list"
+        static let openReadiness = "playstead.control.open-readiness"
+        static let openBios = "playstead.control.open-bios"
+        static let openControllerSettings = "playstead.control.open-controller-settings"
+        static let installAdapter = "playstead.control.install-adapter"
+        static let chooseAdapter = "playstead.control.choose-adapter"
+        static let chooseBios = "playstead.control.choose-bios"
 
         static let all = [
             done, cancel, search, filter, moveUp, moveDown, favorite, queue,
-            pin, download, openDownloads, openStorage, openAdapter
+            pin, download, openDownloads, openStorage, openAdapter, showCards,
+            showList, openReadiness, openBios, openControllerSettings,
+            installAdapter, chooseAdapter, chooseBios
         ]
     }
 
