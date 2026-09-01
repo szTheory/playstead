@@ -4,11 +4,11 @@ milestone: v1.0
 current_phase: 03.5
 current_phase_name: Mac Verification Automation
 status: executing
-stopped_at: Completed Plan 03.5-06 reorder boundary split for hosted run 33490616418
-last_updated: "2026-09-01T09:33:09.225Z"
+stopped_at: Completed Plan 03.5-06 macOS reorder input diagnosis for hosted run 33495336534
+last_updated: "2026-09-01T10:33:18.706Z"
 last_activity: 2026-08-31
 last_activity_desc: Phase 03.5 execution started
-state_head: f9066f4c0e951e4d9d371b5fd7864bb6e876a2ef
+state_head: d322df675d77403c1d4f33f0b3c7d1a92e85e823
 progress:
   total_phases: 6
   completed_phases: 2
@@ -150,6 +150,7 @@ Progress: [██████████] 100% (Phase 02)
 - [Phase 03.5]: Populated curation UI automation targets nodes that own semantics: the collapsed library.card for Favorites and a stable collection-row button for selection/routing; root and child evidence use separate hosted IDs.
 - [Phase 03.5]: Hosted curation selectors attach identity after accessibility collapse and initiate reorder gestures on enclosing List cells; drag mutation and relaunch durability publish separate exact IDs.
 - [Phase 03.5]: Curation hosted evidence publishes independent route, drag-owner, mutation/effect, direct keyboard focus, persisted reorder, relaunch, and full drag-keyboard outcomes; drag uses slow velocity with a bounded hold.
+- [Phase 03.5]: Mac curation UI drag uses XCUIElement click(forDuration:thenDragTo:) and focusContainedAction is the sole Space activation; tests never double-dispatch a reorder input.
 
 ### Pending Todos
 
@@ -180,6 +181,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-01T09:33:09.129Z
-Stopped at: Completed Plan 03.5-06 reorder boundary split for hosted run 33490616418
+Last session: 2026-09-01T10:33:18.607Z
+Stopped at: Completed Plan 03.5-06 macOS reorder input diagnosis for hosted run 33495336534
 Resume file: None
