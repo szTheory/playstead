@@ -156,7 +156,6 @@ final class CurationInteractionTests: XCTestCase {
             rootIdentifier: "playstead.surface.collection-detail"
         )
         let keyboardMoveButton = harness.element(keyboardMove, type: .button)
-        keyboardMoveButton.typeKey(.space, modifierFlags: [])
 
         let keyboardOrder = [memberID(3), memberID(2), memberID(1)]
         assertEvidence(order: keyboardOrder, outboxCount: 2, in: harness)
@@ -194,12 +193,10 @@ final class CurationInteractionTests: XCTestCase {
 
         // Last-to-first has one unambiguous destination boundary. Dropping the
         // first row on the last row's center can resolve on either side of it.
-        third.press(
-            forDuration: 1,
-            thenDragTo: first,
-            withVelocity: XCUIGestureVelocity.slow,
-            thenHoldForDuration: 0.5
-        )
+        // This is a hosted macOS UI test: use the mouse-owned click-drag API.
+        // The touch-style press-drag call can complete without dispatching the
+        // List's production onMove command on macOS.
+        third.click(forDuration: 1, thenDragTo: first)
         return [memberID(3), memberID(1), memberID(2)]
     }
 
@@ -222,9 +219,11 @@ final class CurationInteractionTests: XCTestCase {
         assertEnabled(false, element: harness.element(moveID(memberID(3), direction: "down"), type: .button))
 
         let keyboardMove = moveID(memberID(2), direction: "up")
+        // focusContainedAction proves focus ownership and sends exactly one
+        // Space activation. A second Space would target the now-moved,
+        // boundary-disabled control and fail before effect evidence is read.
         harness.focusContainedAction(keyboardMove, rootIdentifier: "playstead.surface.collection-detail")
         let button = harness.element(keyboardMove, type: .button)
-        button.typeKey(.space, modifierFlags: [])
 
         let order = [memberID(2), memberID(1), memberID(3)]
         assertEvidence(order: order, outboxCount: 1, in: harness)
