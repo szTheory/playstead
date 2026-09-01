@@ -577,8 +577,12 @@ PY
     --required-test PlaysteadUITests.CurationInteractionTests/testKeyboardReorderRetainsFocusAndSurvivesRelaunch \
     --required-test PlaysteadUITests.StorageInteractionTests/testDownloadsPauseResumeFlow \
     --required-test PlaysteadUITests.StorageInteractionTests/testQuotaEditAndFocusRestoration \
-    --required-test PlaysteadUITests.StorageInteractionTests/testReclaimPromptRemovesExactEligibleBytes \
-    --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventoryReclaimsOnlyEligibleCopies
+    --required-test PlaysteadUITests.StorageInteractionTests/testReclaimPromptShowsExactEligibleCandidate \
+    --required-test PlaysteadUITests.StorageInteractionTests/testReclaimPromptSelectionTracksExactBytes \
+    --required-test PlaysteadUITests.StorageInteractionTests/testReclaimPromptConfirmationRemovesExactEligibleBytes \
+    --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventorySelectionTracksExactBytes \
+    --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventoryReclaimRemovesOnlyEligibleCopy \
+    --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventoryProtectsPinnedCopy
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
 
   run_test_layer live-server LiveServer 900 \

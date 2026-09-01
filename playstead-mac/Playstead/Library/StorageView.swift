@@ -161,8 +161,8 @@ struct StorageView: View {
                     .accessibilityIdentifier(Automation.selection)
                 Button("Reclaim selected") {
                     let selection = selected
-                    onReclaim(selection)
                     selected.removeAll()
+                    onReclaim(selection)
                 }
                 .disabled(selected.isEmpty)
                 .playsteadFocusable(identifier: Automation.reclaim)

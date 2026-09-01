@@ -10,6 +10,8 @@ APP_ENTRY="${MAC_ROOT}/Playstead/App/PlaysteadApp.swift"
 UI_CANARY="${MAC_ROOT}/PlaysteadUITests/HostedRunnerCanaryTests.swift"
 CURATION_TEST="${MAC_ROOT}/PlaysteadUITests/CurationInteractionTests.swift"
 STORAGE_TEST="${MAC_ROOT}/PlaysteadUITests/StorageInteractionTests.swift"
+RECLAIM_VIEW="${MAC_ROOT}/Playstead/Library/ReclaimPromptView.swift"
+STORAGE_VIEW="${MAC_ROOT}/Playstead/Library/StorageView.swift"
 WORKFLOW="${REPO_ROOT}/.github/workflows/ci.yml"
 REFRESH_WORKFLOW="${REPO_ROOT}/.github/workflows/mac-snapshot-refresh.yml"
 SANITIZER="${MAC_ROOT}/scripts/ci/sanitize-evidence.sh"
@@ -17,7 +19,7 @@ PROMPT_SAFETY="${MAC_ROOT}/scripts/ci/tests/keychain-prompt-safety-test.sh"
 KEYBOARD_CLEANUP="${MAC_ROOT}/scripts/ci/tests/keyboard-mode-cleanup-test.sh"
 SWIFT_SEMANTIC="${MAC_ROOT}/scripts/ci/tests/wave6-swift-semantic-test.sh"
 
-for file in "$RUNNER" "$SCHEME" "$APP_ENTRY" "$UI_CANARY" "$CURATION_TEST" "$STORAGE_TEST" "$WORKFLOW" "$REFRESH_WORKFLOW" "$SANITIZER" "$PROMPT_SAFETY" "$KEYBOARD_CLEANUP" "$SWIFT_SEMANTIC"; do
+for file in "$RUNNER" "$SCHEME" "$APP_ENTRY" "$UI_CANARY" "$CURATION_TEST" "$STORAGE_TEST" "$RECLAIM_VIEW" "$STORAGE_VIEW" "$WORKFLOW" "$REFRESH_WORKFLOW" "$SANITIZER" "$PROMPT_SAFETY" "$KEYBOARD_CLEANUP" "$SWIFT_SEMANTIC"; do
   [ -f "$file" ] || { printf 'four-layer topology file missing: %s\n' "$file" >&2; exit 1; }
 done
 for plan in Unit Rendering UI LiveServer; do
@@ -128,14 +130,29 @@ grep -F 'third.press(forDuration: 1, thenDragTo: first)' "$CURATION_TEST" >/dev/
 for stage in \
   testDownloadsPauseResumeFlow \
   testQuotaEditAndFocusRestoration \
-  testReclaimPromptRemovesExactEligibleBytes \
-  testStorageInventoryReclaimsOnlyEligibleCopies; do
+  testReclaimPromptShowsExactEligibleCandidate \
+  testReclaimPromptSelectionTracksExactBytes \
+  testReclaimPromptConfirmationRemovesExactEligibleBytes \
+  testStorageInventorySelectionTracksExactBytes \
+  testStorageInventoryReclaimRemovesOnlyEligibleCopy \
+  testStorageInventoryProtectsPinnedCopy; do
   grep -F -- "--required-test PlaysteadUITests.StorageInteractionTests/${stage}" "$RUNNER" >/dev/null
 done
-if grep -F 'testDownloadsQuotaReclaimAndStorageFlows' "$RUNNER" "$STORAGE_TEST" >/dev/null; then
+if grep -E 'testDownloadsQuotaReclaimAndStorageFlows|testReclaimPromptRemovesExactEligibleBytes|testStorageInventoryReclaimsOnlyEligibleCopies' "$RUNNER" "$STORAGE_TEST" >/dev/null; then
   printf 'broad storage UI identity must remain split into exact hosted stages\n' >&2
   exit 1
 fi
+python3 - "$RECLAIM_VIEW" "$STORAGE_VIEW" <<'PY'
+import pathlib, sys
+
+for path in map(pathlib.Path, sys.argv[1:]):
+    source = path.read_text(encoding="utf-8")
+    action = source.split('Button("Reclaim selected") {', 1)[1].split('}', 1)[0]
+    markers = [action.find("let selection = selected"), action.find("selected.removeAll()"), action.find("onReclaim(selection)")]
+    if any(marker < 0 for marker in markers) or markers != sorted(markers):
+        raise SystemExit(f"{path.name}: reclaim must snapshot, clear stale selection, then invoke its effect")
+print("storage selection reset contract: passed")
+PY
 grep -F 'if: failure()' "$WORKFLOW" >/dev/null
 grep -F 'path: playstead-mac/.build/ci/failure-evidence' "$WORKFLOW" >/dev/null
 grep -F 'retention-days: 7' "$WORKFLOW" >/dev/null

@@ -113,7 +113,11 @@ struct ReclaimPromptView: View {
                     }
                 }
 
-                Button("Reclaim selected") { onReclaim(selected) }
+                Button("Reclaim selected") {
+                    let selection = selected
+                    selected.removeAll()
+                    onReclaim(selection)
+                }
                     .disabled(selected.isEmpty)
                     .playsteadFocusable(identifier: Automation.confirm)
             }
