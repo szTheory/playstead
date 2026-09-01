@@ -4,11 +4,11 @@ milestone: v1.0
 current_phase: 03.5
 current_phase_name: Mac Verification Automation
 status: executing
-stopped_at: Plan 03.5-06 cleanup blocker repaired; rerun combined hosted Wave 6 to expose or clear underlying build result
-last_updated: "2026-09-01T06:44:33.384Z"
+stopped_at: Completed hosted curation stage diagnosis for 03.5-06
+last_updated: "2026-09-01T07:45:03.879Z"
 last_activity: 2026-08-31
 last_activity_desc: Phase 03.5 execution started
-state_head: a4ef3430d65b31aaf2a128c12241dcc5d8071fa4
+state_head: 32c28e3c11494624896da4b43b3b1ffd3b71ffcc
 progress:
   total_phases: 6
   completed_phases: 2
@@ -145,6 +145,7 @@ Progress: [██████████] 100% (Phase 02)
 - [Phase 03.5]: Plan 03.5-06: Persisted UI relaunch profiles accept only UUID tokens resolved beneath a fixed temporary parent.
 - [Phase 03.5]: Plan 03.5-06: Compile-gated curation evidence is bounded to synthetic row IDs, outbox count, and sorted catalogue digests.
 - [Phase 03.5]: Plan 03.5-06 follow-up: EXIT traps own globally initialized keyboard-mode state and restore only after capture, preserving underlying early hosted failures.
+- [Phase 03.5]: Hosted curation proof uses separate shelf, drag-durability, and full keyboard-durability identifiers; the full keyboard stage retains drag and two relaunches, and drag uses the deterministic last-row-to-first boundary.
 
 ### Pending Todos
 
@@ -175,6 +176,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-01T06:44:33.278Z
-Stopped at: Plan 03.5-06 cleanup blocker repaired; rerun combined hosted Wave 6 to expose or clear underlying build result
+Last session: 2026-09-01T07:45:03.784Z
+Stopped at: Completed hosted curation stage diagnosis for 03.5-06
 Resume file: None
