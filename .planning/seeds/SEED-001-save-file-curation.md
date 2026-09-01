@@ -34,6 +34,21 @@ retention suggestions, backup emphasis, or recommendation signals only through
 explicit, explainable rules. Incidental saves should remain recoverable under
 the normal retention contract unless the owner deliberately deletes them.
 
+The player-facing model should not expose an undifferentiated wall of immutable
+revisions. Explore named save lines or familiar slots—such as "before the final
+battle," "challenge run," or "family playthrough"—that the player can save over
+in the ordinary sense while Playstead retains an append-only revision stream
+behind that name. The latest compatible revision can be the default view, with
+history, ancestry, conflicts, provenance, and restoration available on demand.
+This may borrow event-sourcing ideas, but the architecture should follow the
+custody and recovery requirements rather than adopting event sourcing as a goal.
+
+The interaction should support low-friction rename, annotate, protect, branch,
+compare, restore, archive, and deliberately delete actions, using collection-
+or crate-like curation only where it improves the player's mental model. A
+logical slot/name must not erase conflicting device histories or make an old
+revision unrecoverable merely because the player "saved over" it.
+
 ## When to Surface
 
 **Trigger:** whenever we design or revise the UI/UX of launchers that connect to Playstead (Mac client, web console, future clients) — especially any work touching the library/curation surface or persistent-save handling. Also relevant to the next milestone's requirements gathering (`/gsd-new-milestone`).
@@ -51,10 +66,20 @@ Questions to answer when this surfaces:
   saves with emulator-specific save states?
 - How are annotations, favorites, and provenance included in documented export
   and restored without changing the checksummed save bytes?
+- Is the primary player-facing noun a save, slot, line, checkpoint, memory, or
+  something else—and how does it map to immutable revisions and conflict heads?
+- Can a player reuse one named slot while the system retains bounded history,
+  and what retention/compaction policy keeps that history useful rather than
+  overwhelming?
+- When should branching be explicit, and when should the product quietly show a
+  simple current save with recoverable history behind it?
 
 ## Scope Estimate
 
 **Unknown** — likely touches server curation model, sync entity kinds, and every client's library UI; estimate when triggered.
+Split discovery from implementation: first validate the player mental model and
+information hierarchy, then specify the durable named-line/revision mapping,
+retention contract, export shape, and conflict semantics.
 
 ## Breadcrumbs
 
@@ -71,4 +96,5 @@ Questions to answer when this surfaces:
 
 Captured via one-shot seed capture from an owner remark during Phase 3
 execution. Enriched from the owner's 2026-09-01 distinction between incidental
-and personally meaningful saves; no separate duplicate seed was created.
+and personally meaningful saves, and again from the idea of player-named slots
+backed by an append-only revision stream; no separate duplicate seed was created.
