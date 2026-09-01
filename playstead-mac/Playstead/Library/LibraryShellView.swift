@@ -349,7 +349,7 @@ struct LibraryShellView: View {
                         .accessibilityIdentifier("playstead.library.list-selection")
                     Button("Download selected") { requestSelectedDownload() }
                         .disabled(selectedDownloadEntry == nil)
-                        .keyboardShortcut("d", modifiers: [.command])
+                        .keyboardShortcut("d", modifiers: .command)
                         .playsteadFocusable(identifier: "playstead.control.download-selected")
                 }
             }
@@ -416,12 +416,15 @@ struct LibraryShellView: View {
     }
 
     private func catalogueList(_ entries: [CatalogueEntry]) -> some View {
-        List(entries, selection: $selectedListEntryID) { entry in
-            GameRowView(entry: entry, downloadCommand: downloadCommand)
-                .tag(entry.id)
-                .accessibilityIdentifier("playstead.game.\(entry.id).row")
+        List(selection: $selectedListEntryID) {
+            ForEach(entries) { entry in
+                GameRowView(entry: entry, downloadCommand: downloadCommand)
+                    .tag(entry.id)
+                    .accessibilityIdentifier("playstead.game.\(entry.id).row")
+            }
         }
         .focused($libraryListHasFocus)
+        .onAppear { libraryListHasFocus = true }
         .accessibilityLabel("Game list")
         .accessibilityIdentifier(AccessibilityIdentifiers.Surface.gameList)
         .overlay {
@@ -457,10 +460,6 @@ struct LibraryShellView: View {
             selectedListEntryID = entries.first?.id
         }
         libraryLayout = .list
-        Task { @MainActor in
-            await Task.yield()
-            libraryListHasFocus = true
-        }
     }
 
     private func requestSelectedDownload() {

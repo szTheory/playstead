@@ -246,12 +246,18 @@ grep -F '.accessibilityIdentifier(Self.downloadActionIdentifier(assetSetID: entr
 grep -F 'playstead.game.00000000-0000-7000-8000-000000000042.download' "$STORAGE_TEST" >/dev/null
 grep -F 'action.frame,' "$STORAGE_TEST" >/dev/null
 grep -F 'exactIdentity.frame,' "$STORAGE_TEST" >/dev/null
-grep -F 'List(entries, selection: $selectedListEntryID)' "$LIBRARY_SHELL" >/dev/null
+grep -F 'List(selection: $selectedListEntryID)' "$LIBRARY_SHELL" >/dev/null
+grep -F 'ForEach(entries) { entry in' "$LIBRARY_SHELL" >/dev/null
 grep -F '.focused($libraryListHasFocus)' "$LIBRARY_SHELL" >/dev/null
-grep -F '.keyboardShortcut("d", modifiers: [.command])' "$LIBRARY_SHELL" >/dev/null
+grep -F '.onAppear { libraryListHasFocus = true }' "$LIBRARY_SHELL" >/dev/null
+grep -F '.keyboardShortcut("d", modifiers: .command)' "$LIBRARY_SHELL" >/dev/null
 grep -F 'downloadCommand = LibraryDownloadCommand(' "$LIBRARY_SHELL" >/dev/null
 grep -F '.onChange(of: downloadCommand)' "$GAME_ROW" >/dev/null
-[ "$(grep -Fc '.keyboardShortcut("d", modifiers: [.command])' "$LIBRARY_SHELL")" -eq 1 ]
+[ "$(grep -Fc '.keyboardShortcut("d", modifiers: .command)' "$LIBRARY_SHELL")" -eq 1 ]
+if grep -F 'Task.yield()' "$LIBRARY_SHELL" >/dev/null; then
+  printf 'library List focus must use its concrete appearance lifecycle, not generic Task inference\n' >&2
+  exit 1
+fi
 if grep -F '.keyboardShortcut(' "$GAME_ROW" >/dev/null; then
   printf 'row-local duplicate download shortcuts are forbidden\n' >&2
   exit 1
@@ -336,6 +342,8 @@ grep -F '"failed_tests": all_failed[:max_failed_tests]' "$RUNNER" >/dev/null
 grep -F '"failure_diagnostics": [dict(fields) for fields in all_failure_diagnostics[:max_failure_diagnostics]]' "$RUNNER" >/dev/null
 grep -F 'print_failure_diagnostics "$result_summary" "$slug"' "$RUNNER" >/dev/null
 grep -F 'FAILURE_DIAGNOSTICS_TRUNCATED shown=' "$RUNNER" >/dev/null
+grep -F 'print_build_diagnostics "${FOUR_LAYER_RAW}/build.log" build' "$RUNNER" >/dev/null
+grep -F 'COMPILER_DIAGNOSTICS_TRUNCATED shown=' "$RUNNER" >/dev/null
 grep -F '"audit_issues": [dict(fields) for fields in all_audit_issues[:max_audit_issues]]' "$RUNNER" >/dev/null
 grep -F 'len(failed) > 50' "$SANITIZER" >/dev/null
 grep -F 'len(diagnostics) > 50' "$SANITIZER" >/dev/null
