@@ -3,12 +3,21 @@ import Security
 
 @MainActor
 final class HostedRunnerCanaryTests: XCTestCase {
+    private var launchedApp: XCUIApplication?
+
     override func setUpWithError() throws {
         continueAfterFailure = false
     }
 
+    override func tearDownWithError() throws {
+        launchedApp?.terminate()
+        launchedApp = nil
+    }
+
     func testAdHocSignedAppLaunchesOnHostedRunner() throws {
         let app = XCUIApplication()
+        launchedApp = app
+        app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
         app.launch()
 
         XCTAssertTrue(
@@ -21,6 +30,9 @@ final class HostedRunnerCanaryTests: XCTestCase {
 
     func testFullKeyboardAccessCanaryFocusesAndActivatesTwoControls() throws {
         let app = XCUIApplication()
+        launchedApp = app
+        app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
+        app.launchEnvironment["PLAYSTEAD_WAVE_0_FOCUS_CANARY"] = "1"
         app.launch()
 
         let expected = [
@@ -35,10 +47,11 @@ final class HostedRunnerCanaryTests: XCTestCase {
         // Establish a deterministic starting point without trusting the
         // defaults command. A bounded Tab search must actually observe the
         // first expected element focused on the live accessibility tree.
-        var foundStart = hasKeyboardFocus(expected[0])
-        for _ in 0..<20 where !foundStart {
+        var foundStart = false
+        for _ in 0..<20 {
             app.typeKey(.tab, modifierFlags: [])
             foundStart = hasKeyboardFocus(expected[0])
+            if foundStart { break }
         }
         XCTAssertTrue(foundStart, "Full Keyboard Access never reached the first canary control")
 
@@ -56,7 +69,7 @@ final class HostedRunnerCanaryTests: XCTestCase {
         }
 
         app.typeKey(.space, modifierFlags: [])
-        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5), "focused toolbar control did not activate")
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5), "focused canary control did not activate")
         app.buttons["Done"].typeKey(.space, modifierFlags: [])
         XCTAssertFalse(app.buttons["Done"].waitForExistence(timeout: 2))
         app.terminate()
@@ -148,10 +161,22 @@ final class HostedRunnerCanaryTests: XCTestCase {
     }
 
     private func assertExactlyOneFocusedElement(in app: XCUIApplication, expected: XCUIElement) {
-        let focused = app.descendants(matching: .any)
+        // `hasKeyboardFocus` is also reported by accessibility ancestors of
+        // the focused control on macOS 26. Restrict the ownership assertion
+        // to the actionable role so window/toolbar/group wrappers do not
+        // masquerade as additional focus owners.
+        let focused = app.buttons
             .matching(NSPredicate(format: "hasKeyboardFocus == true"))
-        XCTAssertEqual(focused.count, 1, "exactly one live element must own keyboard focus")
-        XCTAssertTrue(hasKeyboardFocus(expected), "unexpected keyboard focus target")
+        let focusedLabels = focused.allElementsBoundByIndex.map(\.label)
+        XCTAssertEqual(
+            focusedLabels.count,
+            1,
+            "exactly one live button must own keyboard focus; focused=\(focusedLabels)"
+        )
+        XCTAssertTrue(
+            hasKeyboardFocus(expected),
+            "unexpected keyboard focus target; focused=\(focusedLabels)"
+        )
     }
 
     private func copyKeychainSearchList() throws -> [SecKeychain] {

@@ -20,8 +20,9 @@ config="$REPO_ROOT/playstead-server/config/mac_ci.exs"
 runner="$MAC_ROOT/scripts/ci/run-mac-verification.sh"
 workflow="$REPO_ROOT/.github/workflows/ci.yml"
 ui_canary="$MAC_ROOT/PlaysteadUITests/HostedRunnerCanaryTests.swift"
+app_entry="$MAC_ROOT/Playstead/App/PlaysteadApp.swift"
 
-for file in "$project" "$lockfile" "$config" "$runner" "$workflow" "$ui_canary"; do
+for file in "$project" "$lockfile" "$config" "$runner" "$workflow" "$ui_canary" "$app_entry"; do
   [ -f "$file" ] || { printf 'required topology file missing: %s\n' "$file" >&2; exit 1; }
 done
 
@@ -50,6 +51,10 @@ if grep -F '@testable import Playstead' "$ui_canary" >/dev/null; then
 fi
 require_text "$ui_canary" 'kSecUseKeychain as String'
 require_text "$ui_canary" 'kSecMatchSearchList as String'
+require_text "$ui_canary" 'app.launchEnvironment["PLAYSTEAD_WAVE_0_FOCUS_CANARY"] = "1"'
+require_text "$app_entry" '#if DEBUG'
+require_text "$app_entry" 'ProcessInfo.processInfo.environment["PLAYSTEAD_WAVE_0_FOCUS_CANARY"] == "1"'
+require_text "$app_entry" 'HostedRunnerFocusCanaryView'
 require_text "$workflow" 'test:'
 require_text "$workflow" 'compose-smoke:'
 require_text "$workflow" 'runs-on: macos-26'

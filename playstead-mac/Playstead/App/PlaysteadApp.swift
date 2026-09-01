@@ -14,9 +14,15 @@ struct PlaysteadApp: App {
 
     var body: some Scene {
         WindowGroup {
-            LibraryShellView()
-                .environment(appEnvironment)
-                .frame(minWidth: 960, minHeight: 560)
+#if DEBUG
+            if ProcessInfo.processInfo.environment["PLAYSTEAD_WAVE_0_FOCUS_CANARY"] == "1" {
+                HostedRunnerFocusCanaryView()
+            } else {
+                libraryShell
+            }
+#else
+            libraryShell
+#endif
         }
         .windowResizability(.contentSize)
         // Becoming active is one of `OutboxWorker`'s three drain triggers
@@ -29,7 +35,47 @@ struct PlaysteadApp: App {
             appEnvironment.applicationDidBecomeActive()
         }
     }
+
+    private var libraryShell: some View {
+        LibraryShellView()
+            .environment(appEnvironment)
+            .frame(minWidth: 960, minHeight: 560)
+    }
 }
+
+#if DEBUG
+/// Minimal live focus surface for the hosted-runner adoption gate.
+///
+/// The full library shell intentionally contains multiple focus roles and is
+/// covered by the exhaustive screen inventory later in Phase 3.5. This
+/// compilation-gated surface isolates the runner mechanism so the Wave 0
+/// canary can prove exact Tab/Shift-Tab order, wrap, ownership, and Space
+/// activation without coupling that proof to unrelated application topology.
+private struct HostedRunnerFocusCanaryView: View {
+    @State private var isPresented = false
+
+    var body: some View {
+        HStack {
+            Button("Downloads") { isPresented = true }
+                .accessibilityLabel("Download queue")
+            Button("Storage") { isPresented = true }
+                .accessibilityLabel("Storage and quota settings")
+            Button("Adapter") { isPresented = true }
+                .accessibilityLabel("Adapter setup")
+        }
+        .padding()
+        .frame(minWidth: 420, minHeight: 180)
+        .sheet(isPresented: $isPresented) {
+            VStack {
+                Text("Keyboard activation succeeded")
+                Button("Done") { isPresented = false }
+            }
+            .padding()
+            .frame(minWidth: 320, minHeight: 160)
+        }
+    }
+}
+#endif
 
 /// Shared, observable app-wide dependencies constructed once at launch.
 /// Kept intentionally small in this tracer plan: a local store, an API
