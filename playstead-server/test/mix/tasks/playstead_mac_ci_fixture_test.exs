@@ -7,7 +7,12 @@ defmodule Mix.Tasks.Playstead.MacCiFixtureTest do
   alias Playstead.Pairing
 
   setup do
-    blob_root = Path.join(System.tmp_dir!(), "playstead-mac-ci-fixture-#{System.unique_integer([:positive])}")
+    blob_root =
+      Path.join(
+        System.tmp_dir!(),
+        "playstead-mac-ci-fixture-#{System.unique_integer([:positive])}"
+      )
+
     previous = System.get_env("PLAYSTEAD_BLOB_PATH")
     System.put_env("PLAYSTEAD_BLOB_PATH", blob_root)
 

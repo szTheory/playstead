@@ -66,6 +66,20 @@ struct KeychainStore {
         self.keychain = keychain
     }
 
+#if UI_TESTING
+    /// Opens one run-owned file Keychain without adding it to the process or
+    /// user's default search list. The caller must have created and unlocked
+    /// the file before launching the app.
+    static func uiTestingStore(service: String, fileURL: URL) throws -> KeychainStore {
+        var opened: SecKeychain?
+        let status = fileURL.path.withCString { SecKeychainOpen($0, &opened) }
+        guard status == errSecSuccess, let opened else {
+            throw KeychainError.osFailure(status)
+        }
+        return KeychainStore(service: service, keychain: opened)
+    }
+#endif
+
     /// Adds the Security.framework search scope used by copy, update, and
     /// delete operations. Kept pure so the exact dictionary boundary is
     /// testable without opening a real Keychain.

@@ -38,5 +38,8 @@ config :playstead, :sql_sandbox, false
 config :playstead, :trust_proxy_headers, false
 config :playstead, Playstead.Sync.Snapshot, set_isolation: true
 config :bcrypt_elixir, :log_rounds, 1
-config :logger, level: :warning
+# Request-path logs remain in the run-owned native root and are never attached.
+# The hosted harness reduces them to exact route counters before evidence crosses
+# the CI artifact boundary (D-10/D-11).
+config :logger, level: :info
 config :phoenix, :plug_init_mode, :runtime
