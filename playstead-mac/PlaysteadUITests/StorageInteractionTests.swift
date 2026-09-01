@@ -41,7 +41,7 @@ final class StorageInteractionTests: XCTestCase {
         harness.element("playstead.download.row.0.pause-resume", type: .button)
             .typeKey(.space, modifierFlags: [])
         waitForValue("playstead.download.row.0.state", equals: "paused")
-        XCTAssertEqual(elements("playstead.download.state.paused").count, 2)
+        XCTAssertEqual(elementCount(withValue: "paused"), 2)
 
         harness.focusContainedAction(
             "playstead.download.row.0.pause-resume",
@@ -50,8 +50,8 @@ final class StorageInteractionTests: XCTestCase {
         harness.element("playstead.download.row.0.pause-resume", type: .button)
             .typeKey(.space, modifierFlags: [])
         waitForValue("playstead.download.row.0.state", equals: "waiting")
-        XCTAssertEqual(elements("playstead.download.state.paused").count, 1)
-        XCTAssertEqual(elements("playstead.download.state.waiting").count, 2)
+        XCTAssertEqual(elementCount(withValue: "paused"), 1)
+        XCTAssertEqual(elementCount(withValue: "waiting"), 2)
 
         harness.validateSemanticTargets([
             .init("playstead.download.row.0.pause-resume", type: .button),
@@ -79,6 +79,12 @@ final class StorageInteractionTests: XCTestCase {
             .matching(NSPredicate(format: "identifier BEGINSWITH %@", identifierPrefix))
             .allElementsBoundByIndex
             .filter { $0.identifier.split(separator: ".").count == identifierPrefix.split(separator: ".").count + 1 }
+    }
+
+    private func elementCount(withValue value: String) -> Int {
+        harness.app.staticTexts
+            .matching(NSPredicate(format: "value == %@", value))
+            .allElementsBoundByIndex.count
     }
 
     private func assertValue(_ identifier: String, equals expected: String) {

@@ -42,6 +42,18 @@ struct DownloadsView: View {
         return parts.isEmpty ? "Your queue is empty." : parts.joined(separator: ", ")
     }
 
+    enum Automation {
+        static let summary = "playstead.downloads.summary"
+
+        static func row(_ slot: Int) -> String { "playstead.download.row.\(slot)" }
+        static func state(_ slot: Int) -> String { "\(row(slot)).state" }
+        static func progress(_ slot: Int) -> String { "\(row(slot)).progress" }
+        static func moveUp(_ slot: Int) -> String { "\(row(slot)).move-up" }
+        static func moveDown(_ slot: Int) -> String { "\(row(slot)).move-down" }
+        static func pauseResume(_ slot: Int) -> String { "\(row(slot)).pause-resume" }
+        static func cancel(_ slot: Int) -> String { "\(row(slot)).cancel" }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             if rows.isEmpty {
@@ -54,10 +66,14 @@ struct DownloadsView: View {
                     .font(.psLabel)
                     .foregroundStyle(DesignTokens.textMuted)
                     .padding(.horizontal, DesignTokens.Spacing.md)
+                    .accessibilityLabel("Download queue summary")
+                    .accessibilityValue(Self.summary(for: rows))
+                    .accessibilityIdentifier(Automation.summary)
 
-                List(rows) { row in
+                List(Array(rows.enumerated()), id: \.element.id) { slot, row in
                     DownloadQueueRowView(
                         row: row,
+                        automationSlot: slot,
                         onPause: onPause,
                         onResume: onResume,
                         onCancel: onCancel,
@@ -72,6 +88,7 @@ struct DownloadsView: View {
 
 private struct DownloadQueueRowView: View {
     let row: DownloadRow
+    let automationSlot: Int
     let onPause: (String) -> Void
     let onResume: (String) -> Void
     let onCancel: (String) -> Void
@@ -100,6 +117,9 @@ private struct DownloadQueueRowView: View {
                 Text(stateLabel)
                     .font(.psLabel)
                     .foregroundStyle(DesignTokens.textMuted)
+                    .accessibilityLabel("Download state")
+                    .accessibilityValue(row.state.rawValue)
+                    .accessibilityIdentifier(DownloadsView.Automation.state(automationSlot))
             }
 
             Spacer()
@@ -108,6 +128,9 @@ private struct DownloadQueueRowView: View {
                 ProgressView(value: Double(percent), total: 100)
                     .progressViewStyle(.circular)
                     .frame(width: DesignTokens.InteractiveTarget.minimum, height: DesignTokens.InteractiveTarget.minimum)
+                    .accessibilityLabel("Download progress")
+                    .accessibilityValue("\(percent) percent")
+                    .accessibilityIdentifier(DownloadsView.Automation.progress(automationSlot))
             }
 
             HStack(spacing: DesignTokens.Spacing.xs) {
@@ -118,6 +141,7 @@ private struct DownloadQueueRowView: View {
                 }
                 .accessibilityLabel("Move \(displayTitle) up in queue")
                 .frame(minWidth: DesignTokens.InteractiveTarget.minimum, minHeight: DesignTokens.InteractiveTarget.minimum)
+                .playsteadFocusable(identifier: DownloadsView.Automation.moveUp(automationSlot))
 
                 Button {
                     onMoveDown(row.id)
@@ -126,19 +150,27 @@ private struct DownloadQueueRowView: View {
                 }
                 .accessibilityLabel("Move \(displayTitle) down in queue")
                 .frame(minWidth: DesignTokens.InteractiveTarget.minimum, minHeight: DesignTokens.InteractiveTarget.minimum)
+                .playsteadFocusable(identifier: DownloadsView.Automation.moveDown(automationSlot))
 
                 if row.state == .paused {
                     Button("Resume") { onResume(row.id) }
                         .accessibilityLabel("Resume downloading \(displayTitle)")
+                        .playsteadFocusable(identifier: DownloadsView.Automation.pauseResume(automationSlot))
                 } else if row.state == .active || row.state == .waiting {
                     Button("Pause") { onPause(row.id) }
                         .accessibilityLabel("Pause downloading \(displayTitle)")
+                        .playsteadFocusable(identifier: DownloadsView.Automation.pauseResume(automationSlot))
                 }
 
                 Button("Cancel") { onCancel(row.id) }
                     .accessibilityLabel("Cancel downloading \(displayTitle)")
+                    .playsteadFocusable(identifier: DownloadsView.Automation.cancel(automationSlot))
             }
         }
         .frame(minHeight: DesignTokens.InteractiveTarget.minimum)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(displayTitle)
+        .accessibilityValue("\(row.state.rawValue), \(row.sizeBytes) bytes")
+        .accessibilityIdentifier(DownloadsView.Automation.row(automationSlot))
     }
 }
