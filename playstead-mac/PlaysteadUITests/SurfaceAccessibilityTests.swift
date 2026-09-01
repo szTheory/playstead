@@ -138,6 +138,159 @@ final class SurfaceAccessibilityTests: XCTestCase {
     func testReadinessActionAccessibilityAudit() throws { try auditReadiness(.action) }
     func testReadinessParentChildAccessibilityAudit() throws { try auditReadiness(.parentChild) }
 
+    /// Downstream D-18 aggregation. This inventory is intentionally authored
+    /// here instead of importing `AccessibilityIdentifiers.all` or deriving
+    /// expected order from the live tree.
+    func testKeyboardOnlySurfaceInventoryAndLiveAudit() throws {
+        var visited = Set<String>()
+        let expectedSurfaces = Set([
+            "playstead.surface.library", "playstead.surface.sidebar",
+            "playstead.surface.shelf.continue", "playstead.surface.shelf.favorites",
+            "playstead.surface.collections", "playstead.surface.collection-detail",
+            "playstead.surface.shelf.play-queue", "playstead.surface.shelf.recent",
+            "playstead.surface.search", "playstead.surface.filter",
+            "playstead.surface.game-list", "playstead.surface.game-card",
+            "playstead.surface.downloads", "playstead.quota.root",
+            "playstead.surface.storage", "playstead.surface.reclaim",
+            "playstead.surface.readiness", "playstead.surface.adapter",
+            "playstead.surface.bios", "playstead.surface.controller-settings"
+        ])
+        XCTAssertEqual(expectedSurfaces.count, 20, "D-18 surface inventory must stay nonempty and unique")
+
+        launchLibrary(profile: .populatedCurationReorder)
+        recordRequired([
+            "playstead.surface.library", "playstead.surface.sidebar",
+            "playstead.surface.search", "playstead.surface.filter",
+            "playstead.surface.game-card"
+        ], in: &visited)
+        harness.validateSemanticTargets(libraryTargets)
+        harness.traverseExactFocusSequence(
+            [
+                "playstead.control.show-cards",
+                "playstead.control.show-list",
+                "playstead.control.open-readiness"
+            ],
+            activate: "playstead.control.show-list"
+        )
+        recordRequired(["playstead.surface.game-list"], in: &visited)
+        try auditEveryCategory(root: "playstead.surface.library")
+
+        for (label, root) in [
+            ("Continue", "playstead.surface.shelf.continue"),
+            ("Favorites", "playstead.surface.shelf.favorites"),
+            ("Queue", "playstead.surface.shelf.play-queue"),
+            ("Recent", "playstead.surface.shelf.recent")
+        ] {
+            selectSidebar(label)
+            recordRequired([root], in: &visited)
+            try auditEveryCategory(root: root)
+        }
+
+        selectSidebar("Collections")
+        recordRequired(["playstead.surface.collections"], in: &visited)
+        let collection = harness.element(
+            "playstead.curation.collection.00000000-0000-7000-8000-000000000200",
+            type: .button
+        )
+        XCTAssertTrue(collection.waitForExistence(timeout: 5))
+        collection.click()
+        recordRequired(["playstead.surface.collection-detail"], in: &visited)
+        let memberIDs = (1...3).map { "00000000-0000-7000-8000-00000000020\($0)" }
+        let collectionControls = [
+            "playstead.curation.collection-command.move-up",
+            "playstead.curation.collection-command.move-down"
+        ] + memberIDs.flatMap { memberID in
+            [
+                "playstead.curation.collection-member.\(memberID).move-up",
+                "playstead.curation.collection-member.\(memberID).move-down"
+            ]
+        }
+        harness.validateSemanticTargets(collectionControls.map { .init($0, type: .button) })
+        let memberList = harness.element("playstead.curation.collection-member-list")
+        XCTAssertTrue(memberList.waitForExistence(timeout: 5))
+        memberList.typeKey(.downArrow, modifierFlags: [])
+        harness.traverseExactFocusSequence(
+            [
+                "playstead.curation.collection-command.move-up",
+                "playstead.curation.collection-command.move-down"
+            ],
+            activate: "playstead.curation.collection-command.move-down"
+        )
+        try auditEveryCategory(root: "playstead.surface.collection-detail")
+
+        launchLibrary(profile: .pausedActiveQueue)
+        let downloadsOpener = harness.element("playstead.control.open-downloads", type: .button)
+        downloadsOpener.click()
+        recordRequired(["playstead.surface.downloads"], in: &visited)
+        let downloadControls = (0...2).flatMap { slot in
+            [
+                "playstead.download.row.\(slot).pause-resume",
+                "playstead.download.row.\(slot).cancel",
+                "playstead.download.row.\(slot).move-up",
+                "playstead.download.row.\(slot).move-down"
+            ]
+        }
+        harness.validateSemanticTargets(downloadControls.map { .init($0, type: .button) })
+        try auditEveryCategory(root: "playstead.surface.downloads")
+        dismissSheet(root: "playstead.surface.downloads", opener: downloadsOpener)
+
+        launchLibrary(profile: .quotaBlockReclaim)
+        let storageOpener = harness.element("playstead.control.open-storage", type: .button)
+        storageOpener.click()
+        recordRequired(["playstead.quota.root", "playstead.surface.storage"], in: &visited)
+        harness.validateSemanticTargets([
+            .init("playstead.quota.decrease", type: .button),
+            .init("playstead.quota.increase", type: .button),
+            .init("playstead.storage.candidate.0.toggle", type: .button),
+            .init("playstead.storage.reclaim", type: .button)
+        ])
+        try auditEveryCategory(root: "playstead.surface.storage")
+        dismissSheet(root: "playstead.surface.storage", opener: storageOpener)
+
+        harness.traverseExactFocusSequence(
+            [
+                "playstead.control.show-cards",
+                "playstead.control.show-list",
+                "playstead.control.open-readiness"
+            ],
+            activate: "playstead.control.show-list"
+        )
+        selectQuotaDownloadByKeyboard()
+        harness.app.typeKey("d", modifierFlags: [.command])
+        recordRequired(["playstead.surface.reclaim"], in: &visited)
+        harness.validateSemanticTargets([
+            .init("playstead.reclaim.raise-quota", type: .button),
+            .init("playstead.reclaim.candidate.0.toggle", type: .button),
+            .init("playstead.reclaim.confirm", type: .button),
+            .init("playstead.reclaim.cancel", type: .button)
+        ])
+        try auditEveryCategory(root: "playstead.surface.reclaim")
+
+        launchLibrary(profile: .storage)
+        let adapterOpener = harness.element("playstead.control.open-adapter", type: .button)
+        adapterOpener.click()
+        recordRequired(["playstead.surface.adapter"], in: &visited)
+        harness.validateSemanticTargets(adapterTargets)
+        harness.traverseExactFocusSequence(
+            ["playstead.control.install-adapter", "playstead.control.choose-adapter"],
+            activate: "playstead.control.install-adapter"
+        )
+        try auditEveryCategory(root: "playstead.surface.adapter")
+        dismissSheet(root: "playstead.surface.adapter", opener: adapterOpener)
+
+        launchReadinessRoutes()
+        recordRequired([
+            "playstead.surface.readiness", "playstead.surface.bios",
+            "playstead.surface.controller-settings"
+        ], in: &visited)
+        harness.validateSemanticTargets(readinessTargets)
+        try auditEveryCategory(root: "playstead.surface.readiness")
+        harness.assertSheetFocusContained(rootIdentifier: "playstead.surface.readiness")
+
+        XCTAssertEqual(visited, expectedSurfaces, "D-18 routes drifted from the independent inventory")
+        XCTAssertFalse(harness.sanitizedTrace().isEmpty, "live-tree evidence must be non-vacuous")
+    }
+
     private var libraryTargets: [UITestHarness.AuditTarget] {
         [
             .init("playstead.control.open-downloads", type: .button),
@@ -213,5 +366,46 @@ final class SurfaceAccessibilityTests: XCTestCase {
         harness.require(["playstead.surface.bios"])
         harness.element("playstead.control.open-controller-settings", type: .button).click()
         harness.require(["playstead.surface.controller-settings"])
+    }
+
+    private func recordRequired(_ identifiers: [String], in visited: inout Set<String>) {
+        XCTAssertFalse(identifiers.isEmpty)
+        XCTAssertTrue(visited.isDisjoint(with: identifiers), "a D-18 surface was counted twice")
+        harness.require(identifiers)
+        visited.formUnion(identifiers)
+    }
+
+    private func selectSidebar(_ label: String) {
+        let destination = harness.app.staticTexts[label]
+        XCTAssertTrue(destination.waitForExistence(timeout: 5), "sidebar destination missing: \(label)")
+        destination.click()
+    }
+
+    private func dismissSheet(root: String, opener: XCUIElement) {
+        harness.focusContainedAction("playstead.control.done", rootIdentifier: root)
+        harness.element("playstead.control.done", type: .button).typeKey(.space, modifierFlags: [])
+        XCTAssertFalse(harness.element(root).waitForExistence(timeout: 2))
+        XCTAssertTrue(opener.value(forKey: "hasKeyboardFocus") as? Bool == true)
+    }
+
+    private func selectQuotaDownloadByKeyboard() {
+        let assetID = "00000000-0000-7000-8000-000000000042"
+        let list = harness.element("playstead.surface.game-list")
+        XCTAssertTrue(list.waitForExistence(timeout: 5))
+        let selection = harness.element("playstead.library.list-selection")
+        XCTAssertTrue(selection.waitForExistence(timeout: 5))
+        for _ in 0..<2 where selection.value as? String != assetID {
+            list.typeKey(.downArrow, modifierFlags: [])
+        }
+        XCTAssertEqual(selection.value as? String, assetID)
+        let command = harness.element("playstead.control.download-selected", type: .button)
+        XCTAssertTrue(command.waitForExistence(timeout: 5))
+        XCTAssertTrue(command.isEnabled)
+    }
+
+    private func auditEveryCategory(root: String) throws {
+        for category in UITestHarness.AuditCategory.allCases {
+            try harness.audit(category, rootIdentifier: root)
+        }
     }
 }

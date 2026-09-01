@@ -14,6 +14,7 @@ ADOPTION_EVIDENCE="${EVIDENCE_ROOT}/wave-0-adoption.json"
 FOUR_LAYER_ROOT="${BUILD_ROOT}/four-layer"
 FOUR_LAYER_RAW="${FOUR_LAYER_ROOT}/raw"
 FOUR_LAYER_EVIDENCE="${FOUR_LAYER_ROOT}/evidence"
+COMPLETE_EVIDENCE="${FOUR_LAYER_EVIDENCE}/complete-verification-evidence.json"
 FAILURE_EVIDENCE="${BUILD_ROOT}/failure-evidence"
 SNAPSHOT_CANDIDATES="${BUILD_ROOT}/snapshot-candidates"
 
@@ -223,6 +224,138 @@ for key, value in checks.items():
     if value in (None, "") or data.get(key) != value:
         raise SystemExit(f"hosted-run metadata mismatch for {key}")
 print(f"verified exact hosted run {run_id}")
+PY
+}
+
+verify_complete_hosted_run() {
+  local run_record="" run_view="" manifest="${COMPLETE_EVIDENCE}"
+  shift
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --run-record) require_value "$1" "${2:-}"; run_record="$2"; shift 2 ;;
+      --run-view) require_value "$1" "${2:-}"; run_view="$2"; shift 2 ;;
+      --manifest) require_value "$1" "${2:-}"; manifest="$2"; shift 2 ;;
+      *) die "unknown complete hosted-run argument: $1" ;;
+    esac
+  done
+  [ -n "$run_record" ] && [ -n "$run_view" ] || die "complete hosted-run verification requires --run-record and --run-view"
+  python3 - "$run_record" "$run_view" "$manifest" <<'PY'
+import json, pathlib, re, sys
+
+record_path, view_path, manifest_path = map(pathlib.Path, sys.argv[1:])
+try:
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    view = json.loads(view_path.read_text(encoding="utf-8"))
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+except Exception as exc:
+    raise SystemExit(f"complete evidence JSON is malformed: {exc}")
+
+if not all(isinstance(value, dict) for value in (record, view, manifest)):
+    raise SystemExit("complete evidence inputs must be objects")
+if record.get("schema_version") != 1 or manifest.get("schema_version") != 1:
+    raise SystemExit("complete evidence schema_version must equal 1")
+if manifest.get("source") != "github-hosted":
+    raise SystemExit("complete evidence must originate on GitHub-hosted CI")
+
+identity = {
+    "run_id": ("databaseId", "run_id"),
+    "workflow": ("workflowName", "workflow"),
+    "event": ("event", "event"),
+    "head_branch": ("headBranch", "head_branch"),
+    "head_sha": ("headSha", "head_sha"),
+}
+run = manifest.get("run")
+if not isinstance(run, dict):
+    raise SystemExit("complete evidence run identity is missing")
+for label, (view_key, manifest_key) in identity.items():
+    expected = record.get(label)
+    actual_view = view.get(view_key)
+    actual_manifest = run.get(manifest_key)
+    if label == "run_id":
+        expected, actual_view, actual_manifest = map(str, (expected, actual_view, actual_manifest))
+    if expected in (None, "") or expected != actual_view or expected != actual_manifest:
+        raise SystemExit(f"complete evidence identity mismatch: {label}")
+if record.get("status") != "completed" or record.get("conclusion") != "success":
+    raise SystemExit("persisted run record is not completed successfully")
+if view.get("status") != "completed" or view.get("conclusion") != "success":
+    raise SystemExit("hosted run is not completed successfully")
+if record.get("url") != view.get("url") or not isinstance(record.get("url"), str):
+    raise SystemExit("hosted run URL mismatch")
+if record.get("event") not in {"push", "pull_request"}:
+    raise SystemExit("hosted run event is not push or pull_request")
+if record.get("workflow") != "ci":
+    raise SystemExit("hosted workflow must be ci")
+if not re.fullmatch(r"[0-9a-f]{40}", str(record.get("head_sha", ""))):
+    raise SystemExit("hosted head SHA is malformed")
+
+expected_jobs = {
+    "mix precommit (unit + LiveView + browser + integration)": "test",
+    "docker compose cold start": "compose-smoke",
+    "macOS 26 unit + rendering + UI + live server": "mac-verification",
+}
+jobs = view.get("jobs")
+if not isinstance(jobs, list):
+    raise SystemExit("hosted jobs are missing")
+jobs_by_name = {}
+for job in jobs:
+    if not isinstance(job, dict) or not isinstance(job.get("name"), str):
+        raise SystemExit("hosted job record is malformed")
+    if job["name"] in jobs_by_name:
+        raise SystemExit(f"duplicate hosted job: {job['name']}")
+    jobs_by_name[job["name"]] = job
+recorded_jobs = record.get("jobs")
+if not isinstance(recorded_jobs, dict):
+    raise SystemExit("persisted Linux/Mac jobs are missing")
+for job_name, record_key in expected_jobs.items():
+    job = jobs_by_name.get(job_name)
+    if job is None or job.get("status") != "completed" or job.get("conclusion") != "success":
+        raise SystemExit(f"required hosted job did not pass: {job_name}")
+    if recorded_jobs.get(record_key) != "success":
+        raise SystemExit(f"persisted hosted job did not pass: {record_key}")
+
+if manifest.get("linux_jobs") != {"compose_smoke": "success", "test": "success"}:
+    raise SystemExit("both Linux jobs must conclude success")
+native = manifest.get("native_health")
+if native != {"cleanup_complete": True, "loopback_only": True, "phoenix_healthy": True, "postgresql_major": 17}:
+    raise SystemExit("native PostgreSQL/Phoenix evidence is incomplete")
+fingerprint = manifest.get("fingerprint")
+if not isinstance(fingerprint, dict) or fingerprint.get("architecture") != "arm64" or fingerprint.get("xcode") != ["Xcode 26.6", "Build version 17F113"]:
+    raise SystemExit("runner fingerprint drifted")
+
+layers = manifest.get("layers")
+if not isinstance(layers, list) or len(layers) != 4:
+    raise SystemExit("complete evidence must contain four layers")
+by_layer = {}
+for layer in layers:
+    if not isinstance(layer, dict) or layer.get("layer") not in {"unit", "rendering", "ui", "live-server"}:
+        raise SystemExit("complete evidence layer is malformed")
+    if layer["layer"] in by_layer:
+        raise SystemExit(f"duplicate evidence layer: {layer['layer']}")
+    by_layer[layer["layer"]] = layer
+    if type(layer.get("executed_test_count")) is not int or layer["executed_test_count"] <= 0:
+        raise SystemExit(f"layer is vacuous: {layer['layer']}")
+    if layer.get("failed_test_count") != 0 or layer.get("audit_issue_count") != 0:
+        raise SystemExit(f"layer contains failures: {layer['layer']}")
+    required = layer.get("required_tests")
+    if not isinstance(required, list) or not required:
+        raise SystemExit(f"layer required-test allowlist is empty: {layer['layer']}")
+    for test in required:
+        if not isinstance(test, dict) or test.get("discovered") is not True or test.get("execution_count") != 1 or test.get("skipped") is not False or test.get("outcome") != "passed":
+            raise SystemExit(f"required test did not execute exactly once and pass: {layer['layer']}")
+
+required_exact = {
+    "ui": "PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit",
+    "live-server": "PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch",
+}
+for layer_name, identifier in required_exact.items():
+    identifiers = {test.get("identifier") for test in by_layer[layer_name]["required_tests"]}
+    if identifier not in identifiers:
+        raise SystemExit(f"complete evidence exact test missing: {identifier}")
+
+for forbidden in ("authorization", "credential", "token", "database_url", "raw_log", "keychain_path"):
+    if f'"{forbidden}"' in json.dumps(manifest).lower():
+        raise SystemExit(f"secret-bearing complete evidence key is forbidden: {forbidden}")
+print(f"verified exact complete hosted run {record['run_id']} with four Mac layers and two Linux jobs")
 PY
 }
 
@@ -784,6 +917,40 @@ run_test_layer() {
   fi
 }
 
+write_complete_verification_evidence() {
+  python3 - "$COMPLETE_EVIDENCE" "$FOUR_LAYER_EVIDENCE/environment-fingerprint.json" <<'PY'
+import json, os, pathlib, sys
+
+output = pathlib.Path(sys.argv[1])
+root = output.parent
+layers = [json.loads((root / f"{name}-tests.json").read_text(encoding="utf-8")) for name in ("unit", "rendering", "ui", "live-server")]
+data = {
+    "schema_version": 1,
+    "source": "github-hosted" if os.environ.get("GITHUB_ACTIONS") == "true" else "local",
+    "run": {
+        "workflow": os.environ.get("GITHUB_WORKFLOW", ""),
+        "event": os.environ.get("GITHUB_EVENT_NAME", ""),
+        "head_branch": os.environ.get("GITHUB_HEAD_REF") or os.environ.get("GITHUB_REF_NAME", ""),
+        "head_sha": os.environ.get("GITHUB_SHA", ""),
+        "run_id": os.environ.get("GITHUB_RUN_ID", ""),
+    },
+    "fingerprint": json.loads(pathlib.Path(sys.argv[2]).read_text(encoding="utf-8")),
+    "layers": layers,
+    "native_health": {
+        "postgresql_major": 17,
+        "phoenix_healthy": True,
+        "loopback_only": True,
+        "cleanup_complete": True,
+    },
+    "linux_jobs": {
+        "test": os.environ.get("LINUX_TEST_CONCLUSION", ""),
+        "compose_smoke": os.environ.get("LINUX_COMPOSE_CONCLUSION", ""),
+    },
+}
+output.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
+}
+
 run_four_layer_verification() {
   # Fail before build, global-default mutation, or any app launch. Unit and
   # Rendering are inert-hosted, but this aggregate also owns UI/LiveServer.
@@ -824,13 +991,20 @@ PY
 
   run_test_layer unit Unit 900 \
     --required-test PlaysteadTests.KeychainScopingTests/testScopedMatchQueryRestrictsSearchWithoutSelectingAnAddDestination \
-    --required-test PlaysteadTests.KeychainScopingTests/testScopedAddQuerySelectsDestinationWithoutChangingSearchList
+    --required-test PlaysteadTests.KeychainScopingTests/testScopedAddQuerySelectsDestinationWithoutChangingSearchList \
+    --required-test PlaysteadTests.PlaySessionTests/test_launchSucceedsIndependentlyOfPlaySessionRecording \
+    --required-test PlaysteadTests.PlaySessionTests/test_offlineSession_isDeliveredAfterReachabilityReturns \
+    --required-test PlaysteadTests.PlaySessionTests/test_sameSessionIdentifierPostedTwice_resultsInOneServerSideEffect \
+    --required-test PlaysteadTests.PlaySessionTests/test_userDeletion_enqueuesDeleteIntentAndRemovesFromRecent
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
 
   run_test_layer rendering Rendering 600 \
     --required-test PlaysteadTests.DeterministicProfileTests/testQuotaBlockReclaimProfileComputesExactProductionDecisionBeforeExternalIO \
     --required-test PlaysteadTests.SnapshotHarnessCanaryTests/testIntentionalMismatchProducesReviewableTriplet \
     --required-test PlaysteadTests.SnapshotHarnessCanaryTests/testMeaningfulMutationFailsAndCalibratedNoisePasses \
+    --required-test PlaysteadTests.LibraryContractSnapshotTests/testCardAndStatusVisualContract \
+    --required-test PlaysteadTests.LibraryContractSnapshotTests/testSemanticContractOracles \
+    --required-test PlaysteadTests.LibraryContractSnapshotTests/testFiveCurationShelfVisualContract \
     --required-test PlaysteadTests.StorageContractSnapshotTests/testDownloadsQuotaReclaimAndStorageVisualContract \
     --required-test PlaysteadTests.StorageContractSnapshotTests/testStorageMotionAndReducedMotionContract
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
@@ -884,7 +1058,8 @@ PY
     --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventoryActionsPassLiveAudit \
     --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventoryConfirmMutationRemovesOnlyEligibleCopy \
     --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventoryPostMutationPreservesCanonicalRows \
-    --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventoryProtectsPinnedCopy
+    --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventoryProtectsPinnedCopy \
+    --required-test PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
 
   # The LiveServer layer is the native client/server behavior proof (D-04).
@@ -894,10 +1069,15 @@ PY
   start_native_services
   prepare_live_server_failure_stage
   run_test_layer live-server LiveServer 900 \
-    --required-test PlaysteadUITests.HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner
+    --required-test PlaysteadUITests.HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner \
+    --required-test PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
   cleanup_native_services
   trap restore_keyboard_mode EXIT
+
+  if [ "$aggregate" -eq 0 ]; then
+    write_complete_verification_evidence || aggregate=1
+  fi
 
   python3 - "$FOUR_LAYER_EVIDENCE/layers.json" "$aggregate" <<'PY'
 import json, pathlib, sys
@@ -1182,6 +1362,115 @@ run_layer_verifier_self_tests() {
   "${SCRIPT_DIR}/tests/four-layer-verifier-test.sh"
 }
 
+run_complete_hosted_self_tests() {
+  python3 - "$0" <<'PY'
+import copy, json, pathlib, subprocess, sys, tempfile
+
+runner = pathlib.Path(sys.argv[1]).resolve()
+sha = "0123456789abcdef0123456789abcdef01234567"
+run_id = 9001
+job_names = {
+    "test": "mix precommit (unit + LiveView + browser + integration)",
+    "compose-smoke": "docker compose cold start",
+    "mac-verification": "macOS 26 unit + rendering + UI + live server",
+}
+
+def required(identifier):
+    return {"identifier": identifier, "discovered": True, "execution_count": 1, "skipped": False, "outcome": "passed"}
+
+base_record = {
+    "schema_version": 1, "run_id": run_id, "workflow": "ci", "event": "push",
+    "head_branch": "main", "head_sha": sha, "status": "completed", "conclusion": "success",
+    "url": "https://github.example/actions/runs/9001",
+    "jobs": {key: "success" for key in job_names},
+}
+base_view = {
+    "databaseId": run_id, "workflowName": "ci", "event": "push", "headBranch": "main",
+    "headSha": sha, "status": "completed", "conclusion": "success", "url": base_record["url"],
+    "jobs": [{"name": name, "status": "completed", "conclusion": "success"} for name in job_names.values()],
+}
+base_manifest = {
+    "schema_version": 1, "source": "github-hosted",
+    "run": {"run_id": str(run_id), "workflow": "ci", "event": "push", "head_branch": "main", "head_sha": sha},
+    "fingerprint": {"architecture": "arm64", "xcode": ["Xcode 26.6", "Build version 17F113"]},
+    "native_health": {"postgresql_major": 17, "phoenix_healthy": True, "loopback_only": True, "cleanup_complete": True},
+    "linux_jobs": {"test": "success", "compose_smoke": "success"},
+    "layers": [
+        {"layer": "unit", "executed_test_count": 1, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadTests.PlaySessionTests/test_launchSucceedsIndependentlyOfPlaySessionRecording")]},
+        {"layer": "rendering", "executed_test_count": 1, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadTests.LibraryContractSnapshotTests/testCardAndStatusVisualContract")]},
+        {"layer": "ui", "executed_test_count": 1, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit")]},
+        {"layer": "live-server", "executed_test_count": 1, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch")]},
+    ],
+}
+
+def execute(root, record, view, manifest, malformed=False):
+    paths = [root / name for name in ("record.json", "view.json", "manifest.json")]
+    for path, value in zip(paths, (record, view, manifest)):
+        path.write_text("{" if malformed and path.name == "manifest.json" else json.dumps(value), encoding="utf-8")
+    return subprocess.run(
+        [str(runner), "--verify-hosted-run", "complete", "--run-record", str(paths[0]), "--run-view", str(paths[1]), "--manifest", str(paths[2])],
+        text=True, capture_output=True, check=False,
+    )
+
+with tempfile.TemporaryDirectory() as temporary:
+    root = pathlib.Path(temporary)
+    if execute(root, base_record, base_view, base_manifest).returncode != 0:
+        raise SystemExit("valid complete hosted evidence was rejected")
+    mutations = []
+    for key in ("workflow", "event", "head_branch", "head_sha", "run_id"):
+        record = copy.deepcopy(base_record)
+        record[key] = "wrong" if key != "run_id" else 42
+        mutations.append((f"wrong-{key}", record, base_view, base_manifest, False))
+    for field, value in (("status", "in_progress"), ("conclusion", "failure")):
+        view = copy.deepcopy(base_view); view[field] = value
+        mutations.append((f"view-{field}", base_record, view, base_manifest, False))
+    for job_key, job_name in job_names.items():
+        view = copy.deepcopy(base_view); view["jobs"] = [job for job in view["jobs"] if job["name"] != job_name]
+        mutations.append((f"missing-job-{job_key}", base_record, view, base_manifest, False))
+    manifest = copy.deepcopy(base_manifest); manifest["linux_jobs"]["test"] = "skipped"
+    mutations.append(("skipped-linux", base_record, base_view, manifest, False))
+    manifest = copy.deepcopy(base_manifest); manifest["layers"][2]["required_tests"][0]["skipped"] = True
+    mutations.append(("skipped-test", base_record, base_view, manifest, False))
+    manifest = copy.deepcopy(base_manifest); manifest["layers"][2]["required_tests"] = []
+    mutations.append(("absent-test", base_record, base_view, manifest, False))
+    manifest = copy.deepcopy(base_manifest); manifest["layers"][2]["required_tests"][0]["outcome"] = "failed"
+    mutations.append(("failed-test", base_record, base_view, manifest, False))
+    manifest = copy.deepcopy(base_manifest); manifest["layers"] = manifest["layers"][:3]
+    mutations.append(("missing-layer", base_record, base_view, manifest, False))
+    manifest = copy.deepcopy(base_manifest); manifest["run"]["head_sha"] = "f" * 40
+    mutations.append(("mismatched-manifest", base_record, base_view, manifest, False))
+    mutations.append(("malformed-manifest", base_record, base_view, base_manifest, True))
+    for name, record, view, manifest, malformed in mutations:
+        if execute(root, record, view, manifest, malformed).returncode == 0:
+            raise SystemExit(f"complete hosted validator accepted invalid fixture: {name}")
+print(f"complete hosted validator rejected {len(mutations)} identity/status/schema/job fixtures")
+PY
+}
+
+verify_required_uat_allowlist() {
+  python3 - "$0" <<'PY'
+import pathlib, sys
+source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+required = [
+    "PlaysteadTests.LibraryContractSnapshotTests/testCardAndStatusVisualContract",
+    "PlaysteadTests.LibraryContractSnapshotTests/testSemanticContractOracles",
+    "PlaysteadTests.LibraryContractSnapshotTests/testFiveCurationShelfVisualContract",
+    "PlaysteadTests.StorageContractSnapshotTests/testDownloadsQuotaReclaimAndStorageVisualContract",
+    "PlaysteadTests.StorageContractSnapshotTests/testStorageMotionAndReducedMotionContract",
+    "PlaysteadTests.PlaySessionTests/test_launchSucceedsIndependentlyOfPlaySessionRecording",
+    "PlaysteadTests.PlaySessionTests/test_offlineSession_isDeliveredAfterReachabilityReturns",
+    "PlaysteadTests.PlaySessionTests/test_sameSessionIdentifierPostedTwice_resultsInOneServerSideEffect",
+    "PlaysteadTests.PlaySessionTests/test_userDeletion_enqueuesDeleteIntentAndRemovesFromRecent",
+    "PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit",
+    "PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch",
+]
+missing = [identifier for identifier in required if f"--required-test {identifier}" not in source]
+if missing:
+    raise SystemExit("required UAT allowlist entries missing: " + ", ".join(missing))
+print(f"verified {len(required)} cross-layer UAT allowlist anchors")
+PY
+}
+
 run_sanitizer_self_tests() {
   "${SCRIPT_DIR}/tests/sanitizer-test.sh"
 }
@@ -1254,7 +1543,8 @@ Usage:
   run-mac-verification.sh --verify-four-layer-topology
   run-mac-verification.sh --verify-result FILE --required-canary ID [expected metadata]
   run-mac-verification.sh --validate-hosted-run FILE [expected metadata]
-  run-mac-verification.sh --self-test-wave-0-verifier [--self-test-hosted-run-validator] [--verify-wave-0-topology]
+  run-mac-verification.sh --verify-hosted-run complete --run-record FILE --run-view FILE [--manifest FILE]
+  run-mac-verification.sh --self-test-hosted-run-validator [--verify-required-uat-allowlist] [--verify-complete-evidence-schema]
   run-mac-verification.sh --verify-wave-0-topology
   run-mac-verification.sh --self-test-early-keyboard-cleanup
 USAGE
@@ -1270,6 +1560,12 @@ case "$1" in
     ;;
   --verify-result) require_value "$1" "${2:-}"; evidence="$2"; shift 2; verify_result "$evidence" "$@" ;;
   --validate-hosted-run) require_value "$1" "${2:-}"; metadata="$2"; shift 2; validate_hosted_run "$metadata" "$@" ;;
+  --verify-hosted-run)
+    require_value "$1" "${2:-}"
+    [ "$2" = "complete" ] || die "--verify-hosted-run supports only complete"
+    shift
+    verify_complete_hosted_run "$@"
+    ;;
   --run-wave-0-adoption) shift; [ "$#" -eq 0 ] || die "unexpected adoption arguments"; run_wave_0_adoption ;;
   --run-four-layer-verification) shift; [ "$#" -eq 0 ] || die "unexpected four-layer arguments"; run_four_layer_verification ;;
   --run-snapshot-candidates) shift; [ "$#" -eq 0 ] || die "unexpected snapshot candidate arguments"; run_snapshot_candidates ;;
@@ -1312,15 +1608,22 @@ case "$1" in
     ;;
   --self-test-wave-0-verifier|--self-test-hosted-run-validator)
     verify_topology_after=false
+    complete_schema=false
+    required_uat=false
     while [ "$#" -gt 0 ]; do
       case "$1" in
-        --self-test-wave-0-verifier|--self-test-hosted-run-validator) shift ;;
+        --self-test-wave-0-verifier) shift ;;
+        --self-test-hosted-run-validator) complete_schema=true; shift ;;
         --verify-wave-0-topology) verify_topology_after=true; shift ;;
+        --verify-complete-evidence-schema) complete_schema=true; shift ;;
+        --verify-required-uat-allowlist) required_uat=true; shift ;;
         --only-canaries) require_value "$1" "${2:-}"; shift 2 ;;
         *) die "unknown self-test argument: $1" ;;
       esac
     done
     run_self_tests
+    [ "$complete_schema" = false ] || run_complete_hosted_self_tests
+    [ "$required_uat" = false ] || verify_required_uat_allowlist
     [ "$verify_topology_after" = false ] || verify_topology
     ;;
   -h|--help) usage ;;

@@ -108,6 +108,14 @@ jobs:
         working-directory: playstead-mac
         run: scripts/ci/run-mac-verification.sh --run-four-layer-verification
 
+      - name: Upload complete six-job verification evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: complete-verification-evidence
+          path: playstead-mac/.build/ci/four-layer/evidence/complete-verification-evidence.json
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Upload sanitized Mac failure evidence
         if: failure()
         uses: actions/upload-artifact@v4
