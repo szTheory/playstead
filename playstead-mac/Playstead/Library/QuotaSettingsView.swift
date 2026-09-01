@@ -19,6 +19,17 @@ struct QuotaSettingsView: View {
     static let floorPrecedenceStatement =
         "The free-space floor always takes priority. Even if you raise the quota, downloads still stop before your disk runs low."
 
+    enum Automation {
+        static let root = "playstead.quota.root"
+        static let state = "playstead.quota.state"
+        static let increase = "playstead.quota.increase"
+        static let decrease = "playstead.quota.decrease"
+    }
+
+    private var stateValue: String {
+        "used=\(usedBytes);quota=\(policy.quotaBytes);floor=\(policy.floorBytes)"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             Text("Storage")
@@ -28,6 +39,9 @@ struct QuotaSettingsView: View {
             Text("\(Self.formatBytes(usedBytes)) used of \(Self.formatBytes(policy.quotaBytes)) quota")
                 .font(.psBody)
                 .foregroundStyle(DesignTokens.textPrimary)
+                .accessibilityLabel("Storage quota state")
+                .accessibilityValue(stateValue)
+                .accessibilityIdentifier(Automation.state)
 
             Text("Free-space floor: \(Self.formatBytes(policy.floorBytes)) always kept free")
                 .font(.psLabel)
@@ -37,12 +51,23 @@ struct QuotaSettingsView: View {
                 .font(.psLabel)
                 .foregroundStyle(DesignTokens.textMuted)
 
-            Stepper(
-                "Quota: \(Self.formatBytes(policy.quotaBytes))",
-                onIncrement: { onSetQuota(policy.quotaBytes + QuotaPolicy.gibibyte) },
-                onDecrement: { onSetQuota(max(0, policy.quotaBytes - QuotaPolicy.gibibyte)) }
-            )
+            HStack(spacing: DesignTokens.Spacing.sm) {
+                Text("Quota: \(Self.formatBytes(policy.quotaBytes))")
+                    .font(.psLabelEmphasized)
+                Button("Decrease quota") {
+                    onSetQuota(max(0, policy.quotaBytes - QuotaPolicy.gibibyte))
+                }
+                .disabled(policy.quotaBytes == 0)
+                .playsteadFocusable(identifier: Automation.decrease)
+                Button("Increase quota") {
+                    onSetQuota(policy.quotaBytes + QuotaPolicy.gibibyte)
+                }
+                .playsteadFocusable(identifier: Automation.increase)
+            }
         }
         .padding(DesignTokens.Spacing.lg)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Quota settings")
+        .accessibilityIdentifier(Automation.root)
     }
 }

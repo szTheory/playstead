@@ -110,7 +110,7 @@ final class DeterministicProfileFixture {
             )
         case .quotaBlockReclaim:
             return expectation(
-                catalogue: 1,
+                catalogue: 2,
                 cached: 1,
                 quota: QuotaPolicy(quotaBytes: 16, floorBytes: QuotaPolicy.defaultPolicy.floorBytes)
             )
@@ -230,6 +230,11 @@ final class DeterministicProfileFixture {
             let entry = Self.entry(id: Self.quotaAssetID, title: "Synthetic Reclaim Candidate", seed: 41)
             try catalogueStore.upsert(entry)
             try seedCachedObject(for: entry, bytes: 32, seed: 41)
+            try catalogueStore.upsert(Self.entry(
+                id: Self.quotaDownloadAssetID,
+                title: "Synthetic Quota Download",
+                seed: 42
+            ))
             try quotaManager.setQuota(bytes: 16)
         case .storage:
             let entry = Self.entry(id: Self.storageAssetID, title: "Synthetic Offline Fixture", seed: 73)
@@ -301,6 +306,7 @@ final class DeterministicProfileFixture {
 
     private static let collectionID = "00000000-0000-7000-8000-000000000200"
     private static let quotaAssetID = "00000000-0000-7000-8000-000000000041"
+    private static let quotaDownloadAssetID = "00000000-0000-7000-8000-000000000042"
     private static let storageAssetID = "00000000-0000-7000-8000-000000000073"
     private static let timestampString = "2026-01-01T00:00:00Z"
 
