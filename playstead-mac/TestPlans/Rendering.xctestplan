@@ -32,6 +32,7 @@
       "selectedTests" : [
         "DeterministicProfileTests",
         "IdentityAndFocusPrimitiveTests",
+        "LibraryContractSnapshotTests",
         "ReleaseHookAbsenceTests",
         "SnapshotHarnessCanaryTests/testIntentionalMismatchProducesReviewableTriplet()",
         "SnapshotHarnessCanaryTests/testMeaningfulMutationFailsAndCalibratedNoisePasses()"
