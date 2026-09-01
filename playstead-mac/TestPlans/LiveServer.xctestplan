@@ -20,7 +20,8 @@
     {
       "parallelizable" : false,
       "selectedTests" : [
-        "HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner()"
+        "HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner()",
+        "LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch()"
       ],
       "target" : {
         "containerPath" : "container:Playstead.xcodeproj",

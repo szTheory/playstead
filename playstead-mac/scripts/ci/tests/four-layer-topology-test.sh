@@ -77,6 +77,16 @@ for required_ui_class in ("CurationInteractionTests", "StorageInteractionTests")
     if required_ui_class not in ui_selected:
         raise SystemExit(f"Wave 6 UI discovery is missing: {required_ui_class}")
 
+live_targets = plans["LiveServer"]["testTargets"]
+expected_live = {
+    "HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner()",
+    "LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch()",
+}
+if len(live_targets) != 1 or live_targets[0].get("parallelizable") is not False:
+    raise SystemExit("LiveServer must remain one serial target")
+if set(live_targets[0].get("selectedTests", [])) != expected_live:
+    raise SystemExit("LiveServer must select exactly the launch canary and Plan 08 pairing proof")
+
 app_decl = app_source.split("struct PlaysteadApp: App", 1)[1].split("private struct ProductionRootView", 1)[0]
 if "AppEnvironment(" in app_decl:
     raise SystemExit("PlaysteadApp must not eagerly construct production dependencies in a hosted canary launch")
