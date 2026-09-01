@@ -571,6 +571,61 @@ if truncated:
 PY
 }
 
+print_build_diagnostics() {
+  local log="$1"
+  local layer="$2"
+  python3 - "$log" "$layer" "$MAC_ROOT" <<'PY'
+import pathlib, re, sys, urllib.parse
+
+log_path, layer, mac_root = sys.argv[1:]
+try:
+    lines = pathlib.Path(log_path).read_text(encoding="utf-8", errors="replace").splitlines()
+except Exception:
+    raise SystemExit(1)
+
+pattern = re.compile(
+    r"(?P<path>(?:file://)?[^:\r\n]*?\.swift):(?P<line>[0-9]+)(?::[0-9]+)?:\s*(?P<kind>error|warning|note):"
+)
+root = pathlib.Path(mac_root).resolve()
+source_by_name = {}
+for source_root in ("Playstead", "PlaysteadTests", "PlaysteadUITests"):
+    for source_path in (root / source_root).rglob("*.swift"):
+        source_by_name.setdefault(source_path.name, []).append(source_path.resolve())
+
+safe = set()
+for line in lines:
+    match = pattern.search(line)
+    if match is None:
+        continue
+    raw_path = match.group("path")
+    if raw_path.startswith("file://"):
+        raw_path = urllib.parse.unquote(urllib.parse.urlparse(raw_path).path)
+    candidate_path = pathlib.Path(raw_path)
+    candidates = source_by_name.get(candidate_path.name, [])
+    if len(candidates) != 1 or not candidate_path.is_absolute():
+        continue
+    try:
+        if candidate_path.resolve() != candidates[0]:
+            continue
+        source_line = int(match.group("line"))
+    except (OSError, TypeError, ValueError):
+        continue
+    if not 1 <= source_line <= 1_000_000:
+        continue
+    relative = candidates[0].relative_to(root).as_posix()
+    safe.add((match.group("kind"), relative, source_line))
+
+records = sorted(safe, key=lambda record: (record[1], record[2], record[0]))
+maximum = 50
+for kind, source_file, source_line in records[:maximum]:
+    print(f"{layer}: COMPILER_DIAGNOSTIC {kind} {source_file}:{source_line}")
+if len(records) > maximum:
+    print(f"{layer}: COMPILER_DIAGNOSTICS_TRUNCATED shown={maximum} total={len(records)}")
+if not records:
+    print(f"{layer}: bounded compiler diagnostics unavailable")
+PY
+}
+
 run_with_deadline() {
   local seconds="$1"
   local log="$2"
@@ -684,6 +739,8 @@ pathlib.Path(path).write_text(json.dumps({
     "layers": [],
 }, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PY
+    print_build_diagnostics "${FOUR_LAYER_RAW}/build.log" build || \
+      printf '%s\n' 'build: bounded compiler diagnostics unavailable'
     "${SCRIPT_DIR}/sanitize-evidence.sh" --input "$FOUR_LAYER_ROOT" --output "$FAILURE_EVIDENCE"
     return 1
   fi
@@ -1103,6 +1160,7 @@ Usage:
   run-mac-verification.sh --layers {rendering|ui} --only-testing TEST [TEST ...]
   run-mac-verification.sh --verify-layer-result FILE LAYER OUTPUT --required-test ID [...]
   run-mac-verification.sh --print-failure-diagnostics SUMMARY LAYER
+  run-mac-verification.sh --print-build-diagnostics LOG LAYER
   run-mac-verification.sh --self-test-result-verifier
   run-mac-verification.sh --self-test-sanitizer [--verify-four-layer-topology]
   run-mac-verification.sh --verify-four-layer-topology
@@ -1137,6 +1195,12 @@ case "$1" in
     summary="$2"; layer="$3"; shift 3
     [ "$#" -eq 0 ] || die "unexpected failure diagnostic arguments"
     print_failure_diagnostics "$summary" "$layer"
+    ;;
+  --print-build-diagnostics)
+    require_value "$1" "${2:-}"; require_value "$1" "${3:-}"
+    log="$2"; layer="$3"; shift 3
+    [ "$#" -eq 0 ] || die "unexpected build diagnostic arguments"
+    print_build_diagnostics "$log" "$layer"
     ;;
   --self-test-result-verifier) shift; [ "$#" -eq 0 ] || die "unexpected verifier self-test arguments"; run_layer_verifier_self_tests ;;
   --self-test-sanitizer)

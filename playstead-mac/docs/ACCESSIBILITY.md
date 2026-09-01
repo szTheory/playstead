@@ -73,7 +73,10 @@ floor (03-UI-SPEC.md), and its current, honestly stated limits.
   never cross the artifact boundary; unmatched diagnostics are omitted. When a
   hosted layer fails, the job log prints only those same bounded fields (at
   most 50 records, plus a numeric truncation notice), so diagnosis does not
-  depend on artifact-browser availability.
+  depend on artifact-browser availability. A build that fails before producing
+  test results follows the same rule: stdout includes only normalized compiler
+  kind plus one uniquely resolved repository-relative Swift file and line,
+  capped at 50; compiler messages and their runtime values remain raw-only.
 - **Controller hardware itself remains unproven.** The plan 03-01 spike
   recorded controller connect/disconnect recovery as
   FAIL/unproven — no physical or paired game controller was available in

@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VERIFIER="${SCRIPT_DIR}/../run-mac-verification.sh"
+MAC_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/playstead-layer-verifier.XXXXXX")"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
@@ -98,6 +99,41 @@ assert summary["audit_issues"] == [
 assert set(summary) == {"schema_version", "layer", "executed_test_count", "required_tests", "failed_test_count", "failed_tests_truncated", "failed_tests", "failure_diagnostic_count", "failure_diagnostics_truncated", "failure_diagnostics", "audit_issue_count", "audit_issues_truncated", "audit_issues"}
 PY
 PASS_COUNT=$((PASS_COUNT + 1))
+
+build_log="$TMP_ROOT/build.log"
+printf '%s:137:9: error: Bearer private-token /Users/private/game.rom must remain raw only\n' \
+  "$MAC_ROOT/PlaysteadUITests/SurfaceAccessibilityTests.swift" >"$build_log"
+printf '%s\n' '/Users/private/Secret.swift:4:2: error: arbitrary path must be omitted' >>"$build_log"
+expect_pass build_stdout "$VERIFIER" --print-build-diagnostics "$build_log" build
+grep -Fx 'build: COMPILER_DIAGNOSTIC error PlaysteadUITests/SurfaceAccessibilityTests.swift:137' "$TMP_ROOT/build_stdout.out" >/dev/null || {
+  printf 'FAIL: bounded compiler diagnostic was not printed exactly\n' >&2
+  exit 1
+}
+if grep -E 'Bearer|private-token|/Users/|game\.rom|must remain raw' "$TMP_ROOT/build_stdout.out" >/dev/null; then
+  printf 'FAIL: compiler diagnostic leaked raw message, value, or path\n' >&2
+  exit 1
+fi
+PASS_COUNT=$((PASS_COUNT + 2))
+
+bounded_build_log="$TMP_ROOT/bounded-build.log"
+for line in $(seq 1 55); do
+  printf '%s:%s:1: warning: token-%s /Users/private/%s.rom\n' \
+    "$MAC_ROOT/PlaysteadUITests/SurfaceAccessibilityTests.swift" "$line" "$line" "$line" >>"$bounded_build_log"
+done
+expect_pass bounded_build_stdout "$VERIFIER" --print-build-diagnostics "$bounded_build_log" build
+[ "$(grep -c '^build: COMPILER_DIAGNOSTIC ' "$TMP_ROOT/bounded_build_stdout.out")" -eq 50 ] || {
+  printf 'FAIL: compiler diagnostic stdout exceeded its bound\n' >&2
+  exit 1
+}
+grep -Fx 'build: COMPILER_DIAGNOSTICS_TRUNCATED shown=50 total=55' "$TMP_ROOT/bounded_build_stdout.out" >/dev/null || {
+  printf 'FAIL: compiler diagnostic truncation was not explicit\n' >&2
+  exit 1
+}
+if grep -E 'token-|/Users/|\.rom' "$TMP_ROOT/bounded_build_stdout.out" >/dev/null; then
+  printf 'FAIL: bounded compiler summary leaked raw content\n' >&2
+  exit 1
+fi
+PASS_COUNT=$((PASS_COUNT + 3))
 
 diagnostic_stdout="$TMP_ROOT/diagnostic-stdout"
 expect_pass diagnostic_stdout "$VERIFIER" --print-failure-diagnostics "$TMP_ROOT/summary.json" ui
