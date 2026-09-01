@@ -89,13 +89,13 @@ struct StatusSlotView: View {
     let statuses: [LibraryStatus]
     let title: String
 
-    private var selected: LibraryStatus? {
+    var selectedStatus: LibraryStatus? {
         LibraryStatus.highestPriority(among: statuses)
     }
 
     var body: some View {
         Group {
-            if let selected {
+            if let selected = selectedStatus {
                 if case .downloading(let percent) = selected {
                     // `ProgressFillState` is computed with no dependency
                     // on `MotionPreference` — under reduced motion this
@@ -112,6 +112,7 @@ struct StatusSlotView: View {
         }
         .frame(minWidth: DesignTokens.InteractiveTarget.minimum, minHeight: DesignTokens.InteractiveTarget.minimum)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(selected.map { $0.accessibleName(title: title) } ?? "")
+        .accessibilityLabel(selectedStatus.map { $0.accessibleName(title: title) } ?? "")
+        .accessibilityIdentifier("library.status-slot")
     }
 }

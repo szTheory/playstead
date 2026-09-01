@@ -75,10 +75,19 @@ final class LibraryContractSnapshotTests: XCTestCase {
             XCTAssertEqual(StatusSlotView(statuses: combination, title: "Contract title").selectedStatus, expectedWinner)
         }
 
-        let source = try? String(contentsOf: productionFile("Library/GameCardView.swift"), encoding: .utf8)
-        XCTAssertNotNil(source)
-        XCTAssertFalse(source?.localizedCaseInsensitiveContains("cover") ?? true)
-        XCTAssertFalse(source?.localizedCaseInsensitiveContains("artwork") ?? true)
+        let cardStorage = Mirror(
+            reflecting: GameCardView(
+                title: "Contract title",
+                systemID: "gba",
+                isUnidentified: false,
+                statuses: [.verified]
+            )
+        ).children.compactMap(\.label)
+        XCTAssertEqual(
+            cardStorage,
+            ["title", "systemID", "isUnidentified", "statuses"],
+            "the card has exactly its three-zone text/status inputs and no cover surface"
+        )
     }
 
     func testFiveCurationShelfVisualContract() throws {
@@ -114,18 +123,12 @@ final class LibraryContractSnapshotTests: XCTestCase {
         XCTAssertEqual(CollectionsView.emptyExplanation, "Create a collection to group games your way.")
         XCTAssertEqual(QueueShelfView.emptyExplanation, "Add a game to your queue to keep it in mind.")
         XCTAssertEqual(RecentShelfView.emptyExplanation, "Play a game to see it here.")
-        XCTAssertEqual(LibraryContractCopy.noMatchesBody, "Check the spelling, or clear your search to see everything.")
-        XCTAssertEqual(LibraryContractCopy.clearSearch, "Clear search")
+        let searchState = SearchResultState(query: "Nothing", entryCount: 0)
+        XCTAssertEqual(searchState.heading, "No matches for “Nothing”")
+        XCTAssertEqual(searchState.body, "Check the spelling, or clear your search to see everything.")
+        XCTAssertEqual(searchState.clearControlLabel, "Clear search")
     }
 
-    private func productionFile(_ relativePath: String) -> URL {
-        URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("Playstead")
-            .appendingPathComponent(relativePath)
-    }
 }
 
 private struct CardAndStatusContractSheet: View {

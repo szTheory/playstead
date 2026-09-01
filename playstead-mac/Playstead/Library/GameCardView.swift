@@ -7,6 +7,8 @@ import SwiftUI
 /// cover image, no generated artwork, no title-derived color — an
 /// honestly typographic surface reads as intentional (D-12).
 struct GameCardView: View {
+    static let accessibilityIdentifier = "library.card"
+
     let title: String
     let systemID: String
     let isUnidentified: Bool
@@ -48,6 +50,7 @@ struct GameCardView: View {
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibleLabel)
+        .playsteadFocusable(identifier: Self.accessibilityIdentifier)
     }
 
     /// One accessible name combining title, system display name, and
