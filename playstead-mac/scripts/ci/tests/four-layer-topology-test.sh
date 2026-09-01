@@ -140,6 +140,8 @@ grep -F 'server: System.get_env("PLAYSTEAD_MAC_CI_TASK") != "1"' "$MAC_CI_CONFIG
 grep -F 'live-server fixture failed at %s' "$LIVE_SERVER_FIXTURE" >/dev/null
 grep -F 'raw.replacingOccurrences(' "$LIVE_SERVER_TEST" >/dev/null
 grep -F 'sanitized.prefix(160)' "$LIVE_SERVER_TEST" >/dev/null
+[ "$(grep -c 'XCTFail("live-server-stage=' "$LIVE_SERVER_TEST")" -eq 8 ]
+grep -F 'throw FixtureAbort()' "$LIVE_SERVER_TEST" >/dev/null
 if grep -E '(^|[[:space:]])(security|codesign)([[:space:]]|$)' "$RUNNER" >/dev/null; then
   printf 'verification runner must not invoke security(1) or codesign(1)\n' >&2
   exit 1

@@ -95,15 +95,7 @@ final class LiveServerSnapshotTests: XCTestCase {
         try JSONDecoder().decode(Control.self, from: Data(contentsOf: url)).sentinel
     }
 
-    private struct FixtureFailure: LocalizedError {
-        let action: String
-        let status: Int32
-        let diagnostic: String
-
-        var errorDescription: String? {
-            "Live-server fixture \(action) exited \(status): \(diagnostic)"
-        }
-    }
+    private struct FixtureAbort: Error {}
 
     private func runFixture(_ action: String, root: URL) throws {
         let script = URL(fileURLWithPath: #filePath)
@@ -128,12 +120,37 @@ final class LiveServerSnapshotTests: XCTestCase {
                 options: .regularExpression
             )
             let bounded = String(sanitized.prefix(160)).trimmingCharacters(in: .whitespacesAndNewlines)
-            throw FixtureFailure(
+            try recordFixtureFailure(
+                bounded.isEmpty ? "bounded diagnostic unavailable" : bounded,
                 action: action,
-                status: process.terminationStatus,
-                diagnostic: bounded.isEmpty ? "bounded diagnostic unavailable" : bounded
+                status: process.terminationStatus
             )
+            return
         }
+    }
+
+    private func recordFixtureFailure(_ diagnostic: String, action: String, status: Int32) throws {
+        // Distinct XCTFail sites make the allowlisted stage visible to the
+        // existing bounded xcresult parser without emitting raw subprocess IO.
+        switch diagnostic {
+        case "live-server fixture failed at validate-input":
+            XCTFail("live-server-stage=validate-input action=\(action) status=\(status)")
+        case "live-server fixture failed at provision-domain":
+            XCTFail("live-server-stage=provision-domain action=\(action) status=\(status)")
+        case "live-server fixture failed at request-pairing":
+            XCTFail("live-server-stage=request-pairing action=\(action) status=\(status)")
+        case "live-server fixture failed at approve-pairing":
+            XCTFail("live-server-stage=approve-pairing action=\(action) status=\(status)")
+        case "live-server fixture failed at redeem-pairing":
+            XCTFail("live-server-stage=redeem-pairing action=\(action) status=\(status)")
+        case "live-server fixture failed at add-second-sentinel":
+            XCTFail("live-server-stage=add-second-sentinel action=\(action) status=\(status)")
+        case "live-server fixture failed at verify-evidence":
+            XCTFail("live-server-stage=verify-evidence action=\(action) status=\(status)")
+        default:
+            XCTFail("live-server-stage=bounded-diagnostic-unavailable action=\(action) status=\(status)")
+        }
+        throw FixtureAbort()
     }
 
     private func storedCursor(root: URL) throws -> String {
