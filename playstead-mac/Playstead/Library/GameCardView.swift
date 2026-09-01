@@ -48,12 +48,13 @@ struct GameCardView: View {
         .frame(width: DesignTokens.CardGeometry.width, height: DesignTokens.CardGeometry.height, alignment: .topLeading)
         .background(DesignTokens.border.opacity(0.3))
         .clipShape(RoundedRectangle(cornerRadius: 8))
-        .playsteadFocusable(identifier: Self.accessibilityIdentifier)
         // The card already supplies the complete title/system/status sentence.
-        // Apply the final accessibility element after the focus modifier so
-        // its stable identifier and complete description belong to one node.
+        // Collapse first, then apply focus/identity to that final node. Applying
+        // identity before accessibilityElement can leave it on a discarded
+        // child in the hosted accessibility hierarchy.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibleLabel)
+        .playsteadFocusable(identifier: Self.accessibilityIdentifier)
     }
 
     /// One accessible name combining title, system display name, and

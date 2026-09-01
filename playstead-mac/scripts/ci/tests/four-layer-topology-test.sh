@@ -126,15 +126,17 @@ for stage in \
   testCollectionsShelfRendersExactSeededRoute \
   testQueueShelfRendersHonestEmptyFixture \
   testRecentShelfRendersHonestEmptyFixture \
-  testDragReorderProducesOneEffectAndSurvivesRelaunch \
+  testDragReorderProducesOneEffect \
+  testDragReorderSurvivesRelaunch \
   testKeyboardReorderRetainsFocusAndSurvivesRelaunch; do
   grep -F -- "--required-test PlaysteadUITests.CurationInteractionTests/${stage}" "$RUNNER" >/dev/null
 done
-if grep -E 'testFiveShelves(AndDurableDragReorder|RenderExactFixtures)|test(Favorites|Collections)ShelfRendersExactSeededFixture' "$RUNNER" "$CURATION_TEST" >/dev/null; then
+if grep -E 'testFiveShelves(AndDurableDragReorder|RenderExactFixtures)|test(Favorites|Collections)ShelfRendersExactSeededFixture|testDragReorderProducesOneEffectAndSurvivesRelaunch' "$RUNNER" "$CURATION_TEST" >/dev/null; then
   printf 'broad curation UI identity must remain split into exact hosted stages\n' >&2
   exit 1
 fi
 grep -F 'third.press(forDuration: 1, thenDragTo: first)' "$CURATION_TEST" >/dev/null
+grep -F 'cells.containing(.any, identifier: rowID(1))' "$CURATION_TEST" >/dev/null
 [ "$(grep -c 'harness.relaunch' "$CURATION_TEST")" -eq 3 ]
 grep -F 'harness.element(collectionRowID, type: .button)' "$CURATION_TEST" >/dev/null
 if grep -F 'try fixture.assertExactState()' "$UI_BOOTSTRAP" >/dev/null; then

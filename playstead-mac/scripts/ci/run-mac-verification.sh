@@ -581,7 +581,8 @@ PY
     --required-test PlaysteadUITests.CurationInteractionTests/testCollectionsShelfRendersExactSeededRoute \
     --required-test PlaysteadUITests.CurationInteractionTests/testQueueShelfRendersHonestEmptyFixture \
     --required-test PlaysteadUITests.CurationInteractionTests/testRecentShelfRendersHonestEmptyFixture \
-    --required-test PlaysteadUITests.CurationInteractionTests/testDragReorderProducesOneEffectAndSurvivesRelaunch \
+    --required-test PlaysteadUITests.CurationInteractionTests/testDragReorderProducesOneEffect \
+    --required-test PlaysteadUITests.CurationInteractionTests/testDragReorderSurvivesRelaunch \
     --required-test PlaysteadUITests.CurationInteractionTests/testKeyboardReorderRetainsFocusAndSurvivesRelaunch \
     --required-test PlaysteadUITests.StorageInteractionTests/testDownloadsPauseResumeFlow \
     --required-test PlaysteadUITests.StorageInteractionTests/testQuotaEditAndFocusRestoration \

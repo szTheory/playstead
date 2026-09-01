@@ -72,15 +72,20 @@ final class CurationInteractionTests: XCTestCase {
         assertSyntheticGamesVisible(0, in: harness)
     }
 
-    func testDragReorderProducesOneEffectAndSurvivesRelaunch() throws {
+    func testDragReorderProducesOneEffect() throws {
         let harness = launchPersistentCurationHarness()
         openSyntheticCollection(in: harness)
 
-        let initialOrder = [memberID(1), memberID(2), memberID(3)]
-        assertExactCollectionOrder(initialOrder, in: harness)
-        assertEvidence(order: initialOrder, outboxCount: 0, in: harness)
+        let draggedOrder = assertInitialOrderAndPerformDrag(in: harness)
+        assertEvidence(order: draggedOrder, outboxCount: 1, in: harness)
+        assertExactCollectionOrder(draggedOrder, in: harness)
+    }
 
-        let draggedOrder = performExactDrag(in: harness)
+    func testDragReorderSurvivesRelaunch() throws {
+        let harness = launchPersistentCurationHarness()
+        openSyntheticCollection(in: harness)
+
+        let draggedOrder = assertInitialOrderAndPerformDrag(in: harness)
         assertEvidence(order: draggedOrder, outboxCount: 1, in: harness)
         assertExactCollectionOrder(draggedOrder, in: harness)
 
@@ -147,8 +152,10 @@ final class CurationInteractionTests: XCTestCase {
     }
 
     private func performExactDrag(in harness: UITestHarness) -> [String] {
-        let first = harness.element(rowID(1))
-        let third = harness.element(rowID(3))
+        // The identified HStack owns semantic row evidence; its enclosing
+        // List cell owns SwiftUI's onMove drag interaction.
+        let first = harness.app.cells.containing(.any, identifier: rowID(1)).element(boundBy: 0)
+        let third = harness.app.cells.containing(.any, identifier: rowID(3)).element(boundBy: 0)
         XCTAssertTrue(first.waitForExistence(timeout: 5))
         XCTAssertTrue(third.waitForExistence(timeout: 5))
 
@@ -156,6 +163,13 @@ final class CurationInteractionTests: XCTestCase {
         // first row on the last row's center can resolve on either side of it.
         third.press(forDuration: 1, thenDragTo: first)
         return [memberID(3), memberID(1), memberID(2)]
+    }
+
+    private func assertInitialOrderAndPerformDrag(in harness: UITestHarness) -> [String] {
+        let initialOrder = [memberID(1), memberID(2), memberID(3)]
+        assertExactCollectionOrder(initialOrder, in: harness)
+        assertEvidence(order: initialOrder, outboxCount: 0, in: harness)
+        return performExactDrag(in: harness)
     }
 
     private func assertSyntheticGamesVisible(_ expected: Int, in harness: UITestHarness) {
