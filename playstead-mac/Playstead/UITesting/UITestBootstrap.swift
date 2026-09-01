@@ -86,11 +86,11 @@ enum UITestBootstrap {
             guard attributes[.type] as? FileAttributeType == .typeRegular,
                   (attributes[.posixPermissions] as? NSNumber)?.intValue == 0o600,
                   (attributes[.ownerAccountID] as? NSNumber)?.uint32Value == getuid() else {
-                throw DeterministicProfileError.invalidFixture
+                throw DeterministicProfileError.stateMismatch("live credential handoff ownership or mode is invalid")
             }
             let data = try Data(contentsOf: handoffURL, options: [.mappedIfSafe])
             guard data.count > 0, data.count <= 4_096 else {
-                throw DeterministicProfileError.invalidFixture
+                throw DeterministicProfileError.stateMismatch("live credential handoff size is invalid")
             }
             let handoff = try JSONDecoder().decode(CredentialHandoff.self, from: data)
             try FileManager.default.removeItem(at: handoffURL)
@@ -108,10 +108,10 @@ enum UITestBootstrap {
                     baseURL: handoff.baseURL,
                     token: handoff.credential
                   ) else {
-                throw DeterministicProfileError.invalidFixture
+                throw DeterministicProfileError.stateMismatch("live credential did not persist in scoped Keychain")
             }
         } else if keychain.loadCredential() == nil {
-            throw DeterministicProfileError.invalidFixture
+            throw DeterministicProfileError.stateMismatch("scoped live credential is missing")
         }
 
         let paths = AppPaths(root: root)
@@ -126,12 +126,12 @@ enum UITestBootstrap {
 
     private static func ownedURL(_ raw: String?, label: String) throws -> URL {
         guard let raw, raw.hasPrefix("/"), !raw.contains("\0") else {
-            throw DeterministicProfileError.invalidFixture
+            throw DeterministicProfileError.stateMismatch("live fixture path is invalid")
         }
         let url = URL(fileURLWithPath: raw).standardizedFileURL
         let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
         guard (attributes[.ownerAccountID] as? NSNumber)?.uint32Value == getuid() else {
-            throw DeterministicProfileError.invalidFixture
+            throw DeterministicProfileError.stateMismatch("live fixture path ownership is invalid")
         }
         _ = label
         return url
@@ -140,7 +140,7 @@ enum UITestBootstrap {
     private static func containedURL(_ raw: String?, root: URL, label: String) throws -> URL {
         let candidate = try ownedURL(raw, label: label)
         guard candidate.path.hasPrefix(root.path + "/") else {
-            throw DeterministicProfileError.invalidFixture
+            throw DeterministicProfileError.stateMismatch("live fixture path escaped its run root")
         }
         return candidate
     }
@@ -148,7 +148,7 @@ enum UITestBootstrap {
     private static func validatedService(_ raw: String?) throws -> String {
         guard let raw,
               raw.range(of: #"^dev\.playstead\.mac\.live\.[a-z0-9-]{8,80}$"#, options: .regularExpression) != nil else {
-            throw DeterministicProfileError.invalidFixture
+            throw DeterministicProfileError.stateMismatch("live Keychain service is invalid")
         }
         return raw
     }
