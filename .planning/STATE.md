@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 03.5
 current_phase_name: Mac Verification Automation
 status: executing
-stopped_at: Completed 03.5-07-PLAN.md with hosted run 33540648269 green at bb28bba
-last_updated: "2026-09-01T18:30:00Z"
+stopped_at: Completed 03.5-08-PLAN.md with hosted run 33569123780 green at aab1a1c
+last_updated: "2026-09-01T23:14:13.335Z"
 last_activity: 2026-09-01
-last_activity_desc: Plan 03.5-07 storage verification completed
-state_head: 5412d46f3fab0b9b84e7ef9c1f647b7cc4c6af8a
+last_activity_desc: Plan 03.5-08 native pairing and Keychain relaunch verification completed
+state_head: aab1a1c64910fd250baab12839ad127f7e85e35e
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 38
-  completed_plans: 36
+  completed_plans: 37
 milestone_name: milestone
 ---
 
@@ -29,11 +29,11 @@ See: `.planning/PROJECT.md` (updated 2026-08-30)
 ## Current Position
 
 Phase: 03.5 (Mac Verification Automation) — EXECUTING
-Plan: 8 of 10
+Plan: 9 of 10
 Status: Ready to execute
-Last activity: 2026-09-01 — Plan 03.5-07 storage verification completed
+Last activity: 2026-09-01 — Plan 03.5-08 native pairing and Keychain relaunch verification completed
 
-Progress: [████████░░] 80% (Phase 03.5)
+Progress: [█████████░] 90% (Phase 03.5)
 
 ## Performance Metrics
 
@@ -85,6 +85,7 @@ Progress: [████████░░] 80% (Phase 03.5)
 | Phase 03.5 P05 | 256 min | 2 tasks | 29 files |
 | Phase 03.5 P06 | 12m22s | 2 tasks | 8 files |
 | Phase 03.5 P07 | 12h10m | 3 tasks | 19 files |
+| Phase 03.5 P08 | 4h37m | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -157,6 +158,9 @@ Progress: [████████░░] 80% (Phase 03.5)
 - [Phase 03.5]: macOS List keyboard download uses exact selection plus one selection-scoped Command-D action routed through the same quota-gated GameRow method as direct Download.
 - [Phase 03.5]: Canonical game summary identity is contained separately from sibling action nodes, preserving both exact catalogue and Download accessibility evidence.
 - [Phase 03.5]: Plan 03.5-07 acceptance is exact hosted run 33540648269 at bb28bba with Unit 271, Rendering 20, UI 87, and LiveServer 1 all green.
+- [Phase 03.5]: Plan 03.5-08: Public pairing, exact approval, normal snapshot convergence, and scoped Keychain relaunch are the native Mac acceptance path; no private endpoint or credential override.
+- [Phase 03.5]: Plan 03.5-08: Dynamic native-service values enter XCUITest through explicit LiveServer test-plan build-setting expansion, not incidental Xcode environment inheritance.
+- [Phase 03.5]: Plan 03.5-08: Hosted fixture failures publish only an allowlisted stage token from a fixed mode-0600 runner-owned file.
 
 ### Pending Todos
 
@@ -187,6 +191,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-01T18:30:00Z
-Stopped at: Completed 03.5-07-PLAN.md with hosted run 33540648269 green at bb28bba
+Last session: 2026-09-01T23:14:13.262Z
+Stopped at: Completed 03.5-08-PLAN.md with hosted run 33569123780 green at aab1a1c
 Resume file: None

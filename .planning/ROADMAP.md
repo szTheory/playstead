@@ -193,7 +193,7 @@ Plans:
   6. Each Phase 3 UAT checkpoint this phase closes is re-recorded in `03-UAT.md` as `source: automated` with its covering test named.
 
 **Research / spike flags**: Runner choice is decided — GitHub-hosted `macos-*`. That deliberately leaves three classes out of scope, and they stay `blocked` in 03-UAT.md rather than being faked: physical controller hardware (checkpoints 8, 9), a real emulator install plus real game bytes (checkpoint 7), and a Developer ID certificate for signing/notarization (checkpoints 14, 15). Revisit a self-hosted runner only if those become recurring blockers. Watch Xcode-version drift on hosted runners and snapshot-test flakiness across macOS releases — pin both.
-**Plans**: 8/10 plans executed
+**Plans**: 9/10 plans executed
 
 Plans:
 **Wave 0**
@@ -227,7 +227,7 @@ Plans:
 
 **Wave 7**
 
-- [ ] 03.5-08-PLAN.md — Native Phoenix pairing/snapshot/Keychain spine after all UI producers
+- [x] 03.5-08-PLAN.md — Native Phoenix pairing/snapshot/Keychain spine after all UI producers
 
 **Wave 8**
 

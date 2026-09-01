@@ -33,7 +33,7 @@ Requirements for the first complete Mac-to-server custody and continuity release
 
 ### Curated Library
 
-- [ ] **LIBR-01**: A user can browse the complete server catalogue on a newly paired Mac before downloading game bytes.
+- [x] **LIBR-01**: A user can browse the complete server catalogue on a newly paired Mac before downloading game bytes.
 - [ ] **LIBR-02**: A user can quickly find games through search, filters, systems, and availability or readiness state.
 - [x] **LIBR-03**: A user can curate focused views using favorites, collections, Continue, Recent, and a play queue without altering canonical game bytes.
 - [x] **LIBR-04**: Empty or unconfigured systems and irrelevant advanced settings stay hidden by default, while counts, readiness, and contextual setup actions appear when useful.
@@ -130,7 +130,7 @@ Which phases cover which requirements. This table is populated by roadmap creati
 | IMPT-04 | Phase 2 | Complete |
 | IMPT-05 | Phase 2 | Complete |
 | IMPT-06 | Phase 2 | Complete |
-| LIBR-01 | Phase 3 | Pending |
+| LIBR-01 | Phase 3 | Complete |
 | LIBR-02 | Phase 3 | Pending |
 | LIBR-03 | Phase 3 | Complete |
 | LIBR-04 | Phase 3 | Complete |
