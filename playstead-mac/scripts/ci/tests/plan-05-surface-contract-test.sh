@@ -24,6 +24,7 @@ bootstrap = (root / "Playstead/UITesting/UITestBootstrap.swift").read_text()
 profiles = (root / "Playstead/UITesting/DeterministicProfile.swift").read_text()
 app_root = (root / "Playstead/App/PlaysteadApp.swift").read_text()
 docs = (root / "docs/ACCESSIBILITY.md").read_text()
+plan = (root.parent / ".planning/phases/03.5-mac-verification-automation/03.5-05-PLAN.md").read_text()
 
 routes = {
     "playstead.surface.library": shell,
@@ -45,6 +46,79 @@ controls = (
     "playstead.control.open-bios",
     "playstead.control.open-controller-settings",
 )
+
+granular_coverage = {
+    "testLibraryRouteInventorySettlesOnProductionProfile": (
+        "playstead.surface.library", "playstead.surface.sidebar",
+        "playstead.surface.search", "playstead.surface.filter",
+        "playstead.surface.game-card", "library.search.field",
+    ),
+    "testLibraryFocusSequenceWrapsAndActivatesList": (
+        "exactFocusOrder", "traverseExactFocusSequence", "playstead.surface.game-list",
+    ),
+    "testDownloadsSheetOpensAndDismisses": (
+        "playstead.control.open-downloads", "playstead.control.done", "XCTAssertFalse",
+    ),
+    "testLibraryControlsPassLiveAccessibilityAudit": (
+        "harness.audit", "playstead.control.show-list", "library.search.field",
+    ),
+    "testContextualOpenersPassLiveAccessibilityAudit": (
+        "harness.audit", "playstead.control.open-adapter", "playstead.control.open-readiness",
+    ),
+    "testAdapterSheetContainsFocusDismissesAndRestoresOpener": (
+        "assertSheetFocusContained", ".escape", "hasKeyboardFocus",
+    ),
+    "testAdapterControlsPassLiveAccessibilityAudit": (
+        "harness.audit", "playstead.control.install-adapter", "playstead.control.choose-adapter",
+    ),
+    "testReadinessRoutesReachBIOSAndControllerSettings": ("launchReadinessRoutes()",),
+    "testReadinessSheetContainsFocusAndDoneDismisses": (
+        "assertSheetFocusContained", "focusContainedAction", "playstead.control.done", "XCTAssertFalse",
+    ),
+    "testReadinessControlsPassLiveAccessibilityAudit": (
+        "harness.audit", "playstead.control.open-bios",
+        "playstead.control.open-controller-settings", "playstead.control.choose-bios",
+    ),
+}
+
+def check_granular_coverage(test_source):
+    matches = list(re.finditer(r"^    func (test[A-Za-z0-9_]+)\(", test_source, re.MULTILINE))
+    names = [match.group(1) for match in matches]
+    if set(names) != set(granular_coverage) or len(names) != len(granular_coverage):
+        raise AssertionError(f"granular UI test identity drift: {names}")
+    for index, match in enumerate(matches):
+        end = matches[index + 1].start() if index + 1 < len(matches) else test_source.find("    private func", match.end())
+        section = test_source[match.start():end]
+        missing = [marker for marker in granular_coverage[match.group(1)] if marker not in section]
+        if missing:
+            raise AssertionError(f"{match.group(1)} lost acceptance coverage: {missing}")
+    for name in granular_coverage:
+        if name not in plan:
+            raise AssertionError(f"Plan 05 verification does not select granular test: {name}")
+    if "testLibrarySidebarUsesIndependentFocusAndLiveAudit" in test_source or "testContextualRoutesContainAndRestoreFocus" in test_source:
+        raise AssertionError("broad UI tests hide the failing acceptance stage")
+    for marker in (
+        "playstead.surface.readiness", "playstead.surface.bios",
+        "playstead.surface.controller-settings",
+    ):
+        helper = test_source[test_source.find("    private func launchReadinessRoutes") :]
+        if marker not in helper:
+            raise AssertionError(f"readiness route helper lost coverage: {marker}")
+
+check_granular_coverage(tests)
+for name, markers in granular_coverage.items():
+    method = re.search(rf"^    func {name}\(", tests, re.MULTILINE)
+    following = re.search(r"^    (?:func test|private func)", tests[method.end():], re.MULTILINE)
+    end = method.end() + following.start() if following else len(tests)
+    section = tests[method.start():end]
+    mutated_section = section.replace(markers[0], "removed.granular.coverage")
+    mutated = tests[:method.start()] + mutated_section + tests[end:]
+    try:
+        check_granular_coverage(mutated)
+    except AssertionError:
+        pass
+    else:
+        raise SystemExit(f"granular coverage meta-test did not fail for {name}")
 
 def check_route_inventory(sources):
     missing = [route for route, source in sources.items() if route not in tests or route not in identifiers or "AccessibilityIdentifiers.Surface" not in source]
