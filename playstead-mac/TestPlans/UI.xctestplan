@@ -1,0 +1,34 @@
+{
+  "configurations" : [
+    {
+      "id" : "37B70371-552C-4A52-B61E-FBAFC5D75AF2",
+      "name" : "UI",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "codeCoverage" : false,
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:Playstead.xcodeproj",
+      "identifier" : "44DC10C2CEB44A12A91241F2",
+      "name" : "Playstead"
+    }
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : false,
+      "selectedTests" : [
+        "HostedRunnerCanaryTests/testFullKeyboardAccessCanaryFocusesAndActivatesTwoControls()",
+        "HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice()"
+      ],
+      "target" : {
+        "containerPath" : "container:Playstead.xcodeproj",
+        "identifier" : "1E0000000000000000000001",
+        "name" : "PlaysteadUITests"
+      }
+    }
+  ],
+  "version" : 1
+}

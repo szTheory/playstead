@@ -1,0 +1,44 @@
+{
+  "configurations" : [
+    {
+      "id" : "5F1B4796-ED21-41C2-9C24-840EF387A579",
+      "name" : "Rendering",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "codeCoverage" : false,
+    "environmentVariableEntries" : [
+      {
+        "key" : "PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT",
+        "value" : "$(PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT)"
+      },
+      {
+        "key" : "PLAYSTEAD_SNAPSHOT_RECORDING",
+        "value" : "0"
+      }
+    ],
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:Playstead.xcodeproj",
+      "identifier" : "44DC10C2CEB44A12A91241F2",
+      "name" : "Playstead"
+    }
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : false,
+      "selectedTests" : [
+        "SnapshotHarnessCanaryTests/testIntentionalMismatchProducesReviewableTriplet()",
+        "SnapshotHarnessCanaryTests/testMeaningfulMutationFailsAndCalibratedNoisePasses()"
+      ],
+      "target" : {
+        "containerPath" : "container:Playstead.xcodeproj",
+        "identifier" : "B523D701384541059776544C",
+        "name" : "PlaysteadTests"
+      }
+    }
+  ],
+  "version" : 1
+}

@@ -1,0 +1,33 @@
+{
+  "configurations" : [
+    {
+      "id" : "19370C66-1238-44D7-9668-F7684A78013F",
+      "name" : "LiveServer",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "codeCoverage" : false,
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:Playstead.xcodeproj",
+      "identifier" : "44DC10C2CEB44A12A91241F2",
+      "name" : "Playstead"
+    }
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : false,
+      "selectedTests" : [
+        "HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner()"
+      ],
+      "target" : {
+        "containerPath" : "container:Playstead.xcodeproj",
+        "identifier" : "1E0000000000000000000001",
+        "name" : "PlaysteadUITests"
+      }
+    }
+  ],
+  "version" : 1
+}

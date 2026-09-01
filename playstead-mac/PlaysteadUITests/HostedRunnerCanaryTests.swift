@@ -18,11 +18,12 @@ final class HostedRunnerCanaryTests: XCTestCase {
         let app = XCUIApplication()
         launchedApp = app
         app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
+        app.launchEnvironment["PLAYSTEAD_WAVE_0_LAUNCH_CANARY"] = "1"
         app.launch()
 
         XCTAssertTrue(
-            app.windows.firstMatch.waitForExistence(timeout: 15),
-            "The ad-hoc-signed Playstead app must launch and expose a window"
+            app.staticTexts["ci.canary.launch.ready"].waitForExistence(timeout: 15),
+            "The ad-hoc-signed Playstead launch canary must expose its isolated ready sentinel"
         )
         XCTAssertEqual(app.state, .runningForeground)
         app.terminate()

@@ -11,6 +11,9 @@ DERIVED_DATA="${BUILD_ROOT}/DerivedData"
 RAW_ROOT="${BUILD_ROOT}/raw"
 EVIDENCE_ROOT="${BUILD_ROOT}/evidence"
 ADOPTION_EVIDENCE="${EVIDENCE_ROOT}/wave-0-adoption.json"
+FOUR_LAYER_ROOT="${BUILD_ROOT}/four-layer"
+FOUR_LAYER_RAW="${FOUR_LAYER_ROOT}/raw"
+FOUR_LAYER_EVIDENCE="${FOUR_LAYER_ROOT}/evidence"
 
 die() {
   printf 'mac verification: %s\n' "$*" >&2
@@ -258,6 +261,224 @@ print(json.dumps(record, sort_keys=True))
 PY
 }
 
+verify_layer_result() (
+  local test_results="$1"
+  local layer="$2"
+  local output="$3"
+  shift 3
+  local required_file
+  required_file="$(mktemp "${TMPDIR:-/tmp}/playstead-layer-tests.XXXXXX")"
+  trap 'rm -f "$required_file"' EXIT
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --required-test) require_value "$1" "${2:-}"; printf '%s\n' "$2" >>"$required_file"; shift 2 ;;
+      *) die "unknown layer-result argument: $1" ;;
+    esac
+  done
+  [ -s "$required_file" ] || die "layer $layer requires at least one --required-test"
+
+  python3 - "$test_results" "$required_file" "$layer" "$output" <<'PY'
+import json, pathlib, sys
+
+results_path, required_path, layer, output_path = sys.argv[1:]
+try:
+    data = json.loads(pathlib.Path(results_path).read_text(encoding="utf-8"))
+except Exception as exc:
+    raise SystemExit(f"{layer}: result JSON parse failed: {exc}")
+
+if not isinstance(data, dict) or not isinstance(data.get("testNodes"), list):
+    raise SystemExit(f"{layer}: Xcode test result schema is missing testNodes")
+
+def canonical(identifier):
+    body = identifier.split(".", 1)[1] if "." in identifier else identifier
+    if "/" not in body:
+        raise SystemExit(f"{layer}: malformed required test identifier: {identifier}")
+    suite, method = body.split("/", 1)
+    method = method[:-2] if method.endswith("()") else method
+    return f"{suite}/{method}()"
+
+nodes = []
+def walk(value):
+    if isinstance(value, dict):
+        if value.get("nodeType") == "Test Case":
+            node_identifier = value.get("nodeIdentifier")
+            result = value.get("result")
+            if not isinstance(node_identifier, str) or not isinstance(result, str):
+                raise SystemExit(f"{layer}: malformed Test Case node")
+            nodes.append((node_identifier, result))
+        for child in value.values():
+            walk(child)
+    elif isinstance(value, list):
+        for child in value:
+            walk(child)
+walk(data["testNodes"])
+
+required = [line for line in pathlib.Path(required_path).read_text(encoding="utf-8").splitlines() if line]
+if not nodes:
+    raise SystemExit(f"{layer}: result contains zero executed tests")
+
+records = []
+for identifier in required:
+    expected = canonical(identifier)
+    matches = [result for node_identifier, result in nodes if node_identifier == expected]
+    if len(matches) != 1:
+        raise SystemExit(f"{layer}: required test execution count must equal 1: {identifier} (got {len(matches)})")
+    result = matches[0]
+    record = {
+        "identifier": identifier,
+        "discovered": True,
+        "execution_count": 1,
+        "skipped": result == "Skipped",
+        "outcome": result.lower(),
+    }
+    records.append(record)
+    if record["skipped"]:
+        raise SystemExit(f"{layer}: required test was skipped: {identifier}")
+    if result != "Passed":
+        raise SystemExit(f"{layer}: required test did not pass: {identifier} ({result})")
+
+summary = {
+    "schema_version": 1,
+    "layer": layer,
+    "executed_test_count": len(nodes),
+    "required_tests": records,
+}
+pathlib.Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+pathlib.Path(output_path).write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+print(f"{layer}: verified {len(required)} required test(s) across {len(nodes)} executed test(s)")
+PY
+)
+
+run_with_deadline() {
+  local seconds="$1"
+  local log="$2"
+  shift 2
+  "$@" >"$log" 2>&1 &
+  local command_pid=$!
+  (
+    sleep "$seconds"
+    if kill -0 "$command_pid" 2>/dev/null; then
+      kill -TERM "$command_pid" 2>/dev/null || true
+      sleep 5
+      kill -KILL "$command_pid" 2>/dev/null || true
+    fi
+  ) &
+  local watchdog_pid=$!
+  local status=0
+  wait "$command_pid" || status=$?
+  kill "$watchdog_pid" 2>/dev/null || true
+  wait "$watchdog_pid" 2>/dev/null || true
+  return "$status"
+}
+
+LAYER_STATUS=0
+run_test_layer() {
+  local slug="$1"
+  local plan="$2"
+  local deadline="$3"
+  shift 3
+  local result_bundle="${FOUR_LAYER_RAW}/${slug}.xcresult"
+  local result_json="${FOUR_LAYER_RAW}/${slug}-tests.json"
+  local result_summary="${FOUR_LAYER_EVIDENCE}/${slug}-tests.json"
+  local log="${FOUR_LAYER_RAW}/${slug}.log"
+  local signing=(CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=)
+  local xcode_status=0 parse_status=0 verify_status=0
+
+  rm -rf "$result_bundle"
+  run_with_deadline "$deadline" "$log" \
+    xcodebuild test-without-building -project "$PROJECT" -scheme "$SCHEME" \
+      -testPlan "$plan" -destination 'platform=macOS' \
+      -derivedDataPath "$DERIVED_DATA" -resultBundlePath "$result_bundle" \
+      "${signing[@]}" PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT="${FOUR_LAYER_EVIDENCE}/snapshot-triplet" \
+      PLAYSTEAD_SNAPSHOT_RECORDING=0 || xcode_status=$?
+
+  if [ -d "$result_bundle" ]; then
+    xcrun xcresulttool get test-results tests --path "$result_bundle" --compact \
+      >"$result_json" 2>"${FOUR_LAYER_RAW}/${slug}-xcresulttool.log" || parse_status=$?
+  else
+    parse_status=1
+    printf '%s\n' "$slug: result bundle is missing" >"${FOUR_LAYER_RAW}/${slug}-xcresulttool.log"
+  fi
+
+  if [ "$parse_status" -eq 0 ]; then
+    verify_layer_result "$result_json" "$slug" "$result_summary" "$@" || verify_status=$?
+  else
+    verify_status=1
+  fi
+
+  LAYER_STATUS=0
+  if [ "$xcode_status" -ne 0 ] || [ "$parse_status" -ne 0 ] || [ "$verify_status" -ne 0 ]; then
+    LAYER_STATUS=1
+    printf '%s\n' "$slug: FAILED (xcode=$xcode_status parse=$parse_status verify=$verify_status)" >&2
+  else
+    printf '%s\n' "$slug: PASSED"
+  fi
+}
+
+run_four_layer_verification() {
+  local signing=(CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=)
+  local aggregate=0 build_status=0
+  local previous_keyboard_mode=""
+  previous_keyboard_mode="$(defaults read NSGlobalDomain AppleKeyboardUIMode 2>/dev/null || true)"
+  trap 'if [ -n "$previous_keyboard_mode" ]; then defaults write NSGlobalDomain AppleKeyboardUIMode -int "$previous_keyboard_mode"; else defaults delete NSGlobalDomain AppleKeyboardUIMode 2>/dev/null || true; fi' EXIT
+
+  rm -rf "$FOUR_LAYER_ROOT" "$DERIVED_DATA"
+  mkdir -p "$FOUR_LAYER_RAW" "$FOUR_LAYER_EVIDENCE/snapshot-triplet"
+  defaults write NSGlobalDomain AppleKeyboardUIMode -int 3
+
+  run_with_deadline 1200 "${FOUR_LAYER_RAW}/build.log" \
+    xcodebuild build-for-testing -project "$PROJECT" -scheme "$SCHEME" \
+      -destination 'platform=macOS' -derivedDataPath "$DERIVED_DATA" \
+      "${signing[@]}" PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT="${FOUR_LAYER_EVIDENCE}/snapshot-triplet" \
+      PLAYSTEAD_SNAPSHOT_RECORDING=0 || build_status=$?
+  [ "$build_status" -eq 0 ] || die "four-layer build-for-testing failed (status $build_status)"
+
+  run_test_layer unit Unit 900 \
+    --required-test PlaysteadTests.KeychainScopingTests/testScopedMatchQueryRestrictsSearchWithoutSelectingAnAddDestination \
+    --required-test PlaysteadTests.KeychainScopingTests/testScopedAddQuerySelectsDestinationWithoutChangingSearchList
+  [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
+
+  run_test_layer rendering Rendering 600 \
+    --required-test PlaysteadTests.SnapshotHarnessCanaryTests/testIntentionalMismatchProducesReviewableTriplet \
+    --required-test PlaysteadTests.SnapshotHarnessCanaryTests/testMeaningfulMutationFailsAndCalibratedNoisePasses
+  [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
+
+  run_test_layer ui UI 900 \
+    --required-test PlaysteadUITests.HostedRunnerCanaryTests/testFullKeyboardAccessCanaryFocusesAndActivatesTwoControls \
+    --required-test PlaysteadUITests.HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice
+  [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
+
+  run_test_layer live-server LiveServer 900 \
+    --required-test PlaysteadUITests.HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner
+  [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
+
+  python3 - "$FOUR_LAYER_EVIDENCE/layers.json" "$aggregate" <<'PY'
+import json, pathlib, sys
+path, aggregate = sys.argv[1:]
+root = pathlib.Path(path).parent
+layers = []
+for name in ("unit", "rendering", "ui", "live-server"):
+    candidate = root / f"{name}-tests.json"
+    layers.append(json.loads(candidate.read_text()) if candidate.exists() else {"layer": name, "missing": True})
+pathlib.Path(path).write_text(json.dumps({
+    "schema_version": 1,
+    "build_count": 1,
+    "automatic_retries": 0,
+    "aggregate_outcome": "passed" if aggregate == "0" else "failed",
+    "layers": layers,
+}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
+
+  if [ -n "$previous_keyboard_mode" ]; then
+    defaults write NSGlobalDomain AppleKeyboardUIMode -int "$previous_keyboard_mode"
+  else
+    defaults delete NSGlobalDomain AppleKeyboardUIMode 2>/dev/null || true
+  fi
+  trap - EXIT
+  return "$aggregate"
+}
+
 NATIVE_ROOT=""
 PG_CTL=""
 PGDATA=""
@@ -470,6 +691,14 @@ run_self_tests() {
   "${SCRIPT_DIR}/tests/wave-0-verifier-test.sh"
 }
 
+run_layer_verifier_self_tests() {
+  "${SCRIPT_DIR}/tests/four-layer-verifier-test.sh"
+}
+
+verify_four_layer_topology() {
+  "${SCRIPT_DIR}/tests/four-layer-topology-test.sh"
+}
+
 verify_topology() {
   "${SCRIPT_DIR}/tests/wave-0-topology-test.sh"
 }
@@ -478,6 +707,10 @@ usage() {
   cat <<'USAGE'
 Usage:
   run-mac-verification.sh --run-wave-0-adoption
+  run-mac-verification.sh --run-four-layer-verification
+  run-mac-verification.sh --verify-layer-result FILE LAYER OUTPUT --required-test ID [...]
+  run-mac-verification.sh --self-test-result-verifier
+  run-mac-verification.sh --verify-four-layer-topology
   run-mac-verification.sh --verify-result FILE --required-canary ID [expected metadata]
   run-mac-verification.sh --validate-hosted-run FILE [expected metadata]
   run-mac-verification.sh --self-test-wave-0-verifier [--self-test-hosted-run-validator] [--verify-wave-0-topology]
@@ -490,6 +723,14 @@ case "$1" in
   --verify-result) require_value "$1" "${2:-}"; evidence="$2"; shift 2; verify_result "$evidence" "$@" ;;
   --validate-hosted-run) require_value "$1" "${2:-}"; metadata="$2"; shift 2; validate_hosted_run "$metadata" "$@" ;;
   --run-wave-0-adoption) shift; [ "$#" -eq 0 ] || die "unexpected adoption arguments"; run_wave_0_adoption ;;
+  --run-four-layer-verification) shift; [ "$#" -eq 0 ] || die "unexpected four-layer arguments"; run_four_layer_verification ;;
+  --verify-layer-result)
+    require_value "$1" "${2:-}"; require_value "$1" "${3:-}"; require_value "$1" "${4:-}"
+    test_results="$2"; layer="$3"; output="$4"; shift 4
+    verify_layer_result "$test_results" "$layer" "$output" "$@"
+    ;;
+  --self-test-result-verifier) shift; [ "$#" -eq 0 ] || die "unexpected verifier self-test arguments"; run_layer_verifier_self_tests ;;
+  --verify-four-layer-topology) shift; [ "$#" -eq 0 ] || die "unexpected topology arguments"; verify_four_layer_topology ;;
   --verify-wave-0-topology) shift; [ "$#" -eq 0 ] || die "unexpected topology arguments"; verify_topology ;;
   --self-test-wave-0-verifier|--self-test-hosted-run-validator)
     verify_topology_after=false

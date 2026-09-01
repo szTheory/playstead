@@ -1,0 +1,34 @@
+{
+  "configurations" : [
+    {
+      "id" : "9C90F9D8-6600-4C97-97B7-7CF77A72FCB1",
+      "name" : "Unit",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "codeCoverage" : false,
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:Playstead.xcodeproj",
+      "identifier" : "44DC10C2CEB44A12A91241F2",
+      "name" : "Playstead"
+    }
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : false,
+      "skippedTests" : [
+        "SnapshotHarnessCanaryTests/testIntentionalMismatchProducesReviewableTriplet()",
+        "SnapshotHarnessCanaryTests/testMeaningfulMutationFailsAndCalibratedNoisePasses()"
+      ],
+      "target" : {
+        "containerPath" : "container:Playstead.xcodeproj",
+        "identifier" : "B523D701384541059776544C",
+        "name" : "PlaysteadTests"
+      }
+    }
+  ],
+  "version" : 1
+}

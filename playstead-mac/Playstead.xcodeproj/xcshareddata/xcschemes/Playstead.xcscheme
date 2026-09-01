@@ -14,14 +14,12 @@
       </BuildActionEntries>
    </BuildAction>
    <TestAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.DebuggerFoundation.Launcher.LLDB" shouldUseLaunchSchemeArgsEnv="YES">
-      <Testables>
-         <TestableReference skipped="NO" parallelizable="NO">
-            <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="B523D701384541059776544C" BuildableName="PlaysteadTests.xctest" BlueprintName="PlaysteadTests" ReferencedContainer="container:Playstead.xcodeproj"/>
-         </TestableReference>
-         <TestableReference skipped="NO" parallelizable="NO">
-            <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="1E0000000000000000000001" BuildableName="PlaysteadUITests.xctest" BlueprintName="PlaysteadUITests" ReferencedContainer="container:Playstead.xcodeproj"/>
-         </TestableReference>
-      </Testables>
+      <TestPlans>
+         <TestPlanReference reference="container:TestPlans/Unit.xctestplan" default="YES"/>
+         <TestPlanReference reference="container:TestPlans/Rendering.xctestplan" default="NO"/>
+         <TestPlanReference reference="container:TestPlans/UI.xctestplan" default="NO"/>
+         <TestPlanReference reference="container:TestPlans/LiveServer.xctestplan" default="NO"/>
+      </TestPlans>
       <MacroExpansion>
          <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="44DC10C2CEB44A12A91241F2" BuildableName="Playstead.app" BlueprintName="Playstead" ReferencedContainer="container:Playstead.xcodeproj"/>
       </MacroExpansion>

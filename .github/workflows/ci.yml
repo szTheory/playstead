@@ -83,13 +83,13 @@ jobs:
           git status --porcelain
           test -z "$(git status --porcelain)"
 
-  # Wave 0 macOS adoption tracer. This job is deliberately unfiltered: a
+  # Four-layer macOS verification. This job is deliberately unfiltered: a
   # push or pull request may change a server/client contract without touching
   # the Mac directory, so path filtering would make the evidence vacuous.
   mac-verification:
-    name: macOS 26 adoption canaries
+    name: macOS 26 unit + rendering + UI + live server
     runs-on: macos-26
-    timeout-minutes: 30
+    timeout-minutes: 60
     needs: [test, compose-smoke]
     if: always()
     env:
@@ -104,27 +104,9 @@ jobs:
           version-file: playstead-server/.tool-versions
           version-type: strict
 
-      - name: Run exact hosted adoption tracer
+      - name: Run one build and four serial test layers
         working-directory: playstead-mac
-        run: scripts/ci/run-mac-verification.sh --run-wave-0-adoption
-
-      - name: Upload sanitized adoption manifest
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: wave-0-adoption
-          path: playstead-mac/.build/ci/evidence
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Upload raw Xcode results on failure only
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: wave-0-xcresult-failure
-          path: playstead-mac/.build/ci/raw/*.xcresult
-          if-no-files-found: ignore
-          retention-days: 7
+        run: scripts/ci/run-mac-verification.sh --run-four-layer-verification
 
   # Cold-start deployment proof (docker build + compose up from destroyed
   # volumes + restart). It is slow (~5 min) and only changes when the

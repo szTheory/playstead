@@ -9,22 +9,38 @@ import SwiftUI
 /// background once the credential is available.
 @main
 struct PlaysteadApp: App {
-    @State private var appEnvironment = AppEnvironment()
-    @Environment(\.scenePhase) private var scenePhase
-
     var body: some Scene {
         WindowGroup {
 #if DEBUG
-            if ProcessInfo.processInfo.environment["PLAYSTEAD_WAVE_0_FOCUS_CANARY"] == "1" {
+            if ProcessInfo.processInfo.environment["PLAYSTEAD_WAVE_0_LAUNCH_CANARY"] == "1" {
+                HostedRunnerLaunchCanaryView()
+            } else if ProcessInfo.processInfo.environment["PLAYSTEAD_WAVE_0_FOCUS_CANARY"] == "1" {
                 HostedRunnerFocusCanaryView()
             } else {
-                libraryShell
+                ProductionRootView()
             }
 #else
-            libraryShell
+            ProductionRootView()
 #endif
         }
         .windowResizability(.contentSize)
+    }
+}
+
+/// Owns production dependencies only when the production root is selected.
+///
+/// Keeping `AppEnvironment` out of `PlaysteadApp` is security-significant for
+/// compile-gated hosted canaries: constructing the normal environment creates
+/// an `APIClient` whose credential checks correctly consult the login Keychain.
+/// A launch-mechanism canary must never touch that user-owned store.
+private struct ProductionRootView: View {
+    @State private var appEnvironment = AppEnvironment()
+    @Environment(\.scenePhase) private var scenePhase
+
+    var body: some View {
+        LibraryShellView()
+            .environment(appEnvironment)
+            .frame(minWidth: 960, minHeight: 560)
         // Becoming active is one of `OutboxWorker`'s three drain triggers
         // (the other two — after every enqueue, and on reachability being
         // regained — are wired inside `AppEnvironment.init`). Without this
@@ -35,15 +51,23 @@ struct PlaysteadApp: App {
             appEnvironment.applicationDidBecomeActive()
         }
     }
-
-    private var libraryShell: some View {
-        LibraryShellView()
-            .environment(appEnvironment)
-            .frame(minWidth: 960, minHeight: 560)
-    }
 }
 
 #if DEBUG
+/// Minimal no-dependency window used to prove ad-hoc launch on hosted runners.
+///
+/// This branch deliberately constructs no `AppEnvironment`, `APIClient`, or
+/// `KeychainStore`, so it cannot inspect the developer's login Keychain or
+/// trigger an authorization prompt during local verification.
+private struct HostedRunnerLaunchCanaryView: View {
+    var body: some View {
+        Text("Playstead launch canary")
+            .accessibilityIdentifier("ci.canary.launch.ready")
+            .padding()
+            .frame(minWidth: 420, minHeight: 180)
+    }
+}
+
 /// Minimal live focus surface for the hosted-runner adoption gate.
 ///
 /// The full library shell intentionally contains multiple focus roles and is
