@@ -61,7 +61,7 @@ final class UITestHarness {
     let app: XCUIApplication
     private(set) var identifierTrace: [String] = []
 
-    init(profile: Profile) {
+    init(profile: Profile, persistentSession: Bool = false) {
         app = XCUIApplication()
         app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
         // These literals intentionally mirror `UITestBootstrap.modeKey` and
@@ -70,6 +70,9 @@ final class UITestHarness {
         // `ProductionRootView` and its login-Keychain composition.
         app.launchEnvironment["PLAYSTEAD_UI_TESTING"] = "1"
         app.launchEnvironment["PLAYSTEAD_UI_TEST_PROFILE"] = profile.rawValue
+        if persistentSession {
+            app.launchEnvironment["PLAYSTEAD_UI_TEST_SESSION_ID"] = UUID().uuidString.lowercased()
+        }
     }
 
     func launch(settledAt identifier: String, timeout: TimeInterval = 15) {
@@ -78,6 +81,11 @@ final class UITestHarness {
         XCTAssertTrue(sentinel.waitForExistence(timeout: timeout), "settled sentinel was not reached: \(identifier)")
         XCTAssertEqual(app.state, .runningForeground)
         identifierTrace.append(identifier)
+    }
+
+    func relaunch(settledAt identifier: String, timeout: TimeInterval = 15) {
+        app.terminate()
+        launch(settledAt: identifier, timeout: timeout)
     }
 
     func element(_ identifier: String, type: XCUIElement.ElementType = .any) -> XCUIElement {

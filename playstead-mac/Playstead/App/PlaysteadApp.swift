@@ -470,6 +470,23 @@ final class AppEnvironment {
     func blockExternalIOForUITesting() {
         uiTestingBlocksExternalIO = true
     }
+
+    /// Bounded, synthetic-only acceptance evidence exposed by the
+    /// compile-gated UI profile. It contains row IDs, an outbox count and
+    /// catalogue member digests only; never filenames, paths, credentials,
+    /// payload JSON or user content.
+    func curationReorderEvidenceValue(collectionID: String) -> String {
+        let order = curationStore.fetchCollectionMembers()
+            .filter { $0.collectionID == collectionID }
+            .map(\.id)
+            .joined(separator: ",")
+        let catalogueFingerprint = catalogueStore.fetchAll()
+            .flatMap(\.members)
+            .map(\.sha256)
+            .sorted()
+            .joined(separator: ",")
+        return "order=\(order);outbox=\(outbox.listAll().count);catalogue=\(catalogueFingerprint)"
+    }
 #endif
 
     /// Drain trigger 3/3, called from `PlaysteadApp`'s `scenePhase`

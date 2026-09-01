@@ -12,7 +12,9 @@ final class UITestProfileSession {
     }
 
     deinit {
-        try? fixture.cleanup()
+        if !fixture.preservesRootForRelaunch {
+            try? fixture.cleanup()
+        }
     }
 }
 
@@ -21,6 +23,7 @@ final class UITestProfileSession {
 enum UITestBootstrap {
     static let modeKey = "PLAYSTEAD_UI_TESTING"
     static let profileKey = "PLAYSTEAD_UI_TEST_PROFILE"
+    static let sessionIDKey = "PLAYSTEAD_UI_TEST_SESSION_ID"
 
     static func isRequested(environment: [String: String] = ProcessInfo.processInfo.environment) -> Bool {
         environment[modeKey] == "1"
@@ -34,7 +37,7 @@ enum UITestBootstrap {
             throw DeterministicProfileError.missingProfile
         }
         let profile = try DeterministicProfile.parse(processEnvironment[profileKey])
-        let fixture = try profile.makeFixture()
+        let fixture = try profile.makeFixture(sessionID: processEnvironment[sessionIDKey])
         let appEnvironment = AppEnvironment(
             uiTestingPaths: fixture.paths,
             localStore: fixture.localStore,

@@ -74,12 +74,11 @@ final class CurationInteractionTests: XCTestCase {
     private func assertExactCollectionOrder(_ expected: [String], in harness: UITestHarness) {
         let rows = expected.map { harness.element("playstead.curation.collection-member.\($0)") }
         for row in rows { XCTAssertTrue(row.waitForExistence(timeout: 5)) }
-        waitForValue(harness.element("playstead.test.curation.evidence"), equals: evidence(order: expected, outboxCount: nil))
-        XCTAssertEqual(rows.map(\.label), expected.indices.map { "Synthetic Game \($0 + 1)" }.sorted(by: { lhs, rhs in
-            let lhsRow = rows.first(where: { $0.label == lhs })!
-            let rhsRow = rows.first(where: { $0.label == rhs })!
-            return lhsRow.frame.minY < rhsRow.frame.minY
-        }))
+        let visualOrder = rows.sorted { $0.frame.minY < $1.frame.minY }.map(\.identifier)
+        XCTAssertEqual(visualOrder, expected.map { "playstead.curation.collection-member.\($0)" })
+        for (row, memberID) in zip(rows, expected) {
+            XCTAssertEqual(row.label, "Synthetic Game \(Int(memberID.suffix(1))!)")
+        }
     }
 
     private func assertEvidence(order: [String], outboxCount: Int, in harness: UITestHarness) {
@@ -95,9 +94,8 @@ final class CurationInteractionTests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed)
     }
 
-    private func evidence(order: [String], outboxCount: Int?) -> String {
-        let count = outboxCount.map(String.init) ?? "*"
-        return "order=\(order.joined(separator: ","));outbox=\(count);catalogue=\(Self.catalogueFingerprint)"
+    private func evidence(order: [String], outboxCount: Int) -> String {
+        "order=\(order.joined(separator: ","));outbox=\(outboxCount);catalogue=\(Self.catalogueFingerprint)"
     }
 
     private func rowID(_ ordinal: Int) -> String {
@@ -112,5 +110,5 @@ final class CurationInteractionTests: XCTestCase {
         "72cd6e8422c407fb6d098690f1130b7ded7ec2f7f5e1d30bd9d521f015363793",
         "75877bb41d393b5fb8455ce60ecd8dda001d06316496b14dfa7f895656eeca4a",
         "648aa5c579fb30f38af744d97d6ec840c7a91277a499a0d780f3e7314eca090b"
-    ].joined(separator: ",")
+    ].sorted().joined(separator: ",")
 }

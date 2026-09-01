@@ -27,9 +27,14 @@ enum DeterministicProfile: String, CaseIterable {
         return profile
     }
 
-    func makeFixture(fileManager: FileManager = .default) throws -> DeterministicProfileFixture {
-        let root = fileManager.temporaryDirectory
+    func makeFixture(
+        sessionID: String? = nil,
+        fileManager: FileManager = .default
+    ) throws -> DeterministicProfileFixture {
+        let persistentRoot = try sessionID.map { try Self.persistentRoot(sessionID: $0, fileManager: fileManager) }
+        let root = persistentRoot ?? fileManager.temporaryDirectory
             .appendingPathComponent("playstead-ui-profile-\(UUID().uuidString)", isDirectory: true)
+        let databaseExisted = fileManager.fileExists(atPath: root.appendingPathComponent("playstead.sqlite3").path)
         let paths = AppPaths(root: root, fileManager: fileManager)
 
         do {
@@ -51,15 +56,35 @@ enum DeterministicProfile: String, CaseIterable {
                     localStore: localStore,
                     cacheRootURL: paths.objects,
                     freeSpaceProvider: { Int.max }
-                )
+                ),
+                preservesRootForRelaunch: persistentRoot != nil
             )
-            try fixture.seed()
-            try fixture.assertExactState()
+            if databaseExisted {
+                try fixture.assertPersistentSessionState()
+            } else {
+                try fixture.seed()
+                try fixture.assertExactState()
+            }
             return fixture
         } catch {
             try? fileManager.removeItem(at: root)
             throw error
         }
+    }
+
+    /// A test may supply only one UUID token, never a path. The token is
+    /// resolved beneath a fixed temporary parent so relaunch exercises the
+    /// same on-disk SQLite store without opening an arbitrary-file surface.
+    private static func persistentRoot(sessionID: String, fileManager: FileManager) throws -> URL {
+        guard
+            let uuid = UUID(uuidString: sessionID),
+            uuid.uuidString.lowercased() == sessionID.lowercased()
+        else {
+            throw DeterministicProfileError.stateMismatch("invalid UI-test session id")
+        }
+        return fileManager.temporaryDirectory
+            .appendingPathComponent("playstead-ui-profile-sessions", isDirectory: true)
+            .appendingPathComponent(uuid.uuidString.lowercased(), isDirectory: true)
     }
 }
 
@@ -89,6 +114,7 @@ final class DeterministicProfileFixture {
     let downloadQueue: DownloadQueue
     let pinStore: PinStore
     let quotaManager: QuotaManager
+    let preservesRootForRelaunch: Bool
 
     var expected: DeterministicProfileExpectation {
         switch profile {
@@ -132,7 +158,8 @@ final class DeterministicProfileFixture {
         curationStore: CurationStore,
         downloadQueue: DownloadQueue,
         pinStore: PinStore,
-        quotaManager: QuotaManager
+        quotaManager: QuotaManager,
+        preservesRootForRelaunch: Bool
     ) {
         self.profile = profile
         self.root = root
@@ -143,6 +170,7 @@ final class DeterministicProfileFixture {
         self.downloadQueue = downloadQueue
         self.pinStore = pinStore
         self.quotaManager = quotaManager
+        self.preservesRootForRelaunch = preservesRootForRelaunch
     }
 
     func cleanup(fileManager: FileManager = .default) throws {
@@ -189,6 +217,27 @@ final class DeterministicProfileFixture {
                   ).candidates().map(\.id) == [Self.quotaAssetID] else {
                 throw DeterministicProfileError.stateMismatch("quota profile did not block and expose one reclaim candidate")
             }
+        }
+    }
+
+    /// A persisted profile intentionally differs from its seed after a
+    /// reorder. Reopen validation therefore pins the invariant inventory
+    /// and content identities while allowing only order/outbox state to
+    /// carry across the process boundary.
+    func assertPersistentSessionState() throws {
+        guard profile == .populatedCurationReorder else {
+            throw DeterministicProfileError.stateMismatch("only the curation profile supports relaunch")
+        }
+        let members = curationStore.fetchCollectionMembers()
+        let digests = catalogueStore.fetchAll().flatMap(\.members).map(\.sha256).sorted()
+        let expectedDigests = Self.catalogueEntries(count: 3).flatMap(\.members).map(\.sha256).sorted()
+        guard catalogueStore.count() == 3,
+              curationStore.fetchFavorites().count == 1,
+              curationStore.fetchCollections().count == 1,
+              members.count == 3,
+              Set(members.map(\.id)).count == 3,
+              digests == expectedDigests else {
+            throw DeterministicProfileError.stateMismatch("persisted curation fixture inventory drifted")
         }
     }
 

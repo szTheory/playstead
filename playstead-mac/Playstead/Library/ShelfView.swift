@@ -40,6 +40,18 @@ struct ShelfView: View {
             }
         }
         .padding(.vertical, DesignTokens.Spacing.lg)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(heading)
+        .accessibilityIdentifier(surfaceIdentifier)
+    }
+
+    /// `ShelfView` has two production call sites. Keep their stable roots
+    /// explicit rather than deriving identifiers from localized headings.
+    private var surfaceIdentifier: String {
+        switch heading {
+        case "Favorites": AccessibilityIdentifiers.Surface.favoritesShelf
+        default: AccessibilityIdentifiers.Surface.gameCard
+        }
     }
 
     @ViewBuilder

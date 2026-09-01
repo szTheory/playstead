@@ -22,22 +22,37 @@ struct QueueShelfView: View {
                     .accessibilityLabel(Self.emptyExplanation)
             } else {
                 List {
-                    ForEach(viewModel.items, id: \.assetSetID) { item in
-                        Text(catalogueByAssetSetID[item.assetSetID]?.displayTitle ?? item.assetSetID)
+                    ForEach(Array(viewModel.items.enumerated()), id: \.element.id) { index, item in
+                        queueRow(item, at: index)
                     }
                     .onMove(perform: move)
                 }
             }
         }
         .padding(.vertical, DesignTokens.Spacing.lg)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Play queue")
+        .accessibilityIdentifier(AccessibilityIdentifiers.Surface.playQueue)
+    }
+
+    private func queueRow(_ item: CurationQueueItemRow, at index: Int) -> some View {
+        let title = catalogueByAssetSetID[item.assetSetID]?.displayTitle ?? item.assetSetID
+        return Text(title)
+        .accessibilityLabel(title)
+        .accessibilityIdentifier("playstead.curation.queue-item.\(item.id)")
     }
 
     private func move(from source: IndexSet, to destination: Int) {
         performListReorder(from: source, to: destination, ids: viewModel.items.map(\.assetSetID)) { assetSetID, index in
-            viewModel.beginReorder()
-            viewModel.previewMove(assetSetID: assetSetID, to: index)
-            viewModel.commitReorder(assetSetID: assetSetID)
-            viewModel.refresh()
+            settleMove(assetSetID: assetSetID, to: index)
         }
+    }
+
+    private func settleMove(assetSetID: String, to index: Int) {
+        guard viewModel.items.indices.contains(index) else { return }
+        viewModel.beginReorder()
+        viewModel.previewMove(assetSetID: assetSetID, to: index)
+        viewModel.commitReorder(assetSetID: assetSetID)
+        viewModel.refresh()
     }
 }
