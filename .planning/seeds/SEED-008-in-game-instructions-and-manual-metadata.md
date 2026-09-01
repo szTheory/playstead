@@ -29,15 +29,45 @@ redistribute proprietary manuals without permission. Optional instruction
 metadata must also remain off the launch critical path and be useful offline
 when legitimately cacheable.
 
+Treat metadata enrichment as an explicit, understandable delivery policy rather
+than a one-time bulk scrape. A likely balanced default is lightweight identity
+plus cover/box art and one representative screenshot when legitimately available;
+videos, additional galleries, manuals, and other large or rights-sensitive media
+can be fetched just in time or selected per game/collection. Players who value a
+fully prepared offline library should also be able to choose a bounded "make this
+ready" action after seeing the estimated request count, download size, storage
+impact, provider constraints, and exactly which media classes will be cached.
+
+Explore a small set of intention-revealing policies—such as minimal, balanced,
+and offline-complete—plus per-media overrides, rather than exposing every provider
+knob. Defaults should adapt to library size, network/storage limits, provider
+rate quotas, existing cache coverage, and player interest without making opaque
+decisions. Prefetch can prioritize favorites, Continue/recent titles, pinned
+collections, or explicitly selected games, while eviction remains independent
+from canonical ROM/save custody and never removes private user-supplied manuals.
+
+Every fetched asset needs source/provider, lookup evidence, license/usage terms,
+fetch time, confidence, transformation history, cacheability/expiry, and user
+override provenance. Respect API quotas and backoff; coalesce duplicate requests;
+resume bounded jobs; expose partial/failed enrichment without blocking play; and
+never treat a high request allowance as permission to scrape or redistribute.
+Investigate whether videos should be streamed, cached on demand, or represented
+by a poster/preview by default, since their bandwidth, storage, codec, and rights
+costs differ materially from still images.
+
 ## When to Surface
 
 **Trigger:** when relevant
 
 This seed will surface during `$gsd-new-milestone` when the milestone scope matches.
+Surface before adopting a metadata provider, building bulk catalogue enrichment,
+designing per-game hubs, or promising an offline-complete media experience.
 
 ## Scope Estimate
 
 **Unknown** — run `$gsd-capture --seed --enrich SEED-008` to estimate effort.
+Split into provider/legal research, a media/provenance schema, bounded enrichment
+jobs and cache policy, then player-facing defaults and per-game/collection controls.
 
 ## Breadcrumbs
 
@@ -51,9 +81,15 @@ This seed will surface during `$gsd-new-milestone` when the milestone scope matc
   research provides a starting point for provider discovery
 - `playstead-mac/Playstead/Controller/ControllerSettingsView.swift` — current
   local controller-mapping surface that could supply honest control hints
+- `.planning/seeds/SEED-006-save-progress-screenshots-and-game-hub.md` — related
+  per-game hub, where catalogue media and player-progress captures must remain
+  visibly distinct
 
 ## Notes
 
 Captured via one-shot seed capture during Phase 03.5. There is no assumption
 that a pause overlay already exists; treat both the pause experience and the
-instruction source as future design/research work.
+instruction source as future design/research work. Enriched on 2026-09-01 from
+the owner's catalogue observation: prefer smart cover/screenshot defaults and
+just-in-time caching, while still offering an explicit bounded way to prepare
+richer video/manual metadata for chosen games or an offline library.
