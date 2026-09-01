@@ -8,6 +8,7 @@ final class SnapshotHarnessCanaryTests: XCTestCase {
 
     func testIntentionalMismatchProducesReviewableTriplet() throws {
         let output = try outputDirectory()
+        let snapshots = try snapshotDirectory(in: output)
         let reference = image(pixel: NSColor(calibratedRed: 0.1, green: 0.6, blue: 0.9, alpha: 1))
         let mutation = image(pixel: NSColor(calibratedRed: 0.9, green: 0.1, blue: 0.2, alpha: 1))
 
@@ -17,7 +18,7 @@ final class SnapshotHarnessCanaryTests: XCTestCase {
                 as: .image(precision: 1, perceptualPrecision: 1),
                 named: snapshotName,
                 record: .all,
-                snapshotDirectory: output.path,
+                snapshotDirectory: snapshots.path,
                 testName: "snapshot-harness-canary"
             ),
             "record mode must report its ordinary assertion instead of crashing"
@@ -27,7 +28,7 @@ final class SnapshotHarnessCanaryTests: XCTestCase {
             as: .image(precision: 1, perceptualPrecision: 1),
             named: snapshotName,
             record: .never,
-            snapshotDirectory: output.path,
+            snapshotDirectory: snapshots.path,
             testName: "snapshot-harness-canary"
         )
 
@@ -40,6 +41,7 @@ final class SnapshotHarnessCanaryTests: XCTestCase {
 
     func testMeaningfulMutationFailsAndCalibratedNoisePasses() throws {
         let output = try outputDirectory()
+        let snapshots = try snapshotDirectory(in: output)
         // `NSBitmapImageRep` is calibrated RGB. Supplying grayscale-space
         // colors can yield transparent pixels on macOS 26, making distinct
         // inputs compare equal. Keep all calibration fixtures in the
@@ -54,7 +56,7 @@ final class SnapshotHarnessCanaryTests: XCTestCase {
                 as: .image(precision: 1, perceptualPrecision: 1),
                 named: "wave-0-mutation-noise",
                 record: .all,
-                snapshotDirectory: output.path,
+                snapshotDirectory: snapshots.path,
                 testName: "snapshot-mutation-noise"
             ),
             "record mode must produce a reviewable assertion"
@@ -65,7 +67,7 @@ final class SnapshotHarnessCanaryTests: XCTestCase {
                 as: .image(precision: 1, perceptualPrecision: 1),
                 named: "wave-0-mutation-noise",
                 record: .never,
-                snapshotDirectory: output.path,
+                snapshotDirectory: snapshots.path,
                 testName: "snapshot-mutation-noise"
             )
         )
@@ -75,7 +77,7 @@ final class SnapshotHarnessCanaryTests: XCTestCase {
                 as: .image(precision: 0.99, perceptualPrecision: 0.99),
                 named: "wave-0-mutation-noise",
                 record: .never,
-                snapshotDirectory: output.path,
+                snapshotDirectory: snapshots.path,
                 testName: "snapshot-mutation-noise"
             )
         )
@@ -86,6 +88,12 @@ final class SnapshotHarnessCanaryTests: XCTestCase {
             throw XCTSkip("PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT is supplied by the hosted verification wrapper")
         }
         let url = URL(fileURLWithPath: path, isDirectory: true)
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    private func snapshotDirectory(in output: URL) throws -> URL {
+        let url = output.appendingPathComponent(".snapshot-testing", isDirectory: true)
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }
