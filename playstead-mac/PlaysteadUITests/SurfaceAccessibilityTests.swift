@@ -173,22 +173,22 @@ final class SurfaceAccessibilityTests: XCTestCase {
 
     private func auditLibrary(_ category: UITestHarness.AuditCategory) throws {
         launchLibrary(profile: .populatedCurationReorder)
-        try harness.audit(category)
+        try harness.audit(category, rootIdentifier: "playstead.surface.library")
     }
 
     private func auditContextualOpeners(_ category: UITestHarness.AuditCategory) throws {
         launchLibrary(profile: .storage)
-        try harness.audit(category)
+        try harness.audit(category, rootIdentifier: "playstead.surface.library")
     }
 
     private func auditAdapter(_ category: UITestHarness.AuditCategory) throws {
         _ = launchAdapterSheet()
-        try harness.audit(category)
+        try harness.audit(category, rootIdentifier: "playstead.surface.adapter")
     }
 
     private func auditReadiness(_ category: UITestHarness.AuditCategory) throws {
         launchReadinessRoutes()
-        try harness.audit(category)
+        try harness.audit(category, rootIdentifier: "playstead.surface.readiness")
     }
 
     private func launchLibrary(profile: UITestHarness.Profile) {

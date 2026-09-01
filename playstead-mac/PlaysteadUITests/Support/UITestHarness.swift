@@ -170,11 +170,29 @@ final class UITestHarness {
         }
     }
 
-    func audit(_ category: AuditCategory, exclusions: [AuditExclusion] = []) throws {
+    func audit(
+        _ category: AuditCategory,
+        rootIdentifier: String,
+        exclusions: [AuditExclusion] = []
+    ) throws {
+        let root = element(rootIdentifier)
+        XCTAssertTrue(root.waitForExistence(timeout: 5), "audit root missing: \(rootIdentifier)")
+        let rootFrame = root.frame.insetBy(dx: -1, dy: -1)
+        XCTAssertTrue(rootFrame.width > 0 && rootFrame.height > 0 && rootFrame.isFinite)
         let exclusionsByFingerprint = Dictionary(uniqueKeysWithValues: exclusions.map { ($0.fingerprint, $0) })
         var matched = Set<String>()
         var issueIdentifiers = Set<String>()
         try app.performAccessibilityAudit(for: category.xcuiType) { issue in
+            if let issueElement = issue.element {
+                let issueFrame = issueElement.frame
+                if issueFrame.width > 0, issueFrame.height > 0, issueFrame.isFinite,
+                   !rootFrame.contains(issueFrame) {
+                    // XCUIApplication audits window chrome too. Handle only
+                    // geometry proven outside the named production surface;
+                    // missing/invalid geometry remains fail-closed below.
+                    return true
+                }
+            }
             let fingerprint = "\(issue.auditType.rawValue)|\(issue.element?.identifier ?? "")"
             if let exclusion = exclusionsByFingerprint[fingerprint],
                issue.element?.identifier == exclusion.identifier,
@@ -216,7 +234,9 @@ final class UITestHarness {
         XCTAssertFalse(descendantIDs.isEmpty, "sheet must expose at least one identified action")
 
         for _ in 0..<24 {
-            let focused = app.buttons.matching(NSPredicate(format: "hasKeyboardFocus == true")).allElementsBoundByIndex
+            let focused = root.descendants(matching: .button)
+                .matching(NSPredicate(format: "hasKeyboardFocus == true"))
+                .allElementsBoundByIndex
             if focused.count == 1, descendantIDs.contains(focused[0].identifier) {
                 identifierTrace.append(rootIdentifier)
                 return
@@ -243,7 +263,9 @@ final class UITestHarness {
         XCTAssertTrue(descendantIDs.contains(identifier), "requested action is outside the presented sheet")
 
         for _ in 0..<24 {
-            let focused = app.buttons.matching(NSPredicate(format: "hasKeyboardFocus == true")).allElementsBoundByIndex
+            let focused = root.descendants(matching: .button)
+                .matching(NSPredicate(format: "hasKeyboardFocus == true"))
+                .allElementsBoundByIndex
             XCTAssertLessThanOrEqual(focused.count, 1, "multiple sheet actions report keyboard focus")
             if focused.count == 1, focused[0].identifier == identifier {
                 identifierTrace.append(identifier)

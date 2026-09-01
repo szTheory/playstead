@@ -194,6 +194,9 @@ for category in audit_categories.values():
 if "performAccessibilityAudit(for: category.xcuiType)" not in harness:
     raise SystemExit("public accessibility audit must run one canonical category")
 for marker in (
+    "rootIdentifier: String",
+    "let rootFrame = root.frame.insetBy(dx: -1, dy: -1)",
+    "!rootFrame.contains(issueFrame)",
     'rawIdentifier.hasPrefix("playstead.")',
     'rawIdentifier.hasPrefix("library.")',
     "hasOnlyAllowedCharacters",
@@ -205,6 +208,18 @@ for marker in (
 ):
     if marker not in harness:
         raise SystemExit(f"bounded fail-closed audit identity is missing: {marker}")
+expected_audit_roots = {
+    "auditLibrary": "playstead.surface.library",
+    "auditContextualOpeners": "playstead.surface.library",
+    "auditAdapter": "playstead.surface.adapter",
+    "auditReadiness": "playstead.surface.readiness",
+}
+for helper, root_identifier in expected_audit_roots.items():
+    start = tests.find(f"    private func {helper}")
+    end = tests.find("    private func", start + 1)
+    section = tests[start:end if end >= 0 else len(tests)]
+    if f'try harness.audit(category, rootIdentifier: "{root_identifier}")' not in section:
+        raise SystemExit(f"{helper} does not scope the public audit to its production root")
 if "performAccessibilityAudit(for: .all)" in harness:
     raise SystemExit("all-category audit hides the canonical failing category")
 if "func validateSemanticTargets(_ targets: [AuditTarget])" not in harness:
@@ -222,9 +237,10 @@ def check_focus_expectations(harness_source, test_source):
         "activation search crossed declared controls out of cyclic order",
         "func focusContainedAction(_ identifier: String, rootIdentifier: String)",
         "requested action is outside the presented sheet",
+        "root.descendants(matching: .button)",
     )
     missing = [marker for marker in required_harness if marker not in harness_source]
-    if missing or "0..<expected.count where !foundActivationTarget" in harness_source:
+    if missing or harness_source.count("root.descendants(matching: .button)") < 2 or "0..<expected.count where !foundActivationTarget" in harness_source:
         raise AssertionError(f"focus traversal uses a content-dependent bound or lacks containment: {missing}")
     dismissal_start = test_source.find("    func testReadinessDoneActionDismissesSheet()")
     dismissal_end = test_source.find("    func testReadinessControlsHaveRolesLabelsAndFrames()", dismissal_start)
@@ -348,7 +364,7 @@ def check_hosted_audit_repairs(shell_source, readiness_source, card_source, slot
         raise AssertionError("described game card exposes a conflicting nested accessibility subtree")
     if '?? ""' in slot_source or "Color.clear" not in slot_source or ".accessibilityHidden(true)" not in slot_source:
         raise AssertionError("empty status slot can become an undescribed accessibility element")
-    if ".accessibilityElement(children: .contain)" not in report_source or '.accessibilityLabel("\\(label). \\(check.finding)")' not in report_source:
+    if ".accessibilityElement(children: .contain)" not in report_source or '.accessibilityLabel("\\(label). \\(check.finding)")' not in report_source or ".accessibilityHidden(true)" not in report_source:
         raise AssertionError("readiness row collapses its actionable remedy into the descriptive parent")
 
 check_hosted_audit_repairs(shell, readiness, game_card, status_slot, readiness_report)
@@ -361,6 +377,7 @@ for marker, source_name in (
     (".accessibilityElement(children: .ignore)", "card"),
     ("Color.clear", "slot"),
     ('.accessibilityLabel("\\(label). \\(check.finding)")', "report"),
+    (".accessibilityHidden(true)", "report"),
 ):
     sources = {
         "shell": shell,

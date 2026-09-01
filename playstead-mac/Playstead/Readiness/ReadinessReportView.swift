@@ -34,6 +34,7 @@ private struct ReadinessRow: View {
         HStack(spacing: DesignTokens.Spacing.sm) {
             Image(systemName: glyphName)
                 .foregroundColor(color)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(label)
                     .font(.psLabelEmphasized)
