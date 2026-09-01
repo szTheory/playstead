@@ -1,3 +1,4 @@
+import Observation
 import XCTest
 @testable import Playstead
 
@@ -102,6 +103,31 @@ final class OrderingTests: XCTestCase {
         XCTAssertTrue(vm.commitReorderMembers(collectionID, assetSetID: "a"))
 
         XCTAssertEqual(outbox.listAll().count, afterAdds + 1, "the settled gesture must produce exactly one entry")
+    }
+
+    func test_refreshPublishesOptimisticMemberMoveToObservers() throws {
+        let vm = CollectionsViewModel(curationStore: curationStore, outbox: outbox)
+        vm.createCollection(name: "My Collection")
+        let collectionID = vm.collections[0].id
+        vm.addMember(to: collectionID, assetSetID: "a")
+        vm.addMember(to: collectionID, assetSetID: "b")
+
+        let revisionBeforeMove = vm.memberRevision
+        let invalidated = expectation(description: "member query observer invalidated")
+        withObservationTracking {
+            _ = vm.members(of: collectionID)
+        } onChange: {
+            invalidated.fulfill()
+        }
+        vm.beginReorderMembers(collectionID)
+        vm.previewMoveMember(collectionID, assetSetID: "a", to: 1)
+        XCTAssertTrue(vm.commitReorderMembers(collectionID, assetSetID: "a"))
+
+        vm.refresh()
+
+        wait(for: [invalidated], timeout: 0.1)
+        XCTAssertEqual(vm.memberRevision, revisionBeforeMove + 1)
+        XCTAssertEqual(vm.members(of: collectionID).map(\.assetSetID), ["b", "a"])
     }
 
     // MARK: - The move intent names the moved item and its neighbours,

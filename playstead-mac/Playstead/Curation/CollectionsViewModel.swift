@@ -11,6 +11,10 @@ final class CollectionsViewModel {
     private let outbox: Outbox
 
     private(set) var collections: [CurationCollectionRow] = []
+    /// Invalidates views whose member rows are read directly from SQLite.
+    /// `collections` alone cannot provide that dependency because collection
+    /// metadata does not change when an optimistic member move settles.
+    private(set) var memberRevision = 0
     /// One `ReorderSession` per collection currently mid-drag — never
     /// written to the outbox until `commitReorderMembers` settles it
     /// into exactly one intent.
@@ -24,6 +28,7 @@ final class CollectionsViewModel {
 
     func refresh() {
         collections = curationStore.fetchCollections()
+        memberRevision += 1
     }
 
     var isEmpty: Bool { collections.isEmpty }
@@ -32,7 +37,8 @@ final class CollectionsViewModel {
     /// collection returns `[]` — callers render `CollectionDetailView`'s
     /// explanatory empty state rather than treating this as an error.
     func members(of collectionID: String) -> [CurationCollectionMemberRow] {
-        curationStore.fetchCollectionMembers().filter { $0.collectionID == collectionID }
+        _ = memberRevision
+        return curationStore.fetchCollectionMembers().filter { $0.collectionID == collectionID }
     }
 
     @discardableResult
