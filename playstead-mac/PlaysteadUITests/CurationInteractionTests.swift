@@ -141,27 +141,28 @@ final class CurationInteractionTests: XCTestCase {
         _ = performInitialKeyboardMove(in: harness)
     }
 
-    func testKeyboardMoveTargetReceivesFocus() throws {
+    func testKeyboardSelectionTargetReceivesFocus() throws {
         let harness = launchPersistentCurationHarness()
         openSyntheticCollection(in: harness)
-        _ = focusCurationReorderAction(moveID(memberID(3), direction: "up"), in: harness)
+        _ = selectCollectionMemberByKeyboard(memberID(3), in: harness)
     }
 
-    func testKeyboardMoveSpaceProducesOneEffect() throws {
+    func testKeyboardCommandProducesOneEffect() throws {
         let harness = launchPersistentCurationHarness()
         openSyntheticCollection(in: harness)
-        let button = focusCurationReorderAction(moveID(memberID(3), direction: "up"), in: harness)
-        button.typeKey(.space, modifierFlags: [])
+        _ = selectCollectionMemberByKeyboard(memberID(3), in: harness)
+        activateSelectedMoveUp(in: harness)
         assertEvidence(order: [memberID(1), memberID(3), memberID(2)], outboxCount: 1, in: harness)
     }
 
-    func testKeyboardMoveRetainsFocusAfterSettlement() throws {
+    func testKeyboardCommandRetainsSelectionAndFocus() throws {
         let harness = launchPersistentCurationHarness()
         openSyntheticCollection(in: harness)
-        let button = focusCurationReorderAction(moveID(memberID(3), direction: "up"), in: harness)
-        button.typeKey(.space, modifierFlags: [])
+        let list = selectCollectionMemberByKeyboard(memberID(3), in: harness)
+        activateSelectedMoveUp(in: harness)
         assertEvidence(order: [memberID(1), memberID(3), memberID(2)], outboxCount: 1, in: harness)
-        waitForKeyboardFocus(button, stage: "focus-lost-after-settlement")
+        assertSelection(memberID(3), in: harness)
+        waitForKeyboardFocus(list, stage: "list-focus-lost-after-settlement")
     }
 
     func testKeyboardReorderSurvivesRelaunch() throws {
@@ -197,14 +198,14 @@ final class CurationInteractionTests: XCTestCase {
         assertEnabled(false, element: firstMoveUp)
         assertEnabled(false, element: lastMoveDown)
 
-        let keyboardMove = moveID(memberID(2), direction: "up")
-        let keyboardMoveButton = focusCurationReorderAction(keyboardMove, in: harness)
-        keyboardMoveButton.typeKey(.space, modifierFlags: [])
+        let memberList = selectCollectionMemberByKeyboard(memberID(2), in: harness)
+        activateSelectedMoveUp(in: harness)
 
         let keyboardOrder = [memberID(3), memberID(2), memberID(1)]
         assertEvidence(order: keyboardOrder, outboxCount: 2, in: harness)
         assertExactCollectionOrder(keyboardOrder, in: harness)
-        waitForKeyboardFocus(keyboardMoveButton, stage: "focus-lost-after-settlement")
+        assertSelection(memberID(2), in: harness)
+        waitForKeyboardFocus(memberList, stage: "list-focus-lost-after-settlement")
         assertEnabled(
             false,
             element: harness.element(moveID(memberID(3), direction: "up"), type: .button)
@@ -260,32 +261,34 @@ final class CurationInteractionTests: XCTestCase {
         return performExactDrag(in: harness)
     }
 
-    private func performInitialKeyboardMove(in harness: UITestHarness) -> (order: [String], button: XCUIElement) {
+    private func performInitialKeyboardMove(in harness: UITestHarness) -> (order: [String], focusOwner: XCUIElement) {
         let initialOrder = [memberID(1), memberID(2), memberID(3)]
         assertExactCollectionOrder(initialOrder, in: harness)
         assertEvidence(order: initialOrder, outboxCount: 0, in: harness)
         assertEnabled(false, element: harness.element(moveID(memberID(1), direction: "up"), type: .button))
         assertEnabled(false, element: harness.element(moveID(memberID(3), direction: "down"), type: .button))
 
-        // Move the last member into the middle so the exact Move Up action
-        // remains enabled after settlement and can legitimately retain focus.
-        // Moving member 2 to the first boundary would disable the focused
-        // control, forcing AppKit to transfer focus before we could prove the
-        // plan's retained-focus requirement.
-        let keyboardMove = moveID(memberID(3), direction: "up")
-        // The bounded focus search performs only the focus transition. Space
-        // is sent exactly once through the returned target.
-        let button = focusCurationReorderAction(keyboardMove, in: harness)
-        button.typeKey(.space, modifierFlags: [])
+        // Select the last member with ordinary List keyboard navigation, then
+        // invoke the visible Move selected up command exactly once.
+        let memberList = selectCollectionMemberByKeyboard(memberID(3), in: harness)
+        activateSelectedMoveUp(in: harness)
 
         let order = [memberID(1), memberID(3), memberID(2)]
         assertEvidence(order: order, outboxCount: 1, in: harness)
         assertExactCollectionOrder(order, in: harness)
-        waitForKeyboardFocus(button, stage: "focus-lost-after-settlement")
-        assertEnabled(true, element: button)
+        assertSelection(memberID(3), in: harness)
+        waitForKeyboardFocus(memberList, stage: "list-focus-lost-after-settlement")
+        assertEnabled(
+            true,
+            element: harness.element("playstead.curation.collection-command.move-up", type: .button)
+        )
+        assertEnabled(
+            true,
+            element: harness.element("playstead.curation.collection-command.move-down", type: .button)
+        )
         assertEnabled(false, element: harness.element(moveID(memberID(1), direction: "up"), type: .button))
         assertEnabled(false, element: harness.element(moveID(memberID(2), direction: "down"), type: .button))
-        return (order, button)
+        return (order, memberList)
     }
 
     private func assertSyntheticGamesVisible(_ expected: Int, in harness: UITestHarness) {
@@ -338,24 +341,44 @@ final class CurationInteractionTests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed)
     }
 
-    private func focusCurationReorderAction(_ identifier: String, in harness: UITestHarness) -> XCUIElement {
-        let root = harness.element("playstead.surface.collection-detail")
-        let target = harness.element(identifier, type: .button)
-        XCTAssertTrue(root.waitForExistence(timeout: 5), "curation-keyboard-stage=root-missing")
-        XCTAssertTrue(target.waitForExistence(timeout: 5), "curation-keyboard-stage=target-missing")
-        XCTAssertTrue(
-            root.descendants(matching: .button).matching(identifier: identifier).element.exists,
-            "curation-keyboard-stage=target-outside-root"
-        )
+    private func selectCollectionMemberByKeyboard(_ memberID: String, in harness: UITestHarness) -> XCUIElement {
+        let list = harness.element("playstead.curation.collection-member-list")
+        XCTAssertTrue(list.waitForExistence(timeout: 5), "curation-keyboard-stage=list-missing")
+        waitForKeyboardFocus(list, stage: "list-focus-not-owned")
 
-        for _ in 0..<64 {
-            if target.value(forKey: "hasKeyboardFocus") as? Bool == true {
-                return target
-            }
-            harness.app.typeKey(.tab, modifierFlags: [])
+        let selection = harness.element("playstead.curation.collection-selection")
+        XCTAssertTrue(selection.waitForExistence(timeout: 5), "curation-keyboard-stage=selection-missing")
+        for _ in 0..<3 where selection.value as? String != memberID {
+            list.typeKey(.downArrow, modifierFlags: [])
         }
-        XCTFail("curation-keyboard-stage=focus-not-reached")
-        return target
+        XCTAssertEqual(
+            selection.value as? String,
+            memberID,
+            "curation-keyboard-stage=selection-target-not-reached"
+        )
+        waitForKeyboardFocus(list, stage: "list-focus-lost-during-selection")
+
+        let command = harness.element("playstead.curation.collection-command.move-up", type: .button)
+        XCTAssertTrue(command.waitForExistence(timeout: 5), "curation-keyboard-stage=command-missing")
+        XCTAssertTrue(command.isEnabled, "curation-keyboard-stage=command-disabled")
+        assertEnabled(
+            false,
+            element: harness.element("playstead.curation.collection-command.move-down", type: .button)
+        )
+        return list
+    }
+
+    private func activateSelectedMoveUp(in harness: UITestHarness) {
+        harness.app.typeKey("u", modifierFlags: [.command, .option])
+    }
+
+    private func assertSelection(_ memberID: String, in harness: UITestHarness) {
+        let selection = harness.element("playstead.curation.collection-selection")
+        XCTAssertEqual(
+            selection.value as? String,
+            memberID,
+            "curation-keyboard-stage=selection-lost-after-settlement"
+        )
     }
 
     private func waitForKeyboardFocus(_ element: XCUIElement, stage: String) {

@@ -8,6 +8,8 @@ struct CollectionDetailView: View {
     let viewModel: CollectionsViewModel
     let collectionID: String
     let catalogueByAssetSetID: [String: CatalogueEntry]
+    @State private var selectedMemberID: String?
+    @FocusState private var memberListHasFocus: Bool
 #if UI_TESTING
     @Environment(AppEnvironment.self) private var environment
 #endif
@@ -26,12 +28,18 @@ struct CollectionDetailView: View {
                     .foregroundStyle(DesignTokens.textMuted)
                     .accessibilityLabel(Self.emptyExplanation)
             } else {
-                List {
+                keyboardReorderCommands
+
+                List(selection: $selectedMemberID) {
                     ForEach(Array(members.enumerated()), id: \.element.id) { index, member in
                         memberRow(member, at: index)
+                            .tag(member.id)
                     }
                     .onMove(perform: move)
                 }
+                .focused($memberListHasFocus)
+                .accessibilityLabel("Collection member list")
+                .accessibilityIdentifier("playstead.curation.collection-member-list")
             }
 
 #if UI_TESTING
@@ -47,6 +55,41 @@ struct CollectionDetailView: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Collection detail")
         .accessibilityIdentifier(AccessibilityIdentifiers.Surface.collectionDetail)
+        .onAppear { prepareKeyboardSelection() }
+        .onChange(of: collectionID) { _, _ in prepareKeyboardSelection(reset: true) }
+    }
+
+    private var selectedMemberIndex: Int? {
+        members.firstIndex { $0.id == selectedMemberID }
+    }
+
+    private var selectedMemberTitle: String? {
+        guard let index = selectedMemberIndex else { return nil }
+        let member = members[index]
+        return catalogueByAssetSetID[member.assetSetID]?.displayTitle ?? member.assetSetID
+    }
+
+    private var keyboardReorderCommands: some View {
+        HStack(spacing: DesignTokens.Spacing.sm) {
+            Text(selectedMemberTitle.map { "Selected: \($0)" } ?? "No game selected")
+                .font(.psLabel)
+                .foregroundStyle(DesignTokens.textMuted)
+                .accessibilityValue(selectedMemberID ?? "none")
+                .accessibilityIdentifier("playstead.curation.collection-selection")
+
+            Button("Move selected up") { moveSelected(.up) }
+                .disabled(selectedMemberIndex == nil || selectedMemberIndex == members.startIndex)
+                .keyboardShortcut("u", modifiers: [.command, .option])
+                .playsteadFocusable(identifier: "playstead.curation.collection-command.move-up")
+
+            Button("Move selected down") { moveSelected(.down) }
+                .disabled(
+                    selectedMemberIndex == nil
+                        || selectedMemberIndex == members.index(before: members.endIndex)
+                )
+                .keyboardShortcut("d", modifiers: [.command, .option])
+                .playsteadFocusable(identifier: "playstead.curation.collection-command.move-down")
+        }
     }
 
     private func memberRow(_ member: CurationCollectionMemberRow, at index: Int) -> some View {
@@ -94,6 +137,28 @@ struct CollectionDetailView: View {
         viewModel.previewMoveMember(collectionID, assetSetID: assetSetID, to: index)
         viewModel.commitReorderMembers(collectionID, assetSetID: assetSetID)
         viewModel.refresh()
+    }
+
+    private func moveSelected(_ direction: ReorderDirection) {
+        guard let index = selectedMemberIndex else { return }
+        let destination = direction == .up ? index - 1 : index + 1
+        guard members.indices.contains(destination) else { return }
+        settleMove(assetSetID: members[index].assetSetID, to: destination)
+        restoreMemberListFocus()
+    }
+
+    private func prepareKeyboardSelection(reset: Bool = false) {
+        if reset || !members.contains(where: { $0.id == selectedMemberID }) {
+            selectedMemberID = members.first?.id
+        }
+        restoreMemberListFocus()
+    }
+
+    private func restoreMemberListFocus() {
+        Task { @MainActor in
+            await Task.yield()
+            memberListHasFocus = true
+        }
     }
 }
 

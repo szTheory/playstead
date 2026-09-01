@@ -10,6 +10,7 @@ APP_ENTRY="${MAC_ROOT}/Playstead/App/PlaysteadApp.swift"
 PROFILE_TEST="${MAC_ROOT}/PlaysteadTests/SnapshotTests/DeterministicProfileTests.swift"
 UI_CANARY="${MAC_ROOT}/PlaysteadUITests/HostedRunnerCanaryTests.swift"
 CURATION_TEST="${MAC_ROOT}/PlaysteadUITests/CurationInteractionTests.swift"
+COLLECTION_DETAIL="${MAC_ROOT}/Playstead/Curation/CollectionDetailView.swift"
 UI_BOOTSTRAP="${MAC_ROOT}/Playstead/UITesting/UITestBootstrap.swift"
 STORAGE_TEST="${MAC_ROOT}/PlaysteadUITests/StorageInteractionTests.swift"
 GAME_ROW="${MAC_ROOT}/Playstead/Library/GameRowView.swift"
@@ -23,7 +24,7 @@ PROMPT_SAFETY="${MAC_ROOT}/scripts/ci/tests/keychain-prompt-safety-test.sh"
 KEYBOARD_CLEANUP="${MAC_ROOT}/scripts/ci/tests/keyboard-mode-cleanup-test.sh"
 SWIFT_SEMANTIC="${MAC_ROOT}/scripts/ci/tests/wave6-swift-semantic-test.sh"
 
-for file in "$RUNNER" "$SCHEME" "$APP_ENTRY" "$PROFILE_TEST" "$UI_CANARY" "$CURATION_TEST" "$UI_BOOTSTRAP" "$STORAGE_TEST" "$GAME_ROW" "$LIBRARY_SHELL" "$RECLAIM_VIEW" "$STORAGE_VIEW" "$WORKFLOW" "$REFRESH_WORKFLOW" "$SANITIZER" "$PROMPT_SAFETY" "$KEYBOARD_CLEANUP" "$SWIFT_SEMANTIC"; do
+for file in "$RUNNER" "$SCHEME" "$APP_ENTRY" "$PROFILE_TEST" "$UI_CANARY" "$CURATION_TEST" "$COLLECTION_DETAIL" "$UI_BOOTSTRAP" "$STORAGE_TEST" "$GAME_ROW" "$LIBRARY_SHELL" "$RECLAIM_VIEW" "$STORAGE_VIEW" "$WORKFLOW" "$REFRESH_WORKFLOW" "$SANITIZER" "$PROMPT_SAFETY" "$KEYBOARD_CLEANUP" "$SWIFT_SEMANTIC"; do
   [ -f "$file" ] || { printf 'four-layer topology file missing: %s\n' "$file" >&2; exit 1; }
 done
 for plan in Unit Rendering UI LiveServer; do
@@ -169,9 +170,9 @@ for stage in \
   testCollectionMoveUpClickProducesOneEffect \
   testDragReorderProducesOneEffect \
   testDragReorderSurvivesRelaunch \
-  testKeyboardMoveTargetReceivesFocus \
-  testKeyboardMoveSpaceProducesOneEffect \
-  testKeyboardMoveRetainsFocusAfterSettlement \
+  testKeyboardSelectionTargetReceivesFocus \
+  testKeyboardCommandProducesOneEffect \
+  testKeyboardCommandRetainsSelectionAndFocus \
   testKeyboardReorderProducesOneEffectAndRetainsFocus \
   testKeyboardReorderSurvivesRelaunch \
   testKeyboardReorderRetainsFocusAndSurvivesRelaunch; do
@@ -185,22 +186,17 @@ grep -F 'withVelocity: XCUIGestureVelocity.slow' "$CURATION_TEST" >/dev/null
 grep -F 'thenHoldForDuration: 1' "$CURATION_TEST" >/dev/null
 grep -F 'harness.app.cells.containing(.any, identifier: identifier)' "$CURATION_TEST" >/dev/null
 [ "$(grep -c 'harness.relaunch' "$CURATION_TEST")" -eq 4 ]
-[ "$(grep -c '\.typeKey(.space' "$CURATION_TEST")" -eq 4 ]
-if grep -F 'harness.app.typeKey(.space' "$CURATION_TEST" >/dev/null; then
-  printf 'curation keyboard activation must target the already-focused exact button\n' >&2
-  exit 1
-fi
-[ "$(grep -Fc 'testKeyboardMoveTargetReceivesFocus' "$CURATION_TEST")" -eq 1 ]
-[ "$(grep -Fc 'testKeyboardMoveSpaceProducesOneEffect' "$CURATION_TEST")" -eq 1 ]
-[ "$(grep -Fc 'testKeyboardMoveRetainsFocusAfterSettlement' "$CURATION_TEST")" -eq 1 ]
-grep -F 'target.value(forKey: "hasKeyboardFocus") as? Bool == true' "$CURATION_TEST" >/dev/null
-grep -F 'curation-keyboard-stage=focus-not-reached' "$CURATION_TEST" >/dev/null
-if grep -F 'harness.focusContainedAction' "$CURATION_TEST" >/dev/null; then
-  printf 'curation keyboard focus must use exact-target canary semantics\n' >&2
-  exit 1
-fi
-[ "$(grep -Fc 'let keyboardMove = moveID(memberID(3), direction: "up")' "$CURATION_TEST")" -eq 1 ]
-grep -F 'assertEnabled(true, element: button)' "$CURATION_TEST" >/dev/null
+[ "$(grep -Fc 'testKeyboardSelectionTargetReceivesFocus' "$CURATION_TEST")" -eq 1 ]
+[ "$(grep -Fc 'testKeyboardCommandProducesOneEffect' "$CURATION_TEST")" -eq 1 ]
+[ "$(grep -Fc 'testKeyboardCommandRetainsSelectionAndFocus' "$CURATION_TEST")" -eq 1 ]
+grep -F 'List(selection: $selectedMemberID)' "$COLLECTION_DETAIL" >/dev/null
+grep -F '.focused($memberListHasFocus)' "$COLLECTION_DETAIL" >/dev/null
+grep -F '.keyboardShortcut("u", modifiers: [.command, .option])' "$COLLECTION_DETAIL" >/dev/null
+grep -F 'moveSelected(.up)' "$COLLECTION_DETAIL" >/dev/null
+grep -F 'settleMove(assetSetID: members[index].assetSetID, to: destination)' "$COLLECTION_DETAIL" >/dev/null
+grep -F 'list.typeKey(.downArrow, modifierFlags: [])' "$CURATION_TEST" >/dev/null
+grep -F 'harness.app.typeKey("u", modifierFlags: [.command, .option])' "$CURATION_TEST" >/dev/null
+grep -F 'curation-keyboard-stage=selection-target-not-reached' "$CURATION_TEST" >/dev/null
 grep -F 'harness.element(collectionRowID, type: .button)' "$CURATION_TEST" >/dev/null
 if grep -F 'try fixture.assertExactState()' "$UI_BOOTSTRAP" >/dev/null; then
   printf 'bootstrap must preserve makeFixture relaunch validation instead of requiring fresh positions\n' >&2
