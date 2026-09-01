@@ -572,7 +572,9 @@ PY
   run_test_layer ui UI 900 \
     --required-test PlaysteadUITests.HostedRunnerCanaryTests/testFullKeyboardAccessCanaryFocusesAndActivatesTwoControls \
     --required-test PlaysteadUITests.HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice \
-    --required-test PlaysteadUITests.CurationInteractionTests/testFiveShelvesAndDurableDragReorder \
+    --required-test PlaysteadUITests.CurationInteractionTests/testFiveShelvesRenderExactFixtures \
+    --required-test PlaysteadUITests.CurationInteractionTests/testDragReorderProducesOneEffectAndSurvivesRelaunch \
+    --required-test PlaysteadUITests.CurationInteractionTests/testKeyboardReorderRetainsFocusAndSurvivesRelaunch \
     --required-test PlaysteadUITests.StorageInteractionTests/testDownloadsQuotaReclaimAndStorageFlows
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
 

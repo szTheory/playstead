@@ -8,6 +8,7 @@ RUNNER="${MAC_ROOT}/scripts/ci/run-mac-verification.sh"
 SCHEME="${MAC_ROOT}/Playstead.xcodeproj/xcshareddata/xcschemes/Playstead.xcscheme"
 APP_ENTRY="${MAC_ROOT}/Playstead/App/PlaysteadApp.swift"
 UI_CANARY="${MAC_ROOT}/PlaysteadUITests/HostedRunnerCanaryTests.swift"
+CURATION_TEST="${MAC_ROOT}/PlaysteadUITests/CurationInteractionTests.swift"
 WORKFLOW="${REPO_ROOT}/.github/workflows/ci.yml"
 REFRESH_WORKFLOW="${REPO_ROOT}/.github/workflows/mac-snapshot-refresh.yml"
 SANITIZER="${MAC_ROOT}/scripts/ci/sanitize-evidence.sh"
@@ -15,7 +16,7 @@ PROMPT_SAFETY="${MAC_ROOT}/scripts/ci/tests/keychain-prompt-safety-test.sh"
 KEYBOARD_CLEANUP="${MAC_ROOT}/scripts/ci/tests/keyboard-mode-cleanup-test.sh"
 SWIFT_SEMANTIC="${MAC_ROOT}/scripts/ci/tests/wave6-swift-semantic-test.sh"
 
-for file in "$RUNNER" "$SCHEME" "$APP_ENTRY" "$UI_CANARY" "$WORKFLOW" "$REFRESH_WORKFLOW" "$SANITIZER" "$PROMPT_SAFETY" "$KEYBOARD_CLEANUP" "$SWIFT_SEMANTIC"; do
+for file in "$RUNNER" "$SCHEME" "$APP_ENTRY" "$UI_CANARY" "$CURATION_TEST" "$WORKFLOW" "$REFRESH_WORKFLOW" "$SANITIZER" "$PROMPT_SAFETY" "$KEYBOARD_CLEANUP" "$SWIFT_SEMANTIC"; do
   [ -f "$file" ] || { printf 'four-layer topology file missing: %s\n' "$file" >&2; exit 1; }
 done
 for plan in Unit Rendering UI LiveServer; do
@@ -111,7 +112,18 @@ grep -F 'PLAYSTEAD_SNAPSHOT_RECORDING=0' "$RUNNER" >/dev/null
 grep -F 'PLAYSTEAD_STORAGE_SNAPSHOT_CANDIDATE_OUTPUT="${FOUR_LAYER_EVIDENCE}/storage-candidate/storage-surfaces.actual.png"' "$RUNNER" >/dev/null
 grep -F -- '--required-test PlaysteadTests.StorageContractSnapshotTests/testDownloadsQuotaReclaimAndStorageVisualContract' "$RUNNER" >/dev/null
 grep -F -- '--required-test PlaysteadTests.StorageContractSnapshotTests/testStorageMotionAndReducedMotionContract' "$RUNNER" >/dev/null
-grep -F -- '--required-test PlaysteadUITests.CurationInteractionTests/testFiveShelvesAndDurableDragReorder' "$RUNNER" >/dev/null
+for stage in \
+  testFiveShelvesRenderExactFixtures \
+  testDragReorderProducesOneEffectAndSurvivesRelaunch \
+  testKeyboardReorderRetainsFocusAndSurvivesRelaunch; do
+  grep -F -- "--required-test PlaysteadUITests.CurationInteractionTests/${stage}" "$RUNNER" >/dev/null
+done
+if grep -F 'testFiveShelvesAndDurableDragReorder' "$RUNNER" "$CURATION_TEST" >/dev/null; then
+  printf 'broad curation UI identity must remain split into exact hosted stages\n' >&2
+  exit 1
+fi
+grep -F 'third.press(forDuration: 1, thenDragTo: first)' "$CURATION_TEST" >/dev/null
+[ "$(grep -c 'harness.relaunch' "$CURATION_TEST")" -eq 3 ]
 grep -F -- '--required-test PlaysteadUITests.StorageInteractionTests/testDownloadsQuotaReclaimAndStorageFlows' "$RUNNER" >/dev/null
 grep -F 'if: failure()' "$WORKFLOW" >/dev/null
 grep -F 'path: playstead-mac/.build/ci/failure-evidence' "$WORKFLOW" >/dev/null

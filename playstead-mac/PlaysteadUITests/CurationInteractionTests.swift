@@ -9,23 +9,38 @@ final class CurationInteractionTests: XCTestCase {
         harness = nil
     }
 
-    func testFiveShelvesAndDurableDragReorder() throws {
-        let harness = UITestHarness(profile: .populatedCurationReorder, persistentSession: true)
-        self.harness = harness
-        harness.launch(settledAt: "playstead.surface.library")
-
+    func testFiveShelvesRenderExactFixtures() throws {
+        let harness = launchPersistentCurationHarness()
         assertExactFiveShelfFixture(in: harness)
+    }
+
+    func testDragReorderProducesOneEffectAndSurvivesRelaunch() throws {
+        let harness = launchPersistentCurationHarness()
         openSyntheticCollection(in: harness)
 
         let initialOrder = [memberID(1), memberID(2), memberID(3)]
         assertExactCollectionOrder(initialOrder, in: harness)
         assertEvidence(order: initialOrder, outboxCount: 0, in: harness)
 
-        let first = harness.element(rowID(1))
-        let third = harness.element(rowID(3))
-        first.press(forDuration: 1, thenDragTo: third)
+        let draggedOrder = performExactDrag(in: harness)
+        assertEvidence(order: draggedOrder, outboxCount: 1, in: harness)
+        assertExactCollectionOrder(draggedOrder, in: harness)
 
-        let draggedOrder = [memberID(2), memberID(3), memberID(1)]
+        harness.relaunch(settledAt: "playstead.surface.library")
+        openSyntheticCollection(in: harness)
+        assertEvidence(order: draggedOrder, outboxCount: 1, in: harness)
+        assertExactCollectionOrder(draggedOrder, in: harness)
+    }
+
+    func testKeyboardReorderRetainsFocusAndSurvivesRelaunch() throws {
+        let harness = launchPersistentCurationHarness()
+        openSyntheticCollection(in: harness)
+
+        let initialOrder = [memberID(1), memberID(2), memberID(3)]
+        assertExactCollectionOrder(initialOrder, in: harness)
+        assertEvidence(order: initialOrder, outboxCount: 0, in: harness)
+
+        let draggedOrder = performExactDrag(in: harness)
         assertEvidence(order: draggedOrder, outboxCount: 1, in: harness)
         assertExactCollectionOrder(draggedOrder, in: harness)
 
@@ -34,12 +49,12 @@ final class CurationInteractionTests: XCTestCase {
         assertEvidence(order: draggedOrder, outboxCount: 1, in: harness)
         assertExactCollectionOrder(draggedOrder, in: harness)
 
-        let firstMoveUp = harness.element(moveID(memberID(2), direction: "up"), type: .button)
-        let lastMoveDown = harness.element(moveID(memberID(1), direction: "down"), type: .button)
+        let firstMoveUp = harness.element(moveID(memberID(3), direction: "up"), type: .button)
+        let lastMoveDown = harness.element(moveID(memberID(2), direction: "down"), type: .button)
         assertEnabled(false, element: firstMoveUp)
         assertEnabled(false, element: lastMoveDown)
 
-        let keyboardMove = moveID(memberID(1), direction: "up")
+        let keyboardMove = moveID(memberID(2), direction: "up")
         harness.focusContainedAction(
             keyboardMove,
             rootIdentifier: "playstead.surface.collection-detail"
@@ -47,23 +62,42 @@ final class CurationInteractionTests: XCTestCase {
         let keyboardMoveButton = harness.element(keyboardMove, type: .button)
         keyboardMoveButton.typeKey(.space, modifierFlags: [])
 
-        let keyboardOrder = [memberID(2), memberID(1), memberID(3)]
+        let keyboardOrder = [memberID(3), memberID(2), memberID(1)]
         assertEvidence(order: keyboardOrder, outboxCount: 2, in: harness)
         assertExactCollectionOrder(keyboardOrder, in: harness)
         waitForKeyboardFocus(keyboardMoveButton)
         assertEnabled(
             false,
-            element: harness.element(moveID(memberID(2), direction: "up"), type: .button)
+            element: harness.element(moveID(memberID(3), direction: "up"), type: .button)
         )
         assertEnabled(
             false,
-            element: harness.element(moveID(memberID(3), direction: "down"), type: .button)
+            element: harness.element(moveID(memberID(1), direction: "down"), type: .button)
         )
 
         harness.relaunch(settledAt: "playstead.surface.library")
         openSyntheticCollection(in: harness)
         assertEvidence(order: keyboardOrder, outboxCount: 2, in: harness)
         assertExactCollectionOrder(keyboardOrder, in: harness)
+    }
+
+    private func launchPersistentCurationHarness() -> UITestHarness {
+        let harness = UITestHarness(profile: .populatedCurationReorder, persistentSession: true)
+        self.harness = harness
+        harness.launch(settledAt: "playstead.surface.library")
+        return harness
+    }
+
+    private func performExactDrag(in harness: UITestHarness) -> [String] {
+        let first = harness.element(rowID(1))
+        let third = harness.element(rowID(3))
+        XCTAssertTrue(first.waitForExistence(timeout: 5))
+        XCTAssertTrue(third.waitForExistence(timeout: 5))
+
+        // Last-to-first has one unambiguous destination boundary. Dropping the
+        // first row on the last row's center can resolve on either side of it.
+        third.press(forDuration: 1, thenDragTo: first)
+        return [memberID(3), memberID(1), memberID(2)]
     }
 
     private func assertExactFiveShelfFixture(in harness: UITestHarness) {
