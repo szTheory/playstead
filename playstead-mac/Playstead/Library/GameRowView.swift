@@ -102,7 +102,7 @@ struct GameRowView: View {
                         .foregroundStyle(.primary)
                 }
             }
-            .accessibilityElement(children: .combine)
+            .accessibilityElement(children: .contain)
             .accessibilityLabel(rowSummaryAccessibilityLabel)
             .accessibilityIdentifier(Self.summaryIdentifier(assetSetID: entry.id))
             Spacer()

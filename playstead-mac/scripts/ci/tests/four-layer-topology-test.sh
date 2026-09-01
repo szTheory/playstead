@@ -238,6 +238,16 @@ fi
 grep -F 'static func downloadActionIdentifier(assetSetID: String) -> String' "$GAME_ROW" >/dev/null
 grep -F 'static func summaryIdentifier(assetSetID: String) -> String' "$GAME_ROW" >/dev/null
 grep -F '.accessibilityIdentifier(Self.summaryIdentifier(assetSetID: entry.id))' "$GAME_ROW" >/dev/null
+python3 - "$GAME_ROW" <<'PY'
+import pathlib, sys
+
+source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+summary = source.split("VStack(alignment: .leading, spacing: 2)", 1)[1].split("Spacer()", 1)[0]
+if ".accessibilityElement(children: .contain)" not in summary:
+    raise SystemExit("game summary identity must surface as a contained AX sibling")
+if ".accessibilityElement(children: .combine)" in summary:
+    raise SystemExit("combined game summary identity is not independently queryable by XCUI")
+PY
 grep -F '@FocusState private var downloadActionHasFocus: Bool' "$GAME_ROW" >/dev/null
 grep -F '.focused($downloadActionHasFocus)' "$GAME_ROW" >/dev/null
 grep -F '.accessibilityIdentifier(Self.downloadActionIdentifier(assetSetID: entry.id))' "$GAME_ROW" >/dev/null
