@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 19
+open_count: 20
 waived_count: 1
 fixed_count: 2
-total_count: 22
-last_updated: 2026-09-01T12:13:48.616Z
+total_count: 23
+last_updated: 2026-09-01T12:48:01.842Z
 ---
 
 # Broken Windows Ledger
@@ -37,6 +37,7 @@ last_updated: 2026-09-01T12:13:48.616Z
 | 20 | 03.5 | deviation | playstead-mac/PlaysteadUITests/CurationInteractionTests.swift |  | Hosted run 33498048537 proved focusContainedAction is focus-only; restored one Space, isolated Move Up availability/click, and held the macOS drag destination. | open |  | 2026-09-01T11:04:38.825Z |  |
 | 21 | 03.5 | deviation | playstead-mac/Playstead/Curation/CollectionsViewModel.swift |  | Hosted run 33500660524 exposed an unobserved SQLite member query; refresh now publishes a member revision so optimistic reorder and bounded evidence invalidate. | open |  | 2026-09-01T11:39:10.783Z |  |
 | 22 | 03.5 | deviation | playstead-mac/Playstead/Curation/CollectionDetailView.swift |  | Hosted run 33503640089 isolated keyboard focus ownership; collection and queue reorder actions now bind stable identity and focus on the final button through playsteadFocusable. | open |  | 2026-09-01T12:13:48.616Z |  |
+| 23 | 03.5 | deviation | playstead-mac/PlaysteadUITests/CurationInteractionTests.swift |  | Hosted run 33506605120 exposed app-scoped Space dispatch plus a missing combined-path activation; both keyboard paths now send one Space through the exact focused button. | open |  | 2026-09-01T12:48:01.842Z |  |
 
 ````json
 [
@@ -302,6 +303,18 @@ last_updated: 2026-09-01T12:13:48.616Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-01T12:13:48.616Z",
+    "resolved_at": null
+  },
+  {
+    "id": 23,
+    "kind": "deviation",
+    "phase": "03.5",
+    "file": "playstead-mac/PlaysteadUITests/CurationInteractionTests.swift",
+    "line": null,
+    "description": "Hosted run 33506605120 exposed app-scoped Space dispatch plus a missing combined-path activation; both keyboard paths now send one Space through the exact focused button.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-01T12:48:01.842Z",
     "resolved_at": null
   }
 ]
