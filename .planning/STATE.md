@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 03.5
 current_phase_name: Mac Verification Automation
 status: executing
-stopped_at: Phase 3.5 context gathered
-last_updated: "2026-08-31T20:51:09.583Z"
+stopped_at: Completed 03.5-10-PLAN.md
+last_updated: "2026-09-01T00:59:33.394Z"
 last_activity: 2026-08-31
 last_activity_desc: Phase 03.5 execution started
-state_head: c778384f50ea6c926f32209f519e2ae2e2e5cdcd
+state_head: a0b7095e931e189f9551c9470bc9d6d783a5980f
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 38
-  completed_plans: 28
+  completed_plans: 30
 milestone_name: milestone
 ---
 
@@ -29,8 +29,8 @@ See: `.planning/PROJECT.md` (updated 2026-08-30)
 ## Current Position
 
 Phase: 03.5 (Mac Verification Automation) — EXECUTING
-Plan: 1 of 10
-Status: Executing Phase 03.5
+Plan: 2 of 10
+Status: Ready to execute
 Last activity: 2026-08-31 — Phase 03.5 execution started
 
 Progress: [██████████] 100% (Phase 02)
@@ -78,6 +78,7 @@ Progress: [██████████] 100% (Phase 02)
 | Phase 02-explainable-import-and-exact-export P08 | 2h | 3 tasks | 30 files |
 | Phase 02 P09 | ~2h | 2 tasks | 16 files |
 | Phase 02 P10 | 1h40min | 2 tasks | 15 files |
+| Phase 03.5 P10 | 190m | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -118,6 +119,9 @@ Progress: [██████████] 100% (Phase 02)
 - [Phase 02]: Resolve format_bytes once inside Playstead.Import (not at three call sites); no_reference_installed vs no_match decided by whether any pack is installed (schema has no per-system coverage column)
 - [Phase 02]: [Phase 02]: An ambiguous reference-entry conflict raises its evidence row under ReferenceMatch's own provider_name (not a distinct one) — unmatched_candidates/1's existing already-matched exclusion then settles the blob quietly until a human resolves it, so no new grouping or exclusion logic is needed
 - [Phase 02]: [Phase 02]: digest_from_offset/2 is a storage-seam callback (not an object_path accessor) so headerless fingerprints stay computable by a future object-store adapter via a ranged GET, per D-12
+- [Phase 03.5]: Accept hosted adoption only from exact run 33456009811 at SHA fcadbb3aca4db711d67b65eefdfc5bee1302b0c4. — Machine validation and explicit human approval both cited the same immutable run URL.
+- [Phase 03.5]: Keep SnapshotTesting internal baselines hidden and publish only the reference/actual/diff triplet. — Bounded evidence stays reviewable without leaking calibration internals into the adoption artifact.
+- [Phase 03.5]: Scope verifier temporary cleanup to a subshell EXIT trap. — A RETURN trap leaked beyond the verifier function and failed a hosted run after validation succeeded.
 
 ### Pending Todos
 
@@ -148,6 +152,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-31T16:21:51.480Z
-Stopped at: Phase 3.5 context gathered
-Resume file: .planning/phases/03.5-mac-verification-automation/03.5-CONTEXT.md
+Last session: 2026-09-01T00:59:33.335Z
+Stopped at: Completed 03.5-10-PLAN.md
+Resume file: None
