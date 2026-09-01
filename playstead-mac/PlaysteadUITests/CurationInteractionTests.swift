@@ -72,6 +72,22 @@ final class CurationInteractionTests: XCTestCase {
         assertSyntheticGamesVisible(0, in: harness)
     }
 
+    func testCollectionDetailOpensExactSeededState() throws {
+        let harness = launchPersistentCurationHarness()
+        openSyntheticCollection(in: harness)
+        let initialOrder = [memberID(1), memberID(2), memberID(3)]
+        assertExactCollectionOrder(initialOrder, in: harness)
+        assertEvidence(order: initialOrder, outboxCount: 0, in: harness)
+    }
+
+    func testCollectionDragTargetsOwnDistinctListCells() throws {
+        let harness = launchPersistentCurationHarness()
+        openSyntheticCollection(in: harness)
+        let cells = (1...3).map { listCell(containing: rowID($0), in: harness) }
+        for cell in cells { XCTAssertTrue(cell.waitForExistence(timeout: 5)) }
+        XCTAssertEqual(Set(cells.map { $0.frame.minY }).count, 3)
+    }
+
     func testDragReorderProducesOneEffect() throws {
         let harness = launchPersistentCurationHarness()
         openSyntheticCollection(in: harness)
@@ -93,6 +109,23 @@ final class CurationInteractionTests: XCTestCase {
         openSyntheticCollection(in: harness)
         assertEvidence(order: draggedOrder, outboxCount: 1, in: harness)
         assertExactCollectionOrder(draggedOrder, in: harness)
+    }
+
+    func testKeyboardReorderProducesOneEffectAndRetainsFocus() throws {
+        let harness = launchPersistentCurationHarness()
+        openSyntheticCollection(in: harness)
+        _ = performInitialKeyboardMove(in: harness)
+    }
+
+    func testKeyboardReorderSurvivesRelaunch() throws {
+        let harness = launchPersistentCurationHarness()
+        openSyntheticCollection(in: harness)
+        let result = performInitialKeyboardMove(in: harness)
+
+        harness.relaunch(settledAt: "playstead.surface.library")
+        openSyntheticCollection(in: harness)
+        assertEvidence(order: result.order, outboxCount: 1, in: harness)
+        assertExactCollectionOrder(result.order, in: harness)
     }
 
     func testKeyboardReorderRetainsFocusAndSurvivesRelaunch() throws {
@@ -154,15 +187,24 @@ final class CurationInteractionTests: XCTestCase {
     private func performExactDrag(in harness: UITestHarness) -> [String] {
         // The identified HStack owns semantic row evidence; its enclosing
         // List cell owns SwiftUI's onMove drag interaction.
-        let first = harness.app.cells.containing(.any, identifier: rowID(1)).element(boundBy: 0)
-        let third = harness.app.cells.containing(.any, identifier: rowID(3)).element(boundBy: 0)
+        let first = listCell(containing: rowID(1), in: harness)
+        let third = listCell(containing: rowID(3), in: harness)
         XCTAssertTrue(first.waitForExistence(timeout: 5))
         XCTAssertTrue(third.waitForExistence(timeout: 5))
 
         // Last-to-first has one unambiguous destination boundary. Dropping the
         // first row on the last row's center can resolve on either side of it.
-        third.press(forDuration: 1, thenDragTo: first)
+        third.press(
+            forDuration: 1,
+            thenDragTo: first,
+            withVelocity: XCUIGestureVelocity.slow,
+            thenHoldForDuration: 0.5
+        )
         return [memberID(3), memberID(1), memberID(2)]
+    }
+
+    private func listCell(containing identifier: String, in harness: UITestHarness) -> XCUIElement {
+        harness.app.cells.containing(.any, identifier: identifier).element(boundBy: 0)
     }
 
     private func assertInitialOrderAndPerformDrag(in harness: UITestHarness) -> [String] {
@@ -170,6 +212,27 @@ final class CurationInteractionTests: XCTestCase {
         assertExactCollectionOrder(initialOrder, in: harness)
         assertEvidence(order: initialOrder, outboxCount: 0, in: harness)
         return performExactDrag(in: harness)
+    }
+
+    private func performInitialKeyboardMove(in harness: UITestHarness) -> (order: [String], button: XCUIElement) {
+        let initialOrder = [memberID(1), memberID(2), memberID(3)]
+        assertExactCollectionOrder(initialOrder, in: harness)
+        assertEvidence(order: initialOrder, outboxCount: 0, in: harness)
+        assertEnabled(false, element: harness.element(moveID(memberID(1), direction: "up"), type: .button))
+        assertEnabled(false, element: harness.element(moveID(memberID(3), direction: "down"), type: .button))
+
+        let keyboardMove = moveID(memberID(2), direction: "up")
+        harness.focusContainedAction(keyboardMove, rootIdentifier: "playstead.surface.collection-detail")
+        let button = harness.element(keyboardMove, type: .button)
+        button.typeKey(.space, modifierFlags: [])
+
+        let order = [memberID(2), memberID(1), memberID(3)]
+        assertEvidence(order: order, outboxCount: 1, in: harness)
+        assertExactCollectionOrder(order, in: harness)
+        waitForKeyboardFocus(button)
+        assertEnabled(false, element: harness.element(moveID(memberID(2), direction: "up"), type: .button))
+        assertEnabled(false, element: harness.element(moveID(memberID(3), direction: "down"), type: .button))
+        return (order, button)
     }
 
     private func assertSyntheticGamesVisible(_ expected: Int, in harness: UITestHarness) {
