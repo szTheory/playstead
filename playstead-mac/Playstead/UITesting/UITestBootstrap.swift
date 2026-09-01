@@ -3,17 +3,27 @@ import Foundation
 
 @MainActor
 final class UITestProfileSession {
-    let fixture: DeterministicProfileFixture?
+    private let profileFixture: DeterministicProfileFixture?
     let environment: AppEnvironment
 
+    /// Deterministic profile callers retain their original nonoptional API.
+    /// The live-server mode has no deterministic fixture and must never ask
+    /// for one; doing so is a harness programming error and fails closed.
+    var fixture: DeterministicProfileFixture {
+        guard let profileFixture else {
+            fatalError("live-server session has no deterministic profile fixture")
+        }
+        return profileFixture
+    }
+
     init(fixture: DeterministicProfileFixture?, environment: AppEnvironment) {
-        self.fixture = fixture
+        self.profileFixture = fixture
         self.environment = environment
     }
 
     deinit {
-        if let fixture, !fixture.preservesRootForRelaunch {
-            try? fixture.cleanup()
+        if let profileFixture, !profileFixture.preservesRootForRelaunch {
+            try? profileFixture.cleanup()
         }
     }
 }
