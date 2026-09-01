@@ -87,6 +87,7 @@ def validate_test_evidence(data, relative):
     allowed_keys = {
         "schema_version", "layer", "executed_test_count", "required_tests",
         "failed_test_count", "failed_tests_truncated", "failed_tests",
+        "audit_issue_count", "audit_issues_truncated", "audit_issues",
     }
     if not isinstance(data, dict) or set(data) != allowed_keys:
         raise SystemExit(f"test evidence has unexpected schema: {relative}")
@@ -111,6 +112,25 @@ def validate_test_evidence(data, relative):
             raise SystemExit(f"failed test identifier is not canonical: {relative}")
         if record.get("outcome") not in {"failed", "skipped", "unknown"}:
             raise SystemExit(f"failed test outcome is not allowlisted: {relative}")
+    audit_issues = data.get("audit_issues")
+    audit_count = data.get("audit_issue_count")
+    audit_truncated = data.get("audit_issues_truncated")
+    if not isinstance(audit_issues, list) or len(audit_issues) > 50:
+        raise SystemExit(f"audit_issues exceeds its bounded allowlist: {relative}")
+    if type(audit_count) is not int or audit_count < len(audit_issues) or type(audit_truncated) is not bool:
+        raise SystemExit(f"audit issue metadata is malformed: {relative}")
+    if (not audit_truncated and audit_count != len(audit_issues)) or (audit_truncated and (audit_count <= 50 or len(audit_issues) != 50)):
+        raise SystemExit(f"audit issue truncation metadata is inconsistent: {relative}")
+    for record in audit_issues:
+        if not isinstance(record, dict) or set(record) != {"test_identifier", "category", "element_identifier"}:
+            raise SystemExit(f"audit issue contains non-allowlisted fields: {relative}")
+        if not isinstance(record.get("test_identifier"), str) or not test_identifier.fullmatch(record["test_identifier"]):
+            raise SystemExit(f"audit issue test identifier is not canonical: {relative}")
+        if record.get("category") not in {"contrast", "elementDetection", "hitRegion", "sufficientElementDescription", "action", "parentChild"}:
+            raise SystemExit(f"audit issue category is not canonical: {relative}")
+        element_identifier = record.get("element_identifier")
+        if not isinstance(element_identifier, str) or not re.fullmatch(r"(?:playstead|library)\.[a-z0-9]+(?:[.-][a-z0-9]+)*|unidentified", element_identifier):
+            raise SystemExit(f"audit issue element identifier is not allowlisted: {relative}")
     required = data.get("required_tests")
     if not isinstance(required, list):
         raise SystemExit(f"required_tests is malformed: {relative}")

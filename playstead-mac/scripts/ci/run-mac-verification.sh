@@ -316,6 +316,19 @@ def normalized_outcome(result):
     return "unknown"
 
 nodes = []
+audit_issues = []
+audit_pattern = re.compile(r"PLAYSTEAD_A11Y_ISSUES\[([A-Za-z]+)\]=([a-z0-9.,-]+)")
+
+def strings(value):
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for child in value.values():
+            yield from strings(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from strings(child)
+
 def walk(value):
     if isinstance(value, dict):
         if value.get("nodeType") == "Test Case":
@@ -323,7 +336,17 @@ def walk(value):
             result = value.get("result")
             if not isinstance(node_identifier, str) or not isinstance(result, str):
                 raise SystemExit(f"{layer}: malformed Test Case node")
-            nodes.append((canonical(node_identifier), result))
+            test_identifier = canonical(node_identifier)
+            nodes.append((test_identifier, result))
+            for diagnostic in strings(value):
+                for match in audit_pattern.finditer(diagnostic):
+                    category, identifiers = match.groups()
+                    for element_identifier in identifiers.split(","):
+                        audit_issues.append({
+                            "test_identifier": test_identifier,
+                            "category": category,
+                            "element_identifier": element_identifier,
+                        })
         for child in value.values():
             walk(child)
     elif isinstance(value, list):
@@ -363,6 +386,11 @@ all_failed = sorted(
     key=lambda record: (record["identifier"], record["outcome"]),
 )
 max_failed_tests = 50
+all_audit_issues = sorted(
+    {tuple(sorted(record.items())) for record in audit_issues},
+    key=lambda fields: dict(fields)["test_identifier"] + "|" + dict(fields)["category"] + "|" + dict(fields)["element_identifier"],
+)
+max_audit_issues = 50
 
 summary = {
     "schema_version": 1,
@@ -372,6 +400,9 @@ summary = {
     "failed_test_count": len(all_failed),
     "failed_tests_truncated": len(all_failed) > max_failed_tests,
     "failed_tests": all_failed[:max_failed_tests],
+    "audit_issue_count": len(all_audit_issues),
+    "audit_issues_truncated": len(all_audit_issues) > max_audit_issues,
+    "audit_issues": [dict(fields) for fields in all_audit_issues[:max_audit_issues]],
 }
 pathlib.Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 pathlib.Path(output_path).write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")

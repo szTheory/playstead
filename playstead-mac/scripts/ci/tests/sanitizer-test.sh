@@ -37,7 +37,7 @@ make_valid() {
   mkdir -p "$root/evidence/snapshot-triplet" "$root/evidence/logs" "$root/raw/Unit.xcresult" "$root/DerivedData"
   printf '%s\n' '{"schema_version":1,"architecture":"arm64","xcode":["Xcode 26.6","Build version 17F113"]}' >"$root/evidence/environment-fingerprint.json"
   printf '%s\n' '{"schema_version":1,"build_count":1,"automatic_retries":0,"aggregate_outcome":"failed","layers":[]}' >"$root/evidence/layers.json"
-  printf '%s\n' '{"schema_version":1,"layer":"ui","executed_test_count":2,"required_tests":[{"identifier":"PlaysteadUITests.HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice","discovered":true,"execution_count":1,"skipped":false,"outcome":"passed"}],"failed_test_count":1,"failed_tests_truncated":false,"failed_tests":[{"identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","outcome":"failed"}]}' >"$root/evidence/ui-tests.json"
+  printf '%s\n' '{"schema_version":1,"layer":"ui","executed_test_count":2,"required_tests":[{"identifier":"PlaysteadUITests.HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice","discovered":true,"execution_count":1,"skipped":false,"outcome":"passed"}],"failed_test_count":1,"failed_tests_truncated":false,"failed_tests":[{"identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","outcome":"failed"}],"audit_issue_count":1,"audit_issues_truncated":false,"audit_issues":[{"test_identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","category":"parentChild","element_identifier":"playstead.surface.library"}]}' >"$root/evidence/ui-tests.json"
   printf 'safe app event at /Users/example/private/location\n' >"$root/evidence/logs/app.log"
   printf 'server health passed\n' >"$root/evidence/logs/server.log"
   printf '\211PNG\r\n\032\nreference' >"$root/evidence/snapshot-triplet/reference.png"
@@ -58,6 +58,7 @@ import json, pathlib, sys
 data = json.loads(pathlib.Path(sys.argv[1]).read_text())
 assert data["failed_tests"] == [{"identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "outcome": "failed"}]
 assert all(set(record) == {"identifier", "outcome"} for record in data["failed_tests"])
+assert data["audit_issues"] == [{"test_identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "category": "parentChild", "element_identifier": "playstead.surface.library"}]
 PY
 PASS_COUNT=$((PASS_COUNT + 1))
 
@@ -91,6 +92,16 @@ path.write_text(json.dumps(data))
 PY
 expect_fail unsafe_test_id "$SANITIZER" --input "$unsafe_test_id" --output "$TMP_ROOT/unsafe-test-id-output"
 
+unsafe_audit_id="$TMP_ROOT/unsafe-audit-id"
+make_valid "$unsafe_audit_id"
+python3 - "$unsafe_audit_id/evidence/ui-tests.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1]); data = json.loads(path.read_text())
+data["audit_issues"][0]["element_identifier"] = "/Users/example/private"
+path.write_text(json.dumps(data))
+PY
+expect_fail unsafe_audit_id "$SANITIZER" --input "$unsafe_audit_id" --output "$TMP_ROOT/unsafe-audit-id-output"
+
 unbounded="$TMP_ROOT/unbounded"
 make_valid "$unbounded"
 python3 - "$unbounded/evidence/ui-tests.json" <<'PY'
@@ -101,6 +112,20 @@ data["failed_test_count"] = 51
 path.write_text(json.dumps(data))
 PY
 expect_fail unbounded "$SANITIZER" --input "$unbounded" --output "$TMP_ROOT/unbounded-output"
+
+unbounded_audit="$TMP_ROOT/unbounded-audit"
+make_valid "$unbounded_audit"
+python3 - "$unbounded_audit/evidence/ui-tests.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1]); data = json.loads(path.read_text())
+data["audit_issues"] = [
+    {"test_identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","category":"parentChild","element_identifier":f"playstead.surface.synthetic-{index}"}
+    for index in range(51)
+]
+data["audit_issue_count"] = 51
+path.write_text(json.dumps(data))
+PY
+expect_fail unbounded_audit "$SANITIZER" --input "$unbounded_audit" --output "$TMP_ROOT/unbounded-audit-output"
 
 oversized="$TMP_ROOT/oversized"
 make_valid "$oversized"

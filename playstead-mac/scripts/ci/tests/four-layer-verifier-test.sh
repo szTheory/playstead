@@ -50,6 +50,9 @@ non_required_failure = {
     "nodeIdentifier": "SurfaceAccessibilityTests/testSyntheticFailure()",
     "name": "testSyntheticFailure()",
     "result": "Failed",
+    "failureSummaries": [
+        {"message": "XCTAssertTrue failed - PLAYSTEAD_A11Y_ISSUES[parentChild]=playstead.surface.library,unidentified"}
+    ],
 }
 data = {
     "testPlanConfigurations": [],
@@ -74,7 +77,13 @@ summary = json.loads(pathlib.Path(sys.argv[1]).read_text())
 assert summary["failed_test_count"] == 1
 assert summary["failed_tests_truncated"] is False
 assert summary["failed_tests"] == [{"identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "outcome": "failed"}]
-assert set(summary) == {"schema_version", "layer", "executed_test_count", "required_tests", "failed_test_count", "failed_tests_truncated", "failed_tests"}
+assert summary["audit_issue_count"] == 2
+assert summary["audit_issues_truncated"] is False
+assert summary["audit_issues"] == [
+    {"test_identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "category": "parentChild", "element_identifier": "playstead.surface.library"},
+    {"test_identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "category": "parentChild", "element_identifier": "unidentified"},
+]
+assert set(summary) == {"schema_version", "layer", "executed_test_count", "required_tests", "failed_test_count", "failed_tests_truncated", "failed_tests", "audit_issue_count", "audit_issues_truncated", "audit_issues"}
 PY
 PASS_COUNT=$((PASS_COUNT + 1))
 

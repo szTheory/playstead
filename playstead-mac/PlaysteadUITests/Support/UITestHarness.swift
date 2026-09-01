@@ -173,15 +173,35 @@ final class UITestHarness {
     func audit(_ category: AuditCategory, exclusions: [AuditExclusion] = []) throws {
         let exclusionsByFingerprint = Dictionary(uniqueKeysWithValues: exclusions.map { ($0.fingerprint, $0) })
         var matched = Set<String>()
+        var issueIdentifiers = Set<String>()
         try app.performAccessibilityAudit(for: category.xcuiType) { issue in
             let fingerprint = "\(issue.auditType.rawValue)|\(issue.element?.identifier ?? "")"
-            guard let exclusion = exclusionsByFingerprint[fingerprint],
-                  issue.element?.identifier == exclusion.identifier,
-                  !exclusion.rationale.isEmpty else { return false }
-            matched.insert(fingerprint)
+            if let exclusion = exclusionsByFingerprint[fingerprint],
+               issue.element?.identifier == exclusion.identifier,
+               !exclusion.rationale.isEmpty {
+                matched.insert(fingerprint)
+                return true
+            }
+            let rawIdentifier = issue.element?.identifier ?? ""
+            let allowedIdentifierCharacters = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789.-")
+            let hasSourceControlledPrefix = rawIdentifier.hasPrefix("playstead.") || rawIdentifier.hasPrefix("library.")
+            let hasOnlyAllowedCharacters = rawIdentifier.unicodeScalars.allSatisfy(allowedIdentifierCharacters.contains)
+            let boundedIdentifier = hasSourceControlledPrefix && hasOnlyAllowedCharacters
+                ? rawIdentifier
+                : "unidentified"
+            if issueIdentifiers.count < 50 {
+                issueIdentifiers.insert(boundedIdentifier)
+            }
+            // Collect only bounded source-controlled identity, then fail below.
+            // Returning true here suppresses XCTest's raw issue text/attachments,
+            // never the acceptance assertion that the issue set is empty.
             return true
         }
         XCTAssertEqual(matched, Set(exclusionsByFingerprint.keys), "stale or over-broad audit exclusion")
+        XCTAssertTrue(
+            issueIdentifiers.isEmpty,
+            "PLAYSTEAD_A11Y_ISSUES[\(category.rawValue)]=\(issueIdentifiers.sorted().joined(separator: ","))"
+        )
     }
 
     func assertSheetFocusContained(rootIdentifier: String) {

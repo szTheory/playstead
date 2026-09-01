@@ -120,8 +120,11 @@ grep -F 'max_total = 12 * 1024 * 1024' "$SANITIZER" >/dev/null
 grep -F 'snapshot-triplet' "$SANITIZER" >/dev/null
 grep -F 'environment-fingerprint.json' "$SANITIZER" >/dev/null
 grep -F '"failed_tests": all_failed[:max_failed_tests]' "$RUNNER" >/dev/null
+grep -F '"audit_issues": [dict(fields) for fields in all_audit_issues[:max_audit_issues]]' "$RUNNER" >/dev/null
 grep -F 'len(failed) > 50' "$SANITIZER" >/dev/null
+grep -F 'len(audit_issues) > 50' "$SANITIZER" >/dev/null
 grep -F '{"identifier", "outcome"}' "$SANITIZER" >/dev/null
+grep -F '{"test_identifier", "category", "element_identifier"}' "$SANITIZER" >/dev/null
 
 "$PROMPT_SAFETY"
 

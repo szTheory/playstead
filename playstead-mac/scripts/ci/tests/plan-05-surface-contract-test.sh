@@ -191,8 +191,19 @@ if declared_categories != set(audit_categories.values()):
 for category in audit_categories.values():
     if f"case .{category}: .{category}" not in category_block:
         raise SystemExit(f"audit category is not mapped one-to-one: {category}")
-if "performAccessibilityAudit(for: category.xcuiType)" not in harness or "else { return false }" not in harness:
-    raise SystemExit("public accessibility audit must run one canonical category and fail closed")
+if "performAccessibilityAudit(for: category.xcuiType)" not in harness:
+    raise SystemExit("public accessibility audit must run one canonical category")
+for marker in (
+    'rawIdentifier.hasPrefix("playstead.")',
+    'rawIdentifier.hasPrefix("library.")',
+    "hasOnlyAllowedCharacters",
+    ': "unidentified"',
+    "PLAYSTEAD_A11Y_ISSUES[\\(category.rawValue)]",
+    "XCTAssertTrue(",
+    "issueIdentifiers.isEmpty",
+):
+    if marker not in harness:
+        raise SystemExit(f"bounded fail-closed audit identity is missing: {marker}")
 if "performAccessibilityAudit(for: .all)" in harness:
     raise SystemExit("all-category audit hides the canonical failing category")
 if "func validateSemanticTargets(_ targets: [AuditTarget])" not in harness:
@@ -266,6 +277,20 @@ if "guard isRequested(environment: processEnvironment)" not in bootstrap or "Det
     raise SystemExit("UI bootstrap bypasses mode/profile validation")
 if "APIClient.unpairedForUITesting()" not in app_root or "credential" in " ".join(re.findall(r'app\.launchEnvironment\["([^"]+)"\]', harness)).lower():
     raise SystemExit("UI profile composition may use a credential override")
+
+profile_root = app_root[app_root.find("private struct UITestProfileRootView"):app_root.find("private struct ProductionRootView")]
+if "LibraryShellView()" not in profile_root or ".environment(session.environment)" not in profile_root:
+    raise SystemExit("deterministic UI profile does not render the production library shell")
+if any(name in profile_root for name in ("AdapterSetupView()", "ReadinessSheetView(", "BiosDropTargetView(", "ControllerSettingsView(")):
+    raise SystemExit("deterministic UI profile duplicates a Plan 05 production surface")
+for marker in (
+    "let fixture = try profile.makeFixture()",
+    "uiTestingPaths: fixture.paths",
+    "localStore: fixture.localStore",
+    "appEnvironment.blockExternalIOForUITesting()",
+):
+    if marker not in bootstrap:
+        raise SystemExit(f"deterministic UI profile composition drifted: {marker}")
 
 def check_audit_repairs(shell_source, row_source, token_source, focus_source):
     required_shell = (
