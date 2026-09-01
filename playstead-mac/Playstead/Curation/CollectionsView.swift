@@ -3,6 +3,12 @@ import SwiftUI
 /// Lists `CollectionsViewModel`'s collections and lets the user create a
 /// new one. Selecting a collection navigates to `CollectionDetailView`.
 struct CollectionsView: View {
+    enum Automation {
+        static func row(_ collectionID: String) -> String {
+            "playstead.curation.collection.\(collectionID)"
+        }
+    }
+
     let viewModel: CollectionsViewModel
     /// Which collection the shell should show members for. A binding
     /// rather than local `@State` because the detail pane lives outside
@@ -41,7 +47,15 @@ struct CollectionsView: View {
                     .accessibilityLabel(Self.emptyExplanation)
             } else {
                 List(viewModel.collections, id: \.id, selection: $selectedCollectionID) { collection in
-                    Text(collection.name).tag(collection.id)
+                    Button {
+                        selectedCollectionID = collection.id
+                    } label: {
+                        Text(collection.name)
+                    }
+                    .buttonStyle(.plain)
+                    .tag(collection.id)
+                    .accessibilityLabel(collection.name)
+                    .accessibilityIdentifier(Automation.row(collection.id))
                 }
             }
         }

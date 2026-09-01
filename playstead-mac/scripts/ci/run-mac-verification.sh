@@ -575,8 +575,10 @@ PY
     --required-test PlaysteadUITests.CurationInteractionTests/testCurationProfileBootstrapsLibrarySurface \
     --required-test PlaysteadUITests.CurationInteractionTests/testSidebarExposesAllFiveCurationDestinations \
     --required-test PlaysteadUITests.CurationInteractionTests/testContinueShelfRendersHonestEmptyFixture \
-    --required-test PlaysteadUITests.CurationInteractionTests/testFavoritesShelfRendersExactSeededFixture \
-    --required-test PlaysteadUITests.CurationInteractionTests/testCollectionsShelfRendersExactSeededFixture \
+    --required-test PlaysteadUITests.CurationInteractionTests/testFavoritesShelfRootExists \
+    --required-test PlaysteadUITests.CurationInteractionTests/testFavoritesShelfRendersExactSeededCard \
+    --required-test PlaysteadUITests.CurationInteractionTests/testCollectionsShelfRootExists \
+    --required-test PlaysteadUITests.CurationInteractionTests/testCollectionsShelfRendersExactSeededRoute \
     --required-test PlaysteadUITests.CurationInteractionTests/testQueueShelfRendersHonestEmptyFixture \
     --required-test PlaysteadUITests.CurationInteractionTests/testRecentShelfRendersHonestEmptyFixture \
     --required-test PlaysteadUITests.CurationInteractionTests/testDragReorderProducesOneEffectAndSurvivesRelaunch \

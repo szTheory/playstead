@@ -286,7 +286,6 @@ struct LibraryShellView: View {
             ScrollView { ContinueShelfView(viewModel: environment.continueViewModel, catalogueByAssetSetID: catalogueByAssetSetID) }
         case .favorites:
             ScrollView { FavoritesShelfView(viewModel: environment.favoritesViewModel, catalogueByAssetSetID: catalogueByAssetSetID) }
-                .accessibilityIdentifier(AccessibilityIdentifiers.Surface.gameCard)
         case .collections:
             collectionsDetail
         case .queue:

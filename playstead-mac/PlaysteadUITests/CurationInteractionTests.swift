@@ -28,18 +28,32 @@ final class CurationInteractionTests: XCTestCase {
         assertSyntheticGamesVisible(0, in: harness)
     }
 
-    func testFavoritesShelfRendersExactSeededFixture() throws {
+    func testFavoritesShelfRootExists() throws {
         let harness = launchPersistentCurationHarness()
         selectSidebar("Favorites", in: harness)
         XCTAssertTrue(harness.element("playstead.surface.shelf.favorites").waitForExistence(timeout: 5))
-        assertSyntheticGamesVisible(1, in: harness)
     }
 
-    func testCollectionsShelfRendersExactSeededFixture() throws {
+    func testFavoritesShelfRendersExactSeededCard() throws {
+        let harness = launchPersistentCurationHarness()
+        selectSidebar("Favorites", in: harness)
+        let cards = harness.app.descendants(matching: .any).matching(identifier: "library.card")
+        XCTAssertEqual(cards.count, 1)
+        XCTAssertEqual(cards.element(boundBy: 0).label, "Synthetic Game 1, Unidentified")
+    }
+
+    func testCollectionsShelfRootExists() throws {
         let harness = launchPersistentCurationHarness()
         selectSidebar("Collections", in: harness)
         XCTAssertTrue(harness.element("playstead.surface.collections").waitForExistence(timeout: 5))
-        XCTAssertEqual(harness.app.staticTexts.matching(NSPredicate(format: "label == %@", "Synthetic Collection")).count, 1)
+    }
+
+    func testCollectionsShelfRendersExactSeededRoute() throws {
+        let harness = launchPersistentCurationHarness()
+        selectSidebar("Collections", in: harness)
+        let rows = harness.app.buttons.matching(identifier: collectionRowID)
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows.element(boundBy: 0).label, "Synthetic Collection")
     }
 
     func testQueueShelfRendersHonestEmptyFixture() throws {
@@ -151,7 +165,7 @@ final class CurationInteractionTests: XCTestCase {
 
     private func openSyntheticCollection(in harness: UITestHarness) {
         selectSidebar("Collections", in: harness)
-        let collection = harness.app.staticTexts["Synthetic Collection"]
+        let collection = harness.element(collectionRowID, type: .button)
         XCTAssertTrue(collection.waitForExistence(timeout: 5))
         collection.click()
         XCTAssertTrue(harness.element("playstead.surface.collection-detail").waitForExistence(timeout: 5))
@@ -222,6 +236,8 @@ final class CurationInteractionTests: XCTestCase {
     private func memberID(_ ordinal: Int) -> String {
         String(format: "00000000-0000-7000-8000-00000000020%d", ordinal)
     }
+
+    private let collectionRowID = "playstead.curation.collection.00000000-0000-7000-8000-000000000200"
 
     private static let catalogueFingerprint = [
         "72cd6e8422c407fb6d098690f1130b7ded7ec2f7f5e1d30bd9d521f015363793",
