@@ -47,7 +47,8 @@ private struct ReadinessRow: View {
                 Button(remedy.title) { onRemedy(remedy) }
             }
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(label). \(check.finding)")
     }
 
     private var glyphName: String {

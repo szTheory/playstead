@@ -21,6 +21,7 @@ struct LibraryShellView: View {
     @State private var libraryLayout: LibraryLayout = .cards
     @State private var presentedReadinessEntry: CatalogueEntry?
     @FocusState private var focusedShellControl: ShellSurface?
+    @FocusState private var focusedSheetDismissal: Bool
     /// Bumped by every storage action so the presented sheet re-reads the
     /// real stores. Pins, the queue and the quota policy live in SQLite,
     /// not in an observable view model, so nothing else would invalidate
@@ -100,16 +101,27 @@ struct LibraryShellView: View {
                 HStack {
                     Spacer()
                     Button("Done") { presentedSurface = nil }
-                        .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.done)
+                        .focused($focusedSheetDismissal)
+                        .accessibilityIdentifier(AccessibilityIdentifiers.Control.done)
+                        .overlay {
+                            RoundedRectangle(cornerRadius: PlaysteadFocusRing.cornerRadius)
+                                .stroke(PlaysteadFocusRing.color, lineWidth: PlaysteadFocusRing.lineWidth)
+                                .opacity(PlaysteadFocusRing.opacity(isFocused: focusedSheetDismissal))
+                                .accessibilityHidden(true)
+                                .allowsHitTesting(false)
+                        }
                 }
                 .padding(.horizontal, DesignTokens.Spacing.lg)
                 .padding(.bottom, DesignTokens.Spacing.lg)
             }
             .environment(environment)
             .frame(minWidth: 560, minHeight: 380)
+            .background(DesignTokens.background.ignoresSafeArea())
+            .preferredColorScheme(.dark)
             .accessibilityElement(children: .contain)
             .accessibilityLabel(Self.title(for: surface))
             .accessibilityIdentifier(Self.surfaceIdentifier(for: surface))
+            .onAppear { focusedSheetDismissal = true }
             .onExitCommand { presentedSurface = nil }
         }
         .onChange(of: presentedSurface) { previous, current in

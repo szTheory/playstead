@@ -22,6 +22,7 @@ struct ReadinessSheetView: View {
     @State private var showsAdapterSetup = false
     @State private var showsBiosDropTarget = false
     @State private var showsInputSettings = false
+    @FocusState private var doneHasFocus: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
@@ -62,14 +63,25 @@ struct ReadinessSheetView: View {
             HStack {
                 Spacer()
                 Button("Done", action: onClose)
-                    .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.done)
+                    .focused($doneHasFocus)
+                    .accessibilityIdentifier(AccessibilityIdentifiers.Control.done)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: PlaysteadFocusRing.cornerRadius)
+                            .stroke(PlaysteadFocusRing.color, lineWidth: PlaysteadFocusRing.lineWidth)
+                            .opacity(PlaysteadFocusRing.opacity(isFocused: doneHasFocus))
+                            .accessibilityHidden(true)
+                            .allowsHitTesting(false)
+                    }
             }
         }
         .padding(DesignTokens.Spacing.lg)
         .frame(minWidth: 520)
+        .background(DesignTokens.background.ignoresSafeArea())
+        .preferredColorScheme(.dark)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Game readiness")
         .accessibilityIdentifier(AccessibilityIdentifiers.Surface.readiness)
+        .onAppear { doneHasFocus = true }
         .onExitCommand(perform: onClose)
     }
 

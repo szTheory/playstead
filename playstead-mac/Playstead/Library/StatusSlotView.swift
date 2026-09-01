@@ -94,25 +94,32 @@ struct StatusSlotView: View {
     }
 
     var body: some View {
-        Group {
-            if let selected = selectedStatus {
-                if case .downloading(let percent) = selected {
-                    // `ProgressFillState` is computed with no dependency
-                    // on `MotionPreference` — under reduced motion this
-                    // determinate fraction still renders exactly as it
-                    // does otherwise (03-10, D-16).
-                    ProgressView(value: ProgressFillState(percent: percent).fraction, total: 1)
-                        .progressViewStyle(.circular)
-                        .tint(StatusToken.color(for: selected))
-                } else {
-                    Image(systemName: selected.glyphIdentifier)
-                        .foregroundStyle(StatusToken.color(for: selected))
-                }
-            }
+        if let selected = selectedStatus {
+            statusIndicator(selected)
+                .frame(minWidth: DesignTokens.InteractiveTarget.minimum, minHeight: DesignTokens.InteractiveTarget.minimum)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(selected.accessibleName(title: title))
+                .accessibilityIdentifier("library.status-slot")
+        } else {
+            Color.clear
+                .frame(minWidth: DesignTokens.InteractiveTarget.minimum, minHeight: DesignTokens.InteractiveTarget.minimum)
+                .accessibilityHidden(true)
         }
-        .frame(minWidth: DesignTokens.InteractiveTarget.minimum, minHeight: DesignTokens.InteractiveTarget.minimum)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(selectedStatus.map { $0.accessibleName(title: title) } ?? "")
-        .accessibilityIdentifier("library.status-slot")
+    }
+
+    @ViewBuilder
+    private func statusIndicator(_ selected: LibraryStatus) -> some View {
+        if case .downloading(let percent) = selected {
+            // `ProgressFillState` is computed with no dependency
+            // on `MotionPreference` — under reduced motion this
+            // determinate fraction still renders exactly as it
+            // does otherwise (03-10, D-16).
+            ProgressView(value: ProgressFillState(percent: percent).fraction, total: 1)
+                .progressViewStyle(.circular)
+                .tint(StatusToken.color(for: selected))
+        } else {
+            Image(systemName: selected.glyphIdentifier)
+                .foregroundStyle(StatusToken.color(for: selected))
+        }
     }
 }

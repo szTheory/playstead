@@ -13,10 +13,13 @@ tokens = (root / "Playstead/Design/DesignTokens.swift").read_text()
 focus_ring = (root / "Playstead/Design/FocusRing.swift").read_text()
 shell = (root / "Playstead/Library/LibraryShellView.swift").read_text()
 game_row = (root / "Playstead/Library/GameRowView.swift").read_text()
+game_card = (root / "Playstead/Library/GameCardView.swift").read_text()
+status_slot = (root / "Playstead/Library/StatusSlotView.swift").read_text()
 sidebar = (root / "Playstead/Library/SidebarView.swift").read_text()
 adapter = (root / "Playstead/Adapter/AdapterSetupView.swift").read_text()
 bios = (root / "Playstead/Adapter/BiosDropTarget.swift").read_text()
 readiness = (root / "Playstead/Readiness/ReadinessSheetView.swift").read_text()
+readiness_report = (root / "Playstead/Readiness/ReadinessReportView.swift").read_text()
 controller = (root / "Playstead/Controller/ControllerSettingsView.swift").read_text()
 harness = (root / "PlaysteadUITests/Support/UITestHarness.swift").read_text()
 tests = (root / "PlaysteadUITests/SurfaceAccessibilityTests.swift").read_text()
@@ -291,13 +294,67 @@ def check_audit_repairs(shell_source, row_source, token_source, focus_source):
 
 check_audit_repairs(shell, game_row, tokens, focus_ring)
 
+def check_hosted_audit_repairs(shell_source, readiness_source, card_source, slot_source, report_source):
+    required_shell = (
+        "@FocusState private var focusedSheetDismissal: Bool",
+        ".focused($focusedSheetDismissal)",
+        ".onAppear { focusedSheetDismissal = true }",
+        ".background(DesignTokens.background.ignoresSafeArea())",
+        ".preferredColorScheme(.dark)",
+    )
+    required_readiness = (
+        "@FocusState private var doneHasFocus: Bool",
+        ".focused($doneHasFocus)",
+        ".onAppear { doneHasFocus = true }",
+        ".background(DesignTokens.background.ignoresSafeArea())",
+        ".preferredColorScheme(.dark)",
+    )
+    missing = [marker for marker in required_shell if marker not in shell_source]
+    missing += [marker for marker in required_readiness if marker not in readiness_source]
+    if missing or shell_source.count(".background(DesignTokens.background.ignoresSafeArea())") < 2:
+        raise AssertionError(f"sheet focus or explicit dark canvas regressed: {missing}")
+    if ".accessibilityElement(children: .ignore)" not in card_source or ".accessibilityElement(children: .combine)" in card_source:
+        raise AssertionError("described game card exposes a conflicting nested accessibility subtree")
+    if '?? ""' in slot_source or "Color.clear" not in slot_source or ".accessibilityHidden(true)" not in slot_source:
+        raise AssertionError("empty status slot can become an undescribed accessibility element")
+    if ".accessibilityElement(children: .contain)" not in report_source or '.accessibilityLabel("\\(label). \\(check.finding)")' not in report_source:
+        raise AssertionError("readiness row collapses its actionable remedy into the descriptive parent")
+
+check_hosted_audit_repairs(shell, readiness, game_card, status_slot, readiness_report)
+
+for marker, source_name in (
+    ("@FocusState private var focusedSheetDismissal: Bool", "shell"),
+    (".onAppear { focusedSheetDismissal = true }", "shell"),
+    ("@FocusState private var doneHasFocus: Bool", "readiness"),
+    (".onAppear { doneHasFocus = true }", "readiness"),
+    (".accessibilityElement(children: .ignore)", "card"),
+    ("Color.clear", "slot"),
+    ('.accessibilityLabel("\\(label). \\(check.finding)")', "report"),
+):
+    sources = {
+        "shell": shell,
+        "readiness": readiness,
+        "card": game_card,
+        "slot": status_slot,
+        "report": readiness_report,
+    }
+    sources[source_name] = sources[source_name].replace(marker, "removed.hosted.audit.repair", 1)
+    try:
+        check_hosted_audit_repairs(
+            sources["shell"], sources["readiness"], sources["card"],
+            sources["slot"], sources["report"],
+        )
+    except AssertionError:
+        pass
+    else:
+        raise SystemExit(f"hosted-audit repair meta-test did not fail after removing {marker}")
+
 # Pin the production repairs themselves: each synthetic removal must trip the
 # source contract rather than letting the live audit regress silently.
 for marker in (
     "private var libraryCommandBar",
     ".onChange(of: presentedSurface)",
     ".accessibilityLabel(Self.title(for: surface))",
-    ".background(DesignTokens.background.ignoresSafeArea())",
 ):
     try:
         check_audit_repairs(shell.replace(marker, "removed.repair", 1), game_row, tokens, focus_ring)
