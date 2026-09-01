@@ -30,7 +30,7 @@ final class LiveServerSnapshotTests: XCTestCase {
         XCTAssertEqual(status, errSecSuccess)
         keychain = created
 
-        try runFixture("prepare", root: runRoot)
+        XCTAssertEqual(try runFixture("prepare", root: runRoot), 0)
         let first = try sentinel(at: runRoot.appendingPathComponent("control/first-sentinel.json"))
         let handoff = runRoot.appendingPathComponent("credential-handoff.json")
         XCTAssertEqual(try permissions(of: handoff), 0o600)
@@ -57,7 +57,7 @@ final class LiveServerSnapshotTests: XCTestCase {
         try assertNoGameBytes(root: runRoot)
 
         launched.terminate()
-        try runFixture("second", root: runRoot)
+        XCTAssertEqual(try runFixture("second", root: runRoot), 0)
         let second = try sentinel(at: runRoot.appendingPathComponent("control/second-sentinel.json"))
         XCTAssertNotEqual(second.assetSetID, first.assetSetID)
 
@@ -79,7 +79,7 @@ final class LiveServerSnapshotTests: XCTestCase {
         }
         XCTAssertFalse(try storedCursor(root: runRoot).isEmpty)
         try assertNoGameBytes(root: runRoot)
-        try runFixture("verify", root: runRoot)
+        XCTAssertEqual(try runFixture("verify", root: runRoot), 0)
     }
 
     private struct Control: Decodable {
@@ -95,7 +95,7 @@ final class LiveServerSnapshotTests: XCTestCase {
         try JSONDecoder().decode(Control.self, from: Data(contentsOf: url)).sentinel
     }
 
-    private func runFixture(_ action: String, root: URL) throws {
+    private func runFixture(_ action: String, root: URL) throws -> Int32 {
         let script = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("scripts/ci/live-server.sh")
@@ -106,7 +106,7 @@ final class LiveServerSnapshotTests: XCTestCase {
         process.standardError = FileHandle.nullDevice
         try process.run()
         process.waitUntilExit()
-        XCTAssertEqual(process.terminationStatus, 0)
+        return process.terminationStatus
     }
 
     private func storedCursor(root: URL) throws -> String {

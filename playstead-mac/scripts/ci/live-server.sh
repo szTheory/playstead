@@ -11,17 +11,22 @@ root="${2:-}"
 
 server_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../playstead-server" && pwd)"
 control="$root/control"
+server_control="$PLAYSTEAD_MAC_CI_ROOT/mac-client-control"
 mkdir -p "$control"
-chmod 0700 "$root" "$control"
+mkdir -p "$server_control"
+chmod 0700 "$root" "$control" "$server_control"
 
 case "$action" in
   prepare)
     first="$control/first-sentinel.json"
+    server_first="$server_control/first-sentinel.json"
     request="$control/pairing-request.json"
     device_code="$control/device-code"
     handoff="$root/credential-handoff.json"
 
-    (cd "$server_root" && mix playstead.mac_ci_fixture provision --output "$first") >/dev/null
+    (cd "$server_root" && mix playstead.mac_ci_fixture provision --output "$server_first") >/dev/null
+    install -m 0600 "$server_first" "$first"
+    rm -f "$server_first"
 
     python3 - "$request" "$device_code" <<'PY'
 import json, os, pathlib, secrets, sys, urllib.request
@@ -70,7 +75,11 @@ code_path.unlink()
 PY
     ;;
   second)
-    (cd "$server_root" && mix playstead.mac_ci_fixture second --output "$control/second-sentinel.json") >/dev/null
+    server_second="$server_control/second-sentinel.json"
+    client_second="$control/second-sentinel.json"
+    (cd "$server_root" && mix playstead.mac_ci_fixture second --output "$server_second") >/dev/null
+    install -m 0600 "$server_second" "$client_second"
+    rm -f "$server_second"
     ;;
   verify)
     python3 - "$root" "$(dirname "$PLAYSTEAD_MAC_CI_ROOT")/phoenix.log" <<'PY'
