@@ -352,6 +352,8 @@ grep -F 'snapshot-triplet' "$SANITIZER" >/dev/null
 grep -F 'environment-fingerprint.json' "$SANITIZER" >/dev/null
 grep -F '"failed_tests": all_failed[:max_failed_tests]' "$RUNNER" >/dev/null
 grep -F '"failure_diagnostics": [dict(fields) for fields in all_failure_diagnostics[:max_failure_diagnostics]]' "$RUNNER" >/dev/null
+grep -F 'value.get("nodeType") == "Failure Message"' "$RUNNER" >/dev/null
+grep -F 'failure_message_location_pattern.match(message_name)' "$RUNNER" >/dev/null
 grep -F 'print_failure_diagnostics "$result_summary" "$slug"' "$RUNNER" >/dev/null
 grep -F 'FAILURE_DIAGNOSTICS_TRUNCATED shown=' "$RUNNER" >/dev/null
 grep -F 'print_build_diagnostics "${FOUR_LAYER_RAW}/build.log" build' "$RUNNER" >/dev/null

@@ -67,8 +67,9 @@ floor (03-UI-SPEC.md), and its current, honestly stated limits.
   VoiceOver workflow, and no third-party conformance certification is claimed.
 - **Hosted failure diagnostics remain source-bounded.** Sanitized per-layer
   evidence may name a canonical failed test, a normalized XCTest assertion
-  kind, and a repository-relative Swift file and line only when the xcresult
-  location resolves to one unique checked-in source name. Runtime assertion
+  kind, and a repository-relative Swift file and line only when the xcresult's
+  structured failure summary or modern `Failure Message` basename-and-line
+  prefix resolves to one unique checked-in source name. Runtime assertion
   values, full paths, messages, attachments, environments, and raw xcresults
   never cross the artifact boundary; unmatched diagnostics are omitted. When a
   hosted layer fails, the job log prints only those same bounded fields (at

@@ -352,6 +352,9 @@ audit_pattern = re.compile(r"PLAYSTEAD_A11Y_ISSUES\[([A-Za-z]+)\]=([a-z0-9.,@-]+
 assertion_pattern = re.compile(
     r"\b(XCTAssert(?:True|False|Equal|NotEqual|Nil|NotNil|LessThan|LessThanOrEqual|GreaterThan|GreaterThanOrEqual|NoThrow|ThrowsError)|XCTFail|XCTUnwrap)\b"
 )
+failure_message_location_pattern = re.compile(
+    r"^(?P<file>[A-Za-z_][A-Za-z0-9_]*\.swift):(?P<line>[1-9][0-9]*):"
+)
 
 source_roots = ["Playstead", "PlaysteadTests", "PlaysteadUITests"]
 source_by_name = {}
@@ -380,6 +383,12 @@ def bounded_failure_diagnostic(summary, test_identifier):
     assertion = next((match.group(1) for text in strings(summary) if (match := assertion_pattern.search(text))), None)
     raw_file = first_key(summary, {"fileName", "filePath", "sourceFile", "sourceCodeFilePath"})
     raw_line = first_key(summary, {"lineNumber", "line"})
+    if raw_file is None and raw_line is None and isinstance(summary, dict) and summary.get("nodeType") == "Failure Message":
+        message_name = summary.get("name")
+        location = failure_message_location_pattern.match(message_name) if isinstance(message_name, str) else None
+        if location is not None:
+            raw_file = location.group("file")
+            raw_line = location.group("line")
     if assertion is None or not isinstance(raw_file, str):
         return None
     source_name = pathlib.PurePath(raw_file.removeprefix("file://").split("#", 1)[0]).name
@@ -398,6 +407,28 @@ def bounded_failure_diagnostic(summary, test_identifier):
         "source_file": candidates[0],
         "source_line": source_line,
     }
+
+def failure_records(test_case):
+    records = []
+    summaries = test_case.get("failureSummaries", [])
+    if isinstance(summaries, list):
+        records.extend(summaries)
+
+    def collect(value):
+        if isinstance(value, dict):
+            if value.get("nodeType") == "Failure Message":
+                records.append(value)
+                return
+            if value is not test_case and value.get("nodeType") == "Test Case":
+                return
+            for child in value.get("children", []) if isinstance(value.get("children"), list) else []:
+                collect(child)
+        elif isinstance(value, list):
+            for child in value:
+                collect(child)
+
+    collect(test_case.get("children", []))
+    return records
 
 def strings(value):
     if isinstance(value, str):
@@ -418,12 +449,10 @@ def walk(value):
                 raise SystemExit(f"{layer}: malformed Test Case node")
             test_identifier = canonical(node_identifier)
             nodes.append((test_identifier, result))
-            summaries = value.get("failureSummaries", [])
-            if isinstance(summaries, list):
-                for summary in summaries:
-                    diagnostic = bounded_failure_diagnostic(summary, test_identifier)
-                    if diagnostic is not None:
-                        failure_diagnostics.append(diagnostic)
+            for failure_record in failure_records(value):
+                diagnostic = bounded_failure_diagnostic(failure_record, test_identifier)
+                if diagnostic is not None:
+                    failure_diagnostics.append(diagnostic)
             for diagnostic in strings(value):
                 for match in audit_pattern.finditer(diagnostic):
                     category, identifiers = match.groups()

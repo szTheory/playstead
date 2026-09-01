@@ -51,11 +51,11 @@ non_required_failure = {
     "nodeIdentifier": "SurfaceAccessibilityTests/testSyntheticFailure()",
     "name": "testSyntheticFailure()",
     "result": "Failed",
-    "failureSummaries": [
+    "children": [
         {
-            "message": "XCTAssertTrue failed: private runtime values are deliberately discarded - PLAYSTEAD_A11Y_ISSUES[parentChild]=playstead.surface.library@role-3,unidentified@role-64",
-            "fileName": "/Users/runner/work/playstead/playstead/playstead-mac/PlaysteadUITests/SurfaceAccessibilityTests.swift",
-            "lineNumber": 137,
+            "nodeType": "Failure Message",
+            "name": "SurfaceAccessibilityTests.swift:137: XCTAssertTrue failed: private runtime values are deliberately discarded - PLAYSTEAD_A11Y_ISSUES[parentChild]=playstead.surface.library@role-3,unidentified@role-64",
+            "result": "Failed",
         }
     ],
 }
@@ -198,6 +198,29 @@ failed = {
 json.dump({"testNodes":[{"nodeType":"Test Plan","children":[required, failed]}]}, open(sys.argv[1], "w"))
 PY
 expect_pass unsafe_diagnostic verify_fixture "$unsafe_diagnostic"
+python3 - "$TMP_ROOT/summary.json" <<'PY'
+import json, pathlib, sys
+summary = json.loads(pathlib.Path(sys.argv[1]).read_text())
+assert summary["failure_diagnostic_count"] == 0
+assert summary["failure_diagnostics"] == []
+PY
+PASS_COUNT=$((PASS_COUNT + 1))
+
+unsafe_failure_message="$TMP_ROOT/unsafe-failure-message.json"
+python3 - "$unsafe_failure_message" <<'PY'
+import json, sys
+required = {"nodeType":"Test Case","nodeIdentifier":"KeychainScopingTests/testScopedMatchQueryRestrictsSearchWithoutSelectingAnAddDestination()","result":"Passed"}
+failed = {
+    "nodeType":"Test Case", "nodeIdentifier":"SyntheticSuite/testUnsafeFailureMessage()", "result":"Failed",
+    "children":[{
+        "nodeType":"Failure Message",
+        "name":"/Users/private/SurfaceAccessibilityTests.swift:137: XCTAssertTrue failed: Bearer secret-token private.rom",
+        "result":"Failed",
+    }],
+}
+json.dump({"testNodes":[{"nodeType":"Test Plan","children":[required, failed]}]}, open(sys.argv[1], "w"))
+PY
+expect_pass unsafe_failure_message verify_fixture "$unsafe_failure_message"
 python3 - "$TMP_ROOT/summary.json" <<'PY'
 import json, pathlib, sys
 summary = json.loads(pathlib.Path(sys.argv[1]).read_text())
