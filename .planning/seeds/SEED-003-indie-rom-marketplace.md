@@ -55,6 +55,14 @@ storefront, and it was built for other reasons:
   or just re-listing itch.io?**
 - Who is the actual customer — the player who already self-hosts, or the
   developer looking for reach? Those imply very different products.
+- Could an optional ecosystem help homebrew become a more professional and
+  economically viable publishing path without turning Playstead into a generic
+  content dump? Study the quality-versus-quantity and discovery problems faced
+  by large stores, including how to discourage shovelware without creating an
+  opaque or exclusionary gate.
+- Developer incentives depend on credible demand. Do not recruit publishers or
+  build payment infrastructure until Playstead can demonstrate an audience large
+  and engaged enough to justify their release, support, and compliance costs.
 
 **Product**
 - Is this inside Playstead, or a separate service Playstead can *connect* to?
@@ -63,6 +71,10 @@ storefront, and it was built for other reasons:
   status/updates? What stops resale, and do we care?
 - Reviews and ratings: a new social surface with moderation costs. Is that in
   scope, or do we lean on an existing community?
+- What mix of editorial curation, transparent quality signals, refunds, demos,
+  update history, compatibility evidence, community reporting, and developer
+  reputation could preserve discovery quality without promising that every
+  listed title is good or safe?
 - How does a purchased ROM differ from an imported one in the library? Does it
   get a distinct provenance badge and status-ladder treatment?
 
@@ -103,3 +115,10 @@ Captured verbatim-in-spirit from an owner remark during Phase 3 UAT. Explicitly
 a "loose thought" — the owner flagged it as a possibility, not a plan. Enrich
 with `/gsd-capture --seed --enrich SEED-003` if the market research above firms
 it up.
+
+Owner follow-up (2026-09-01, Phase 03.5): EmuDeck's store made the opportunity
+feel more concrete, but also highlighted that this is a distinct ecosystem and
+go-to-market problem. Any future exploration should explicitly test publisher
+incentives, audience critical mass, catalogue quality, shovelware resistance,
+and whether a separate interoperable project is healthier than embedding a
+store in Playstead.
