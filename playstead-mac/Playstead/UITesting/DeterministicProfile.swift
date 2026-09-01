@@ -206,8 +206,13 @@ final class DeterministicProfileFixture {
         }
 
         if profile == .quotaBlockReclaim {
-            let verdict = quotaManager.verdict(forAdditional: 1)
-            guard !verdict.allowed, verdict.limitHit == .quota,
+            let target = catalogueStore.fetchAll().first { $0.id == Self.quotaDownloadAssetID }
+            let pendingBytes = target?.members.filter(\.required).compactMap(\.size).reduce(0, +)
+            let verdict = pendingBytes.map { quotaManager.verdict(forAdditional: $0) }
+            guard quotaManager.usedBytes() == 32,
+                  quotaManager.policy().quotaBytes == 16,
+                  pendingBytes == 32,
+                  verdict == QuotaVerdict(allowed: false, limitHit: .quota, shortfallBytes: 48),
                   EvictionPlanner(
                     localStore: localStore,
                     catalogueStore: catalogueStore,
@@ -215,7 +220,7 @@ final class DeterministicProfileFixture {
                     cas: CASManager(paths: paths),
                     paths: paths
                   ).candidates().map(\.id) == [Self.quotaAssetID] else {
-                throw DeterministicProfileError.stateMismatch("quota profile did not block and expose one reclaim candidate")
+                throw DeterministicProfileError.stateMismatch("quota profile did not compute used=32,pending=32,quota=16,shortfall=48 with one reclaim candidate")
             }
         }
     }

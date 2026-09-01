@@ -63,6 +63,29 @@ final class DeterministicProfileTests: XCTestCase {
         }
     }
 
+    func testQuotaBlockReclaimProfileComputesExactProductionDecisionBeforeExternalIO() async throws {
+        let session = try UITestBootstrap.makeSession(environment: [
+            UITestBootstrap.modeKey: "1",
+            UITestBootstrap.profileKey: DeterministicProfile.quotaBlockReclaim.rawValue
+        ])
+        roots.append(session.fixture.root)
+
+        let environment = session.environment
+        let target = try XCTUnwrap(
+            environment.catalogueStore.fetchAll().first { $0.displayTitle == "Synthetic Quota Download" }
+        )
+        XCTAssertTrue(environment.uiTestingBlocksExternalIO)
+        XCTAssertEqual(environment.quotaManager.usedBytes(), 32)
+        XCTAssertEqual(environment.quotaManager.policy().quotaBytes, 16)
+        XCTAssertEqual(environment.pendingDownloadBytes(for: target), 32)
+
+        let expected = QuotaVerdict(allowed: false, limitHit: .quota, shortfallBytes: 48)
+        XCTAssertEqual(environment.quotaVerdict(forDownloading: target), expected)
+        let attempt = await environment.attemptDownload(for: target)
+        XCTAssertEqual(attempt, .blocked(expected))
+        XCTAssertEqual(environment.reclaimCandidateRows().map(\.bytes), [32])
+    }
+
     func testEveryFixtureUsesAUniqueRootAndCleanupRemovesOnlyThatRoot() throws {
         let first = try makeFixture(.emptyLibrary)
         let second = try makeFixture(.emptyLibrary)

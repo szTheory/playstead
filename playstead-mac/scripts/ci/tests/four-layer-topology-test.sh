@@ -7,6 +7,7 @@ REPO_ROOT="$(cd "${MAC_ROOT}/.." && pwd)"
 RUNNER="${MAC_ROOT}/scripts/ci/run-mac-verification.sh"
 SCHEME="${MAC_ROOT}/Playstead.xcodeproj/xcshareddata/xcschemes/Playstead.xcscheme"
 APP_ENTRY="${MAC_ROOT}/Playstead/App/PlaysteadApp.swift"
+PROFILE_TEST="${MAC_ROOT}/PlaysteadTests/SnapshotTests/DeterministicProfileTests.swift"
 UI_CANARY="${MAC_ROOT}/PlaysteadUITests/HostedRunnerCanaryTests.swift"
 CURATION_TEST="${MAC_ROOT}/PlaysteadUITests/CurationInteractionTests.swift"
 UI_BOOTSTRAP="${MAC_ROOT}/Playstead/UITesting/UITestBootstrap.swift"
@@ -21,7 +22,7 @@ PROMPT_SAFETY="${MAC_ROOT}/scripts/ci/tests/keychain-prompt-safety-test.sh"
 KEYBOARD_CLEANUP="${MAC_ROOT}/scripts/ci/tests/keyboard-mode-cleanup-test.sh"
 SWIFT_SEMANTIC="${MAC_ROOT}/scripts/ci/tests/wave6-swift-semantic-test.sh"
 
-for file in "$RUNNER" "$SCHEME" "$APP_ENTRY" "$UI_CANARY" "$CURATION_TEST" "$UI_BOOTSTRAP" "$STORAGE_TEST" "$GAME_ROW" "$RECLAIM_VIEW" "$STORAGE_VIEW" "$WORKFLOW" "$REFRESH_WORKFLOW" "$SANITIZER" "$PROMPT_SAFETY" "$KEYBOARD_CLEANUP" "$SWIFT_SEMANTIC"; do
+for file in "$RUNNER" "$SCHEME" "$APP_ENTRY" "$PROFILE_TEST" "$UI_CANARY" "$CURATION_TEST" "$UI_BOOTSTRAP" "$STORAGE_TEST" "$GAME_ROW" "$RECLAIM_VIEW" "$STORAGE_VIEW" "$WORKFLOW" "$REFRESH_WORKFLOW" "$SANITIZER" "$PROMPT_SAFETY" "$KEYBOARD_CLEANUP" "$SWIFT_SEMANTIC"; do
   [ -f "$file" ] || { printf 'four-layer topology file missing: %s\n' "$file" >&2; exit 1; }
 done
 for plan in Unit Rendering UI LiveServer; do
@@ -126,6 +127,29 @@ grep -F 'xcodebuild test-without-building' "$RUNNER" >/dev/null
 grep -F '"automatic_retries": 0' "$RUNNER" >/dev/null
 grep -F 'PLAYSTEAD_SNAPSHOT_RECORDING=0' "$RUNNER" >/dev/null
 grep -F 'PLAYSTEAD_STORAGE_SNAPSHOT_CANDIDATE_OUTPUT="${FOUR_LAYER_EVIDENCE}/storage-candidate/storage-surfaces.actual.png"' "$RUNNER" >/dev/null
+grep -F -- '--required-test PlaysteadTests.DeterministicProfileTests/testQuotaBlockReclaimProfileComputesExactProductionDecisionBeforeExternalIO' "$RUNNER" >/dev/null
+python3 - "$RUNNER" <<'PY'
+import pathlib, sys
+
+source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+unit = source.split("run_test_layer unit Unit", 1)[1].split("run_test_layer rendering Rendering", 1)[0]
+rendering = source.split("run_test_layer rendering Rendering", 1)[1].split("run_test_layer ui UI", 1)[0]
+required = "PlaysteadTests.DeterministicProfileTests/testQuotaBlockReclaimProfileComputesExactProductionDecisionBeforeExternalIO"
+if required in unit or required not in rendering:
+    raise SystemExit("quota decision contract must be required by Rendering and excluded from Unit")
+PY
+grep -F 'let attempt = await environment.attemptDownload(for: target)' "$PROFILE_TEST" >/dev/null
+grep -F 'XCTAssertEqual(attempt, .blocked(expected))' "$PROFILE_TEST" >/dev/null
+python3 - "$APP_ENTRY" <<'PY'
+import pathlib, sys
+
+source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+attempt = source.split("func attemptDownload(for entry: CatalogueEntry)", 1)[1].split("func pendingDownloadBytes", 1)[0]
+quota = attempt.find("let verdict = quotaVerdict(forDownloading: entry)")
+credential = attempt.find("apiClientIfAvailable()")
+if quota < 0 or credential < 0 or quota >= credential:
+    raise SystemExit("local quota admission must precede credential and external-I/O admission")
+PY
 grep -F -- '--required-test PlaysteadTests.StorageContractSnapshotTests/testDownloadsQuotaReclaimAndStorageVisualContract' "$RUNNER" >/dev/null
 grep -F -- '--required-test PlaysteadTests.StorageContractSnapshotTests/testStorageMotionAndReducedMotionContract' "$RUNNER" >/dev/null
 for stage in \

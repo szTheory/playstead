@@ -776,11 +776,11 @@ final class AppEnvironment {
     /// runs *before* the first connection is opened: a blocked verdict
     /// returns without touching `DownloadEngine` at all.
     func attemptDownload(for entry: CatalogueEntry) async -> DownloadAttempt {
-        guard let apiClient = await apiClientIfAvailable(),
-              let credential = await apiClient.credential else { return .notPaired }
-
         let verdict = quotaVerdict(forDownloading: entry)
         guard verdict.allowed else { return .blocked(verdict) }
+
+        guard let apiClient = await apiClientIfAvailable(),
+              let credential = await apiClient.credential else { return .notPaired }
 
         let engine = makeDownloadEngine()
         do {
