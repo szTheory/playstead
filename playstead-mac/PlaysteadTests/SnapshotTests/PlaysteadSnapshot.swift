@@ -171,6 +171,7 @@ enum PlaysteadSnapshot {
         }
 
         guard FileManager.default.fileExists(atPath: referenceURL.path) else {
+            try exportMissingStorageCandidate(actual, named: name, suite: suite, strategy: strategy)
             XCTFail("Missing reference image \(referenceURL.lastPathComponent); CI recording is disabled", file: file, line: line)
             return
         }
@@ -186,6 +187,46 @@ enum PlaysteadSnapshot {
             }
         }
         XCTFail(message, file: file, line: line)
+    }
+
+    /// Exports one bounded hosted candidate without reading xcresult
+    /// attachments. The exact test suite/name and runner-provided destination
+    /// are fail-closed so no other snapshot or arbitrary output path can cross
+    /// into sanitized evidence.
+    private static func exportMissingStorageCandidate(
+        _ actual: NSImage,
+        named name: String,
+        suite: String,
+        strategy: Diffing<NSImage>
+    ) throws {
+        guard suite == "StorageContractSnapshotTests", name == "storage-surfaces" else { return }
+        guard let raw = ProcessInfo.processInfo.environment["PLAYSTEAD_STORAGE_SNAPSHOT_CANDIDATE_OUTPUT"],
+              !raw.isEmpty,
+              !raw.hasPrefix("$(") else { return }
+
+        let destination = URL(fileURLWithPath: raw).standardizedFileURL
+        guard destination.lastPathComponent == "storage-surfaces.actual.png",
+              destination.deletingLastPathComponent().lastPathComponent == "storage-candidate" else {
+            throw SnapshotError.unsupportedCandidateDestination
+        }
+        guard let bitmap = actual.representations.compactMap({ $0 as? NSBitmapImageRep }).first,
+              bitmap.pixelsWide == 5_760,
+              bitmap.pixelsHigh == 3_040 else {
+            throw SnapshotError.invalidCandidateDimensions
+        }
+
+        let data = try strategy.toData(actual)
+        let pngSignature = Data([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+        guard data.count > 24,
+              data.count <= 8 * 1024 * 1024,
+              data.prefix(pngSignature.count) == pngSignature else {
+            throw SnapshotError.invalidCandidateData
+        }
+        try FileManager.default.createDirectory(
+            at: destination.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try data.write(to: destination, options: .atomic)
     }
 
     private static let supportedSuites = Set([
@@ -204,5 +245,8 @@ enum PlaysteadSnapshot {
         case couldNotCreateBitmap
         case couldNotReadBitmap
         case unsupportedSuite
+        case unsupportedCandidateDestination
+        case invalidCandidateDimensions
+        case invalidCandidateData
     }
 }

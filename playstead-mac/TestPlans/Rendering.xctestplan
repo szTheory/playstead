@@ -22,6 +22,10 @@
       {
         "key" : "PLAYSTEAD_SNAPSHOT_RECORDING",
         "value" : "0"
+      },
+      {
+        "key" : "PLAYSTEAD_STORAGE_SNAPSHOT_CANDIDATE_OUTPUT",
+        "value" : "$(PLAYSTEAD_STORAGE_SNAPSHOT_CANDIDATE_OUTPUT)"
       }
     ],
     "targetForVariableExpansion" : {

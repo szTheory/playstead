@@ -34,7 +34,7 @@ expect_fail() {
 
 make_valid() {
   local root="$1"
-  mkdir -p "$root/evidence/snapshot-triplet" "$root/evidence/logs" "$root/raw/Unit.xcresult" "$root/DerivedData"
+  mkdir -p "$root/evidence/snapshot-triplet" "$root/evidence/storage-candidate" "$root/evidence/logs" "$root/raw/Unit.xcresult" "$root/DerivedData"
   printf '%s\n' '{"schema_version":1,"architecture":"arm64","xcode":["Xcode 26.6","Build version 17F113"]}' >"$root/evidence/environment-fingerprint.json"
   printf '%s\n' '{"schema_version":1,"build_count":1,"automatic_retries":0,"aggregate_outcome":"failed","layers":[]}' >"$root/evidence/layers.json"
   printf '%s\n' '{"schema_version":1,"layer":"ui","executed_test_count":2,"required_tests":[{"identifier":"PlaysteadUITests.HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice","discovered":true,"execution_count":1,"skipped":false,"outcome":"passed"}],"failed_test_count":1,"failed_tests_truncated":false,"failed_tests":[{"identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","outcome":"failed"}],"audit_issue_count":1,"audit_issues_truncated":false,"audit_issues":[{"test_identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","category":"parentChild","element_identifier":"playstead.surface.library","element_role":"role-3"}]}' >"$root/evidence/ui-tests.json"
@@ -43,6 +43,12 @@ make_valid() {
   printf '\211PNG\r\n\032\nreference' >"$root/evidence/snapshot-triplet/reference.png"
   printf '\211PNG\r\n\032\nactual' >"$root/evidence/snapshot-triplet/actual.png"
   printf '\211PNG\r\n\032\ndiff' >"$root/evidence/snapshot-triplet/diff.png"
+  python3 - "$root/evidence/storage-candidate/storage-surfaces.actual.png" 5760 3040 <<'PY'
+import pathlib, struct, sys
+path, width, height = sys.argv[1:]
+payload = b"\x89PNG\r\n\x1a\n" + struct.pack(">I", 13) + b"IHDR" + struct.pack(">II", int(width), int(height)) + b"synthetic-candidate"
+pathlib.Path(path).write_bytes(payload)
+PY
   printf 'raw result must stay outside upload' >"$root/raw/Unit.xcresult/raw"
 }
 
@@ -52,7 +58,8 @@ expect_pass valid "$SANITIZER" --input "$valid" --output "$TMP_ROOT/output"
 grep -F '[PATH]' "$TMP_ROOT/output/logs/app.log" >/dev/null || { printf 'FAIL: local path was not redacted\n' >&2; exit 1; }
 [ ! -e "$TMP_ROOT/output/raw" ]
 [ ! -e "$TMP_ROOT/output/DerivedData" ]
-PASS_COUNT=$((PASS_COUNT + 3))
+[ -s "$TMP_ROOT/output/storage-candidate/storage-surfaces.actual.png" ]
+PASS_COUNT=$((PASS_COUNT + 4))
 python3 - "$TMP_ROOT/output/ui-tests.json" <<'PY'
 import json, pathlib, sys
 data = json.loads(pathlib.Path(sys.argv[1]).read_text())
@@ -141,6 +148,36 @@ oversized="$TMP_ROOT/oversized"
 make_valid "$oversized"
 dd if=/dev/zero of="$oversized/evidence/snapshot-triplet/actual.png" bs=1048576 count=3 2>/dev/null
 expect_fail oversized "$SANITIZER" --input "$oversized" --output "$TMP_ROOT/oversized-output"
+
+wrong_candidate_name="$TMP_ROOT/wrong-candidate-name"
+make_valid "$wrong_candidate_name"
+mv "$wrong_candidate_name/evidence/storage-candidate/storage-surfaces.actual.png" \
+  "$wrong_candidate_name/evidence/storage-candidate/storage-surfaces.owner.png"
+expect_pass wrong_candidate_name "$SANITIZER" --input "$wrong_candidate_name" --output "$TMP_ROOT/wrong-candidate-name-output"
+[ ! -e "$TMP_ROOT/wrong-candidate-name-output/storage-candidate/storage-surfaces.owner.png" ]
+PASS_COUNT=$((PASS_COUNT + 1))
+
+wrong_candidate_dimensions="$TMP_ROOT/wrong-candidate-dimensions"
+make_valid "$wrong_candidate_dimensions"
+python3 - "$wrong_candidate_dimensions/evidence/storage-candidate/storage-surfaces.actual.png" <<'PY'
+import pathlib, struct, sys
+path = pathlib.Path(sys.argv[1])
+raw = bytearray(path.read_bytes())
+raw[16:24] = struct.pack(">II", 8, 8)
+path.write_bytes(raw)
+PY
+expect_fail wrong_candidate_dimensions "$SANITIZER" --input "$wrong_candidate_dimensions" --output "$TMP_ROOT/wrong-candidate-dimensions-output"
+
+oversized_candidate="$TMP_ROOT/oversized-candidate"
+make_valid "$oversized_candidate"
+truncate -s 9437184 "$oversized_candidate/evidence/storage-candidate/storage-surfaces.actual.png"
+expect_fail oversized_candidate "$SANITIZER" --input "$oversized_candidate" --output "$TMP_ROOT/oversized-candidate-output"
+
+symlinked_candidate="$TMP_ROOT/symlinked-candidate"
+make_valid "$symlinked_candidate"
+mv "$symlinked_candidate/evidence/storage-candidate/storage-surfaces.actual.png" "$symlinked_candidate/candidate.png"
+ln -s "$symlinked_candidate/candidate.png" "$symlinked_candidate/evidence/storage-candidate/storage-surfaces.actual.png"
+expect_fail symlinked_candidate "$SANITIZER" --input "$symlinked_candidate" --output "$TMP_ROOT/symlinked-candidate-output"
 
 bad_log="$TMP_ROOT/bad-log"
 make_valid "$bad_log"

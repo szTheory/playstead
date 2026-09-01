@@ -28,6 +28,7 @@ max_files = 40
 max_total = 12 * 1024 * 1024
 max_text = 256 * 1024
 max_image = 2 * 1024 * 1024
+max_storage_candidate = 8 * 1024 * 1024
 
 allowed = []
 for name in ("environment-fingerprint.json", "layers.json"):
@@ -39,6 +40,9 @@ for name in ("reference.png", "actual.png", "diff.png"):
     candidate = source / "snapshot-triplet" / name
     if candidate.is_file():
         allowed.append(candidate)
+storage_candidate = source / "storage-candidate" / "storage-surfaces.actual.png"
+if storage_candidate.is_file():
+    allowed.append(storage_candidate)
 allowed.extend(sorted((source / "screenshots").glob("synthetic-*.png")) if (source / "screenshots").is_dir() else [])
 if (source / "accessibility").is_dir():
     allowed.extend(sorted((source / "accessibility").glob("*.tree.txt")))
@@ -163,10 +167,13 @@ manifest = []
 total = 0
 for item in allowed:
     relative = item.relative_to(source)
+    if item.is_symlink():
+        raise SystemExit(f"symlinked evidence is forbidden: {relative}")
     if any(part in {"DerivedData", ".snapshot-testing"} or part.endswith(".xcresult") for part in relative.parts):
         raise SystemExit(f"raw build material is forbidden: {relative}")
     suffix = item.suffix.lower()
-    limit = max_image if suffix == ".png" else max_text
+    is_storage_candidate = relative.as_posix() == "storage-candidate/storage-surfaces.actual.png"
+    limit = max_storage_candidate if is_storage_candidate else (max_image if suffix == ".png" else max_text)
     size = item.stat().st_size
     if size <= 0 or size > limit:
         raise SystemExit(f"evidence file size is invalid: {relative} ({size} bytes)")
@@ -188,6 +195,14 @@ for item in allowed:
     elif suffix == ".txt" or suffix == ".log":
         destination.write_text(sanitize_log(item.read_text(encoding="utf-8")), encoding="utf-8")
     elif suffix == ".png":
+        if is_storage_candidate:
+            raw = item.read_bytes()
+            if raw[:8] != b"\x89PNG\r\n\x1a\n" or raw[12:16] != b"IHDR" or len(raw) < 24:
+                raise SystemExit("storage snapshot candidate is not a bounded PNG")
+            width = int.from_bytes(raw[16:20], "big")
+            height = int.from_bytes(raw[20:24], "big")
+            if (width, height) != (5760, 3040):
+                raise SystemExit(f"storage snapshot candidate dimensions are invalid: {width}x{height}")
         shutil.copyfile(item, destination)
     else:
         raise SystemExit(f"evidence extension is not allowlisted: {relative}")

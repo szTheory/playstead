@@ -495,6 +495,7 @@ run_test_layer() {
       -testPlan "$plan" -destination 'platform=macOS' \
       -derivedDataPath "$DERIVED_DATA" -resultBundlePath "$result_bundle" \
       "${signing[@]}" PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT="${FOUR_LAYER_EVIDENCE}/snapshot-triplet" \
+      PLAYSTEAD_STORAGE_SNAPSHOT_CANDIDATE_OUTPUT="${FOUR_LAYER_EVIDENCE}/storage-candidate/storage-surfaces.actual.png" \
       PLAYSTEAD_SNAPSHOT_RECORDING=0 || xcode_status=$?
 
   if [ -d "$result_bundle" ]; then
@@ -530,13 +531,14 @@ run_four_layer_verification() {
   capture_keyboard_mode
 
   rm -rf "$FOUR_LAYER_ROOT" "$DERIVED_DATA"
-  mkdir -p "$FOUR_LAYER_RAW" "$FOUR_LAYER_EVIDENCE/snapshot-triplet"
+  mkdir -p "$FOUR_LAYER_RAW" "$FOUR_LAYER_EVIDENCE/snapshot-triplet" "$FOUR_LAYER_EVIDENCE/storage-candidate"
   write_fingerprint "$FOUR_LAYER_EVIDENCE/environment-fingerprint.json"
 
   run_with_deadline 1200 "${FOUR_LAYER_RAW}/build.log" \
     xcodebuild build-for-testing -project "$PROJECT" -scheme "$SCHEME" \
       -destination 'platform=macOS' -derivedDataPath "$DERIVED_DATA" \
       "${signing[@]}" PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT="${FOUR_LAYER_EVIDENCE}/snapshot-triplet" \
+      PLAYSTEAD_STORAGE_SNAPSHOT_CANDIDATE_OUTPUT="${FOUR_LAYER_EVIDENCE}/storage-candidate/storage-surfaces.actual.png" \
       PLAYSTEAD_SNAPSHOT_RECORDING=0 || build_status=$?
   if [ "$build_status" -ne 0 ]; then
     python3 - "$FOUR_LAYER_EVIDENCE/layers.json" "$build_status" <<'PY'

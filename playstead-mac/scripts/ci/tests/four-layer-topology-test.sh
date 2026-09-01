@@ -108,6 +108,7 @@ grep -F 'xcodebuild build-for-testing' "$RUNNER" >/dev/null
 grep -F 'xcodebuild test-without-building' "$RUNNER" >/dev/null
 grep -F '"automatic_retries": 0' "$RUNNER" >/dev/null
 grep -F 'PLAYSTEAD_SNAPSHOT_RECORDING=0' "$RUNNER" >/dev/null
+grep -F 'PLAYSTEAD_STORAGE_SNAPSHOT_CANDIDATE_OUTPUT="${FOUR_LAYER_EVIDENCE}/storage-candidate/storage-surfaces.actual.png"' "$RUNNER" >/dev/null
 grep -F -- '--required-test PlaysteadTests.StorageContractSnapshotTests/testDownloadsQuotaReclaimAndStorageVisualContract' "$RUNNER" >/dev/null
 grep -F -- '--required-test PlaysteadTests.StorageContractSnapshotTests/testStorageMotionAndReducedMotionContract' "$RUNNER" >/dev/null
 grep -F -- '--required-test PlaysteadUITests.CurationInteractionTests/testFiveShelvesAndDurableDragReorder' "$RUNNER" >/dev/null
@@ -133,6 +134,9 @@ fi
 
 grep -F 'max_files = 40' "$SANITIZER" >/dev/null
 grep -F 'max_total = 12 * 1024 * 1024' "$SANITIZER" >/dev/null
+grep -F 'max_storage_candidate = 8 * 1024 * 1024' "$SANITIZER" >/dev/null
+grep -F 'storage-candidate/storage-surfaces.actual.png' "$SANITIZER" >/dev/null
+grep -F '(width, height) != (5760, 3040)' "$SANITIZER" >/dev/null
 grep -F 'snapshot-triplet' "$SANITIZER" >/dev/null
 grep -F 'environment-fingerprint.json' "$SANITIZER" >/dev/null
 grep -F '"failed_tests": all_failed[:max_failed_tests]' "$RUNNER" >/dev/null
