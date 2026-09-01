@@ -36,6 +36,16 @@ client boundary. Accept community-contributed results only with reproducible
 environment fingerprints and a clear distinction between Playstead-verified,
 community-reported, degraded, experimental, and unsupported configurations.
 
+ArmadaOS provides useful information-architecture prior art: its supported-device
+surface groups devices by manufacturer, records each device's SoC, and adds a
+model-specific page only where installation, usage, or troubleshooting guidance
+actually differs. Playstead should investigate that layered approach so the
+matrix stays navigable as device counts grow, while adding Playstead-specific
+evidence such as client/OS build, adapter fingerprint, controller path, tested
+journeys, last verification date, and evidence authority. Reuse the pattern only
+after current license/trademark/content review; do not copy its catalogue or
+infer that an ArmadaOS-supported device is Playstead-compatible.
+
 ## When to Surface
 
 **Trigger:** when planning a second client or adapter, publishing compatibility
@@ -58,6 +68,9 @@ physical power/USB control, test-content licensing, and a budget for device chur
 - `https://www.goretroid.com/collections/frontpage/products/retroid-pocket-6-handheld`
   — owner-provided example of the expanding handheld target landscape; inclusion
   here is a research breadcrumb, not a compatibility claim or purchase decision
+- `https://armadaos.dev/devices/supported-devices/` — owner-provided prior-art
+  breadcrumb for a manufacturer → model/SoC → conditional model-documentation
+  hierarchy; research its maintenance and evidence model before adopting it
 - `.planning/PROJECT.md` — long-term Steam Deck, PSP/Vita-class, arcade,
   living-room, desktop, and web client vision; broad v1 support is out of scope
 - `.planning/ROADMAP.md` — current contract requires explicit client/emulator/
