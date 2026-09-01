@@ -157,7 +157,11 @@ grep -F 'withVelocity: XCUIGestureVelocity.slow' "$CURATION_TEST" >/dev/null
 grep -F 'thenHoldForDuration: 1' "$CURATION_TEST" >/dev/null
 grep -F 'harness.app.cells.containing(.any, identifier: identifier)' "$CURATION_TEST" >/dev/null
 [ "$(grep -c 'harness.relaunch' "$CURATION_TEST")" -eq 4 ]
-[ "$(grep -c 'harness.app.typeKey(.space' "$CURATION_TEST")" -eq 1 ]
+[ "$(grep -c '\.typeKey(.space' "$CURATION_TEST")" -eq 2 ]
+if grep -F 'harness.app.typeKey(.space' "$CURATION_TEST" >/dev/null; then
+  printf 'curation keyboard activation must target the already-focused exact button\n' >&2
+  exit 1
+fi
 grep -F 'harness.element(collectionRowID, type: .button)' "$CURATION_TEST" >/dev/null
 if grep -F 'try fixture.assertExactState()' "$UI_BOOTSTRAP" >/dev/null; then
   printf 'bootstrap must preserve makeFixture relaunch validation instead of requiring fresh positions\n' >&2

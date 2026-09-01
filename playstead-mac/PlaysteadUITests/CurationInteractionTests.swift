@@ -176,6 +176,7 @@ final class CurationInteractionTests: XCTestCase {
             rootIdentifier: "playstead.surface.collection-detail"
         )
         let keyboardMoveButton = harness.element(keyboardMove, type: .button)
+        keyboardMoveButton.typeKey(.space, modifierFlags: [])
 
         let keyboardOrder = [memberID(3), memberID(2), memberID(1)]
         assertEvidence(order: keyboardOrder, outboxCount: 2, in: harness)
@@ -248,7 +249,7 @@ final class CurationInteractionTests: XCTestCase {
         // sent exactly once, after the helper returns.
         harness.focusContainedAction(keyboardMove, rootIdentifier: "playstead.surface.collection-detail")
         let button = harness.element(keyboardMove, type: .button)
-        harness.app.typeKey(.space, modifierFlags: [])
+        button.typeKey(.space, modifierFlags: [])
 
         let order = [memberID(2), memberID(1), memberID(3)]
         assertEvidence(order: order, outboxCount: 1, in: harness)
