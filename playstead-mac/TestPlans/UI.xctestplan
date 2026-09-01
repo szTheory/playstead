@@ -21,7 +21,8 @@
       "parallelizable" : false,
       "selectedTests" : [
         "HostedRunnerCanaryTests/testFullKeyboardAccessCanaryFocusesAndActivatesTwoControls()",
-        "HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice()"
+        "HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice()",
+        "SurfaceAccessibilityTests"
       ],
       "target" : {
         "containerPath" : "container:Playstead.xcodeproj",

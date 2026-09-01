@@ -771,12 +771,17 @@ verify_topology() {
 run_selected_layer_tests() {
   local layer="$1"
   shift
-  [ "$layer" = "rendering" ] || die "targeted verification currently supports only the rendering layer"
-  [ "${1:-}" = "--only-testing" ] || die "--layers rendering requires --only-testing TEST"
+  case "$layer" in
+    rendering|ui) ;;
+    *) die "targeted verification supports only rendering or ui" ;;
+  esac
+  [ "${1:-}" = "--only-testing" ] || die "--layers $layer requires --only-testing TEST"
   shift
   [ "$#" -gt 0 ] || die "--only-testing requires at least one test identifier"
 
-  local selected_root="${BUILD_ROOT}/selected-rendering"
+  local selected_root="${BUILD_ROOT}/selected-${layer}"
+  local test_plan="Rendering"
+  [ "$layer" != "ui" ] || test_plan="UI"
   local signing=(CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=)
   local only_testing=()
   while [ "$#" -gt 0 ]; do
@@ -785,7 +790,7 @@ run_selected_layer_tests() {
   done
 
   rm -rf "$selected_root"
-  xcodebuild test -project "$PROJECT" -scheme "$SCHEME" -testPlan Rendering \
+  xcodebuild test -project "$PROJECT" -scheme "$SCHEME" -testPlan "$test_plan" \
     -destination 'platform=macOS' -derivedDataPath "$selected_root" \
     "${signing[@]}" "${only_testing[@]}"
 }
@@ -796,7 +801,7 @@ Usage:
   run-mac-verification.sh --run-wave-0-adoption
   run-mac-verification.sh --run-four-layer-verification
   run-mac-verification.sh --run-snapshot-candidates
-  run-mac-verification.sh --layers rendering --only-testing TEST [TEST ...]
+  run-mac-verification.sh --layers {rendering|ui} --only-testing TEST [TEST ...]
   run-mac-verification.sh --verify-layer-result FILE LAYER OUTPUT --required-test ID [...]
   run-mac-verification.sh --self-test-result-verifier
   run-mac-verification.sh --self-test-sanitizer [--verify-four-layer-topology]
