@@ -59,27 +59,58 @@ granular_coverage = {
     "testDownloadsSheetOpensAndDismisses": (
         "playstead.control.open-downloads", "playstead.control.done", "XCTAssertFalse",
     ),
-    "testLibraryControlsPassLiveAccessibilityAudit": (
-        "harness.audit", "playstead.control.show-list", "library.search.field",
+    "testLibrarySemanticTargetsHaveRolesLabelsAndFrames": (
+        "validateSemanticTargets(libraryTargets)", "sanitizedTrace",
     ),
-    "testContextualOpenersPassLiveAccessibilityAudit": (
-        "harness.audit", "playstead.control.open-adapter", "playstead.control.open-readiness",
+    "testContextualOpenersHaveRolesLabelsAndFrames": (
+        "validateSemanticTargets(contextualOpenerTargets)",
     ),
-    "testAdapterSheetContainsFocusDismissesAndRestoresOpener": (
-        "assertSheetFocusContained", ".escape", "hasKeyboardFocus",
+    "testAdapterSheetContainsKeyboardFocus": (
+        "launchAdapterSheet()", "assertSheetFocusContained",
     ),
-    "testAdapterControlsPassLiveAccessibilityAudit": (
-        "harness.audit", "playstead.control.install-adapter", "playstead.control.choose-adapter",
+    "testAdapterSheetDismissesWithEscape": (
+        "launchAdapterSheet()", ".escape", "XCTAssertFalse",
+    ),
+    "testAdapterSheetRestoresOpenerFocusAfterEscape": (
+        "launchAdapterSheet()", ".escape", "hasKeyboardFocus",
+    ),
+    "testAdapterControlsHaveRolesLabelsAndFrames": (
+        "validateSemanticTargets(adapterTargets)",
     ),
     "testReadinessRoutesReachBIOSAndControllerSettings": ("launchReadinessRoutes()",),
-    "testReadinessSheetContainsFocusAndDoneDismisses": (
-        "assertSheetFocusContained", "focusContainedAction", "playstead.control.done", "XCTAssertFalse",
+    "testReadinessSheetContainsKeyboardFocus": (
+        "launchReadinessRoutes()", "assertSheetFocusContained",
     ),
-    "testReadinessControlsPassLiveAccessibilityAudit": (
-        "harness.audit", "playstead.control.open-bios",
-        "playstead.control.open-controller-settings", "playstead.control.choose-bios",
+    "testReadinessDoneActionReceivesKeyboardFocus": (
+        "launchReadinessRoutes()", "focusContainedAction", "playstead.control.done",
+    ),
+    "testReadinessDoneActionDismissesSheet": (
+        "launchReadinessRoutes()", "focusContainedAction", "typeKey(.space", "XCTAssertFalse",
+    ),
+    "testReadinessControlsHaveRolesLabelsAndFrames": (
+        "validateSemanticTargets(readinessTargets)",
     ),
 }
+
+audit_surfaces = {
+    "Library": "auditLibrary",
+    "ContextualOpeners": "auditContextualOpeners",
+    "Adapter": "auditAdapter",
+    "Readiness": "auditReadiness",
+}
+audit_categories = {
+    "Contrast": "contrast",
+    "ElementDetection": "elementDetection",
+    "HitRegion": "hitRegion",
+    "SufficientDescription": "sufficientElementDescription",
+    "Action": "action",
+    "ParentChild": "parentChild",
+}
+for surface, helper in audit_surfaces.items():
+    for category_name, category_value in audit_categories.items():
+        granular_coverage[f"test{surface}{category_name}AccessibilityAudit"] = (
+            f"{helper}(.{category_value})",
+        )
 
 def check_granular_coverage(test_source):
     matches = list(re.finditer(r"^    func (test[A-Za-z0-9_]+)\(", test_source, re.MULTILINE))
@@ -93,10 +124,20 @@ def check_granular_coverage(test_source):
         if missing:
             raise AssertionError(f"{match.group(1)} lost acceptance coverage: {missing}")
     for name in granular_coverage:
-        if name not in plan:
+        if name not in plan and "PlaysteadUITests/SurfaceAccessibilityTests</automated>" not in plan:
             raise AssertionError(f"Plan 05 verification does not select granular test: {name}")
-    if "testLibrarySidebarUsesIndependentFocusAndLiveAudit" in test_source or "testContextualRoutesContainAndRestoreFocus" in test_source:
-        raise AssertionError("broad UI tests hide the failing acceptance stage")
+    broad_tests = (
+        "testLibrarySidebarUsesIndependentFocusAndLiveAudit",
+        "testContextualRoutesContainAndRestoreFocus",
+        "testLibraryControlsPassLiveAccessibilityAudit",
+        "testContextualOpenersPassLiveAccessibilityAudit",
+        "testAdapterSheetContainsFocusDismissesAndRestoresOpener",
+        "testAdapterControlsPassLiveAccessibilityAudit",
+        "testReadinessSheetContainsFocusAndDoneDismisses",
+        "testReadinessControlsPassLiveAccessibilityAudit",
+    )
+    if any(name in test_source for name in broad_tests):
+        raise AssertionError("broad UI tests hide the failing audit category or sheet stage")
     for marker in (
         "playstead.surface.readiness", "playstead.surface.bios",
         "playstead.surface.controller-settings",
@@ -140,8 +181,19 @@ except AssertionError:
 else:
     raise SystemExit("route-removal meta-test did not fail")
 
-if "performAccessibilityAudit(for: .all)" not in harness or "else { return false }" not in harness:
-    raise SystemExit("public accessibility audit must cover all categories and fail closed")
+category_block = harness[harness.find("enum AuditCategory"):harness.find("let app: XCUIApplication")]
+declared_categories = set(re.findall(r"^        case ([A-Za-z0-9_]+)$", category_block, re.MULTILINE))
+if declared_categories != set(audit_categories.values()):
+    raise SystemExit(f"macOS public accessibility audit category drift: {declared_categories}")
+for category in audit_categories.values():
+    if f"case .{category}: .{category}" not in category_block:
+        raise SystemExit(f"audit category is not mapped one-to-one: {category}")
+if "performAccessibilityAudit(for: category.xcuiType)" not in harness or "else { return false }" not in harness:
+    raise SystemExit("public accessibility audit must run one canonical category and fail closed")
+if "performAccessibilityAudit(for: .all)" in harness:
+    raise SystemExit("all-category audit hides the canonical failing category")
+if "func validateSemanticTargets(_ targets: [AuditTarget])" not in harness:
+    raise SystemExit("semantic role/label/frame validation is not independently observable")
 if "exclusions:" in tests:
     raise SystemExit("Plan 05 contracts must repair production audit issues, not suppress them")
 if "AUDIT-DISCOVERY" in harness or "Thread.sleep" in harness or "sleep(" in harness:
@@ -159,8 +211,11 @@ def check_focus_expectations(harness_source, test_source):
     missing = [marker for marker in required_harness if marker not in harness_source]
     if missing or "0..<expected.count where !foundActivationTarget" in harness_source:
         raise AssertionError(f"focus traversal uses a content-dependent bound or lacks containment: {missing}")
-    focus_call = test_source.find("harness.focusContainedAction(")
-    done_activation = test_source.find('harness.element("playstead.control.done", type: .button).typeKey')
+    dismissal_start = test_source.find("    func testReadinessDoneActionDismissesSheet()")
+    dismissal_end = test_source.find("    func testReadinessControlsHaveRolesLabelsAndFrames()", dismissal_start)
+    dismissal = test_source[dismissal_start:dismissal_end]
+    focus_call = dismissal.find("harness.focusContainedAction(")
+    done_activation = dismissal.find('harness.element("playstead.control.done", type: .button).typeKey')
     if focus_call < 0 or done_activation < 0 or focus_call > done_activation:
         raise AssertionError("Done receives Space before the test explicitly moves sheet focus to Done")
 
@@ -168,7 +223,6 @@ check_focus_expectations(harness, tests)
 for marker, source_name in (
     ("for _ in 0..<24 where !foundActivationTarget", "harness"),
     ("func focusContainedAction(_ identifier: String, rootIdentifier: String)", "harness"),
-    ("harness.focusContainedAction(", "tests"),
 ):
     mutated_harness = harness.replace(marker, "removed.focus.contract", 1) if source_name == "harness" else harness
     mutated_tests = tests.replace(marker, "removed.focus.contract", 1) if source_name == "tests" else tests

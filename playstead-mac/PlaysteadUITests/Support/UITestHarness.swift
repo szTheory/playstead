@@ -38,6 +38,26 @@ final class UITestHarness {
         let rationale: String
     }
 
+    enum AuditCategory: String, CaseIterable {
+        case contrast
+        case elementDetection
+        case hitRegion
+        case sufficientElementDescription
+        case action
+        case parentChild
+
+        var xcuiType: XCUIAccessibilityAuditType {
+            switch self {
+            case .contrast: .contrast
+            case .elementDetection: .elementDetection
+            case .hitRegion: .hitRegion
+            case .sufficientElementDescription: .sufficientElementDescription
+            case .action: .action
+            case .parentChild: .parentChild
+            }
+        }
+    }
+
     let app: XCUIApplication
     private(set) var identifierTrace: [String] = []
 
@@ -136,7 +156,7 @@ final class UITestHarness {
         identifierTrace.append(identifier)
     }
 
-    func audit(_ targets: [AuditTarget], exclusions: [AuditExclusion] = []) throws {
+    func validateSemanticTargets(_ targets: [AuditTarget]) {
         XCTAssertFalse(targets.isEmpty, "live audit inventory must be independently nonempty")
         for target in targets {
             let element = element(target.identifier, type: target.elementType)
@@ -148,10 +168,12 @@ final class UITestHarness {
             XCTAssertTrue(frame.width > 0 && frame.height > 0 && frame.isFinite, "invalid frame: \(target.identifier)")
             identifierTrace.append(target.identifier)
         }
+    }
 
+    func audit(_ category: AuditCategory, exclusions: [AuditExclusion] = []) throws {
         let exclusionsByFingerprint = Dictionary(uniqueKeysWithValues: exclusions.map { ($0.fingerprint, $0) })
         var matched = Set<String>()
-        try app.performAccessibilityAudit(for: .all) { issue in
+        try app.performAccessibilityAudit(for: category.xcuiType) { issue in
             let fingerprint = "\(issue.auditType.rawValue)|\(issue.element?.identifier ?? "")"
             guard let exclusion = exclusionsByFingerprint[fingerprint],
                   issue.element?.identifier == exclusion.identifier,
