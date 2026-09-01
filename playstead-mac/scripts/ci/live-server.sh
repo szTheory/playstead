@@ -7,7 +7,31 @@ stage="validate-input"
 # bounded stage name: no credentials, response bodies, or absolute paths.
 exec 3>&2
 exec 2>/dev/null
-trap 'status=$?; if [ "$status" -ne 0 ]; then printf "live-server fixture failed at %s\n" "$stage" >&3; fi' EXIT
+
+write_failure_stage() {
+  case "$stage" in
+    validate-input|provision-domain|request-pairing|approve-pairing|redeem-pairing|add-second-sentinel|verify-evidence) ;;
+    *) return ;;
+  esac
+
+  local marker="${PLAYSTEAD_LIVE_SERVER_STAGE_FILE:-}"
+  local evidence_root="${PLAYSTEAD_LIVE_SERVER_STAGE_ROOT:-}"
+  [ -n "$marker" ] && [ -n "$evidence_root" ] || return
+  [ "${marker#/}" != "$marker" ] && [ "${evidence_root#/}" != "$evidence_root" ] || return
+  [ "$(basename "$marker")" = "live-server-failure-stage" ] || return
+
+  local resolved_root resolved_parent temporary
+  resolved_root="$(cd "$evidence_root" 2>/dev/null && pwd -P)" || return
+  resolved_parent="$(cd "$(dirname "$marker")" 2>/dev/null && pwd -P)" || return
+  [ "$resolved_parent" = "$resolved_root" ] || return
+
+  temporary="${marker}.tmp.$$"
+  (umask 077; printf '%s\n' "$stage" >"$temporary") || return
+  chmod 0600 "$temporary" || return
+  mv -f "$temporary" "$marker"
+}
+
+trap 'status=$?; if [ "$status" -ne 0 ]; then write_failure_stage; printf "live-server fixture failed at %s\n" "$stage" >&3; fi' EXIT
 
 die() { exit 1; }
 

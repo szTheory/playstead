@@ -30,7 +30,7 @@ final class LiveServerSnapshotTests: XCTestCase {
         XCTAssertEqual(status, errSecSuccess)
         keychain = created
 
-        try runFixture("prepare", root: runRoot)
+        guard try runFixture("prepare", root: runRoot) else { return }
         let first = try sentinel(at: runRoot.appendingPathComponent("control/first-sentinel.json"))
         let handoff = runRoot.appendingPathComponent("credential-handoff.json")
         XCTAssertEqual(try permissions(of: handoff), 0o600)
@@ -57,7 +57,7 @@ final class LiveServerSnapshotTests: XCTestCase {
         try assertNoGameBytes(root: runRoot)
 
         launched.terminate()
-        try runFixture("second", root: runRoot)
+        guard try runFixture("second", root: runRoot) else { return }
         let second = try sentinel(at: runRoot.appendingPathComponent("control/second-sentinel.json"))
         XCTAssertNotEqual(second.assetSetID, first.assetSetID)
 
@@ -79,7 +79,7 @@ final class LiveServerSnapshotTests: XCTestCase {
         }
         XCTAssertFalse(try storedCursor(root: runRoot).isEmpty)
         try assertNoGameBytes(root: runRoot)
-        try runFixture("verify", root: runRoot)
+        guard try runFixture("verify", root: runRoot) else { return }
     }
 
     private struct Control: Decodable {
@@ -95,9 +95,7 @@ final class LiveServerSnapshotTests: XCTestCase {
         try JSONDecoder().decode(Control.self, from: Data(contentsOf: url)).sentinel
     }
 
-    private struct FixtureAbort: Error {}
-
-    private func runFixture(_ action: String, root: URL) throws {
+    private func runFixture(_ action: String, root: URL) throws -> Bool {
         let script = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("scripts/ci/live-server.sh")
@@ -120,37 +118,38 @@ final class LiveServerSnapshotTests: XCTestCase {
                 options: .regularExpression
             )
             let bounded = String(sanitized.prefix(160)).trimmingCharacters(in: .whitespacesAndNewlines)
-            try recordFixtureFailure(
+            recordFixtureFailure(
                 bounded.isEmpty ? "bounded diagnostic unavailable" : bounded,
                 action: action,
                 status: process.terminationStatus
             )
-            return
+            return false
         }
+        return true
     }
 
-    private func recordFixtureFailure(_ diagnostic: String, action: String, status: Int32) throws {
-        // Distinct XCTFail sites make the allowlisted stage visible to the
-        // existing bounded xcresult parser without emitting raw subprocess IO.
+    private func recordFixtureFailure(_ diagnostic: String, action: String, status: Int32) {
+        // Distinct XCTAssertEqual sites make the allowlisted stage visible to
+        // the existing bounded xcresult parser without emitting raw IO. The
+        // caller immediately returns from the test after this records failure.
         switch diagnostic {
         case "live-server fixture failed at validate-input":
-            XCTFail("live-server-stage=validate-input action=\(action) status=\(status)")
+            XCTAssertEqual(status, 0, "live-server-stage=validate-input action=\(action)")
         case "live-server fixture failed at provision-domain":
-            XCTFail("live-server-stage=provision-domain action=\(action) status=\(status)")
+            XCTAssertEqual(status, 0, "live-server-stage=provision-domain action=\(action)")
         case "live-server fixture failed at request-pairing":
-            XCTFail("live-server-stage=request-pairing action=\(action) status=\(status)")
+            XCTAssertEqual(status, 0, "live-server-stage=request-pairing action=\(action)")
         case "live-server fixture failed at approve-pairing":
-            XCTFail("live-server-stage=approve-pairing action=\(action) status=\(status)")
+            XCTAssertEqual(status, 0, "live-server-stage=approve-pairing action=\(action)")
         case "live-server fixture failed at redeem-pairing":
-            XCTFail("live-server-stage=redeem-pairing action=\(action) status=\(status)")
+            XCTAssertEqual(status, 0, "live-server-stage=redeem-pairing action=\(action)")
         case "live-server fixture failed at add-second-sentinel":
-            XCTFail("live-server-stage=add-second-sentinel action=\(action) status=\(status)")
+            XCTAssertEqual(status, 0, "live-server-stage=add-second-sentinel action=\(action)")
         case "live-server fixture failed at verify-evidence":
-            XCTFail("live-server-stage=verify-evidence action=\(action) status=\(status)")
+            XCTAssertEqual(status, 0, "live-server-stage=verify-evidence action=\(action)")
         default:
-            XCTFail("live-server-stage=bounded-diagnostic-unavailable action=\(action) status=\(status)")
+            XCTAssertEqual(status, 0, "live-server-stage=bounded-diagnostic-unavailable action=\(action)")
         }
-        throw FixtureAbort()
     }
 
     private func storedCursor(root: URL) throws -> String {

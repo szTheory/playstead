@@ -115,6 +115,9 @@ if not (0 <= native_start < live_layer < native_cleanup):
     raise SystemExit("native PostgreSQL/Phoenix must wrap only the LiveServer layer")
 if "trap 'cleanup_native_services; restore_keyboard_mode' EXIT" not in four_layer:
     raise SystemExit("LiveServer native cleanup must preserve keyboard-mode restoration")
+stage_preflight = four_layer.find("prepare_live_server_failure_stage")
+if not (0 <= stage_preflight < live_layer):
+    raise SystemExit("failure-stage channel must be cleared and validated before LiveServer")
 deadline_pairs = re.findall(
     r"^\s*run_test_layer (unit|rendering|ui|live-server)\s+\S+\s+(\d+)\s+\\$",
     four_layer,
@@ -138,10 +141,15 @@ grep -F 'CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISION
 grep -F 'server: System.get_env("PLAYSTEAD_MAC_CI_TASK") != "1"' "$MAC_CI_CONFIG" >/dev/null
 [ "$(grep -c 'PLAYSTEAD_MAC_CI_TASK=1 mix playstead.mac_ci_fixture' "$LIVE_SERVER_FIXTURE")" -eq 3 ]
 grep -F 'live-server fixture failed at %s' "$LIVE_SERVER_FIXTURE" >/dev/null
+grep -F 'PLAYSTEAD_LIVE_SERVER_STAGE_FILE' "$LIVE_SERVER_FIXTURE" >/dev/null
+grep -F 'resolved_parent" = "$resolved_root' "$LIVE_SERVER_FIXTURE" >/dev/null
+grep -F 'live-server: FAILURE_STAGE %s' "$RUNNER" >/dev/null
+grep -F 'prepare_live_server_failure_stage' "$RUNNER" >/dev/null
+grep -F 'PLAYSTEAD_LIVE_SERVER_STAGE_FILE="$server_root/live-server-failure-stage"' "$RUNNER" >/dev/null
 grep -F 'raw.replacingOccurrences(' "$LIVE_SERVER_TEST" >/dev/null
 grep -F 'sanitized.prefix(160)' "$LIVE_SERVER_TEST" >/dev/null
-[ "$(grep -c 'XCTFail("live-server-stage=' "$LIVE_SERVER_TEST")" -eq 8 ]
-grep -F 'throw FixtureAbort()' "$LIVE_SERVER_TEST" >/dev/null
+[ "$(grep -c 'XCTAssertEqual(status, 0, "live-server-stage=' "$LIVE_SERVER_TEST")" -eq 8 ]
+[ "$(grep -c 'guard try runFixture' "$LIVE_SERVER_TEST")" -eq 3 ]
 if grep -E '(^|[[:space:]])(security|codesign)([[:space:]]|$)' "$RUNNER" >/dev/null; then
   printf 'verification runner must not invoke security(1) or codesign(1)\n' >&2
   exit 1

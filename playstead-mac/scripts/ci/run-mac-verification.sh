@@ -563,6 +563,7 @@ allowed_assertions = {
     "XCTAssertGreaterThan", "XCTAssertGreaterThanOrEqual", "XCTAssertNoThrow",
     "XCTAssertThrowsError", "XCTFail", "XCTUnwrap",
 }
+
 if not isinstance(diagnostics, list) or len(diagnostics) > 50:
     raise SystemExit(1)
 if type(count) is not int or count < len(diagnostics) or type(truncated) is not bool:
@@ -598,6 +599,38 @@ for test, assertion, source_file, source_line in safe:
 if truncated:
     print(f"{layer}: FAILURE_DIAGNOSTICS_TRUNCATED shown={len(safe)} total={count}")
 PY
+}
+
+prepare_live_server_failure_stage() {
+  local marker="${PLAYSTEAD_LIVE_SERVER_STAGE_FILE:-}"
+  local evidence_root="${PLAYSTEAD_LIVE_SERVER_STAGE_ROOT:-}"
+  [ -n "$marker" ] && [ -n "$evidence_root" ] || die "live-server failure-stage channel is not configured"
+  [ "$(basename "$marker")" = "live-server-failure-stage" ] || die "live-server failure-stage filename drifted"
+  [ "$(cd "$(dirname "$marker")" && pwd -P)" = "$(cd "$evidence_root" && pwd -P)" ] || \
+    die "live-server failure-stage channel escaped its owned root"
+  rm -f "$marker"
+}
+
+print_live_server_failure_stage() {
+  local marker="${PLAYSTEAD_LIVE_SERVER_STAGE_FILE:-}"
+  local token mode
+  if [ -z "$marker" ] || [ ! -f "$marker" ]; then
+    printf '%s\n' "live-server: FAILURE_STAGE unavailable"
+    return
+  fi
+  mode="$(stat -f '%Lp' "$marker" 2>/dev/null || true)"
+  token="$(tr -d '\r\n' <"$marker")"
+  rm -f "$marker"
+  if [ "$mode" != "600" ]; then
+    printf '%s\n' "live-server: FAILURE_STAGE invalid-mode"
+    return
+  fi
+  case "$token" in
+    validate-input|provision-domain|request-pairing|approve-pairing|redeem-pairing|add-second-sentinel|verify-evidence)
+      printf 'live-server: FAILURE_STAGE %s\n' "$token"
+      ;;
+    *) printf '%s\n' "live-server: FAILURE_STAGE invalid-token" ;;
+  esac
 }
 
 print_build_diagnostics() {
@@ -731,6 +764,9 @@ run_test_layer() {
       print_failure_diagnostics "$result_summary" "$slug" || \
         printf '%s\n' "$slug: bounded failure diagnostics unavailable"
     fi
+    if [ "$slug" = "live-server" ]; then
+      print_live_server_failure_stage
+    fi
   else
     printf '%s\n' "$slug: PASSED"
   fi
@@ -844,6 +880,7 @@ PY
   # service cleanup with the already-armed keyboard-mode restoration.
   trap 'cleanup_native_services; restore_keyboard_mode' EXIT
   start_native_services
+  prepare_live_server_failure_stage
   run_test_layer live-server LiveServer 900 \
     --required-test PlaysteadUITests.HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
@@ -961,6 +998,7 @@ start_native_services() {
   PGDATA="$NATIVE_ROOT/postgres"
   server_root="$NATIVE_ROOT/app"
   mkdir -p "$server_root/inbox" "$server_root/blobs" "$server_root/exports"
+  chmod 0700 "$NATIVE_ROOT" "$server_root"
 
   "$pg_bin/initdb" -D "$PGDATA" --auth=trust --no-locale --encoding=UTF8 >/dev/null
   "$PG_CTL" -D "$PGDATA" -l "$NATIVE_ROOT/postgres.log" \
@@ -970,6 +1008,8 @@ start_native_services() {
   export MIX_ENV=mac_ci
   export PORT=4010
   export PLAYSTEAD_MAC_CI_ROOT="$server_root"
+  export PLAYSTEAD_LIVE_SERVER_STAGE_ROOT="$server_root"
+  export PLAYSTEAD_LIVE_SERVER_STAGE_FILE="$server_root/live-server-failure-stage"
   export MAC_CI_DATABASE_URL="ecto://${pg_user}@127.0.0.1:${pg_port}/playstead_mac_ci"
 
   # Dependency compilation and migrations can exceed the server readiness
