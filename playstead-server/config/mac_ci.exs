@@ -31,7 +31,9 @@ config :playstead, PlaysteadWeb.Endpoint,
   url: [host: "127.0.0.1", port: port, scheme: "http"],
   http: [ip: {127, 0, 0, 1}, port: port],
   secret_key_base: "wave0-native-phoenix-only-not-a-production-secret-key-base-0000000000000000",
-  server: true,
+  # The long-lived Phoenix process owns the loopback listener. Fixture Mix
+  # tasks still start Repo/domain services, but must not contend for the port.
+  server: System.get_env("PLAYSTEAD_MAC_CI_TASK") != "1",
   check_origin: false
 
 config :playstead, :sql_sandbox, false

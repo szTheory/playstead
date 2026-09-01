@@ -12,6 +12,9 @@ UI_CANARY="${MAC_ROOT}/PlaysteadUITests/HostedRunnerCanaryTests.swift"
 CURATION_TEST="${MAC_ROOT}/PlaysteadUITests/CurationInteractionTests.swift"
 COLLECTION_DETAIL="${MAC_ROOT}/Playstead/Curation/CollectionDetailView.swift"
 UI_BOOTSTRAP="${MAC_ROOT}/Playstead/UITesting/UITestBootstrap.swift"
+LIVE_SERVER_TEST="${MAC_ROOT}/PlaysteadUITests/LiveServerSnapshotTests.swift"
+LIVE_SERVER_FIXTURE="${MAC_ROOT}/scripts/ci/live-server.sh"
+MAC_CI_CONFIG="${REPO_ROOT}/playstead-server/config/mac_ci.exs"
 STORAGE_TEST="${MAC_ROOT}/PlaysteadUITests/StorageInteractionTests.swift"
 GAME_ROW="${MAC_ROOT}/Playstead/Library/GameRowView.swift"
 LIBRARY_SHELL="${MAC_ROOT}/Playstead/Library/LibraryShellView.swift"
@@ -24,7 +27,7 @@ PROMPT_SAFETY="${MAC_ROOT}/scripts/ci/tests/keychain-prompt-safety-test.sh"
 KEYBOARD_CLEANUP="${MAC_ROOT}/scripts/ci/tests/keyboard-mode-cleanup-test.sh"
 SWIFT_SEMANTIC="${MAC_ROOT}/scripts/ci/tests/wave6-swift-semantic-test.sh"
 
-for file in "$RUNNER" "$SCHEME" "$APP_ENTRY" "$PROFILE_TEST" "$UI_CANARY" "$CURATION_TEST" "$COLLECTION_DETAIL" "$UI_BOOTSTRAP" "$STORAGE_TEST" "$GAME_ROW" "$LIBRARY_SHELL" "$RECLAIM_VIEW" "$STORAGE_VIEW" "$WORKFLOW" "$REFRESH_WORKFLOW" "$SANITIZER" "$PROMPT_SAFETY" "$KEYBOARD_CLEANUP" "$SWIFT_SEMANTIC"; do
+for file in "$RUNNER" "$SCHEME" "$APP_ENTRY" "$PROFILE_TEST" "$UI_CANARY" "$CURATION_TEST" "$COLLECTION_DETAIL" "$UI_BOOTSTRAP" "$LIVE_SERVER_TEST" "$LIVE_SERVER_FIXTURE" "$MAC_CI_CONFIG" "$STORAGE_TEST" "$GAME_ROW" "$LIBRARY_SHELL" "$RECLAIM_VIEW" "$STORAGE_VIEW" "$WORKFLOW" "$REFRESH_WORKFLOW" "$SANITIZER" "$PROMPT_SAFETY" "$KEYBOARD_CLEANUP" "$SWIFT_SEMANTIC"; do
   [ -f "$file" ] || { printf 'four-layer topology file missing: %s\n' "$file" >&2; exit 1; }
 done
 for plan in Unit Rendering UI LiveServer; do
@@ -132,6 +135,11 @@ grep -F 'app.launchEnvironment["PLAYSTEAD_WAVE_0_LAUNCH_CANARY"] = "1"' "$UI_CAN
 grep -F 'environment["PLAYSTEAD_WAVE_0_LAUNCH_CANARY"] == "1"' "$APP_ENTRY" >/dev/null
 grep -F 'HostedRunnerLaunchCanaryView' "$APP_ENTRY" >/dev/null
 grep -F 'CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=' "$RUNNER" >/dev/null
+grep -F 'server: System.get_env("PLAYSTEAD_MAC_CI_TASK") != "1"' "$MAC_CI_CONFIG" >/dev/null
+[ "$(grep -c 'PLAYSTEAD_MAC_CI_TASK=1 mix playstead.mac_ci_fixture' "$LIVE_SERVER_FIXTURE")" -eq 3 ]
+grep -F 'live-server fixture failed at %s' "$LIVE_SERVER_FIXTURE" >/dev/null
+grep -F 'raw.replacingOccurrences(' "$LIVE_SERVER_TEST" >/dev/null
+grep -F 'sanitized.prefix(160)' "$LIVE_SERVER_TEST" >/dev/null
 if grep -E '(^|[[:space:]])(security|codesign)([[:space:]]|$)' "$RUNNER" >/dev/null; then
   printf 'verification runner must not invoke security(1) or codesign(1)\n' >&2
   exit 1

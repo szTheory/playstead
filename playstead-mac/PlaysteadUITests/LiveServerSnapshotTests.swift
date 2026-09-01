@@ -30,7 +30,7 @@ final class LiveServerSnapshotTests: XCTestCase {
         XCTAssertEqual(status, errSecSuccess)
         keychain = created
 
-        XCTAssertEqual(try runFixture("prepare", root: runRoot), 0)
+        try runFixture("prepare", root: runRoot)
         let first = try sentinel(at: runRoot.appendingPathComponent("control/first-sentinel.json"))
         let handoff = runRoot.appendingPathComponent("credential-handoff.json")
         XCTAssertEqual(try permissions(of: handoff), 0o600)
@@ -57,7 +57,7 @@ final class LiveServerSnapshotTests: XCTestCase {
         try assertNoGameBytes(root: runRoot)
 
         launched.terminate()
-        XCTAssertEqual(try runFixture("second", root: runRoot), 0)
+        try runFixture("second", root: runRoot)
         let second = try sentinel(at: runRoot.appendingPathComponent("control/second-sentinel.json"))
         XCTAssertNotEqual(second.assetSetID, first.assetSetID)
 
@@ -79,7 +79,7 @@ final class LiveServerSnapshotTests: XCTestCase {
         }
         XCTAssertFalse(try storedCursor(root: runRoot).isEmpty)
         try assertNoGameBytes(root: runRoot)
-        XCTAssertEqual(try runFixture("verify", root: runRoot), 0)
+        try runFixture("verify", root: runRoot)
     }
 
     private struct Control: Decodable {
@@ -95,18 +95,45 @@ final class LiveServerSnapshotTests: XCTestCase {
         try JSONDecoder().decode(Control.self, from: Data(contentsOf: url)).sentinel
     }
 
-    private func runFixture(_ action: String, root: URL) throws -> Int32 {
+    private struct FixtureFailure: LocalizedError {
+        let action: String
+        let status: Int32
+        let diagnostic: String
+
+        var errorDescription: String? {
+            "Live-server fixture \(action) exited \(status): \(diagnostic)"
+        }
+    }
+
+    private func runFixture(_ action: String, root: URL) throws {
         let script = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("scripts/ci/live-server.sh")
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         process.arguments = [script.path, action, root.path]
+        let diagnostics = Pipe()
         process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
+        process.standardError = diagnostics
         try process.run()
         process.waitUntilExit()
-        return process.terminationStatus
+        guard process.terminationStatus == 0 else {
+            let raw = String(
+                decoding: diagnostics.fileHandleForReading.readDataToEndOfFile(),
+                as: UTF8.self
+            )
+            let sanitized = raw.replacingOccurrences(
+                of: "[^A-Za-z0-9 _:-]",
+                with: " ",
+                options: .regularExpression
+            )
+            let bounded = String(sanitized.prefix(160)).trimmingCharacters(in: .whitespacesAndNewlines)
+            throw FixtureFailure(
+                action: action,
+                status: process.terminationStatus,
+                diagnostic: bounded.isEmpty ? "bounded diagnostic unavailable" : bounded
+            )
+        }
     }
 
     private func storedCursor(root: URL) throws -> String {
