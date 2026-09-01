@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 03.5
 current_phase_name: Mac Verification Automation
 status: executing
-stopped_at: Completed 03.5-10-PLAN.md
-last_updated: "2026-09-01T00:59:33.394Z"
+stopped_at: Completed 03.5-02-PLAN.md
+last_updated: "2026-09-01T01:21:30.473Z"
 last_activity: 2026-08-31
 last_activity_desc: Phase 03.5 execution started
-state_head: a0b7095e931e189f9551c9470bc9d6d783a5980f
+state_head: c7e993f67a1a21eea284b5f417a372ecabfdc799
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 38
-  completed_plans: 30
+  completed_plans: 31
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: `.planning/PROJECT.md` (updated 2026-08-30)
 ## Current Position
 
 Phase: 03.5 (Mac Verification Automation) — EXECUTING
-Plan: 2 of 10
+Plan: 3 of 10
 Status: Ready to execute
 Last activity: 2026-08-31 — Phase 03.5 execution started
 
@@ -79,6 +79,7 @@ Progress: [██████████] 100% (Phase 02)
 | Phase 02 P09 | ~2h | 2 tasks | 16 files |
 | Phase 02 P10 | 1h40min | 2 tasks | 15 files |
 | Phase 03.5 P10 | 190m | 3 tasks | 11 files |
+| Phase 03.5-mac-verification-automation P02 | 17 min | 2 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -122,6 +123,9 @@ Progress: [██████████] 100% (Phase 02)
 - [Phase 03.5]: Accept hosted adoption only from exact run 33456009811 at SHA fcadbb3aca4db711d67b65eefdfc5bee1302b0c4. — Machine validation and explicit human approval both cited the same immutable run URL.
 - [Phase 03.5]: Keep SnapshotTesting internal baselines hidden and publish only the reference/actual/diff triplet. — Bounded evidence stays reviewable without leaking calibration internals into the adoption artifact.
 - [Phase 03.5]: Scope verifier temporary cleanup to a subshell EXIT trap. — A RETURN trap leaked beyond the verifier function and failed a hosted run after validation succeeded.
+- [Phase 03.5]: Assign every Mac acceptance test to one explicit serial Unit, Rendering, UI, or LiveServer plan. — Disjoint ownership keeps result bundles authoritative and lets later plans extend the platform without runtime filtering overlap.
+- [Phase 03.5]: Select hosted launch canary roots before constructing AppEnvironment. — Launch and focus mechanism checks must never initialize APIClient or consult the developer login Keychain.
+- [Phase 03.5]: Stage failure evidence from an allowlist instead of sanitizing raw build trees. — Raw xcresults and DerivedData may carry paths, credentials, databases, or content metadata that should never enter the upload boundary.
 
 ### Pending Todos
 
@@ -152,6 +156,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-01T00:59:33.335Z
-Stopped at: Completed 03.5-10-PLAN.md
+Last session: 2026-09-01T01:21:17.875Z
+Stopped at: Completed 03.5-02-PLAN.md
 Resume file: None
