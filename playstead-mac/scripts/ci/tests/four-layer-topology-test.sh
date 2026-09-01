@@ -11,8 +11,9 @@ UI_CANARY="${MAC_ROOT}/PlaysteadUITests/HostedRunnerCanaryTests.swift"
 WORKFLOW="${REPO_ROOT}/.github/workflows/ci.yml"
 REFRESH_WORKFLOW="${REPO_ROOT}/.github/workflows/mac-snapshot-refresh.yml"
 SANITIZER="${MAC_ROOT}/scripts/ci/sanitize-evidence.sh"
+PROMPT_SAFETY="${MAC_ROOT}/scripts/ci/tests/keychain-prompt-safety-test.sh"
 
-for file in "$RUNNER" "$SCHEME" "$APP_ENTRY" "$UI_CANARY" "$WORKFLOW" "$REFRESH_WORKFLOW" "$SANITIZER"; do
+for file in "$RUNNER" "$SCHEME" "$APP_ENTRY" "$UI_CANARY" "$WORKFLOW" "$REFRESH_WORKFLOW" "$SANITIZER" "$PROMPT_SAFETY"; do
   [ -f "$file" ] || { printf 'four-layer topology file missing: %s\n' "$file" >&2; exit 1; }
 done
 for plan in Unit Rendering UI LiveServer; do
@@ -118,5 +119,7 @@ grep -F 'max_files = 40' "$SANITIZER" >/dev/null
 grep -F 'max_total = 12 * 1024 * 1024' "$SANITIZER" >/dev/null
 grep -F 'snapshot-triplet' "$SANITIZER" >/dev/null
 grep -F 'environment-fingerprint.json' "$SANITIZER" >/dev/null
+
+"$PROMPT_SAFETY"
 
 printf 'four-layer topology contract: passed\n'

@@ -12,6 +12,10 @@
     "codeCoverage" : false,
     "environmentVariableEntries" : [
       {
+        "key" : "PLAYSTEAD_XCTEST_HOST_MODE",
+        "value" : "inert"
+      },
+      {
         "key" : "PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT",
         "value" : "$(PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT)"
       },

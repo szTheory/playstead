@@ -376,6 +376,16 @@ run_with_deadline() {
 }
 
 LAYER_STATUS=0
+assert_local_app_launch_authorized() {
+  if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+    return 0
+  fi
+  if [ "${PLAYSTEAD_HUMAN_APPROVED_LOCAL_APP_LAUNCH:-}" = "1" ]; then
+    return 0
+  fi
+  die "local UI/LiveServer verification is disabled because launching Playstead may request login-Keychain authorization; a human may explicitly set PLAYSTEAD_HUMAN_APPROVED_LOCAL_APP_LAUNCH=1, but automated GSD runs must not set it"
+}
+
 run_test_layer() {
   local slug="$1"
   local plan="$2"
@@ -420,6 +430,9 @@ run_test_layer() {
 }
 
 run_four_layer_verification() {
+  # Fail before build, global-default mutation, or any app launch. Unit and
+  # Rendering are inert-hosted, but this aggregate also owns UI/LiveServer.
+  assert_local_app_launch_authorized
   local signing=(CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=)
   local aggregate=0 build_status=0
   local previous_keyboard_mode=""
@@ -782,6 +795,7 @@ run_selected_layer_tests() {
   local selected_root="${BUILD_ROOT}/selected-${layer}"
   local test_plan="Rendering"
   [ "$layer" != "ui" ] || test_plan="UI"
+  [ "$layer" != "ui" ] || assert_local_app_launch_authorized
   local signing=(CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=)
   local only_testing=()
   while [ "$#" -gt 0 ]; do

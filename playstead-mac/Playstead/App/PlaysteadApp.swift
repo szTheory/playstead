@@ -13,7 +13,9 @@ struct PlaysteadApp: App {
         WindowGroup {
 #if DEBUG
 #if UI_TESTING
-            if UITestBootstrap.isRequested() {
+            if XCTestHostBootstrap.isRequested() {
+                XCTestHostInertRootView()
+            } else if UITestBootstrap.isRequested() {
                 UITestProfileRootView()
             } else if ProcessInfo.processInfo.environment["PLAYSTEAD_WAVE_0_LAUNCH_CANARY"] == "1" {
                 HostedRunnerLaunchCanaryView()
@@ -23,7 +25,9 @@ struct PlaysteadApp: App {
                 ProductionRootView()
             }
 #else
-            if ProcessInfo.processInfo.environment["PLAYSTEAD_WAVE_0_LAUNCH_CANARY"] == "1" {
+            if XCTestHostBootstrap.isRequested() {
+                XCTestHostInertRootView()
+            } else if ProcessInfo.processInfo.environment["PLAYSTEAD_WAVE_0_LAUNCH_CANARY"] == "1" {
                 HostedRunnerLaunchCanaryView()
             } else if ProcessInfo.processInfo.environment["PLAYSTEAD_WAVE_0_FOCUS_CANARY"] == "1" {
                 HostedRunnerFocusCanaryView()
@@ -87,6 +91,31 @@ private struct ProductionRootView: View {
 }
 
 #if DEBUG
+/// Explicit app-host mode for Unit and Rendering test plans.
+///
+/// XCTest may launch the host application even when a test never asks for a
+/// window. That process must not fall through to `ProductionRootView`, whose
+/// credential client correctly consults the login Keychain. The test plans
+/// opt into this inert root with one finite value; UI and LiveServer plans do
+/// not set it because they own their own isolated launch composition.
+private enum XCTestHostBootstrap {
+    static let modeKey = "PLAYSTEAD_XCTEST_HOST_MODE"
+
+    static func isRequested(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Bool {
+        environment[modeKey] == "inert"
+    }
+}
+
+private struct XCTestHostInertRootView: View {
+    var body: some View {
+        Color.clear
+            .frame(width: 1, height: 1)
+            .accessibilityHidden(true)
+    }
+}
+
 /// Minimal no-dependency window used to prove ad-hoc launch on hosted runners.
 ///
 /// This branch deliberately constructs no `AppEnvironment`, `APIClient`, or
@@ -287,10 +316,11 @@ final class AppEnvironment {
         downloadSession: URLSession? = nil
     ) {
         let store = (try? LocalStore(paths: paths)) ?? LocalStore.inMemoryFallback()
+        let client = apiClient ?? APIClient(keychain: KeychainStore())
         self.init(
             paths: paths,
             openedStore: store,
-            apiClient: apiClient,
+            apiClient: client,
             reachability: reachability,
             downloadSession: downloadSession
         )
@@ -305,7 +335,7 @@ final class AppEnvironment {
         self.init(
             paths: paths,
             openedStore: localStore,
-            apiClient: nil,
+            apiClient: APIClient.unpairedForUITesting(),
             reachability: reachability,
             downloadSession: nil
         )
@@ -315,7 +345,7 @@ final class AppEnvironment {
     private init(
         paths: AppPaths,
         openedStore store: LocalStore,
-        apiClient: APIClient?,
+        apiClient: APIClient,
         reachability: Reachability,
         downloadSession: URLSession?
     ) {
@@ -324,7 +354,7 @@ final class AppEnvironment {
         self.localStore = store
         self.controllerMappingStore = ControllerMappingStore(localStore: store)
         self.biosStore = BiosStore(localStore: store, managedDirectory: paths.bios, references: [])
-        let client = apiClient ?? APIClient(keychain: KeychainStore())
+        let client = apiClient
         self.apiClient = client
         self.reachability = reachability
 

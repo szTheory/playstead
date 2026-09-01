@@ -63,7 +63,12 @@ struct APIResponse {
 /// deployment today without silently downgrading trust once pairing
 /// ships its certificate capture.
 actor APIClient: NSObject {
-    private let keychain: KeychainStore
+    private enum CredentialSource {
+        case keychain(KeychainStore)
+        case fixed(PairingCredential?)
+    }
+
+    private let credentialSource: CredentialSource
     private lazy var defaultSession: URLSession = {
         let config = URLSessionConfiguration.ephemeral
         return URLSession(configuration: config, delegate: PinningDelegate(pinnedCertificateURL: pinnedCertificateURL), delegateQueue: nil)
@@ -83,19 +88,41 @@ actor APIClient: NSObject {
         session: URLSession? = nil,
         credential: PairingCredential? = nil
     ) {
-        self.keychain = keychain
+        self.credentialSource = credential.map(CredentialSource.fixed) ?? .keychain(keychain)
         self.pinnedCertificateURL = pinnedCertificateURL
         self.sessionOverride = session
         self.credentialOverride = credential
         super.init()
     }
 
+#if UI_TESTING
+    /// An intentionally unpaired UI-profile client with no Security.framework
+    /// credential source. Deterministic UI profiles must never fall back to the
+    /// login Keychain merely because their fixed credential is absent.
+    static func unpairedForUITesting() -> APIClient {
+        APIClient(credentialSource: .fixed(nil))
+    }
+
+    private init(credentialSource: CredentialSource) {
+        self.credentialSource = credentialSource
+        self.pinnedCertificateURL = nil
+        self.sessionOverride = nil
+        self.credentialOverride = nil
+        super.init()
+    }
+#endif
+
     private var session: URLSession {
         sessionOverride ?? defaultSession
     }
 
     var credential: PairingCredential? {
-        credentialOverride ?? keychain.loadCredential()
+        switch credentialSource {
+        case .keychain(let keychain):
+            return keychain.loadCredential()
+        case .fixed(let credential):
+            return credential
+        }
     }
 
     /// Performs a `GET` (or, via `headers`, any method that needs a

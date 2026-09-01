@@ -10,6 +10,12 @@
   ],
   "defaultOptions" : {
     "codeCoverage" : false,
+    "environmentVariableEntries" : [
+      {
+        "key" : "PLAYSTEAD_XCTEST_HOST_MODE",
+        "value" : "inert"
+      }
+    ],
     "targetForVariableExpansion" : {
       "containerPath" : "container:Playstead.xcodeproj",
       "identifier" : "44DC10C2CEB44A12A91241F2",
