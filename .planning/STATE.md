@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 03.5
 current_phase_name: Mac Verification Automation
 status: executing
-stopped_at: Completed 03.5-02-PLAN.md
-last_updated: "2026-09-01T01:21:30.473Z"
+stopped_at: Completed 03.5-03-PLAN.md
+last_updated: "2026-09-01T01:40:52.174Z"
 last_activity: 2026-08-31
 last_activity_desc: Phase 03.5 execution started
-state_head: c7e993f67a1a21eea284b5f417a372ecabfdc799
+state_head: b384fbff18f9e381135a9bebf6f5b87cecb9fbfa
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 38
-  completed_plans: 31
+  completed_plans: 32
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: `.planning/PROJECT.md` (updated 2026-08-30)
 ## Current Position
 
 Phase: 03.5 (Mac Verification Automation) — EXECUTING
-Plan: 3 of 10
+Plan: 4 of 10
 Status: Ready to execute
 Last activity: 2026-08-31 — Phase 03.5 execution started
 
@@ -80,6 +80,7 @@ Progress: [██████████] 100% (Phase 02)
 | Phase 02 P10 | 1h40min | 2 tasks | 15 files |
 | Phase 03.5 P10 | 190m | 3 tasks | 11 files |
 | Phase 03.5-mac-verification-automation P02 | 17 min | 2 tasks | 14 files |
+| Phase 03.5 P03 | 16 min | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -126,6 +127,10 @@ Progress: [██████████] 100% (Phase 02)
 - [Phase 03.5]: Assign every Mac acceptance test to one explicit serial Unit, Rendering, UI, or LiveServer plan. — Disjoint ownership keeps result bundles authoritative and lets later plans extend the platform without runtime filtering overlap.
 - [Phase 03.5]: Select hosted launch canary roots before constructing AppEnvironment. — Launch and focus mechanism checks must never initialize APIClient or consult the developer login Keychain.
 - [Phase 03.5]: Stage failure evidence from an allowlist instead of sanitizing raw build trees. — Raw xcresults and DerivedData may carry paths, credentials, databases, or content metadata that should never enter the upload boundary.
+- [Phase 03.5]: UI_TESTING is enabled only for Debug app/unit-test products; Release compiles no profile/bootstrap route.
+- [Phase 03.5]: Deterministic profiles accept one finite name and generate their own isolated temporary root.
+- [Phase 03.5]: Profile composition reuses the seeded LocalStore and blocks credential lookup and network synchronization.
+- [Phase 03.5]: Accessibility IDs encode roles only; the shared focus ring is focus-owned and locked to #38BDF8.
 
 ### Pending Todos
 
@@ -156,6 +161,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-01T01:21:17.875Z
-Stopped at: Completed 03.5-02-PLAN.md
+Last session: 2026-09-01T01:40:52.105Z
+Stopped at: Completed 03.5-03-PLAN.md
 Resume file: None

@@ -35,8 +35,8 @@ Requirements for the first complete Mac-to-server custody and continuity release
 
 - [ ] **LIBR-01**: A user can browse the complete server catalogue on a newly paired Mac before downloading game bytes.
 - [ ] **LIBR-02**: A user can quickly find games through search, filters, systems, and availability or readiness state.
-- [ ] **LIBR-03**: A user can curate focused views using favorites, collections, Continue, Recent, and a play queue without altering canonical game bytes.
-- [ ] **LIBR-04**: Empty or unconfigured systems and irrelevant advanced settings stay hidden by default, while counts, readiness, and contextual setup actions appear when useful.
+- [x] **LIBR-03**: A user can curate focused views using favorites, collections, Continue, Recent, and a play queue without altering canonical game bytes.
+- [x] **LIBR-04**: Empty or unconfigured systems and irrelevant advanced settings stay hidden by default, while counts, readiness, and contextual setup actions appear when useful.
 - [ ] **LIBR-05**: A user can browse and curate the same canonical library, review imports, approve pairing, and inspect durable job status through the responsive LiveView console without installing a native client.
 
 ### Selective Cache and Offline Play
@@ -70,7 +70,7 @@ Requirements for the first complete Mac-to-server custody and continuity release
 
 ### Product Quality
 
-- [ ] **QUAL-01**: Player-facing Mac and web flows support controller, keyboard, pointer, screen-reader semantics, visible focus, and reduced motion without stranding a user in setup, browse, readiness, or recovery.
+- [x] **QUAL-01**: Player-facing Mac and web flows support controller, keyboard, pointer, screen-reader semantics, visible focus, and reduced motion without stranding a user in setup, browse, readiness, or recovery.
 - [ ] **QUAL-02**: A maintainer can verify releases through automated formatting, static analysis, unit/property/contract/integration tests, dependency and license review, container scanning/SBOM, production-release smoke tests, and adversarial fixtures for every enabled parser.
 - [ ] **QUAL-03**: A self-hoster can obtain privacy-safe correlation IDs and an on-demand diagnostic bundle for failed commands, jobs, transfers, storage, pairing, launch handoff, and save reconciliation without exposing ROM names, paths, hashes, save bytes, or credentials by default.
 
@@ -132,8 +132,8 @@ Which phases cover which requirements. This table is populated by roadmap creati
 | IMPT-06 | Phase 2 | Complete |
 | LIBR-01 | Phase 3 | Pending |
 | LIBR-02 | Phase 3 | Pending |
-| LIBR-03 | Phase 3 | Pending |
-| LIBR-04 | Phase 3 | Pending |
+| LIBR-03 | Phase 3 | Complete |
+| LIBR-04 | Phase 3 | Complete |
 | LIBR-05 | Phase 3 | Pending |
 | CACH-01 | Phase 3 | Complete |
 | CACH-02 | Phase 3 | Complete |
@@ -152,7 +152,7 @@ Which phases cover which requirements. This table is populated by roadmap creati
 | PORT-02 | Phase 2 | Complete |
 | PORT-03 | Phase 5 | Pending |
 | PORT-04 | Phase 5 | Pending |
-| QUAL-01 | Phase 3 | Pending |
+| QUAL-01 | Phase 3 | Complete |
 | QUAL-02 | Phase 5 | Pending |
 | QUAL-03 | Phase 5 | Pending |
 
