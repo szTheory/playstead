@@ -181,9 +181,18 @@ grep -F 'withVelocity: XCUIGestureVelocity.slow' "$CURATION_TEST" >/dev/null
 grep -F 'thenHoldForDuration: 1' "$CURATION_TEST" >/dev/null
 grep -F 'harness.app.cells.containing(.any, identifier: identifier)' "$CURATION_TEST" >/dev/null
 [ "$(grep -c 'harness.relaunch' "$CURATION_TEST")" -eq 4 ]
-[ "$(grep -c '\.typeKey(.space' "$CURATION_TEST")" -eq 2 ]
+[ "$(grep -c '\.typeKey(.space' "$CURATION_TEST")" -eq 4 ]
 if grep -F 'harness.app.typeKey(.space' "$CURATION_TEST" >/dev/null; then
   printf 'curation keyboard activation must target the already-focused exact button\n' >&2
+  exit 1
+fi
+[ "$(grep -Fc 'testKeyboardMoveTargetReceivesFocus' "$CURATION_TEST")" -eq 1 ]
+[ "$(grep -Fc 'testKeyboardMoveSpaceProducesOneEffect' "$CURATION_TEST")" -eq 1 ]
+[ "$(grep -Fc 'testKeyboardMoveRetainsFocusAfterSettlement' "$CURATION_TEST")" -eq 1 ]
+grep -F 'target.value(forKey: "hasKeyboardFocus") as? Bool == true' "$CURATION_TEST" >/dev/null
+grep -F 'curation-keyboard-stage=focus-not-reached' "$CURATION_TEST" >/dev/null
+if grep -F 'harness.focusContainedAction' "$CURATION_TEST" >/dev/null; then
+  printf 'curation keyboard focus must use exact-target canary semantics\n' >&2
   exit 1
 fi
 [ "$(grep -Fc 'let keyboardMove = moveID(memberID(3), direction: "up")' "$CURATION_TEST")" -eq 1 ]
