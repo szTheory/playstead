@@ -4,11 +4,11 @@ milestone: v1.0
 current_phase: 03.5
 current_phase_name: Mac Verification Automation
 status: executing
-stopped_at: Completed Plan 03.5-06 shared profile and shelf diagnosis for hosted run 33483731474
-last_updated: "2026-09-01T08:14:15.303Z"
+stopped_at: Completed Plan 03.5-06 Favorites and Collections selector diagnosis for hosted run 33486052488
+last_updated: "2026-09-01T08:41:11.047Z"
 last_activity: 2026-08-31
 last_activity_desc: Phase 03.5 execution started
-state_head: 2b32bd95d4bbfd0c46be97f997fd10ed2352e6f2
+state_head: 47ef91af930588de1da2d284ab5abbc18180e461
 progress:
   total_phases: 6
   completed_phases: 2
@@ -147,6 +147,7 @@ Progress: [██████████] 100% (Phase 02)
 - [Phase 03.5]: Plan 03.5-06 follow-up: EXIT traps own globally initialized keyboard-mode state and restore only after capture, preserving underlying early hosted failures.
 - [Phase 03.5]: Hosted curation proof uses separate shelf, drag-durability, and full keyboard-durability identifiers; the full keyboard stage retains drag and two relaunches, and drag uses the deterministic last-row-to-first boundary.
 - [Phase 03.5]: Persisted curation bootstrap relies on makeFixture's fresh-seed versus reopened-inventory validation; hosted evidence separates profile, sidebar, each shelf, drag, and keyboard into nine exact identifiers.
+- [Phase 03.5]: Populated curation UI automation targets nodes that own semantics: the collapsed library.card for Favorites and a stable collection-row button for selection/routing; root and child evidence use separate hosted IDs.
 
 ### Pending Todos
 
@@ -177,6 +178,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-01T08:14:15.208Z
-Stopped at: Completed Plan 03.5-06 shared profile and shelf diagnosis for hosted run 33483731474
+Last session: 2026-09-01T08:41:10.950Z
+Stopped at: Completed Plan 03.5-06 Favorites and Collections selector diagnosis for hosted run 33486052488
 Resume file: None
