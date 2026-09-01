@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 16
+open_count: 17
 waived_count: 1
 fixed_count: 2
-total_count: 19
-last_updated: 2026-09-01T10:33:18.230Z
+total_count: 20
+last_updated: 2026-09-01T11:04:38.825Z
 ---
 
 # Broken Windows Ledger
@@ -34,6 +34,7 @@ last_updated: 2026-09-01T10:33:18.230Z
 | 17 | 03.5 | deviation | playstead-mac/Playstead/Library/GameCardView.swift |  | Hosted run 33488360822 exposed card identity before accessibility collapse and drag gestures on semantic content instead of List cells; fixed and split drag mutation from durability. | open |  | 2026-09-01T09:07:27.559Z |  |
 | 18 | 03.5 | deviation | playstead-mac/PlaysteadUITests/CurationInteractionTests.swift |  | Hosted run 33490616418 exposed only aggregate reorder outcomes; split route, cell ownership, drag mutation/durability, keyboard focus/effect/durability and full E2E, with a slow held drag. | open |  | 2026-09-01T09:33:08.765Z |  |
 | 19 | 03.5 | deviation | playstead-mac/PlaysteadUITests/CurationInteractionTests.swift |  | Hosted run 33495336534 proved routes and cells but no mutations: switched touch-style press-drag to macOS click-drag and removed duplicate Space after focusContainedAction. | open |  | 2026-09-01T10:33:18.230Z |  |
+| 20 | 03.5 | deviation | playstead-mac/PlaysteadUITests/CurationInteractionTests.swift |  | Hosted run 33498048537 proved focusContainedAction is focus-only; restored one Space, isolated Move Up availability/click, and held the macOS drag destination. | open |  | 2026-09-01T11:04:38.825Z |  |
 
 ````json
 [
@@ -263,6 +264,18 @@ last_updated: 2026-09-01T10:33:18.230Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-01T10:33:18.230Z",
+    "resolved_at": null
+  },
+  {
+    "id": 20,
+    "kind": "deviation",
+    "phase": "03.5",
+    "file": "playstead-mac/PlaysteadUITests/CurationInteractionTests.swift",
+    "line": null,
+    "description": "Hosted run 33498048537 proved focusContainedAction is focus-only; restored one Space, isolated Move Up availability/click, and held the macOS drag destination.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-01T11:04:38.825Z",
     "resolved_at": null
   }
 ]

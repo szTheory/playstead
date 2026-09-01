@@ -4,11 +4,11 @@ milestone: v1.0
 current_phase: 03.5
 current_phase_name: Mac Verification Automation
 status: executing
-stopped_at: Completed Plan 03.5-06 macOS reorder input diagnosis for hosted run 33495336534
-last_updated: "2026-09-01T10:33:18.706Z"
+stopped_at: Completed Plan 03.5-06 production reorder action audit for hosted run 33498048537
+last_updated: "2026-09-01T11:04:39.308Z"
 last_activity: 2026-08-31
 last_activity_desc: Phase 03.5 execution started
-state_head: d322df675d77403c1d4f33f0b3c7d1a92e85e823
+state_head: 5412d46f3fab0b9b84e7ef9c1f647b7cc4c6af8a
 progress:
   total_phases: 6
   completed_phases: 2
@@ -151,6 +151,7 @@ Progress: [██████████] 100% (Phase 02)
 - [Phase 03.5]: Hosted curation selectors attach identity after accessibility collapse and initiate reorder gestures on enclosing List cells; drag mutation and relaunch durability publish separate exact IDs.
 - [Phase 03.5]: Curation hosted evidence publishes independent route, drag-owner, mutation/effect, direct keyboard focus, persisted reorder, relaunch, and full drag-keyboard outcomes; drag uses slow velocity with a bounded hold.
 - [Phase 03.5]: Mac curation UI drag uses XCUIElement click(forDuration:thenDragTo:) and focusContainedAction is the sole Space activation; tests never double-dispatch a reorder input.
+- [Phase 03.5]: focusContainedAction performs focus only; curation tests send one Space afterward and independently verify Move Up availability, click effect, keyboard effect, and held macOS drag.
 
 ### Pending Todos
 
@@ -181,6 +182,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-01T10:33:18.607Z
-Stopped at: Completed Plan 03.5-06 macOS reorder input diagnosis for hosted run 33495336534
+Last session: 2026-09-01T11:04:39.211Z
+Stopped at: Completed Plan 03.5-06 production reorder action audit for hosted run 33498048537
 Resume file: None
