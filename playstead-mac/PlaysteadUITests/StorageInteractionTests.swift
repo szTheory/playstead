@@ -82,6 +82,15 @@ final class StorageInteractionTests: XCTestCase {
         _ = focusUniqueDownloadAction()
     }
 
+    func testReclaimRouteDirectActivationDispatchesQuotaEffect() {
+        navigateToQuotaFixtureList()
+        waitForUniqueDownloadAction().click()
+        XCTAssertTrue(
+            harness.element("playstead.surface.reclaim").waitForExistence(timeout: 5),
+            "direct Download activation did not present the quota reclaim effect"
+        )
+    }
+
     func testReclaimRouteActivationDispatchesQuotaEffect() {
         navigateToQuotaFixtureList()
         focusAndActivateUniqueDownload()

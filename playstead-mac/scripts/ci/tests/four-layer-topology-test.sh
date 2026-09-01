@@ -168,6 +168,7 @@ for stage in \
   testQuotaEditAndFocusRestoration \
   testReclaimRouteSettlesToUniqueDownloadTrigger \
   testReclaimRouteKeyboardFocusOwnsUniqueDownloadTrigger \
+  testReclaimRouteDirectActivationDispatchesQuotaEffect \
   testReclaimRouteActivationDispatchesQuotaEffect \
   testReclaimPromptPresentsProductionRoot \
   testReclaimPromptInitialStateIsExact \
@@ -198,6 +199,16 @@ fi
 grep -F 'static func downloadActionIdentifier(assetSetID: String) -> String' "$GAME_ROW" >/dev/null
 grep -F '.playsteadFocusable(identifier: Self.downloadActionIdentifier(assetSetID: entry.id))' "$GAME_ROW" >/dev/null
 grep -F 'playstead.game.00000000-0000-7000-8000-000000000042.download' "$STORAGE_TEST" >/dev/null
+python3 - "$GAME_ROW" <<'PY'
+import pathlib, sys
+
+source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+download = source.split('Button("Download")', 1)[1].split('case .downloading:', 1)[0]
+focusable = download.find(".focusable()")
+owned = download.find(".playsteadFocusable(identifier: Self.downloadActionIdentifier(assetSetID: entry.id))")
+if focusable < 0 or owned < 0 or focusable >= owned:
+    raise SystemExit("Download must opt into focus before binding its exact Playstead focus owner")
+PY
 python3 - "$RECLAIM_VIEW" "$STORAGE_VIEW" <<'PY'
 import pathlib, sys
 

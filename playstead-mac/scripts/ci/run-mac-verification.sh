@@ -594,6 +594,7 @@ PY
     --required-test PlaysteadUITests.StorageInteractionTests/testQuotaEditAndFocusRestoration \
     --required-test PlaysteadUITests.StorageInteractionTests/testReclaimRouteSettlesToUniqueDownloadTrigger \
     --required-test PlaysteadUITests.StorageInteractionTests/testReclaimRouteKeyboardFocusOwnsUniqueDownloadTrigger \
+    --required-test PlaysteadUITests.StorageInteractionTests/testReclaimRouteDirectActivationDispatchesQuotaEffect \
     --required-test PlaysteadUITests.StorageInteractionTests/testReclaimRouteActivationDispatchesQuotaEffect \
     --required-test PlaysteadUITests.StorageInteractionTests/testReclaimPromptPresentsProductionRoot \
     --required-test PlaysteadUITests.StorageInteractionTests/testReclaimPromptInitialStateIsExact \

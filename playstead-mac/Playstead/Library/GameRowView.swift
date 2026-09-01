@@ -221,6 +221,11 @@ struct GameRowView: View {
         switch status {
         case .needsDownload:
             Button("Download") { Task { await download() } }
+                // A Button is implicitly focusable in a plain stack, but this
+                // action lives inside a macOS List row. Opt in before binding
+                // Playstead's FocusState so Tab and the visible ring share the
+                // same final button node.
+                .focusable()
                 .playsteadFocusable(identifier: Self.downloadActionIdentifier(assetSetID: entry.id))
         case .downloading:
             ProgressView().controlSize(.small)
