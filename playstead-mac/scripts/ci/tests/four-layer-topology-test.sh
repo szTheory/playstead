@@ -81,6 +81,18 @@ for required_ui_class in ("CurationInteractionTests", "StorageInteractionTests")
         raise SystemExit(f"Wave 6 UI discovery is missing: {required_ui_class}")
 
 live_targets = plans["LiveServer"]["testTargets"]
+live_environment = {
+    entry.get("key"): entry.get("value")
+    for entry in plans["LiveServer"].get("defaultOptions", {}).get("environmentVariableEntries", [])
+}
+expected_live_environment = {
+    key: f"$({key})" for key in (
+        "PLAYSTEAD_MAC_CI_ROOT", "PLAYSTEAD_LIVE_SERVER_STAGE_ROOT",
+        "PLAYSTEAD_LIVE_SERVER_STAGE_FILE", "MAC_CI_DATABASE_URL", "MIX_ENV", "PORT",
+    )
+}
+if live_environment != expected_live_environment:
+    raise SystemExit("LiveServer test plan must explicitly bridge the native service environment")
 expected_live = {
     "HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner()",
     "LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch()",
@@ -146,6 +158,10 @@ grep -F 'resolved_parent" = "$resolved_root' "$LIVE_SERVER_FIXTURE" >/dev/null
 grep -F 'live-server: FAILURE_STAGE %s' "$RUNNER" >/dev/null
 grep -F 'prepare_live_server_failure_stage' "$RUNNER" >/dev/null
 grep -F 'PLAYSTEAD_LIVE_SERVER_STAGE_FILE="$server_root/live-server-failure-stage"' "$RUNNER" >/dev/null
+[ "$(grep -c 'guard fixtureEnvironmentIsReady() else { return }' "$LIVE_SERVER_TEST")" -eq 1 ]
+for key in PLAYSTEAD_MAC_CI_ROOT PLAYSTEAD_LIVE_SERVER_STAGE_ROOT PLAYSTEAD_LIVE_SERVER_STAGE_FILE MAC_CI_DATABASE_URL MIX_ENV PORT; do
+  grep -F "${key}=\"\$${key}\"" "$RUNNER" >/dev/null
+done
 grep -F 'raw.replacingOccurrences(' "$LIVE_SERVER_TEST" >/dev/null
 grep -F 'sanitized.prefix(160)' "$LIVE_SERVER_TEST" >/dev/null
 [ "$(grep -c 'XCTAssertEqual(status, 0, "live-server-stage=' "$LIVE_SERVER_TEST")" -eq 8 ]

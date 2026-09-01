@@ -10,6 +10,32 @@
   ],
   "defaultOptions" : {
     "codeCoverage" : false,
+    "environmentVariableEntries" : [
+      {
+        "key" : "PLAYSTEAD_MAC_CI_ROOT",
+        "value" : "$(PLAYSTEAD_MAC_CI_ROOT)"
+      },
+      {
+        "key" : "PLAYSTEAD_LIVE_SERVER_STAGE_ROOT",
+        "value" : "$(PLAYSTEAD_LIVE_SERVER_STAGE_ROOT)"
+      },
+      {
+        "key" : "PLAYSTEAD_LIVE_SERVER_STAGE_FILE",
+        "value" : "$(PLAYSTEAD_LIVE_SERVER_STAGE_FILE)"
+      },
+      {
+        "key" : "MAC_CI_DATABASE_URL",
+        "value" : "$(MAC_CI_DATABASE_URL)"
+      },
+      {
+        "key" : "MIX_ENV",
+        "value" : "$(MIX_ENV)"
+      },
+      {
+        "key" : "PORT",
+        "value" : "$(PORT)"
+      }
+    ],
     "targetForVariableExpansion" : {
       "containerPath" : "container:Playstead.xcodeproj",
       "identifier" : "44DC10C2CEB44A12A91241F2",

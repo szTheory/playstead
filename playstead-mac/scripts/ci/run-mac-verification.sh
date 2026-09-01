@@ -731,7 +731,19 @@ run_test_layer() {
   local result_summary="${FOUR_LAYER_EVIDENCE}/${slug}-tests.json"
   local log="${FOUR_LAYER_RAW}/${slug}.log"
   local signing=(CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=)
+  local layer_settings=()
   local xcode_status=0 parse_status=0 verify_status=0
+
+  if [ "$slug" = "live-server" ]; then
+    layer_settings=(
+      PLAYSTEAD_MAC_CI_ROOT="$PLAYSTEAD_MAC_CI_ROOT"
+      PLAYSTEAD_LIVE_SERVER_STAGE_ROOT="$PLAYSTEAD_LIVE_SERVER_STAGE_ROOT"
+      PLAYSTEAD_LIVE_SERVER_STAGE_FILE="$PLAYSTEAD_LIVE_SERVER_STAGE_FILE"
+      MAC_CI_DATABASE_URL="$MAC_CI_DATABASE_URL"
+      MIX_ENV="$MIX_ENV"
+      PORT="$PORT"
+    )
+  fi
 
   rm -rf "$result_bundle"
   run_with_deadline "$deadline" "$log" \
@@ -740,7 +752,7 @@ run_test_layer() {
       -derivedDataPath "$DERIVED_DATA" -resultBundlePath "$result_bundle" \
       "${signing[@]}" PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT="${FOUR_LAYER_EVIDENCE}/snapshot-triplet" \
       PLAYSTEAD_STORAGE_SNAPSHOT_CANDIDATE_OUTPUT="${FOUR_LAYER_EVIDENCE}/storage-candidate/storage-surfaces.actual.png" \
-      PLAYSTEAD_SNAPSHOT_RECORDING=0 || xcode_status=$?
+      PLAYSTEAD_SNAPSHOT_RECORDING=0 "${layer_settings[@]}" || xcode_status=$?
 
   if [ -d "$result_bundle" ]; then
     xcrun xcresulttool get test-results tests --path "$result_bundle" --compact \

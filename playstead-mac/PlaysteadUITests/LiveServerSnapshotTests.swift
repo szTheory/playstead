@@ -14,6 +14,7 @@ final class LiveServerSnapshotTests: XCTestCase {
     }
 
     func testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch() throws {
+        guard fixtureEnvironmentIsReady() else { return }
         let runRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("playstead-live-\(UUID().uuidString.lowercased())", isDirectory: true)
         root = runRoot
@@ -95,10 +96,55 @@ final class LiveServerSnapshotTests: XCTestCase {
         try JSONDecoder().decode(Control.self, from: Data(contentsOf: url)).sentinel
     }
 
-    private func runFixture(_ action: String, root: URL) throws -> Bool {
-        let script = URL(fileURLWithPath: #filePath)
+    private func fixtureEnvironmentIsReady() -> Bool {
+        let manager = FileManager.default
+        let environment = ProcessInfo.processInfo.environment
+        let script = fixtureScriptURL()
+        guard manager.fileExists(atPath: script.path) else {
+            XCTAssertTrue(false, "live-server-preflight=script-missing")
+            return false
+        }
+        guard manager.isReadableFile(atPath: script.path) else {
+            XCTAssertTrue(false, "live-server-preflight=script-unreadable")
+            return false
+        }
+        guard let serverRoot = environment["PLAYSTEAD_MAC_CI_ROOT"], !serverRoot.isEmpty else {
+            XCTAssertNotNil(environment["PLAYSTEAD_MAC_CI_ROOT"], "live-server-preflight=server-root-missing")
+            return false
+        }
+        guard let stageRoot = environment["PLAYSTEAD_LIVE_SERVER_STAGE_ROOT"], !stageRoot.isEmpty else {
+            XCTAssertNotNil(environment["PLAYSTEAD_LIVE_SERVER_STAGE_ROOT"], "live-server-preflight=stage-root-missing")
+            return false
+        }
+        guard let stageFile = environment["PLAYSTEAD_LIVE_SERVER_STAGE_FILE"], !stageFile.isEmpty else {
+            XCTAssertNotNil(environment["PLAYSTEAD_LIVE_SERVER_STAGE_FILE"], "live-server-preflight=stage-file-missing")
+            return false
+        }
+        guard manager.fileExists(atPath: serverRoot), manager.fileExists(atPath: stageRoot) else {
+            XCTAssertTrue(false, "live-server-preflight=owned-root-missing")
+            return false
+        }
+        let stageURL = URL(fileURLWithPath: stageFile).standardizedFileURL
+        guard stageURL.lastPathComponent == "live-server-failure-stage" else {
+            XCTAssertEqual(stageURL.lastPathComponent, "live-server-failure-stage", "live-server-preflight=stage-basename")
+            return false
+        }
+        let rootURL = URL(fileURLWithPath: stageRoot, isDirectory: true).standardizedFileURL
+        guard stageURL.deletingLastPathComponent() == rootURL else {
+            XCTAssertEqual(stageURL.deletingLastPathComponent(), rootURL, "live-server-preflight=stage-parent")
+            return false
+        }
+        return true
+    }
+
+    private func fixtureScriptURL() -> URL {
+        URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("scripts/ci/live-server.sh")
+    }
+
+    private func runFixture(_ action: String, root: URL) throws -> Bool {
+        let script = fixtureScriptURL()
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         process.arguments = [script.path, action, root.path]
