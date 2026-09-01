@@ -162,8 +162,17 @@ for path in map(pathlib.Path, sys.argv[1:]):
     markers = [action.find("let selection = selected"), action.find("selected.removeAll()"), action.find("onReclaim(selection)")]
     if any(marker < 0 for marker in markers) or markers != sorted(markers):
         raise SystemExit(f"{path.name}: reclaim must snapshot, clear stale selection, then invoke its effect")
+    if source.count(".accessibilityElement(children: .contain)") != 1:
+        raise SystemExit(f"{path.name}: only the surface root may be an accessibility container")
+    if ".accessibilityIdentifier(Automation.candidate(slot))" not in source:
+        raise SystemExit(f"{path.name}: candidate title is missing its stable row identity")
+    if ".playsteadFocusable(identifier: Automation.candidateToggle(slot))" not in source:
+        raise SystemExit(f"{path.name}: candidate select control is missing its independent identity")
 print("storage selection reset contract: passed")
 PY
+grep -F 'VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm)' "$STORAGE_VIEW" >/dev/null
+grep -F '.padding(DesignTokens.Spacing.sm)' "$STORAGE_VIEW" >/dev/null
+grep -F '.frame(minHeight: DesignTokens.InteractiveTarget.minimum)' "$STORAGE_VIEW" >/dev/null
 grep -F 'if: failure()' "$WORKFLOW" >/dev/null
 grep -F 'path: playstead-mac/.build/ci/failure-evidence' "$WORKFLOW" >/dev/null
 grep -F 'retention-days: 7' "$WORKFLOW" >/dev/null

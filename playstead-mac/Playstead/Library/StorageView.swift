@@ -87,7 +87,7 @@ struct StorageView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                 Text("Storage")
                     .font(.psHeading)
@@ -131,6 +131,9 @@ struct StorageView: View {
                         ForEach(Array(candidates.enumerated()), id: \.element.id) { slot, candidate in
                             HStack {
                                 Text(candidate.title)
+                                    .accessibilityLabel("\(candidate.title) can be removed to free up space — it will stay on your server.")
+                                    .accessibilityValue("bytes=\(candidate.bytes);selected=\(selected.contains(candidate.id))")
+                                    .accessibilityIdentifier(Automation.candidate(slot))
                                 Spacer()
                                 Text(Self.formatBytes(candidate.bytes))
                                     .foregroundStyle(.secondary)
@@ -144,10 +147,6 @@ struct StorageView: View {
                                 .accessibilityLabel("Select \(candidate.title) for reclaim")
                                 .playsteadFocusable(identifier: Automation.candidateToggle(slot))
                             }
-                            .accessibilityElement(children: .contain)
-                            .accessibilityLabel("\(candidate.title) can be removed to free up space — it will stay on your server.")
-                            .accessibilityValue("bytes=\(candidate.bytes);selected=\(selected.contains(candidate.id))")
-                            .accessibilityIdentifier(Automation.candidate(slot))
                             .frame(minHeight: DesignTokens.InteractiveTarget.minimum)
                             Divider()
                         }
@@ -207,7 +206,7 @@ struct StorageView: View {
                 }
             }
         }
-        .padding(DesignTokens.Spacing.md)
+        .padding(DesignTokens.Spacing.sm)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Storage inventory")
         .accessibilityIdentifier(Automation.root)

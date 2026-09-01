@@ -91,6 +91,9 @@ struct ReclaimPromptView: View {
                     ForEach(Array(candidates.enumerated()), id: \.element.id) { slot, candidate in
                         HStack {
                             Text(candidate.title)
+                                .accessibilityLabel(candidate.title)
+                                .accessibilityValue("bytes=\(candidate.bytes);selected=\(selected.contains(candidate.id))")
+                                .accessibilityIdentifier(Automation.candidate(slot))
                             Spacer()
                             Text(Self.formatBytes(candidate.bytes))
                                 .foregroundStyle(.secondary)
@@ -104,10 +107,6 @@ struct ReclaimPromptView: View {
                             .accessibilityLabel("Select \(candidate.title) for reclaim")
                             .playsteadFocusable(identifier: Automation.candidateToggle(slot))
                         }
-                        .accessibilityElement(children: .contain)
-                        .accessibilityLabel(candidate.title)
-                        .accessibilityValue("bytes=\(candidate.bytes);selected=\(selected.contains(candidate.id))")
-                        .accessibilityIdentifier(Automation.candidate(slot))
                         .frame(minHeight: DesignTokens.InteractiveTarget.minimum)
                         Divider()
                     }
