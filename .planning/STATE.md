@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 03.5
 current_phase_name: Mac Verification Automation
 status: executing
-stopped_at: Completed Plan 03.5-06 production reorder action audit for hosted run 33498048537
-last_updated: "2026-09-01T11:04:39.308Z"
-last_activity: 2026-08-31
-last_activity_desc: Phase 03.5 execution started
+stopped_at: Completed 03.5-07-PLAN.md with hosted run 33540648269 green at bb28bba
+last_updated: "2026-09-01T18:30:00Z"
+last_activity: 2026-09-01
+last_activity_desc: Plan 03.5-07 storage verification completed
 state_head: 5412d46f3fab0b9b84e7ef9c1f647b7cc4c6af8a
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 38
-  completed_plans: 35
+  completed_plans: 36
 milestone_name: milestone
 ---
 
@@ -29,11 +29,11 @@ See: `.planning/PROJECT.md` (updated 2026-08-30)
 ## Current Position
 
 Phase: 03.5 (Mac Verification Automation) — EXECUTING
-Plan: 7 of 10
+Plan: 8 of 10
 Status: Ready to execute
-Last activity: 2026-08-31 — Phase 03.5 execution started
+Last activity: 2026-09-01 — Plan 03.5-07 storage verification completed
 
-Progress: [██████████] 100% (Phase 02)
+Progress: [████████░░] 80% (Phase 03.5)
 
 ## Performance Metrics
 
@@ -84,6 +84,7 @@ Progress: [██████████] 100% (Phase 02)
 | Phase 03.5-mac-verification-automation P04 | 9 min | 2 tasks | 10 files |
 | Phase 03.5 P05 | 256 min | 2 tasks | 29 files |
 | Phase 03.5 P06 | 12m22s | 2 tasks | 8 files |
+| Phase 03.5 P07 | 12h10m | 3 tasks | 19 files |
 
 ## Accumulated Context
 
@@ -152,6 +153,10 @@ Progress: [██████████] 100% (Phase 02)
 - [Phase 03.5]: Curation hosted evidence publishes independent route, drag-owner, mutation/effect, direct keyboard focus, persisted reorder, relaunch, and full drag-keyboard outcomes; drag uses slow velocity with a bounded hold.
 - [Phase 03.5]: Mac curation UI drag uses XCUIElement click(forDuration:thenDragTo:) and focusContainedAction is the sole Space activation; tests never double-dispatch a reorder input.
 - [Phase 03.5]: focusContainedAction performs focus only; curation tests send one Space afterward and independently verify Move Up availability, click effect, keyboard effect, and held macOS drag.
+- [Phase 03.5]: Local quota admission precedes credential/network admission so deterministic offline UI profiles expose real reclaim decisions without external I/O.
+- [Phase 03.5]: macOS List keyboard download uses exact selection plus one selection-scoped Command-D action routed through the same quota-gated GameRow method as direct Download.
+- [Phase 03.5]: Canonical game summary identity is contained separately from sibling action nodes, preserving both exact catalogue and Download accessibility evidence.
+- [Phase 03.5]: Plan 03.5-07 acceptance is exact hosted run 33540648269 at bb28bba with Unit 271, Rendering 20, UI 87, and LiveServer 1 all green.
 
 ### Pending Todos
 
@@ -182,6 +187,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-01T11:04:39.211Z
-Stopped at: Completed Plan 03.5-06 production reorder action audit for hosted run 33498048537
+Last session: 2026-09-01T18:30:00Z
+Stopped at: Completed 03.5-07-PLAN.md with hosted run 33540648269 green at bb28bba
 Resume file: None
