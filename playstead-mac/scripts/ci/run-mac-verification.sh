@@ -768,12 +768,35 @@ verify_topology() {
   "${SCRIPT_DIR}/tests/wave-0-topology-test.sh"
 }
 
+run_selected_layer_tests() {
+  local layer="$1"
+  shift
+  [ "$layer" = "rendering" ] || die "targeted verification currently supports only the rendering layer"
+  [ "${1:-}" = "--only-testing" ] || die "--layers rendering requires --only-testing TEST"
+  shift
+  [ "$#" -gt 0 ] || die "--only-testing requires at least one test identifier"
+
+  local selected_root="${BUILD_ROOT}/selected-rendering"
+  local signing=(CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=)
+  local only_testing=()
+  while [ "$#" -gt 0 ]; do
+    only_testing+=("-only-testing:$1")
+    shift
+  done
+
+  rm -rf "$selected_root"
+  xcodebuild test -project "$PROJECT" -scheme "$SCHEME" -testPlan Rendering \
+    -destination 'platform=macOS' -derivedDataPath "$selected_root" \
+    "${signing[@]}" "${only_testing[@]}"
+}
+
 usage() {
   cat <<'USAGE'
 Usage:
   run-mac-verification.sh --run-wave-0-adoption
   run-mac-verification.sh --run-four-layer-verification
   run-mac-verification.sh --run-snapshot-candidates
+  run-mac-verification.sh --layers rendering --only-testing TEST [TEST ...]
   run-mac-verification.sh --verify-layer-result FILE LAYER OUTPUT --required-test ID [...]
   run-mac-verification.sh --self-test-result-verifier
   run-mac-verification.sh --self-test-sanitizer [--verify-four-layer-topology]
@@ -787,6 +810,12 @@ USAGE
 
 [ "$#" -gt 0 ] || { usage >&2; exit 2; }
 case "$1" in
+  --layers)
+    require_value "$1" "${2:-}"
+    layer="$2"
+    shift 2
+    run_selected_layer_tests "$layer" "$@"
+    ;;
   --verify-result) require_value "$1" "${2:-}"; evidence="$2"; shift 2; verify_result "$evidence" "$@" ;;
   --validate-hosted-run) require_value "$1" "${2:-}"; metadata="$2"; shift 2; validate_hosted_run "$metadata" "$@" ;;
   --run-wave-0-adoption) shift; [ "$#" -eq 0 ] || die "unexpected adoption arguments"; run_wave_0_adoption ;;

@@ -30,6 +30,9 @@
     {
       "parallelizable" : false,
       "selectedTests" : [
+        "DeterministicProfileTests",
+        "IdentityAndFocusPrimitiveTests",
+        "ReleaseHookAbsenceTests",
         "SnapshotHarnessCanaryTests/testIntentionalMismatchProducesReviewableTriplet()",
         "SnapshotHarnessCanaryTests/testMeaningfulMutationFailsAndCalibratedNoisePasses()"
       ],

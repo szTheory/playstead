@@ -59,21 +59,30 @@ final class ReleaseHookAbsenceTests: XCTestCase {
         let binary = derivedData
             .appendingPathComponent("Build/Products/Release/Playstead.app/Contents/MacOS/Playstead")
         guard FileManager.default.isExecutableFile(atPath: binary.path) else {
-            throw XCTSkip("Release executable was not produced at the asserted path")
+            XCTFail("Release executable was not produced at the asserted path")
+            throw CocoaError(.fileNoSuchFile)
         }
         return binary
     }
 
     private func toolOutput(_ executable: String, _ arguments: [String]) throws -> String {
         let process = Process()
-        let output = Pipe()
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("playstead-tool-output-\(UUID().uuidString).log")
+        FileManager.default.createFile(atPath: outputURL.path, contents: nil)
+        let output = try FileHandle(forWritingTo: outputURL)
+        defer {
+            try? output.close()
+            try? FileManager.default.removeItem(at: outputURL)
+        }
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = arguments
         process.standardOutput = output
         process.standardError = output
         try process.run()
         process.waitUntilExit()
-        let data = output.fileHandleForReading.readDataToEndOfFile()
+        try output.synchronize()
+        let data = try Data(contentsOf: outputURL)
         let text = String(decoding: data, as: UTF8.self)
         guard process.terminationReason == .exit, process.terminationStatus == 0 else {
             XCTFail("\(executable) failed closed with status \(process.terminationStatus):\n\(text.suffix(4_000))")
