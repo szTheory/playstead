@@ -655,6 +655,9 @@ PY
     --required-test PlaysteadUITests.CurationInteractionTests/testCollectionMoveUpClickProducesOneEffect \
     --required-test PlaysteadUITests.CurationInteractionTests/testDragReorderProducesOneEffect \
     --required-test PlaysteadUITests.CurationInteractionTests/testDragReorderSurvivesRelaunch \
+    --required-test PlaysteadUITests.CurationInteractionTests/testKeyboardMoveTargetReceivesFocus \
+    --required-test PlaysteadUITests.CurationInteractionTests/testKeyboardMoveSpaceProducesOneEffect \
+    --required-test PlaysteadUITests.CurationInteractionTests/testKeyboardMoveRetainsFocusAfterSettlement \
     --required-test PlaysteadUITests.CurationInteractionTests/testKeyboardReorderProducesOneEffectAndRetainsFocus \
     --required-test PlaysteadUITests.CurationInteractionTests/testKeyboardReorderSurvivesRelaunch \
     --required-test PlaysteadUITests.CurationInteractionTests/testKeyboardReorderRetainsFocusAndSurvivesRelaunch \

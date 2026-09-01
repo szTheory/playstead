@@ -168,6 +168,9 @@ for stage in \
   testCollectionMoveUpClickProducesOneEffect \
   testDragReorderProducesOneEffect \
   testDragReorderSurvivesRelaunch \
+  testKeyboardMoveTargetReceivesFocus \
+  testKeyboardMoveSpaceProducesOneEffect \
+  testKeyboardMoveRetainsFocusAfterSettlement \
   testKeyboardReorderProducesOneEffectAndRetainsFocus \
   testKeyboardReorderSurvivesRelaunch \
   testKeyboardReorderRetainsFocusAndSurvivesRelaunch; do
