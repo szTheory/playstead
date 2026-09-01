@@ -76,6 +76,20 @@ final class StorageInteractionTests: XCTestCase {
         _ = waitForUniqueDownloadAction()
     }
 
+    func testReclaimRouteKeyboardFocusOwnsUniqueDownloadTrigger() {
+        navigateToQuotaFixtureList()
+        _ = focusUniqueDownloadAction()
+    }
+
+    func testReclaimRouteActivationDispatchesQuotaEffect() {
+        navigateToQuotaFixtureList()
+        focusAndActivateUniqueDownload()
+        XCTAssertTrue(
+            harness.element("playstead.surface.reclaim").waitForExistence(timeout: 5),
+            "focused Download action did not present the quota reclaim effect"
+        )
+    }
+
     func testReclaimPromptInitialStateIsExact() {
         openReclaimPrompt()
         requireInitialReclaimEvidence()
@@ -406,16 +420,22 @@ final class StorageInteractionTests: XCTestCase {
         return target
     }
 
-    private func focusAndActivateUniqueDownload() {
+    private func focusUniqueDownloadAction() -> XCUIElement {
         let target = waitForUniqueDownloadAction()
         for _ in 0..<24 {
             if target.value(forKey: "hasKeyboardFocus") as? Bool == true {
-                target.typeKey(.space, modifierFlags: [])
-                return
+                return target
             }
             harness.app.typeKey(.tab, modifierFlags: [])
         }
         XCTFail("Tab never reached the unique settled Download action")
+        return target
+    }
+
+    private func focusAndActivateUniqueDownload() {
+        let target = focusUniqueDownloadAction()
+        XCTAssertTrue(target.value(forKey: "hasKeyboardFocus") as? Bool == true)
+        harness.app.typeKey(.space, modifierFlags: [])
     }
 
     private func elements(_ identifierPrefix: String) -> [XCUIElement] {

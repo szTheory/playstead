@@ -166,6 +166,8 @@ for stage in \
   testDownloadsPauseResumeFlow \
   testQuotaEditAndFocusRestoration \
   testReclaimRouteSettlesToUniqueDownloadTrigger \
+  testReclaimRouteKeyboardFocusOwnsUniqueDownloadTrigger \
+  testReclaimRouteActivationDispatchesQuotaEffect \
   testReclaimPromptPresentsProductionRoot \
   testReclaimPromptInitialStateIsExact \
   testReclaimPromptRowIdentityExists \
