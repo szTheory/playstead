@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MAC_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+
 die() {
   printf 'evidence sanitizer: %s\n' "$*" >&2
   exit 1
@@ -19,11 +22,12 @@ OUTPUT_ROOT="$4"
 rm -rf "$OUTPUT_ROOT"
 mkdir -p "$OUTPUT_ROOT"
 
-python3 - "$INPUT_ROOT/evidence" "$OUTPUT_ROOT" <<'PY'
+python3 - "$INPUT_ROOT/evidence" "$OUTPUT_ROOT" "$MAC_ROOT" <<'PY'
 import json, pathlib, re, shutil, sys
 
 source = pathlib.Path(sys.argv[1]).resolve()
 output = pathlib.Path(sys.argv[2]).resolve()
+mac_root = pathlib.Path(sys.argv[3]).resolve()
 max_files = 40
 max_total = 12 * 1024 * 1024
 max_text = 256 * 1024
@@ -91,9 +95,14 @@ def validate_test_evidence(data, relative):
     allowed_keys = {
         "schema_version", "layer", "executed_test_count", "required_tests",
         "failed_test_count", "failed_tests_truncated", "failed_tests",
+        "failure_diagnostic_count", "failure_diagnostics_truncated", "failure_diagnostics",
         "audit_issue_count", "audit_issues_truncated", "audit_issues",
     }
-    if not isinstance(data, dict) or set(data) != allowed_keys:
+    legacy_keys = allowed_keys - {
+        "failure_diagnostic_count", "failure_diagnostics_truncated", "failure_diagnostics"
+    }
+    actual_keys = set(data) if isinstance(data, dict) else set()
+    if not isinstance(data, dict) or (actual_keys != allowed_keys and actual_keys != legacy_keys):
         raise SystemExit(f"test evidence has unexpected schema: {relative}")
     if data.get("schema_version") != 1 or not isinstance(data.get("layer"), str):
         raise SystemExit(f"test evidence identity is malformed: {relative}")
@@ -116,6 +125,37 @@ def validate_test_evidence(data, relative):
             raise SystemExit(f"failed test identifier is not canonical: {relative}")
         if record.get("outcome") not in {"failed", "skipped", "unknown"}:
             raise SystemExit(f"failed test outcome is not allowlisted: {relative}")
+    diagnostics = data.get("failure_diagnostics", [])
+    diagnostic_count = data.get("failure_diagnostic_count", 0)
+    diagnostics_truncated = data.get("failure_diagnostics_truncated", False)
+    if not isinstance(diagnostics, list) or len(diagnostics) > 50:
+        raise SystemExit(f"failure_diagnostics exceeds its bounded allowlist: {relative}")
+    if type(diagnostic_count) is not int or diagnostic_count < len(diagnostics) or type(diagnostics_truncated) is not bool:
+        raise SystemExit(f"failure_diagnostics metadata is malformed: {relative}")
+    if (not diagnostics_truncated and diagnostic_count != len(diagnostics)) or (diagnostics_truncated and (diagnostic_count <= 50 or len(diagnostics) != 50)):
+        raise SystemExit(f"failure_diagnostics truncation metadata is inconsistent: {relative}")
+    allowed_assertions = {
+        "XCTAssertTrue", "XCTAssertFalse", "XCTAssertEqual", "XCTAssertNotEqual",
+        "XCTAssertNil", "XCTAssertNotNil", "XCTAssertLessThan", "XCTAssertLessThanOrEqual",
+        "XCTAssertGreaterThan", "XCTAssertGreaterThanOrEqual", "XCTAssertNoThrow",
+        "XCTAssertThrowsError", "XCTFail", "XCTUnwrap",
+    }
+    for record in diagnostics:
+        if not isinstance(record, dict) or set(record) != {"test_identifier", "assertion", "source_file", "source_line"}:
+            raise SystemExit(f"failure diagnostic contains non-allowlisted fields: {relative}")
+        if not isinstance(record.get("test_identifier"), str) or not test_identifier.fullmatch(record["test_identifier"]):
+            raise SystemExit(f"failure diagnostic test identifier is not canonical: {relative}")
+        if record.get("assertion") not in allowed_assertions:
+            raise SystemExit(f"failure diagnostic assertion is not canonical: {relative}")
+        source_file = record.get("source_file")
+        if not isinstance(source_file, str) or not re.fullmatch(r"(?:Playstead|PlaysteadTests|PlaysteadUITests)/(?:[A-Za-z_][A-Za-z0-9_]*/)*[A-Za-z_][A-Za-z0-9_]*\.swift", source_file):
+            raise SystemExit(f"failure diagnostic source is not repository-relative Swift: {relative}")
+        source_path = mac_root / source_file
+        same_named_sources = [candidate for root_name in ("Playstead", "PlaysteadTests", "PlaysteadUITests") for candidate in (mac_root / root_name).rglob(source_path.name)]
+        if not source_path.is_file() or len(same_named_sources) != 1 or same_named_sources[0].resolve() != source_path.resolve():
+            raise SystemExit(f"failure diagnostic source is not one unique project source: {relative}")
+        if type(record.get("source_line")) is not int or not 1 <= record["source_line"] <= 1_000_000:
+            raise SystemExit(f"failure diagnostic line is malformed: {relative}")
     audit_issues = data.get("audit_issues")
     audit_count = data.get("audit_issue_count")
     audit_truncated = data.get("audit_issues_truncated")

@@ -37,7 +37,7 @@ make_valid() {
   mkdir -p "$root/evidence/snapshot-triplet" "$root/evidence/storage-candidate" "$root/evidence/logs" "$root/raw/Unit.xcresult" "$root/DerivedData"
   printf '%s\n' '{"schema_version":1,"architecture":"arm64","xcode":["Xcode 26.6","Build version 17F113"]}' >"$root/evidence/environment-fingerprint.json"
   printf '%s\n' '{"schema_version":1,"build_count":1,"automatic_retries":0,"aggregate_outcome":"failed","layers":[]}' >"$root/evidence/layers.json"
-  printf '%s\n' '{"schema_version":1,"layer":"ui","executed_test_count":2,"required_tests":[{"identifier":"PlaysteadUITests.HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice","discovered":true,"execution_count":1,"skipped":false,"outcome":"passed"}],"failed_test_count":1,"failed_tests_truncated":false,"failed_tests":[{"identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","outcome":"failed"}],"audit_issue_count":1,"audit_issues_truncated":false,"audit_issues":[{"test_identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","category":"parentChild","element_identifier":"playstead.surface.library","element_role":"role-3"}]}' >"$root/evidence/ui-tests.json"
+  printf '%s\n' '{"schema_version":1,"layer":"ui","executed_test_count":2,"required_tests":[{"identifier":"PlaysteadUITests.HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice","discovered":true,"execution_count":1,"skipped":false,"outcome":"passed"}],"failed_test_count":1,"failed_tests_truncated":false,"failed_tests":[{"identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","outcome":"failed"}],"failure_diagnostic_count":1,"failure_diagnostics_truncated":false,"failure_diagnostics":[{"test_identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","assertion":"XCTAssertTrue","source_file":"PlaysteadUITests/SurfaceAccessibilityTests.swift","source_line":137}],"audit_issue_count":1,"audit_issues_truncated":false,"audit_issues":[{"test_identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","category":"parentChild","element_identifier":"playstead.surface.library","element_role":"role-3"}]}' >"$root/evidence/ui-tests.json"
   printf 'safe app event at /Users/example/private/location\n' >"$root/evidence/logs/app.log"
   printf 'server health passed\n' >"$root/evidence/logs/server.log"
   printf '\211PNG\r\n\032\nreference' >"$root/evidence/snapshot-triplet/reference.png"
@@ -65,9 +65,21 @@ import json, pathlib, sys
 data = json.loads(pathlib.Path(sys.argv[1]).read_text())
 assert data["failed_tests"] == [{"identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "outcome": "failed"}]
 assert all(set(record) == {"identifier", "outcome"} for record in data["failed_tests"])
+assert data["failure_diagnostics"] == [{"test_identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","assertion":"XCTAssertTrue","source_file":"PlaysteadUITests/SurfaceAccessibilityTests.swift","source_line":137}]
 assert data["audit_issues"] == [{"test_identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "category": "parentChild", "element_identifier": "playstead.surface.library", "element_role": "role-3"}]
 PY
 PASS_COUNT=$((PASS_COUNT + 1))
+
+legacy_schema="$TMP_ROOT/legacy-schema"
+make_valid "$legacy_schema"
+python3 - "$legacy_schema/evidence/ui-tests.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1]); data = json.loads(path.read_text())
+for key in ("failure_diagnostic_count", "failure_diagnostics_truncated", "failure_diagnostics"):
+    data.pop(key)
+path.write_text(json.dumps(data))
+PY
+expect_pass legacy_schema "$SANITIZER" --input "$legacy_schema" --output "$TMP_ROOT/legacy-schema-output"
 
 secret_json="$TMP_ROOT/secret-json"
 make_valid "$secret_json"
@@ -88,6 +100,27 @@ data["failed_tests"][0]["message"] = "private diagnostic"
 path.write_text(json.dumps(data))
 PY
 expect_fail failure_message "$SANITIZER" --input "$failure_message" --output "$TMP_ROOT/failure-message-output"
+
+unsafe_diagnostic="$TMP_ROOT/unsafe-diagnostic"
+make_valid "$unsafe_diagnostic"
+python3 - "$unsafe_diagnostic/evidence/ui-tests.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1]); data = json.loads(path.read_text())
+data["failure_diagnostics"][0]["source_file"] = "/Users/example/private/Secret.swift"
+path.write_text(json.dumps(data))
+PY
+expect_fail unsafe_diagnostic "$SANITIZER" --input "$unsafe_diagnostic" --output "$TMP_ROOT/unsafe-diagnostic-output"
+
+unbounded_diagnostics="$TMP_ROOT/unbounded-diagnostics"
+make_valid "$unbounded_diagnostics"
+python3 - "$unbounded_diagnostics/evidence/ui-tests.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1]); data = json.loads(path.read_text())
+data["failure_diagnostics"] = [{"test_identifier":f"SyntheticSuite/testFailure{index}()","assertion":"XCTAssertEqual","source_file":"PlaysteadUITests/SurfaceAccessibilityTests.swift","source_line":index + 1} for index in range(51)]
+data["failure_diagnostic_count"] = 51
+path.write_text(json.dumps(data))
+PY
+expect_fail unbounded_diagnostics "$SANITIZER" --input "$unbounded_diagnostics" --output "$TMP_ROOT/unbounded-diagnostics-output"
 
 unsafe_test_id="$TMP_ROOT/unsafe-test-id"
 make_valid "$unsafe_test_id"

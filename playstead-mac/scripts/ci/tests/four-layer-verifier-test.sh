@@ -51,7 +51,11 @@ non_required_failure = {
     "name": "testSyntheticFailure()",
     "result": "Failed",
     "failureSummaries": [
-        {"message": "XCTAssertTrue failed - PLAYSTEAD_A11Y_ISSUES[parentChild]=playstead.surface.library@role-3,unidentified@role-64"}
+        {
+            "message": "XCTAssertTrue failed: private runtime values are deliberately discarded - PLAYSTEAD_A11Y_ISSUES[parentChild]=playstead.surface.library@role-3,unidentified@role-64",
+            "fileName": "/Users/runner/work/playstead/playstead/playstead-mac/PlaysteadUITests/SurfaceAccessibilityTests.swift",
+            "lineNumber": 137,
+        }
     ],
 }
 data = {
@@ -77,13 +81,68 @@ summary = json.loads(pathlib.Path(sys.argv[1]).read_text())
 assert summary["failed_test_count"] == 1
 assert summary["failed_tests_truncated"] is False
 assert summary["failed_tests"] == [{"identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "outcome": "failed"}]
+assert summary["failure_diagnostic_count"] == 1
+assert summary["failure_diagnostics_truncated"] is False
+assert summary["failure_diagnostics"] == [{
+    "test_identifier": "SurfaceAccessibilityTests/testSyntheticFailure()",
+    "assertion": "XCTAssertTrue",
+    "source_file": "PlaysteadUITests/SurfaceAccessibilityTests.swift",
+    "source_line": 137,
+}]
 assert summary["audit_issue_count"] == 2
 assert summary["audit_issues_truncated"] is False
 assert summary["audit_issues"] == [
     {"test_identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "category": "parentChild", "element_identifier": "playstead.surface.library", "element_role": "role-3"},
     {"test_identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "category": "parentChild", "element_identifier": "unidentified", "element_role": "role-64"},
 ]
-assert set(summary) == {"schema_version", "layer", "executed_test_count", "required_tests", "failed_test_count", "failed_tests_truncated", "failed_tests", "audit_issue_count", "audit_issues_truncated", "audit_issues"}
+assert set(summary) == {"schema_version", "layer", "executed_test_count", "required_tests", "failed_test_count", "failed_tests_truncated", "failed_tests", "failure_diagnostic_count", "failure_diagnostics_truncated", "failure_diagnostics", "audit_issue_count", "audit_issues_truncated", "audit_issues"}
+PY
+PASS_COUNT=$((PASS_COUNT + 1))
+
+bounded_diagnostics="$TMP_ROOT/bounded-diagnostics.json"
+python3 - "$bounded_diagnostics" <<'PY'
+import json, sys
+required = {"nodeType":"Test Case","nodeIdentifier":"KeychainScopingTests/testScopedMatchQueryRestrictsSearchWithoutSelectingAnAddDestination()","result":"Passed"}
+failed = [{
+    "nodeType":"Test Case", "nodeIdentifier":f"SyntheticSuite/testFailure{index}()", "result":"Failed",
+    "failureSummaries":[{
+        "message":"XCTAssertEqual failed: runtime payload discarded",
+        "filePath":"/private/checkout/playstead-mac/PlaysteadUITests/SurfaceAccessibilityTests.swift",
+        "line":index + 1,
+    }],
+} for index in range(55)]
+json.dump({"testNodes":[{"nodeType":"Test Plan","children":[required, *failed]}]}, open(sys.argv[1], "w"))
+PY
+expect_pass bounded_diagnostics verify_fixture "$bounded_diagnostics"
+python3 - "$TMP_ROOT/summary.json" <<'PY'
+import json, pathlib, sys
+summary = json.loads(pathlib.Path(sys.argv[1]).read_text())
+assert summary["failure_diagnostic_count"] == 55
+assert summary["failure_diagnostics_truncated"] is True
+assert len(summary["failure_diagnostics"]) == 50
+assert all(set(record) == {"test_identifier", "assertion", "source_file", "source_line"} for record in summary["failure_diagnostics"])
+PY
+PASS_COUNT=$((PASS_COUNT + 1))
+
+unsafe_diagnostic="$TMP_ROOT/unsafe-diagnostic.json"
+python3 - "$unsafe_diagnostic" <<'PY'
+import json, sys
+required = {"nodeType":"Test Case","nodeIdentifier":"KeychainScopingTests/testScopedMatchQueryRestrictsSearchWithoutSelectingAnAddDestination()","result":"Passed"}
+failed = {
+    "nodeType":"Test Case", "nodeIdentifier":"SyntheticSuite/testUnsafeDiagnostic()", "result":"Failed",
+    "failureSummaries":[{
+        "message":"private filename.rom bearer token must never survive",
+        "filePath":"/Users/private/Secret.swift", "lineNumber":9,
+    }],
+}
+json.dump({"testNodes":[{"nodeType":"Test Plan","children":[required, failed]}]}, open(sys.argv[1], "w"))
+PY
+expect_pass unsafe_diagnostic verify_fixture "$unsafe_diagnostic"
+python3 - "$TMP_ROOT/summary.json" <<'PY'
+import json, pathlib, sys
+summary = json.loads(pathlib.Path(sys.argv[1]).read_text())
+assert summary["failure_diagnostic_count"] == 0
+assert summary["failure_diagnostics"] == []
 PY
 PASS_COUNT=$((PASS_COUNT + 1))
 

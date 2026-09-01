@@ -311,10 +311,10 @@ verify_layer_result() (
   done
   [ -s "$required_file" ] || die "layer $layer requires at least one --required-test"
 
-  python3 - "$test_results" "$required_file" "$layer" "$output" <<'PY'
+  python3 - "$test_results" "$required_file" "$layer" "$output" "$MAC_ROOT" <<'PY'
 import json, pathlib, re, sys
 
-results_path, required_path, layer, output_path = sys.argv[1:]
+results_path, required_path, layer, output_path, mac_root = sys.argv[1:]
 try:
     data = json.loads(pathlib.Path(results_path).read_text(encoding="utf-8"))
 except Exception as exc:
@@ -347,7 +347,57 @@ def normalized_outcome(result):
 
 nodes = []
 audit_issues = []
+failure_diagnostics = []
 audit_pattern = re.compile(r"PLAYSTEAD_A11Y_ISSUES\[([A-Za-z]+)\]=([a-z0-9.,@-]+)")
+assertion_pattern = re.compile(
+    r"\b(XCTAssert(?:True|False|Equal|NotEqual|Nil|NotNil|LessThan|LessThanOrEqual|GreaterThan|GreaterThanOrEqual|NoThrow|ThrowsError)|XCTFail|XCTUnwrap)\b"
+)
+
+source_roots = ["Playstead", "PlaysteadTests", "PlaysteadUITests"]
+source_by_name = {}
+for source_root in source_roots:
+    for source_path in (pathlib.Path(mac_root) / source_root).rglob("*.swift"):
+        relative = source_path.relative_to(mac_root).as_posix()
+        source_by_name.setdefault(source_path.name, []).append(relative)
+
+def first_key(value, names):
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if key in names and isinstance(child, (str, int)):
+                return child
+        for child in value.values():
+            found = first_key(child, names)
+            if found is not None:
+                return found
+    elif isinstance(value, list):
+        for child in value:
+            found = first_key(child, names)
+            if found is not None:
+                return found
+    return None
+
+def bounded_failure_diagnostic(summary, test_identifier):
+    assertion = next((match.group(1) for text in strings(summary) if (match := assertion_pattern.search(text))), None)
+    raw_file = first_key(summary, {"fileName", "filePath", "sourceFile", "sourceCodeFilePath"})
+    raw_line = first_key(summary, {"lineNumber", "line"})
+    if assertion is None or not isinstance(raw_file, str):
+        return None
+    source_name = pathlib.PurePath(raw_file.removeprefix("file://").split("#", 1)[0]).name
+    candidates = source_by_name.get(source_name, [])
+    if len(candidates) != 1:
+        return None
+    try:
+        source_line = int(raw_line)
+    except (TypeError, ValueError):
+        return None
+    if not 1 <= source_line <= 1_000_000:
+        return None
+    return {
+        "test_identifier": test_identifier,
+        "assertion": assertion,
+        "source_file": candidates[0],
+        "source_line": source_line,
+    }
 
 def strings(value):
     if isinstance(value, str):
@@ -368,6 +418,12 @@ def walk(value):
                 raise SystemExit(f"{layer}: malformed Test Case node")
             test_identifier = canonical(node_identifier)
             nodes.append((test_identifier, result))
+            summaries = value.get("failureSummaries", [])
+            if isinstance(summaries, list):
+                for summary in summaries:
+                    diagnostic = bounded_failure_diagnostic(summary, test_identifier)
+                    if diagnostic is not None:
+                        failure_diagnostics.append(diagnostic)
             for diagnostic in strings(value):
                 for match in audit_pattern.finditer(diagnostic):
                     category, identifiers = match.groups()
@@ -423,6 +479,14 @@ all_audit_issues = sorted(
     key=lambda fields: dict(fields)["test_identifier"] + "|" + dict(fields)["category"] + "|" + dict(fields)["element_identifier"] + "|" + dict(fields)["element_role"],
 )
 max_audit_issues = 50
+all_failure_diagnostics = sorted(
+    {tuple(sorted(record.items())) for record in failure_diagnostics},
+    key=lambda fields: (
+        dict(fields)["test_identifier"], dict(fields)["source_file"],
+        dict(fields)["source_line"], dict(fields)["assertion"]
+    ),
+)
+max_failure_diagnostics = 50
 
 summary = {
     "schema_version": 1,
@@ -432,6 +496,9 @@ summary = {
     "failed_test_count": len(all_failed),
     "failed_tests_truncated": len(all_failed) > max_failed_tests,
     "failed_tests": all_failed[:max_failed_tests],
+    "failure_diagnostic_count": len(all_failure_diagnostics),
+    "failure_diagnostics_truncated": len(all_failure_diagnostics) > max_failure_diagnostics,
+    "failure_diagnostics": [dict(fields) for fields in all_failure_diagnostics[:max_failure_diagnostics]],
     "audit_issue_count": len(all_audit_issues),
     "audit_issues_truncated": len(all_audit_issues) > max_audit_issues,
     "audit_issues": [dict(fields) for fields in all_audit_issues[:max_audit_issues]],

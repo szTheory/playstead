@@ -65,6 +65,12 @@ floor (03-UI-SPEC.md), and its current, honestly stated limits.
   a rationale; unmatched issues fail closed. This does not establish speech
   quality, rotor usefulness, navigation intuition, or usability with a human
   VoiceOver workflow, and no third-party conformance certification is claimed.
+- **Hosted failure diagnostics remain source-bounded.** Sanitized per-layer
+  evidence may name a canonical failed test, a normalized XCTest assertion
+  kind, and a repository-relative Swift file and line only when the xcresult
+  location resolves to one unique checked-in source name. Runtime assertion
+  values, full paths, messages, attachments, environments, and raw xcresults
+  never cross the artifact boundary; unmatched diagnostics are omitted.
 - **Controller hardware itself remains unproven.** The plan 03-01 spike
   recorded controller connect/disconnect recovery as
   FAIL/unproven — no physical or paired game controller was available in

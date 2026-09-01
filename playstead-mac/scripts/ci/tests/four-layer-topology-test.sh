@@ -310,10 +310,13 @@ grep -F '(width, height) != (5760, 3040)' "$SANITIZER" >/dev/null
 grep -F 'snapshot-triplet' "$SANITIZER" >/dev/null
 grep -F 'environment-fingerprint.json' "$SANITIZER" >/dev/null
 grep -F '"failed_tests": all_failed[:max_failed_tests]' "$RUNNER" >/dev/null
+grep -F '"failure_diagnostics": [dict(fields) for fields in all_failure_diagnostics[:max_failure_diagnostics]]' "$RUNNER" >/dev/null
 grep -F '"audit_issues": [dict(fields) for fields in all_audit_issues[:max_audit_issues]]' "$RUNNER" >/dev/null
 grep -F 'len(failed) > 50' "$SANITIZER" >/dev/null
+grep -F 'len(diagnostics) > 50' "$SANITIZER" >/dev/null
 grep -F 'len(audit_issues) > 50' "$SANITIZER" >/dev/null
 grep -F '{"identifier", "outcome"}' "$SANITIZER" >/dev/null
+grep -F '{"test_identifier", "assertion", "source_file", "source_line"}' "$SANITIZER" >/dev/null
 grep -F '{"test_identifier", "category", "element_identifier", "element_role"}' "$SANITIZER" >/dev/null
 
 "$PROMPT_SAFETY"
