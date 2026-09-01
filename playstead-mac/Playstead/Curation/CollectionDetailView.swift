@@ -8,9 +8,17 @@ struct CollectionDetailView: View {
     let viewModel: CollectionsViewModel
     let collectionID: String
     let catalogueByAssetSetID: [String: CatalogueEntry]
+    @FocusState private var focusedReorderAction: ReorderAction?
 #if UI_TESTING
     @Environment(AppEnvironment.self) private var environment
 #endif
+
+    private struct ReorderAction: Hashable {
+        enum Direction: Hashable { case up, down }
+
+        let memberID: String
+        let direction: Direction
+    }
 
     static let emptyExplanation = "This collection has no games yet."
 
@@ -51,9 +59,37 @@ struct CollectionDetailView: View {
 
     private func memberRow(_ member: CurationCollectionMemberRow, at index: Int) -> some View {
         let title = catalogueByAssetSetID[member.assetSetID]?.displayTitle ?? member.assetSetID
-        return Text(title)
+        return HStack(spacing: DesignTokens.Spacing.sm) {
+            Text(title)
+            Spacer()
+            reorderButton(member, title: title, index: index, direction: .up)
+            reorderButton(member, title: title, index: index, direction: .down)
+        }
+        .accessibilityElement(children: .contain)
         .accessibilityLabel(title)
         .accessibilityIdentifier("playstead.curation.collection-member.\(member.id)")
+    }
+
+    private func reorderButton(
+        _ member: CurationCollectionMemberRow,
+        title: String,
+        index: Int,
+        direction: ReorderAction.Direction
+    ) -> some View {
+        let action = ReorderAction(memberID: member.id, direction: direction)
+        let isUp = direction == .up
+        return Button {
+            settleMove(assetSetID: member.assetSetID, to: isUp ? index - 1 : index + 1)
+            focusedReorderAction = action
+        } label: {
+            Label(isUp ? "Move Up" : "Move Down", systemImage: isUp ? "arrow.up" : "arrow.down")
+        }
+        .disabled(isUp ? index == members.startIndex : index == members.index(before: members.endIndex))
+        .focused($focusedReorderAction, equals: action)
+        .accessibilityLabel("Move \(title) \(isUp ? "up" : "down")")
+        .accessibilityIdentifier(
+            "playstead.curation.collection-member.\(member.id).move-\(isUp ? "up" : "down")"
+        )
     }
 
     private func move(from source: IndexSet, to destination: Int) {

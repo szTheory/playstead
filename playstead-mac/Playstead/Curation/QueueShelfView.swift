@@ -8,6 +8,14 @@ import SwiftUI
 struct QueueShelfView: View {
     let viewModel: QueueViewModel
     let catalogueByAssetSetID: [String: CatalogueEntry]
+    @FocusState private var focusedReorderAction: ReorderAction?
+
+    private struct ReorderAction: Hashable {
+        enum Direction: Hashable { case up, down }
+
+        let itemID: String
+        let direction: Direction
+    }
 
     static let emptyExplanation = "Add a game to your queue to keep it in mind."
 
@@ -37,9 +45,39 @@ struct QueueShelfView: View {
 
     private func queueRow(_ item: CurationQueueItemRow, at index: Int) -> some View {
         let title = catalogueByAssetSetID[item.assetSetID]?.displayTitle ?? item.assetSetID
-        return Text(title)
+        return HStack(spacing: DesignTokens.Spacing.sm) {
+            Text(title)
+            Spacer()
+            reorderButton(item, title: title, index: index, direction: .up)
+            reorderButton(item, title: title, index: index, direction: .down)
+        }
+        .accessibilityElement(children: .contain)
         .accessibilityLabel(title)
         .accessibilityIdentifier("playstead.curation.queue-item.\(item.id)")
+    }
+
+    private func reorderButton(
+        _ item: CurationQueueItemRow,
+        title: String,
+        index: Int,
+        direction: ReorderAction.Direction
+    ) -> some View {
+        let action = ReorderAction(itemID: item.id, direction: direction)
+        let isUp = direction == .up
+        return Button {
+            settleMove(assetSetID: item.assetSetID, to: isUp ? index - 1 : index + 1)
+            focusedReorderAction = action
+        } label: {
+            Label(isUp ? "Move Up" : "Move Down", systemImage: isUp ? "arrow.up" : "arrow.down")
+        }
+        .disabled(
+            isUp ? index == viewModel.items.startIndex : index == viewModel.items.index(before: viewModel.items.endIndex)
+        )
+        .focused($focusedReorderAction, equals: action)
+        .accessibilityLabel("Move \(title) \(isUp ? "up" : "down")")
+        .accessibilityIdentifier(
+            "playstead.curation.queue-item.\(item.id).move-\(isUp ? "up" : "down")"
+        )
     }
 
     private func move(from source: IndexSet, to destination: Int) {
