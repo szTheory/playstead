@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 21
+open_count: 22
 waived_count: 1
 fixed_count: 2
-total_count: 24
-last_updated: 2026-09-01T13:28:24.085Z
+total_count: 25
+last_updated: 2026-09-01T14:17:23.468Z
 ---
 
 # Broken Windows Ledger
@@ -39,6 +39,7 @@ last_updated: 2026-09-01T13:28:24.085Z
 | 22 | 03.5 | deviation | playstead-mac/Playstead/Curation/CollectionDetailView.swift |  | Hosted run 33503640089 isolated keyboard focus ownership; collection and queue reorder actions now bind stable identity and focus on the final button through playsteadFocusable. | open |  | 2026-09-01T12:13:48.616Z |  |
 | 23 | 03.5 | deviation | playstead-mac/PlaysteadUITests/CurationInteractionTests.swift |  | Hosted run 33506605120 exposed app-scoped Space dispatch plus a missing combined-path activation; both keyboard paths now send one Space through the exact focused button. | open |  | 2026-09-01T12:48:01.842Z |  |
 | 24 | 03.5 | deviation | playstead-mac/PlaysteadUITests/CurationInteractionTests.swift |  | Hosted run 33510034845 exposed an impossible retained-focus assertion on a Move Up button disabled by reaching the first boundary; the keyboard proof now moves last-to-middle while preserving exact effect/order/boundary/durability checks. | open |  | 2026-09-01T13:28:24.085Z |  |
+| 25 | 03.5 | deviation | playstead-mac/PlaysteadUITests/CurationInteractionTests.swift |  | Hosted run 33513649409 lacked keyboard stage detail; curation now uses exact-target canary focus detection and bounded safe focus/effect/retention test IDs. | open |  | 2026-09-01T14:17:23.468Z |  |
 
 ````json
 [
@@ -328,6 +329,18 @@ last_updated: 2026-09-01T13:28:24.085Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-01T13:28:24.085Z",
+    "resolved_at": null
+  },
+  {
+    "id": 25,
+    "kind": "deviation",
+    "phase": "03.5",
+    "file": "playstead-mac/PlaysteadUITests/CurationInteractionTests.swift",
+    "line": null,
+    "description": "Hosted run 33513649409 lacked keyboard stage detail; curation now uses exact-target canary focus detection and bounded safe focus/effect/retention test IDs.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-01T14:17:23.468Z",
     "resolved_at": null
   }
 ]
