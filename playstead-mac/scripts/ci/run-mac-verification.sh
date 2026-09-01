@@ -583,6 +583,8 @@ PY
     --required-test PlaysteadUITests.CurationInteractionTests/testRecentShelfRendersHonestEmptyFixture \
     --required-test PlaysteadUITests.CurationInteractionTests/testCollectionDetailOpensExactSeededState \
     --required-test PlaysteadUITests.CurationInteractionTests/testCollectionDragTargetsOwnDistinctListCells \
+    --required-test PlaysteadUITests.CurationInteractionTests/testCollectionMoveUpActionIsEnabledAndOwned \
+    --required-test PlaysteadUITests.CurationInteractionTests/testCollectionMoveUpClickProducesOneEffect \
     --required-test PlaysteadUITests.CurationInteractionTests/testDragReorderProducesOneEffect \
     --required-test PlaysteadUITests.CurationInteractionTests/testDragReorderSurvivesRelaunch \
     --required-test PlaysteadUITests.CurationInteractionTests/testKeyboardReorderProducesOneEffectAndRetainsFocus \

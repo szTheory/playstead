@@ -88,6 +88,26 @@ final class CurationInteractionTests: XCTestCase {
         XCTAssertEqual(Set(cells.map { $0.frame.minY }).count, 3)
     }
 
+    func testCollectionMoveUpActionIsEnabledAndOwned() throws {
+        let harness = launchPersistentCurationHarness()
+        openSyntheticCollection(in: harness)
+        let action = harness.element(moveID(memberID(2), direction: "up"), type: .button)
+        XCTAssertTrue(action.waitForExistence(timeout: 5))
+        XCTAssertTrue(action.isEnabled)
+        XCTAssertEqual(action.label, "Move Synthetic Game 2 up")
+    }
+
+    func testCollectionMoveUpClickProducesOneEffect() throws {
+        let harness = launchPersistentCurationHarness()
+        openSyntheticCollection(in: harness)
+        let action = harness.element(moveID(memberID(2), direction: "up"), type: .button)
+        XCTAssertTrue(action.waitForExistence(timeout: 5))
+        action.click()
+        let order = [memberID(2), memberID(1), memberID(3)]
+        assertEvidence(order: order, outboxCount: 1, in: harness)
+        assertExactCollectionOrder(order, in: harness)
+    }
+
     func testDragReorderProducesOneEffect() throws {
         let harness = launchPersistentCurationHarness()
         openSyntheticCollection(in: harness)
@@ -196,7 +216,12 @@ final class CurationInteractionTests: XCTestCase {
         // This is a hosted macOS UI test: use the mouse-owned click-drag API.
         // The touch-style press-drag call can complete without dispatching the
         // List's production onMove command on macOS.
-        third.click(forDuration: 1, thenDragTo: first)
+        third.click(
+            forDuration: 1,
+            thenDragTo: first,
+            withVelocity: XCUIGestureVelocity.slow,
+            thenHoldForDuration: 1
+        )
         return [memberID(3), memberID(1), memberID(2)]
     }
 
@@ -219,11 +244,11 @@ final class CurationInteractionTests: XCTestCase {
         assertEnabled(false, element: harness.element(moveID(memberID(3), direction: "down"), type: .button))
 
         let keyboardMove = moveID(memberID(2), direction: "up")
-        // focusContainedAction proves focus ownership and sends exactly one
-        // Space activation. A second Space would target the now-moved,
-        // boundary-disabled control and fail before effect evidence is read.
+        // focusContainedAction performs only the focus transition. Space is
+        // sent exactly once, after the helper returns.
         harness.focusContainedAction(keyboardMove, rootIdentifier: "playstead.surface.collection-detail")
         let button = harness.element(keyboardMove, type: .button)
+        harness.app.typeKey(.space, modifierFlags: [])
 
         let order = [memberID(2), memberID(1), memberID(3)]
         assertEvidence(order: order, outboxCount: 1, in: harness)
