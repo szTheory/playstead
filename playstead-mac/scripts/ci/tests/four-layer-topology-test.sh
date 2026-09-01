@@ -58,6 +58,16 @@ for index, left in enumerate(names):
         if overlap:
             raise SystemExit(f"test ownership overlaps between {left} and {right}: {sorted(overlap)}")
 
+unit_skipped = set(plans["Unit"]["testTargets"][0].get("skippedTests", []))
+if "StorageContractSnapshotTests" not in unit_skipped:
+    raise SystemExit("storage snapshots must be excluded from the broad Unit plan")
+if "StorageContractSnapshotTests" not in {test for _, test in selected["Rendering"]}:
+    raise SystemExit("storage snapshot discovery is missing from Rendering")
+ui_selected = {test for _, test in selected["UI"]}
+for required_ui_class in ("CurationInteractionTests", "StorageInteractionTests"):
+    if required_ui_class not in ui_selected:
+        raise SystemExit(f"Wave 6 UI discovery is missing: {required_ui_class}")
+
 app_decl = app_source.split("struct PlaysteadApp: App", 1)[1].split("private struct ProductionRootView", 1)[0]
 if "AppEnvironment(" in app_decl:
     raise SystemExit("PlaysteadApp must not eagerly construct production dependencies in a hosted canary launch")
@@ -98,6 +108,10 @@ grep -F 'xcodebuild build-for-testing' "$RUNNER" >/dev/null
 grep -F 'xcodebuild test-without-building' "$RUNNER" >/dev/null
 grep -F '"automatic_retries": 0' "$RUNNER" >/dev/null
 grep -F 'PLAYSTEAD_SNAPSHOT_RECORDING=0' "$RUNNER" >/dev/null
+grep -F -- '--required-test PlaysteadTests.StorageContractSnapshotTests/testDownloadsQuotaReclaimAndStorageVisualContract' "$RUNNER" >/dev/null
+grep -F -- '--required-test PlaysteadTests.StorageContractSnapshotTests/testStorageMotionAndReducedMotionContract' "$RUNNER" >/dev/null
+grep -F -- '--required-test PlaysteadUITests.CurationInteractionTests/testFiveShelvesAndDurableDragReorder' "$RUNNER" >/dev/null
+grep -F -- '--required-test PlaysteadUITests.StorageInteractionTests/testDownloadsQuotaReclaimAndStorageFlows' "$RUNNER" >/dev/null
 grep -F 'if: failure()' "$WORKFLOW" >/dev/null
 grep -F 'path: playstead-mac/.build/ci/failure-evidence' "$WORKFLOW" >/dev/null
 grep -F 'retention-days: 7' "$WORKFLOW" >/dev/null

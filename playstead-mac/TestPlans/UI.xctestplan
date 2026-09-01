@@ -20,8 +20,10 @@
     {
       "parallelizable" : false,
       "selectedTests" : [
+        "CurationInteractionTests",
         "HostedRunnerCanaryTests/testFullKeyboardAccessCanaryFocusesAndActivatesTwoControls()",
         "HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice()",
+        "StorageInteractionTests",
         "SurfaceAccessibilityTests"
       ],
       "target" : {

@@ -27,7 +27,8 @@
       "parallelizable" : false,
       "skippedTests" : [
         "SnapshotHarnessCanaryTests/testIntentionalMismatchProducesReviewableTriplet()",
-        "SnapshotHarnessCanaryTests/testMeaningfulMutationFailsAndCalibratedNoisePasses()"
+        "SnapshotHarnessCanaryTests/testMeaningfulMutationFailsAndCalibratedNoisePasses()",
+        "StorageContractSnapshotTests"
       ],
       "target" : {
         "containerPath" : "container:Playstead.xcodeproj",

@@ -562,12 +562,16 @@ PY
 
   run_test_layer rendering Rendering 600 \
     --required-test PlaysteadTests.SnapshotHarnessCanaryTests/testIntentionalMismatchProducesReviewableTriplet \
-    --required-test PlaysteadTests.SnapshotHarnessCanaryTests/testMeaningfulMutationFailsAndCalibratedNoisePasses
+    --required-test PlaysteadTests.SnapshotHarnessCanaryTests/testMeaningfulMutationFailsAndCalibratedNoisePasses \
+    --required-test PlaysteadTests.StorageContractSnapshotTests/testDownloadsQuotaReclaimAndStorageVisualContract \
+    --required-test PlaysteadTests.StorageContractSnapshotTests/testStorageMotionAndReducedMotionContract
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
 
   run_test_layer ui UI 900 \
     --required-test PlaysteadUITests.HostedRunnerCanaryTests/testFullKeyboardAccessCanaryFocusesAndActivatesTwoControls \
-    --required-test PlaysteadUITests.HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice
+    --required-test PlaysteadUITests.HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice \
+    --required-test PlaysteadUITests.CurationInteractionTests/testFiveShelvesAndDurableDragReorder \
+    --required-test PlaysteadUITests.StorageInteractionTests/testDownloadsQuotaReclaimAndStorageFlows
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
 
   run_test_layer live-server LiveServer 900 \
