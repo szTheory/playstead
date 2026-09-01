@@ -511,6 +511,66 @@ if verification_errors:
 PY
 )
 
+print_failure_diagnostics() {
+  local summary="$1"
+  local layer="$2"
+  python3 - "$summary" "$layer" "$MAC_ROOT" <<'PY'
+import json, pathlib, re, sys
+
+summary_path, layer, mac_root = sys.argv[1:]
+try:
+    data = json.loads(pathlib.Path(summary_path).read_text(encoding="utf-8"))
+    diagnostics = data["failure_diagnostics"]
+    count = data["failure_diagnostic_count"]
+    truncated = data["failure_diagnostics_truncated"]
+except Exception:
+    raise SystemExit(1)
+
+test_identifier = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*/[A-Za-z_][A-Za-z0-9_]*\(\)$")
+source_identifier = re.compile(r"^(?:Playstead|PlaysteadTests|PlaysteadUITests)/(?:[A-Za-z_][A-Za-z0-9_]*/)*[A-Za-z_][A-Za-z0-9_]*\.swift$")
+allowed_assertions = {
+    "XCTAssertTrue", "XCTAssertFalse", "XCTAssertEqual", "XCTAssertNotEqual",
+    "XCTAssertNil", "XCTAssertNotNil", "XCTAssertLessThan", "XCTAssertLessThanOrEqual",
+    "XCTAssertGreaterThan", "XCTAssertGreaterThanOrEqual", "XCTAssertNoThrow",
+    "XCTAssertThrowsError", "XCTFail", "XCTUnwrap",
+}
+if not isinstance(diagnostics, list) or len(diagnostics) > 50:
+    raise SystemExit(1)
+if type(count) is not int or count < len(diagnostics) or type(truncated) is not bool:
+    raise SystemExit(1)
+if (not truncated and count != len(diagnostics)) or (truncated and (count <= 50 or len(diagnostics) != 50)):
+    raise SystemExit(1)
+
+root = pathlib.Path(mac_root).resolve()
+safe = []
+for record in diagnostics:
+    if not isinstance(record, dict) or set(record) != {"test_identifier", "assertion", "source_file", "source_line"}:
+        raise SystemExit(1)
+    test = record.get("test_identifier")
+    assertion = record.get("assertion")
+    source_file = record.get("source_file")
+    source_line = record.get("source_line")
+    if not isinstance(test, str) or not test_identifier.fullmatch(test):
+        raise SystemExit(1)
+    if assertion not in allowed_assertions:
+        raise SystemExit(1)
+    if not isinstance(source_file, str) or not source_identifier.fullmatch(source_file):
+        raise SystemExit(1)
+    candidate = root / source_file
+    same_named = [path for source_root in ("Playstead", "PlaysteadTests", "PlaysteadUITests") for path in (root / source_root).rglob(candidate.name)]
+    if not candidate.is_file() or len(same_named) != 1 or same_named[0].resolve() != candidate.resolve():
+        raise SystemExit(1)
+    if type(source_line) is not int or not 1 <= source_line <= 1_000_000:
+        raise SystemExit(1)
+    safe.append((test, assertion, source_file, source_line))
+
+for test, assertion, source_file, source_line in safe:
+    print(f"{layer}: FAILURE_DIAGNOSTIC {test} {assertion} {source_file}:{source_line}")
+if truncated:
+    print(f"{layer}: FAILURE_DIAGNOSTICS_TRUNCATED shown={len(safe)} total={count}")
+PY
+}
+
 run_with_deadline() {
   local seconds="$1"
   local log="$2"
@@ -583,6 +643,10 @@ run_test_layer() {
   if [ "$xcode_status" -ne 0 ] || [ "$parse_status" -ne 0 ] || [ "$verify_status" -ne 0 ]; then
     LAYER_STATUS=1
     printf '%s\n' "$slug: FAILED (xcode=$xcode_status parse=$parse_status verify=$verify_status)" >&2
+    if [ -s "$result_summary" ]; then
+      print_failure_diagnostics "$result_summary" "$slug" || \
+        printf '%s\n' "$slug: bounded failure diagnostics unavailable"
+    fi
   else
     printf '%s\n' "$slug: PASSED"
   fi
@@ -1038,6 +1102,7 @@ Usage:
   run-mac-verification.sh --run-snapshot-candidates
   run-mac-verification.sh --layers {rendering|ui} --only-testing TEST [TEST ...]
   run-mac-verification.sh --verify-layer-result FILE LAYER OUTPUT --required-test ID [...]
+  run-mac-verification.sh --print-failure-diagnostics SUMMARY LAYER
   run-mac-verification.sh --self-test-result-verifier
   run-mac-verification.sh --self-test-sanitizer [--verify-four-layer-topology]
   run-mac-verification.sh --verify-four-layer-topology
@@ -1066,6 +1131,12 @@ case "$1" in
     require_value "$1" "${2:-}"; require_value "$1" "${3:-}"; require_value "$1" "${4:-}"
     test_results="$2"; layer="$3"; output="$4"; shift 4
     verify_layer_result "$test_results" "$layer" "$output" "$@"
+    ;;
+  --print-failure-diagnostics)
+    require_value "$1" "${2:-}"; require_value "$1" "${3:-}"
+    summary="$2"; layer="$3"; shift 3
+    [ "$#" -eq 0 ] || die "unexpected failure diagnostic arguments"
+    print_failure_diagnostics "$summary" "$layer"
     ;;
   --self-test-result-verifier) shift; [ "$#" -eq 0 ] || die "unexpected verifier self-test arguments"; run_layer_verifier_self_tests ;;
   --self-test-sanitizer)

@@ -99,6 +99,30 @@ assert set(summary) == {"schema_version", "layer", "executed_test_count", "requi
 PY
 PASS_COUNT=$((PASS_COUNT + 1))
 
+diagnostic_stdout="$TMP_ROOT/diagnostic-stdout"
+expect_pass diagnostic_stdout "$VERIFIER" --print-failure-diagnostics "$TMP_ROOT/summary.json" ui
+grep -Fx 'ui: FAILURE_DIAGNOSTIC SurfaceAccessibilityTests/testSyntheticFailure() XCTAssertTrue PlaysteadUITests/SurfaceAccessibilityTests.swift:137' "$TMP_ROOT/diagnostic_stdout.out" >/dev/null || {
+  printf 'FAIL: bounded hosted diagnostic was not printed exactly\n' >&2
+  exit 1
+}
+if grep -E 'private runtime|/Users/|PLAYSTEAD_A11Y_ISSUES|message' "$TMP_ROOT/diagnostic_stdout.out" >/dev/null; then
+  printf 'FAIL: hosted diagnostic leaked a raw message or path\n' >&2
+  exit 1
+fi
+PASS_COUNT=$((PASS_COUNT + 2))
+
+unsafe_stdout="$TMP_ROOT/unsafe-stdout.json"
+python3 - "$TMP_ROOT/summary.json" "$unsafe_stdout" <<'PY'
+import json, pathlib, sys
+source, target = map(pathlib.Path, sys.argv[1:])
+data = json.loads(source.read_text())
+data["failure_diagnostics"][0]["message"] = "Bearer should-never-print"
+target.write_text(json.dumps(data))
+PY
+expect_fail unsafe_stdout "$VERIFIER" --print-failure-diagnostics "$unsafe_stdout" ui
+[ ! -s "$TMP_ROOT/unsafe_stdout.out" ] || { printf 'FAIL: malformed diagnostic produced stdout\n' >&2; exit 1; }
+PASS_COUNT=$((PASS_COUNT + 1))
+
 bounded_diagnostics="$TMP_ROOT/bounded-diagnostics.json"
 python3 - "$bounded_diagnostics" <<'PY'
 import json, sys
