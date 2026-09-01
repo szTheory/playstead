@@ -36,6 +36,32 @@ client boundary. Accept community-contributed results only with reproducible
 environment fingerprints and a clear distinction between Playstead-verified,
 community-reported, degraded, experimental, and unsupported configurations.
 
+Compatibility must be modeled per configuration, not as a permanent property of
+the game. A title may fail on one device, emulator/core, version, BIOS, renderer,
+or option set while remaining playable elsewhere. The library therefore needs a
+clear operational state such as verified, degraded, not working, untested, or
+unknown for an exact compatibility fingerprint—separate from ownership,
+favorite/curation state, and whether the player still wants the game. Marking a
+configuration "not working" should offer an explicit local-storage choice:
+retain the verified local bytes for another core or future retry, reclaim only
+that device's copy while preserving canonical custody, or quarantine a suspect
+derived artifact. It must never silently delete canonical user-supplied bytes or
+turn one failed launch into a global incompatibility claim.
+
+The eventual UI should make this a short, reversible path from the game or
+launch-failure surface, rather than burying it in nested menus. It should explain
+what will happen to the local copy, preserve prior test evidence, suggest a known
+compatible alternative only when evidence exists, and allow the player to undo
+or retest after changing the core or environment.
+
+A future discovery effort should also investigate whether a ProtonDB-like public
+or federated evidence commons already exists for emulation compatibility across
+devices and cores. Prefer contributing interoperable, privacy-safe observations
+to a healthy existing dataset over creating another silo. If Playstead publishes
+reports, require explicit opt-in, legal homebrew or content-neutral fingerprints,
+versioned environment data, moderation/anti-spam controls, confidence and
+recency, and a strict ban on ROM/BIOS discovery or identifying user-library data.
+
 ArmadaOS provides useful information-architecture prior art: its supported-device
 surface groups devices by manufacturer, records each device's SoC, and adds a
 model-specific page only where installation, usage, or troubleshooting guidance
@@ -62,6 +88,9 @@ power/network isolation, and maintenance costs are explicitly owned.
 policy. A real CI hardware farm is later infrastructure work requiring secure
 device enrollment, reproducible images, remote reset/recovery, artifact capture,
 physical power/USB control, test-content licensing, and a budget for device churn.
+Treat the player-facing "not working here" workflow and any community evidence
+service as separate slices: first prove the local per-fingerprint state and
+reversible cache policy, then research dataset interoperability and governance.
 
 ## Breadcrumbs
 
@@ -80,11 +109,15 @@ physical power/USB control, test-content licensing, and a budget for device chur
 - `.planning/research/FEATURES.md` — second client/adapter is the deliberate
   v1.x pressure test for the protocol boundary
 - `.planning/seeds/SEED-007-emudeck-study-and-relationship-options.md` — related
-  launcher/appliance ecosystem study
+  launcher/appliance ecosystem study, including which useful behaviors to retain
+  and which menu/feedback friction to avoid
 
 ## Notes
 
 Captured during Phase 03.5 from the owner's idea of eventually using real devices
 as an automated compatibility farm. Keep it out of the current Mac verification
 phase. The first follow-up should define evidence levels and the matrix schema,
-not buy a room full of hardware.
+not buy a room full of hardware. Enriched on 2026-09-01 from the owner's EmuDeck
+observation that "not working" is configuration-specific and should drive an
+explicit, reversible local-copy decision, plus the question of a ProtonDB-like
+cross-device/core evidence commons.
