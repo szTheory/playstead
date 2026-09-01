@@ -1,5 +1,23 @@
 import SwiftUI
 
+/// The three storage transitions whose normal and reduced-motion timing is
+/// part of checkpoint 5. Determinate progress is deliberately absent from
+/// this API: `ProgressFillState` remains information-bearing in both modes.
+enum StorageMotionContract {
+    enum Phase: CaseIterable, Hashable {
+        case status
+        case completion
+        case eviction
+    }
+
+    static let normalDuration: Double = 0.2
+
+    static func duration(for phase: Phase, reduceMotion: Bool) -> Double {
+        _ = phase
+        return reduceMotion ? 0 : normalDuration
+    }
+}
+
 /// A pinned game's row in `StorageView`'s protected section.
 struct PinnedGameRow: Identifiable, Equatable {
     let id: String
@@ -24,6 +42,7 @@ struct StorageView: View {
     let onRemoveQuarantined: (String) -> Void
 
     @State private var selected: Set<String> = []
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     static func formatBytes(_ bytes: Int) -> String {
         ByteFormatting.formatBytes(bytes)
@@ -178,5 +197,13 @@ struct StorageView: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Storage inventory")
         .accessibilityIdentifier(Automation.root)
+        .animation(
+            .easeInOut(duration: StorageMotionContract.duration(for: .eviction, reduceMotion: reduceMotion)),
+            value: candidates.count
+        )
+        .animation(
+            .easeInOut(duration: StorageMotionContract.duration(for: .eviction, reduceMotion: reduceMotion)),
+            value: totalUsedBytes
+        )
     }
 }

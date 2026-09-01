@@ -26,6 +26,7 @@ struct ReclaimPromptView: View {
     let onCancel: () -> Void
 
     @State private var selected: Set<String> = []
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     static func formatBytes(_ bytes: Int) -> String {
         ByteFormatting.formatBytes(bytes)
@@ -121,5 +122,9 @@ struct ReclaimPromptView: View {
         .accessibilityLabel("Reclaim storage")
         .accessibilityIdentifier(AccessibilityIdentifiers.Surface.reclaim)
         .focusSection()
+        .animation(
+            .easeInOut(duration: StorageMotionContract.duration(for: .eviction, reduceMotion: reduceMotion)),
+            value: candidates.count
+        )
     }
 }

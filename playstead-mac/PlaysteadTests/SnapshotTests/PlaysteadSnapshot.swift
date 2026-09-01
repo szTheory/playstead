@@ -19,9 +19,13 @@ enum PlaysteadSnapshot {
         _ content: Content,
         named name: String,
         pointSize: CGSize,
+        suite: String = "LibraryContractSnapshotTests",
         file: StaticString = #filePath,
         line: UInt = #line
     ) throws {
+        guard supportedSuites.contains(suite) else {
+            throw SnapshotError.unsupportedSuite
+        }
         let sheet = HStack(spacing: 0) {
             fixedEnvironment(content, colorScheme: .light, pointSize: pointSize)
             fixedEnvironment(content, colorScheme: .dark, pointSize: pointSize)
@@ -35,7 +39,7 @@ enum PlaysteadSnapshot {
             file: file,
             line: line
         )
-        try compare(image, named: name, file: file, line: line)
+        try compare(image, named: name, suite: suite, file: file, line: line)
     }
 
     private static func fixedEnvironment<Content: View>(
@@ -149,15 +153,19 @@ enum PlaysteadSnapshot {
     private static func compare(
         _ actual: NSImage,
         named name: String,
+        suite: String,
         file: StaticString,
         line: UInt
     ) throws {
-        let referenceURL = referenceDirectory.appendingPathComponent("\(name).png")
+        let referenceURL = referenceDirectory(suite: suite).appendingPathComponent("\(name).png")
         let recording = ProcessInfo.processInfo.environment["PLAYSTEAD_SNAPSHOT_RECORDING"] == "1"
         let strategy = Diffing<NSImage>.image(precision: precision, perceptualPrecision: perceptualPrecision)
 
         if recording {
-            try FileManager.default.createDirectory(at: referenceDirectory, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(
+                at: referenceDirectory(suite: suite),
+                withIntermediateDirectories: true
+            )
             try strategy.toData(actual).write(to: referenceURL, options: .atomic)
             return
         }
@@ -180,15 +188,21 @@ enum PlaysteadSnapshot {
         XCTFail(message, file: file, line: line)
     }
 
-    private static var referenceDirectory: URL {
+    private static let supportedSuites = Set([
+        "LibraryContractSnapshotTests",
+        "StorageContractSnapshotTests"
+    ])
+
+    private static func referenceDirectory(suite: String) -> URL {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .appendingPathComponent("__Snapshots__", isDirectory: true)
-            .appendingPathComponent("LibraryContractSnapshotTests", isDirectory: true)
+            .appendingPathComponent(suite, isDirectory: true)
     }
 
     private enum SnapshotError: Error {
         case couldNotCreateBitmap
         case couldNotReadBitmap
+        case unsupportedSuite
     }
 }

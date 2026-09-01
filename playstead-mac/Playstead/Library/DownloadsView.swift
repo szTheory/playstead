@@ -26,6 +26,7 @@ struct DownloadsView: View {
     let onCancel: (String) -> Void
     let onMoveUp: (String) -> Void
     let onMoveDown: (String) -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// A single-line summary of queue activity — pure, so it's directly
     /// testable without hosting the view.
@@ -83,6 +84,14 @@ struct DownloadsView: View {
                 }
             }
         }
+        .animation(
+            .easeInOut(duration: StorageMotionContract.duration(for: .status, reduceMotion: reduceMotion)),
+            value: rows.map(\.state)
+        )
+        .animation(
+            .easeInOut(duration: StorageMotionContract.duration(for: .completion, reduceMotion: reduceMotion)),
+            value: rows.map(\.progressPercent)
+        )
     }
 }
 
