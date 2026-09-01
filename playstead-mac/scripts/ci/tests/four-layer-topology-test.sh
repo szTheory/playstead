@@ -105,6 +105,13 @@ if any(position < 0 for position in positions) or positions != sorted(positions)
     raise SystemExit("four layers and failure sanitization must run in serial order without short-circuiting")
 if four_layer.count("build-for-testing") != 1 or four_layer.count("run_test_layer ") != 4:
     raise SystemExit("four-layer runner must build exactly once and invoke exactly four layers")
+native_start = four_layer.find("start_native_services")
+live_layer = four_layer.find("run_test_layer live-server LiveServer")
+native_cleanup = four_layer.find("cleanup_native_services", live_layer)
+if not (0 <= native_start < live_layer < native_cleanup):
+    raise SystemExit("native PostgreSQL/Phoenix must wrap only the LiveServer layer")
+if "trap 'cleanup_native_services; restore_keyboard_mode' EXIT" not in four_layer:
+    raise SystemExit("LiveServer native cleanup must preserve keyboard-mode restoration")
 deadline_pairs = re.findall(
     r"^\s*run_test_layer (unit|rendering|ui|live-server)\s+\S+\s+(\d+)\s+\\$",
     four_layer,

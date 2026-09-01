@@ -839,9 +839,16 @@ PY
     --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventoryProtectsPinnedCopy
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
 
+  # The LiveServer layer is the native client/server behavior proof (D-04).
+  # Keep PostgreSQL/Phoenix scoped to that layer and compose its fail-safe
+  # service cleanup with the already-armed keyboard-mode restoration.
+  trap 'cleanup_native_services; restore_keyboard_mode' EXIT
+  start_native_services
   run_test_layer live-server LiveServer 900 \
     --required-test PlaysteadUITests.HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
+  cleanup_native_services
+  trap restore_keyboard_mode EXIT
 
   python3 - "$FOUR_LAYER_EVIDENCE/layers.json" "$aggregate" <<'PY'
 import json, pathlib, sys
