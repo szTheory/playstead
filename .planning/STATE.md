@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 03.5
 current_phase_name: Mac Verification Automation
 status: executing
-stopped_at: Completed 03.5-03-PLAN.md
-last_updated: "2026-09-01T01:40:52.174Z"
+stopped_at: Completed 03.5-04-PLAN.md
+last_updated: "2026-09-01T01:54:06.629Z"
 last_activity: 2026-08-31
 last_activity_desc: Phase 03.5 execution started
-state_head: b384fbff18f9e381135a9bebf6f5b87cecb9fbfa
+state_head: d04f6194abe471e8c9ccc12467ca0883cb4735eb
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 38
-  completed_plans: 32
+  completed_plans: 33
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: `.planning/PROJECT.md` (updated 2026-08-30)
 ## Current Position
 
 Phase: 03.5 (Mac Verification Automation) — EXECUTING
-Plan: 4 of 10
+Plan: 5 of 10
 Status: Ready to execute
 Last activity: 2026-08-31 — Phase 03.5 execution started
 
@@ -81,6 +81,7 @@ Progress: [██████████] 100% (Phase 02)
 | Phase 03.5 P10 | 190m | 3 tasks | 11 files |
 | Phase 03.5-mac-verification-automation P02 | 17 min | 2 tasks | 14 files |
 | Phase 03.5 P03 | 16 min | 2 tasks | 12 files |
+| Phase 03.5-mac-verification-automation P04 | 9 min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -131,6 +132,9 @@ Progress: [██████████] 100% (Phase 02)
 - [Phase 03.5]: Deterministic profiles accept one finite name and generate their own isolated temporary root.
 - [Phase 03.5]: Profile composition reuses the seeded LocalStore and blocks credential lookup and network synchronization.
 - [Phase 03.5]: Accessibility IDs encode roles only; the shared focus ring is focus-owned and locked to #38BDF8.
+- [Phase 03.5]: All project image assertions enter through PlaysteadSnapshot with one fixed rendering environment and calibrated tolerance.
+- [Phase 03.5]: Card/status priority truth is independently authored and exhaustively checked across all 127 nonempty combinations.
+- [Phase 03.5]: Library references use only fixed synthetic fixtures and role-based control identifiers.
 
 ### Pending Todos
 
@@ -161,6 +165,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-01T01:40:52.105Z
-Stopped at: Completed 03.5-03-PLAN.md
+Last session: 2026-09-01T01:54:06.568Z
+Stopped at: Completed 03.5-04-PLAN.md
 Resume file: None
