@@ -17,6 +17,36 @@ FOUR_LAYER_EVIDENCE="${FOUR_LAYER_ROOT}/evidence"
 FAILURE_EVIDENCE="${BUILD_ROOT}/failure-evidence"
 SNAPSHOT_CANDIDATES="${BUILD_ROOT}/snapshot-candidates"
 
+# EXIT traps run after their caller's local scope has unwound. Keep every
+# trap-owned value globally initialized so an early return/failure can never
+# replace the underlying result with a `set -u` cleanup error.
+KEYBOARD_MODE_CAPTURED=false
+KEYBOARD_MODE_PREVIOUS=""
+
+restore_keyboard_mode() {
+  [ "${KEYBOARD_MODE_CAPTURED:-false}" = "true" ] || return 0
+  local previous="${KEYBOARD_MODE_PREVIOUS:-}"
+  # Disarm before the fallible restore command so cleanup cannot recurse.
+  KEYBOARD_MODE_CAPTURED=false
+  if [ -n "$previous" ]; then
+    defaults write NSGlobalDomain AppleKeyboardUIMode -int "$previous"
+  else
+    defaults delete NSGlobalDomain AppleKeyboardUIMode 2>/dev/null || true
+  fi
+}
+
+arm_keyboard_mode_cleanup() {
+  KEYBOARD_MODE_CAPTURED=false
+  KEYBOARD_MODE_PREVIOUS=""
+  trap restore_keyboard_mode EXIT
+}
+
+capture_keyboard_mode() {
+  KEYBOARD_MODE_PREVIOUS="$(defaults read NSGlobalDomain AppleKeyboardUIMode 2>/dev/null || true)"
+  KEYBOARD_MODE_CAPTURED=true
+  defaults write NSGlobalDomain AppleKeyboardUIMode -int 3
+}
+
 die() {
   printf 'mac verification: %s\n' "$*" >&2
   exit 1
@@ -496,14 +526,12 @@ run_four_layer_verification() {
   assert_local_app_launch_authorized
   local signing=(CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=)
   local aggregate=0 build_status=0
-  local previous_keyboard_mode=""
-  previous_keyboard_mode="$(defaults read NSGlobalDomain AppleKeyboardUIMode 2>/dev/null || true)"
-  trap 'if [ -n "$previous_keyboard_mode" ]; then defaults write NSGlobalDomain AppleKeyboardUIMode -int "$previous_keyboard_mode"; else defaults delete NSGlobalDomain AppleKeyboardUIMode 2>/dev/null || true; fi' EXIT
+  arm_keyboard_mode_cleanup
+  capture_keyboard_mode
 
   rm -rf "$FOUR_LAYER_ROOT" "$DERIVED_DATA"
   mkdir -p "$FOUR_LAYER_RAW" "$FOUR_LAYER_EVIDENCE/snapshot-triplet"
   write_fingerprint "$FOUR_LAYER_EVIDENCE/environment-fingerprint.json"
-  defaults write NSGlobalDomain AppleKeyboardUIMode -int 3
 
   run_with_deadline 1200 "${FOUR_LAYER_RAW}/build.log" \
     xcodebuild build-for-testing -project "$PROJECT" -scheme "$SCHEME" \
@@ -569,11 +597,7 @@ PY
     rm -rf "$FAILURE_EVIDENCE"
   fi
 
-  if [ -n "$previous_keyboard_mode" ]; then
-    defaults write NSGlobalDomain AppleKeyboardUIMode -int "$previous_keyboard_mode"
-  else
-    defaults delete NSGlobalDomain AppleKeyboardUIMode 2>/dev/null || true
-  fi
+  restore_keyboard_mode
   trap - EXIT
   return "$aggregate"
 }
@@ -857,11 +881,9 @@ run_selected_layer_tests() {
   local test_plan="Rendering"
   [ "$layer" != "ui" ] || test_plan="UI"
   [ "$layer" != "ui" ] || assert_local_app_launch_authorized
-  local previous_keyboard_mode=""
   if [ "$layer" = "ui" ]; then
-    previous_keyboard_mode="$(defaults read NSGlobalDomain AppleKeyboardUIMode 2>/dev/null || true)"
-    trap 'if [ -n "$previous_keyboard_mode" ]; then defaults write NSGlobalDomain AppleKeyboardUIMode -int "$previous_keyboard_mode"; else defaults delete NSGlobalDomain AppleKeyboardUIMode 2>/dev/null || true; fi' EXIT
-    defaults write NSGlobalDomain AppleKeyboardUIMode -int 3
+    arm_keyboard_mode_cleanup
+    capture_keyboard_mode
   fi
   local signing=(CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=)
   local only_testing=()
@@ -876,14 +898,18 @@ run_selected_layer_tests() {
     "${signing[@]}" "${only_testing[@]}"
 
   if [ "$layer" = "ui" ]; then
-    if [ -n "$previous_keyboard_mode" ]; then
-      defaults write NSGlobalDomain AppleKeyboardUIMode -int "$previous_keyboard_mode"
-    else
-      defaults delete NSGlobalDomain AppleKeyboardUIMode 2>/dev/null || true
-    fi
+    restore_keyboard_mode
     trap - EXIT
   fi
 }
+
+test_early_keyboard_cleanup() (
+  # Model a fallible operation after the trap is armed but before the global
+  # keyboard default has been captured or mutated. EXIT must preserve the
+  # original failure and perform no `defaults` operation.
+  arm_keyboard_mode_cleanup
+  return 97
+)
 
 usage() {
   cat <<'USAGE'
@@ -900,6 +926,7 @@ Usage:
   run-mac-verification.sh --validate-hosted-run FILE [expected metadata]
   run-mac-verification.sh --self-test-wave-0-verifier [--self-test-hosted-run-validator] [--verify-wave-0-topology]
   run-mac-verification.sh --verify-wave-0-topology
+  run-mac-verification.sh --self-test-early-keyboard-cleanup
 USAGE
 }
 
@@ -936,6 +963,11 @@ case "$1" in
     ;;
   --verify-four-layer-topology) shift; [ "$#" -eq 0 ] || die "unexpected topology arguments"; verify_four_layer_topology ;;
   --verify-wave-0-topology) shift; [ "$#" -eq 0 ] || die "unexpected topology arguments"; verify_topology ;;
+  --self-test-early-keyboard-cleanup)
+    shift
+    [ "$#" -eq 0 ] || die "unexpected keyboard cleanup self-test arguments"
+    test_early_keyboard_cleanup
+    ;;
   --self-test-wave-0-verifier|--self-test-hosted-run-validator)
     verify_topology_after=false
     while [ "$#" -gt 0 ]; do
