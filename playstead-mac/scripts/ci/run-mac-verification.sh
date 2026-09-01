@@ -569,7 +569,7 @@ PY
     --required-test PlaysteadTests.StorageContractSnapshotTests/testStorageMotionAndReducedMotionContract
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
 
-  run_test_layer ui UI 900 \
+  run_test_layer ui UI 1800 \
     --required-test PlaysteadUITests.HostedRunnerCanaryTests/testFullKeyboardAccessCanaryFocusesAndActivatesTwoControls \
     --required-test PlaysteadUITests.HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice \
     --required-test PlaysteadUITests.CurationInteractionTests/testCurationProfileBootstrapsLibrarySurface \

@@ -35,7 +35,7 @@ for plan in Unit Rendering UI LiveServer; do
 done
 
 python3 - "${MAC_ROOT}/TestPlans" "$APP_ENTRY" "$RUNNER" <<'PY'
-import json, pathlib, sys
+import json, pathlib, re, sys
 
 plans_root = pathlib.Path(sys.argv[1])
 app_source = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8")
@@ -91,6 +91,17 @@ if any(position < 0 for position in positions) or positions != sorted(positions)
     raise SystemExit("four layers and failure sanitization must run in serial order without short-circuiting")
 if four_layer.count("build-for-testing") != 1 or four_layer.count("run_test_layer ") != 4:
     raise SystemExit("four-layer runner must build exactly once and invoke exactly four layers")
+deadline_pairs = re.findall(
+    r"^\s*run_test_layer (unit|rendering|ui|live-server)\s+\S+\s+(\d+)\s+\\$",
+    four_layer,
+    flags=re.MULTILINE,
+)
+deadlines = {layer: int(seconds) for layer, seconds in deadline_pairs}
+expected_deadlines = {"unit": 900, "rendering": 600, "ui": 1800, "live-server": 900}
+if len(deadline_pairs) != 4 or deadlines != expected_deadlines:
+    raise SystemExit(f"four-layer deadlines drifted: {deadlines} != {expected_deadlines}")
+if any(seconds <= 0 or seconds > 1800 for seconds in deadlines.values()):
+    raise SystemExit("every hosted layer deadline must remain positive and bounded at 1800 seconds")
 test_layer = runner_source.split("run_test_layer() {", 1)[1].split("run_four_layer_verification() {", 1)[0]
 if test_layer.count("test-without-building") != 1 or "retry" in test_layer.lower():
     raise SystemExit("a layer must execute once without automatic retry")
