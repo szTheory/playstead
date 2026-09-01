@@ -256,6 +256,22 @@ grep -F 'private let quotaReclaimAssetID = "00000000-0000-7000-8000-000000000041
 grep -F '"playstead.game.\(quotaDownloadAssetID).download"' "$STORAGE_TEST" >/dev/null
 grep -F 'harness.element("playstead.game.\(assetID).summary")' "$STORAGE_TEST" >/dev/null
 grep -F 'XCTAssertTrue(row.label.hasPrefix(title)' "$STORAGE_TEST" >/dev/null
+python3 - "$STORAGE_TEST" <<'PY'
+import pathlib, sys
+
+source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+storage = source.split("private func dismissStorageAndAssertCanonicalRows()", 1)[1].split("private func launchStorageProfile", 1)[0]
+markers = [
+    storage.find('dismissSheet(root: "playstead.surface.storage")'),
+    storage.find('harness.element("playstead.control.show-list", type: .button).click()'),
+    storage.find('harness.element("playstead.surface.game-list").waitForExistence'),
+    storage.find('assertCanonicalRow(assetID: quotaReclaimAssetID'),
+]
+if any(marker < 0 for marker in markers) or markers != sorted(markers):
+    raise SystemExit("storage canonical proof must dismiss, reveal List without relaunch, then assert exact rows")
+if "launchStorageProfile" in storage or "harness.relaunch" in storage:
+    raise SystemExit("storage canonical proof must inspect post-mutation state without reseeding")
+PY
 grep -F 'action.frame,' "$STORAGE_TEST" >/dev/null
 grep -F 'exactIdentity.frame,' "$STORAGE_TEST" >/dev/null
 grep -F 'List(selection: $selectedListEntryID)' "$LIBRARY_SHELL" >/dev/null

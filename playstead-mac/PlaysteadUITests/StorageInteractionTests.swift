@@ -392,6 +392,12 @@ final class StorageInteractionTests: XCTestCase {
 
     private func dismissStorageAndAssertCanonicalRows() {
         dismissSheet(root: "playstead.surface.storage")
+        // Storage opens from the default Cards layout, unlike the reclaim
+        // prompt journey that starts in List. Reveal the same production
+        // GameRow identities without relaunching or reseeding; the mutation
+        // proof above therefore remains the state being inspected.
+        harness.element("playstead.control.show-list", type: .button).click()
+        XCTAssertTrue(harness.element("playstead.surface.game-list").waitForExistence(timeout: 5))
         assertCanonicalRow(assetID: quotaReclaimAssetID, title: "Synthetic Reclaim Candidate")
         assertCanonicalRow(assetID: quotaDownloadAssetID, title: "Synthetic Quota Download")
     }
