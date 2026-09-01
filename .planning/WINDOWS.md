@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 13
+open_count: 14
 waived_count: 1
 fixed_count: 2
-total_count: 16
-last_updated: 2026-09-01T08:41:10.578Z
+total_count: 17
+last_updated: 2026-09-01T09:07:27.559Z
 ---
 
 # Broken Windows Ledger
@@ -31,6 +31,7 @@ last_updated: 2026-09-01T08:41:10.578Z
 | 14 | 03.5 | deviation | playstead-mac/PlaysteadUITests/CurationInteractionTests.swift |  | Split broad hosted curation UI identity into three exact stages and changed drag to the deterministic last-row-to-first boundary after run 33481640835. | open |  | 2026-09-01T07:44:47.355Z |  |
 | 15 | 03.5 | deviation | playstead-mac/Playstead/UITesting/UITestBootstrap.swift |  | Hosted run 33483731474 exposed redundant fresh-position validation on persisted reorder relaunch plus stale shelf selectors; fixed and split into nine exact curation stages. | open |  | 2026-09-01T08:14:14.831Z |  |
 | 16 | 03.5 | deviation | playstead-mac/Playstead/Curation/CollectionsView.swift |  | Hosted run 33486052488 exposed Favorites collapsed-node and Collections child-text routing mismatches; fixed with exact card queries and a stable collection route button. | open |  | 2026-09-01T08:41:10.578Z |  |
+| 17 | 03.5 | deviation | playstead-mac/Playstead/Library/GameCardView.swift |  | Hosted run 33488360822 exposed card identity before accessibility collapse and drag gestures on semantic content instead of List cells; fixed and split drag mutation from durability. | open |  | 2026-09-01T09:07:27.559Z |  |
 
 ````json
 [
@@ -224,6 +225,18 @@ last_updated: 2026-09-01T08:41:10.578Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-01T08:41:10.578Z",
+    "resolved_at": null
+  },
+  {
+    "id": 17,
+    "kind": "deviation",
+    "phase": "03.5",
+    "file": "playstead-mac/Playstead/Library/GameCardView.swift",
+    "line": null,
+    "description": "Hosted run 33488360822 exposed card identity before accessibility collapse and drag gestures on semantic content instead of List cells; fixed and split drag mutation from durability.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-01T09:07:27.559Z",
     "resolved_at": null
   }
 ]
