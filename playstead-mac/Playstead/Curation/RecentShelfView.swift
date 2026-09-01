@@ -35,6 +35,9 @@ struct RecentShelfView: View {
             sessionsSection
         }
         .padding(.vertical, DesignTokens.Spacing.lg)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Recent")
+        .accessibilityIdentifier(AccessibilityIdentifiers.Surface.recent)
     }
 
     @ViewBuilder

@@ -9,9 +9,53 @@ final class CurationInteractionTests: XCTestCase {
         harness = nil
     }
 
-    func testFiveShelvesRenderExactFixtures() throws {
+    func testCurationProfileBootstrapsLibrarySurface() throws {
+        _ = launchPersistentCurationHarness()
+    }
+
+    func testSidebarExposesAllFiveCurationDestinations() throws {
         let harness = launchPersistentCurationHarness()
-        assertExactFiveShelfFixture(in: harness)
+        for label in ["Continue", "Favorites", "Collections", "Queue", "Recent"] {
+            XCTAssertTrue(harness.app.staticTexts[label].waitForExistence(timeout: 5), "sidebar entry missing: \(label)")
+        }
+    }
+
+    func testContinueShelfRendersHonestEmptyFixture() throws {
+        let harness = launchPersistentCurationHarness()
+        selectSidebar("Continue", in: harness)
+        XCTAssertTrue(harness.element("playstead.surface.shelf.continue").waitForExistence(timeout: 5))
+        XCTAssertTrue(harness.app.staticTexts["Play something, and pick up where you left off here."].waitForExistence(timeout: 5))
+        assertSyntheticGamesVisible(0, in: harness)
+    }
+
+    func testFavoritesShelfRendersExactSeededFixture() throws {
+        let harness = launchPersistentCurationHarness()
+        selectSidebar("Favorites", in: harness)
+        XCTAssertTrue(harness.element("playstead.surface.shelf.favorites").waitForExistence(timeout: 5))
+        assertSyntheticGamesVisible(1, in: harness)
+    }
+
+    func testCollectionsShelfRendersExactSeededFixture() throws {
+        let harness = launchPersistentCurationHarness()
+        selectSidebar("Collections", in: harness)
+        XCTAssertTrue(harness.element("playstead.surface.collections").waitForExistence(timeout: 5))
+        XCTAssertEqual(harness.app.staticTexts.matching(NSPredicate(format: "label == %@", "Synthetic Collection")).count, 1)
+    }
+
+    func testQueueShelfRendersHonestEmptyFixture() throws {
+        let harness = launchPersistentCurationHarness()
+        selectSidebar("Queue", in: harness)
+        XCTAssertTrue(harness.element("playstead.surface.shelf.play-queue").waitForExistence(timeout: 5))
+        XCTAssertTrue(harness.app.staticTexts["Add a game to your queue to keep it in mind."].waitForExistence(timeout: 5))
+        assertSyntheticGamesVisible(0, in: harness)
+    }
+
+    func testRecentShelfRendersHonestEmptyFixture() throws {
+        let harness = launchPersistentCurationHarness()
+        selectSidebar("Recent", in: harness)
+        XCTAssertTrue(harness.element("playstead.surface.shelf.recent").waitForExistence(timeout: 5))
+        XCTAssertTrue(harness.app.staticTexts["Play a game to see it here."].waitForExistence(timeout: 5))
+        assertSyntheticGamesVisible(0, in: harness)
     }
 
     func testDragReorderProducesOneEffectAndSurvivesRelaunch() throws {
@@ -98,28 +142,6 @@ final class CurationInteractionTests: XCTestCase {
         // first row on the last row's center can resolve on either side of it.
         third.press(forDuration: 1, thenDragTo: first)
         return [memberID(3), memberID(1), memberID(2)]
-    }
-
-    private func assertExactFiveShelfFixture(in harness: UITestHarness) {
-        selectSidebar("Continue", in: harness)
-        XCTAssertTrue(harness.app.staticTexts["Play something, and pick up where you left off here."].waitForExistence(timeout: 5))
-        assertSyntheticGamesVisible(0, in: harness)
-
-        selectSidebar("Favorites", in: harness)
-        XCTAssertTrue(harness.element("playstead.surface.shelf.favorites").waitForExistence(timeout: 5))
-        XCTAssertEqual(harness.app.descendants(matching: .any).matching(identifier: "library.card").count, 1)
-
-        selectSidebar("Collections", in: harness)
-        XCTAssertEqual(harness.app.staticTexts.matching(NSPredicate(format: "label == %@", "Synthetic Collection")).count, 1)
-
-        selectSidebar("Queue", in: harness)
-        XCTAssertTrue(harness.element("playstead.surface.shelf.play-queue").waitForExistence(timeout: 5))
-        XCTAssertTrue(harness.app.staticTexts["Add a game to your queue to keep it in mind."].waitForExistence(timeout: 5))
-        assertSyntheticGamesVisible(0, in: harness)
-
-        selectSidebar("Recent", in: harness)
-        XCTAssertTrue(harness.app.staticTexts["Play a game to see it here."].waitForExistence(timeout: 5))
-        assertSyntheticGamesVisible(0, in: harness)
     }
 
     private func assertSyntheticGamesVisible(_ expected: Int, in harness: UITestHarness) {

@@ -40,5 +40,8 @@ struct ContinueShelfView: View {
             }
         }
         .padding(.vertical, DesignTokens.Spacing.lg)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Copy.heading)
+        .accessibilityIdentifier(AccessibilityIdentifiers.Surface.continueShelf)
     }
 }

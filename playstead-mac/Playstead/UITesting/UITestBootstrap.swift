@@ -44,7 +44,10 @@ enum UITestBootstrap {
             reachability: Reachability(startOnline: false, monitorAutomatically: false)
         )
         appEnvironment.blockExternalIOForUITesting()
-        try fixture.assertExactState()
+        // makeFixture validates a fresh seed exactly and validates a reopened
+        // curation session against its durable inventory invariants. Requiring
+        // fresh positions again here would reject the reorder state relaunch is
+        // specifically responsible for proving.
         return UITestProfileSession(fixture: fixture, environment: appEnvironment)
     }
 }

@@ -9,6 +9,7 @@ SCHEME="${MAC_ROOT}/Playstead.xcodeproj/xcshareddata/xcschemes/Playstead.xcschem
 APP_ENTRY="${MAC_ROOT}/Playstead/App/PlaysteadApp.swift"
 UI_CANARY="${MAC_ROOT}/PlaysteadUITests/HostedRunnerCanaryTests.swift"
 CURATION_TEST="${MAC_ROOT}/PlaysteadUITests/CurationInteractionTests.swift"
+UI_BOOTSTRAP="${MAC_ROOT}/Playstead/UITesting/UITestBootstrap.swift"
 STORAGE_TEST="${MAC_ROOT}/PlaysteadUITests/StorageInteractionTests.swift"
 RECLAIM_VIEW="${MAC_ROOT}/Playstead/Library/ReclaimPromptView.swift"
 STORAGE_VIEW="${MAC_ROOT}/Playstead/Library/StorageView.swift"
@@ -19,7 +20,7 @@ PROMPT_SAFETY="${MAC_ROOT}/scripts/ci/tests/keychain-prompt-safety-test.sh"
 KEYBOARD_CLEANUP="${MAC_ROOT}/scripts/ci/tests/keyboard-mode-cleanup-test.sh"
 SWIFT_SEMANTIC="${MAC_ROOT}/scripts/ci/tests/wave6-swift-semantic-test.sh"
 
-for file in "$RUNNER" "$SCHEME" "$APP_ENTRY" "$UI_CANARY" "$CURATION_TEST" "$STORAGE_TEST" "$RECLAIM_VIEW" "$STORAGE_VIEW" "$WORKFLOW" "$REFRESH_WORKFLOW" "$SANITIZER" "$PROMPT_SAFETY" "$KEYBOARD_CLEANUP" "$SWIFT_SEMANTIC"; do
+for file in "$RUNNER" "$SCHEME" "$APP_ENTRY" "$UI_CANARY" "$CURATION_TEST" "$UI_BOOTSTRAP" "$STORAGE_TEST" "$RECLAIM_VIEW" "$STORAGE_VIEW" "$WORKFLOW" "$REFRESH_WORKFLOW" "$SANITIZER" "$PROMPT_SAFETY" "$KEYBOARD_CLEANUP" "$SWIFT_SEMANTIC"; do
   [ -f "$file" ] || { printf 'four-layer topology file missing: %s\n' "$file" >&2; exit 1; }
 done
 for plan in Unit Rendering UI LiveServer; do
@@ -116,17 +117,27 @@ grep -F 'PLAYSTEAD_STORAGE_SNAPSHOT_CANDIDATE_OUTPUT="${FOUR_LAYER_EVIDENCE}/sto
 grep -F -- '--required-test PlaysteadTests.StorageContractSnapshotTests/testDownloadsQuotaReclaimAndStorageVisualContract' "$RUNNER" >/dev/null
 grep -F -- '--required-test PlaysteadTests.StorageContractSnapshotTests/testStorageMotionAndReducedMotionContract' "$RUNNER" >/dev/null
 for stage in \
-  testFiveShelvesRenderExactFixtures \
+  testCurationProfileBootstrapsLibrarySurface \
+  testSidebarExposesAllFiveCurationDestinations \
+  testContinueShelfRendersHonestEmptyFixture \
+  testFavoritesShelfRendersExactSeededFixture \
+  testCollectionsShelfRendersExactSeededFixture \
+  testQueueShelfRendersHonestEmptyFixture \
+  testRecentShelfRendersHonestEmptyFixture \
   testDragReorderProducesOneEffectAndSurvivesRelaunch \
   testKeyboardReorderRetainsFocusAndSurvivesRelaunch; do
   grep -F -- "--required-test PlaysteadUITests.CurationInteractionTests/${stage}" "$RUNNER" >/dev/null
 done
-if grep -F 'testFiveShelvesAndDurableDragReorder' "$RUNNER" "$CURATION_TEST" >/dev/null; then
+if grep -E 'testFiveShelves(AndDurableDragReorder|RenderExactFixtures)' "$RUNNER" "$CURATION_TEST" >/dev/null; then
   printf 'broad curation UI identity must remain split into exact hosted stages\n' >&2
   exit 1
 fi
 grep -F 'third.press(forDuration: 1, thenDragTo: first)' "$CURATION_TEST" >/dev/null
 [ "$(grep -c 'harness.relaunch' "$CURATION_TEST")" -eq 3 ]
+if grep -F 'try fixture.assertExactState()' "$UI_BOOTSTRAP" >/dev/null; then
+  printf 'bootstrap must preserve makeFixture relaunch validation instead of requiring fresh positions\n' >&2
+  exit 1
+fi
 for stage in \
   testDownloadsPauseResumeFlow \
   testQuotaEditAndFocusRestoration \

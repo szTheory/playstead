@@ -46,5 +46,8 @@ struct CollectionsView: View {
             }
         }
         .padding(.vertical, DesignTokens.Spacing.lg)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Collections")
+        .accessibilityIdentifier(AccessibilityIdentifiers.Surface.collections)
     }
 }
