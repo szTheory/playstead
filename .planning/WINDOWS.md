@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 5
+open_count: 9
 waived_count: 1
 fixed_count: 2
-total_count: 8
-last_updated: 2026-08-31T12:46:28.600Z
+total_count: 12
+last_updated: 2026-09-01T06:29:59.112Z
 ---
 
 # Broken Windows Ledger
@@ -23,6 +23,10 @@ last_updated: 2026-08-31T12:46:28.600Z
 | 6 | 03 | unrun-verify | playstead-mac/Playstead/Library/StorageView.swift |  | Visual/interactive click-through of DownloadsView/QuotaSettingsView/ReclaimPromptView/StorageView against a live paired server unverified in this headless session (03-07 coverage D6) | open |  | 2026-08-31T01:42:25.363Z |  |
 | 7 | 03 | stub | playstead-mac/Playstead/Adapter/BiosStore.swift |  | BiosStore's known-reference digest set has no production default (DI-only, no fabricated evidence); real reference digest wiring is deferred until sourced | open |  | 2026-08-31T02:43:54.600Z |  |
 | 8 | 03 | deviation | playstead-mac/Playstead/Adapter/AdapterHost.swift |  | Gatekeeper-held child hangs silently: AdapterHost.launch treats a successful Process.run() as launched, but a quarantined bundle is left suspended at _dyld_start and terminationHandler never fires — the app believes the emulator runs forever with no error surfaced. AdapterInstaller preserves quarantine per D-05. Proven experimentally (signed+quarantined HUNG; signed alone exits 0.15s). A properly notarized mGBA should pass assessment so the happy path is likely fine, but the failure shape is silent and unbounded. Fix requires a design decision: a liveness probe cannot distinguish held from idle (held task reports S not T; Mach suspend count needs task-port access the app lacks), and pre-flighting SecStaticCodeCheckValidity at install would reject the /bin/echo stand-ins both test suites depend on, so a fixture strategy must be decided alongside it. | open |  | 2026-08-31T10:48:44.083Z |  |
+| 9 | 03.5 | unrun-verify | playstead-mac/PlaysteadUITests/CurationInteractionTests.swift |  | Task 1 exact UI-layer drag verification requires the centrally orchestrated hosted macOS runner; local app launch is prohibited by the no-password safety boundary. | open |  | 2026-09-01T06:29:58.866Z |  |
+| 10 | 03.5 | unrun-verify | playstead-mac/PlaysteadUITests/CurationInteractionTests.swift |  | Task 2 full CurationInteractionTests UI-layer verification requires the centrally orchestrated hosted macOS runner; local app launch is prohibited by the no-password safety boundary. | open |  | 2026-09-01T06:29:58.948Z |  |
+| 11 | 03.5 | deviation | playstead-mac/Playstead/Library/ShelfView.swift |  | Plan path corrected from nonexistent Curation/ShelfView.swift to the production Library/ShelfView.swift location. | open |  | 2026-09-01T06:29:59.030Z |  |
+| 12 | 03.5 | deviation | playstead-mac/Playstead/UITesting/DeterministicProfile.swift |  | Added compile-gated UUID-only persisted profile support required to prove process-relaunch durability without touching Plan 07 storage production files. | open |  | 2026-09-01T06:29:59.112Z |  |
 
 ````json
 [
@@ -120,6 +124,54 @@ last_updated: 2026-08-31T12:46:28.600Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-31T10:48:44.083Z",
+    "resolved_at": null
+  },
+  {
+    "id": 9,
+    "kind": "unrun-verify",
+    "phase": "03.5",
+    "file": "playstead-mac/PlaysteadUITests/CurationInteractionTests.swift",
+    "line": null,
+    "description": "Task 1 exact UI-layer drag verification requires the centrally orchestrated hosted macOS runner; local app launch is prohibited by the no-password safety boundary.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-01T06:29:58.866Z",
+    "resolved_at": null
+  },
+  {
+    "id": 10,
+    "kind": "unrun-verify",
+    "phase": "03.5",
+    "file": "playstead-mac/PlaysteadUITests/CurationInteractionTests.swift",
+    "line": null,
+    "description": "Task 2 full CurationInteractionTests UI-layer verification requires the centrally orchestrated hosted macOS runner; local app launch is prohibited by the no-password safety boundary.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-01T06:29:58.948Z",
+    "resolved_at": null
+  },
+  {
+    "id": 11,
+    "kind": "deviation",
+    "phase": "03.5",
+    "file": "playstead-mac/Playstead/Library/ShelfView.swift",
+    "line": null,
+    "description": "Plan path corrected from nonexistent Curation/ShelfView.swift to the production Library/ShelfView.swift location.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-01T06:29:59.030Z",
+    "resolved_at": null
+  },
+  {
+    "id": 12,
+    "kind": "deviation",
+    "phase": "03.5",
+    "file": "playstead-mac/Playstead/UITesting/DeterministicProfile.swift",
+    "line": null,
+    "description": "Added compile-gated UUID-only persisted profile support required to prove process-relaunch durability without touching Plan 07 storage production files.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-01T06:29:59.112Z",
     "resolved_at": null
   }
 ]

@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 03.5
 current_phase_name: Mac Verification Automation
 status: executing
-stopped_at: Completed 03.5-05-PLAN.md
-last_updated: "2026-09-01T06:15:52.643Z"
+stopped_at: Completed 03.5-06-PLAN.md; hosted UI verification pending central orchestration
+last_updated: "2026-09-01T06:31:35.044Z"
 last_activity: 2026-08-31
 last_activity_desc: Phase 03.5 execution started
-state_head: c542e5ddf1a0d2198538398151ccdaf39b907e78
+state_head: c80e466dc44c8e6883d6bdcbe87c7d6c0ed305c7
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 38
-  completed_plans: 34
+  completed_plans: 35
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: `.planning/PROJECT.md` (updated 2026-08-30)
 ## Current Position
 
 Phase: 03.5 (Mac Verification Automation) — EXECUTING
-Plan: 6 of 10
+Plan: 7 of 10
 Status: Ready to execute
 Last activity: 2026-08-31 — Phase 03.5 execution started
 
@@ -83,6 +83,7 @@ Progress: [██████████] 100% (Phase 02)
 | Phase 03.5 P03 | 16 min | 2 tasks | 12 files |
 | Phase 03.5-mac-verification-automation P04 | 9 min | 2 tasks | 10 files |
 | Phase 03.5 P05 | 256 min | 2 tasks | 29 files |
+| Phase 03.5 P06 | 12m22s | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -140,6 +141,9 @@ Progress: [██████████] 100% (Phase 02)
 - [Phase 03.5]: Deterministic UI profiles require explicit mode plus a finite profile and inject a credential-free environment rather than falling back to the login Keychain.
 - [Phase 03.5]: Public accessibility audits fail closed for the named production root and actual descendants while excluding only application wrappers outside that structural subtree.
 - [Phase 03.5]: Hosted failure artifacts contain only bounded canonical test/audit identity and outcomes; raw logs, xcresults, paths, messages, and attachments stay excluded.
+- [Phase 03.5]: Plan 03.5-06: Drag and keyboard reorder converge on one settleMove production path per curation surface.
+- [Phase 03.5]: Plan 03.5-06: Persisted UI relaunch profiles accept only UUID tokens resolved beneath a fixed temporary parent.
+- [Phase 03.5]: Plan 03.5-06: Compile-gated curation evidence is bounded to synthetic row IDs, outbox count, and sorted catalogue digests.
 
 ### Pending Todos
 
@@ -170,6 +174,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-01T06:15:52.576Z
-Stopped at: Completed 03.5-05-PLAN.md
+Last session: 2026-09-01T06:31:34.973Z
+Stopped at: Completed 03.5-06-PLAN.md; hosted UI verification pending central orchestration
 Resume file: None
