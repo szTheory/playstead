@@ -61,10 +61,16 @@ enter_stage "create-control-root"
 mkdir -p "$control"
 
 enter_stage "create-server-control"
-mkdir -p "$server_control"
+# The runner that owns the native server root creates this directory. Accept it
+# when it is already there and only fall back to creating it for a local run,
+# so the fixture never has to create a directory under a root it does not own.
+[ -d "$server_control" ] || mkdir -p "$server_control"
 
 enter_stage "secure-roots"
-chmod 0700 "$root" "$control" "$server_control"
+# Only chmod what this fixture created. chmod requires ownership, not merely
+# write access, so touching the runner-owned server control directory here can
+# fail even where the fixture can freely write files into it.
+chmod 0700 "$root" "$control"
 
 case "$action" in
   prepare)

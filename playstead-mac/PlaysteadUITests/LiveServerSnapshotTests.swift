@@ -150,8 +150,13 @@ final class LiveServerSnapshotTests: XCTestCase {
             XCTAssertEqual(resolved(serverRoot), resolved(stageRoot), "live-server-preflight=root-mismatch")
             return false
         }
-        guard manager.isWritableFile(atPath: serverRoot) else {
-            XCTAssertTrue(false, "live-server-preflight=server-root-unwritable")
+        // Probe with a real create/remove rather than isWritableFile, which
+        // answers access(2) and can disagree with what the filesystem actually
+        // permits. The fixture only writes files into this root -- the runner
+        // that owns the root creates its directories -- so file creation is the
+        // capability to require here.
+        guard probeCreate(in: serverRoot, directory: false) else {
+            XCTAssertTrue(false, "live-server-preflight=server-root-file-write-denied")
             return false
         }
         return true
@@ -159,6 +164,25 @@ final class LiveServerSnapshotTests: XCTestCase {
 
     private func resolved(_ path: String) -> URL {
         URL(fileURLWithPath: path, isDirectory: true).resolvingSymlinksInPath().standardizedFileURL
+    }
+
+    /// Create a uniquely named entry in `root` and remove it again, reporting
+    /// whether the operation actually succeeded.
+    private func probeCreate(in root: String, directory: Bool) -> Bool {
+        let manager = FileManager.default
+        let probe = URL(fileURLWithPath: root, isDirectory: true)
+            .appendingPathComponent(".live-server-probe.\(UUID().uuidString.lowercased())")
+        do {
+            if directory {
+                try manager.createDirectory(at: probe, withIntermediateDirectories: false)
+            } else {
+                try Data("probe\n".utf8).write(to: probe, options: .atomic)
+            }
+        } catch {
+            return false
+        }
+        try? manager.removeItem(at: probe)
+        return true
     }
 
     private func fixtureScriptURL() -> URL {
