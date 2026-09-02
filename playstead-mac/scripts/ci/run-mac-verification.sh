@@ -1362,7 +1362,9 @@ start_native_services() {
   PG_CTL="$pg_bin/pg_ctl"
   pg_port=55432
   pg_user="$(id -un)"
-  NATIVE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/playstead-native-ci.XXXXXX")"
+  NATIVE_ROOT="${FOUR_LAYER_RAW}/native-services"
+  [ ! -e "$NATIVE_ROOT" ] || die "native service root already exists"
+  mkdir -m 0700 "$NATIVE_ROOT"
   PGDATA="$NATIVE_ROOT/postgres"
   server_root="$NATIVE_ROOT/app"
   mkdir -p "$server_root/inbox" "$server_root/blobs" "$server_root/exports"

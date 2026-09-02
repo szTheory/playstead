@@ -125,6 +125,11 @@ live_layer = four_layer.find("run_test_layer live-server LiveServer")
 native_cleanup = four_layer.find("cleanup_native_services", live_layer)
 if not (0 <= native_start < live_layer < native_cleanup):
     raise SystemExit("native PostgreSQL/Phoenix must wrap only the LiveServer layer")
+native_services = runner_source.split("start_native_services() {", 1)[1].split("run_four_layer_verification() {", 1)[0]
+if 'NATIVE_ROOT="${FOUR_LAYER_RAW}/native-services"' not in native_services:
+    raise SystemExit("native services must share the test-readable owned four-layer root")
+if 'native service root already exists' not in native_services:
+    raise SystemExit("native service root ownership must fail closed")
 if "trap 'restore_live_server_xctestrun; cleanup_live_server_runtime_config; cleanup_native_services; restore_keyboard_mode' EXIT" not in four_layer:
     raise SystemExit("LiveServer xctestrun/config/native cleanup must preserve keyboard-mode restoration")
 stage_preflight = four_layer.find("prepare_live_server_failure_stage")
