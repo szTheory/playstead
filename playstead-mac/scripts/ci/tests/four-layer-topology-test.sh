@@ -184,7 +184,12 @@ for key in PLAYSTEAD_MAC_CI_ROOT PLAYSTEAD_LIVE_SERVER_STAGE_ROOT PLAYSTEAD_LIVE
 done
 grep -F 'raw.replacingOccurrences(' "$LIVE_SERVER_TEST" >/dev/null
 grep -F 'sanitized.prefix(160)' "$LIVE_SERVER_TEST" >/dev/null
-[ "$(grep -c 'XCTAssertEqual(status, 0, "live-server-stage=' "$LIVE_SERVER_TEST")" -eq 8 ]
+# One distinct assertion site per allowlisted stage, plus the default arm.
+# Derived from live-server.sh's own allowlist rather than hardcoded, so adding a
+# stage cannot leave its assertion site missing without failing here.
+live_stage_count="$(sed -n 's/^    \([a-z|-]*\)) ;;$/\1/p' "$LIVE_SERVER_FIXTURE" | tr '|' '\n' | grep -c .)"
+[ "$live_stage_count" -ge 7 ]
+[ "$(grep -c 'XCTAssertEqual(status, 0, "live-server-stage=' "$LIVE_SERVER_TEST")" -eq "$((live_stage_count + 1))" ]
 [ "$(grep -c 'guard try runFixture' "$LIVE_SERVER_TEST")" -eq 3 ]
 if grep -E '(^|[[:space:]])(security|codesign)([[:space:]]|$)' "$RUNNER" >/dev/null; then
   printf 'verification runner must not invoke security(1) or codesign(1)\n' >&2

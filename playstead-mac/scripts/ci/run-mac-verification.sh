@@ -1371,8 +1371,12 @@ start_native_services() {
   mkdir -m 0700 "$NATIVE_ROOT"
   PGDATA="$NATIVE_ROOT/postgres"
   server_root="$NATIVE_ROOT/app"
-  mkdir -p "$server_root/inbox" "$server_root/blobs" "$server_root/exports"
-  chmod 0700 "$NATIVE_ROOT" "$server_root"
+  # mac-client-control is part of this root's layout, like inbox/blobs/exports:
+  # the runner that owns the root creates it, so the fixture only writes files
+  # into it and never has to create a directory under a root it does not own.
+  mkdir -p "$server_root/inbox" "$server_root/blobs" "$server_root/exports" \
+    "$server_root/mac-client-control"
+  chmod 0700 "$NATIVE_ROOT" "$server_root" "$server_root/mac-client-control"
 
   "$pg_bin/initdb" -D "$PGDATA" --auth=trust --no-locale --encoding=UTF8 >/dev/null
   "$PG_CTL" -D "$PGDATA" -l "$NATIVE_ROOT/postgres.log" \

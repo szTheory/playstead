@@ -140,7 +140,25 @@ final class LiveServerSnapshotTests: XCTestCase {
             XCTAssertEqual(stageURL.deletingLastPathComponent(), rootURL, "live-server-preflight=stage-parent")
             return false
         }
+        // The runner exports both roots from the same native server root, so a
+        // divergence here means the resolved environment is not the one that
+        // provisioned the server. Left unchecked it splits the fixture in two:
+        // stage writes land in one directory while the pairing control
+        // directory is created in another, which is how a writable stage file
+        // coexisted with a failing mkdir at create-server-control.
+        guard resolved(serverRoot) == resolved(stageRoot) else {
+            XCTAssertEqual(resolved(serverRoot), resolved(stageRoot), "live-server-preflight=root-mismatch")
+            return false
+        }
+        guard manager.isWritableFile(atPath: serverRoot) else {
+            XCTAssertTrue(false, "live-server-preflight=server-root-unwritable")
+            return false
+        }
         return true
+    }
+
+    private func resolved(_ path: String) -> URL {
+        URL(fileURLWithPath: path, isDirectory: true).resolvingSymlinksInPath().standardizedFileURL
     }
 
     private func fixtureScriptURL() -> URL {
@@ -161,7 +179,16 @@ final class LiveServerSnapshotTests: XCTestCase {
             "PLAYSTEAD_LIVE_SERVER_STAGE_FILE", "MAC_CI_DATABASE_URL", "MIX_ENV", "PORT"
         ])
         let inherited = ProcessInfo.processInfo.environment
-        if required.allSatisfy({ !(inherited[$0] ?? "").isEmpty }) { return inherited }
+        // Only trust a fully inherited environment when it is self-consistent.
+        // The runner derives both roots from one native server root, so if they
+        // disagree the inherited values did not come from this run's runner and
+        // the materialized runtime config below is the authoritative source.
+        let inheritedRootsAgree =
+            resolved(inherited["PLAYSTEAD_MAC_CI_ROOT"] ?? "")
+                == resolved(inherited["PLAYSTEAD_LIVE_SERVER_STAGE_ROOT"] ?? "")
+        if required.allSatisfy({ !(inherited[$0] ?? "").isEmpty }), inheritedRootsAgree {
+            return inherited
+        }
 
         let url = runtimeConfigurationURL()
         guard
