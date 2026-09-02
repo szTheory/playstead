@@ -158,14 +158,21 @@ final class LiveServerSnapshotTests: XCTestCase {
                 decoding: diagnostics.fileHandleForReading.readDataToEndOfFile(),
                 as: UTF8.self
             )
+            let allowedStages = [
+                "validate-input", "provision-domain", "request-pairing",
+                "approve-pairing", "redeem-pairing", "add-second-sentinel",
+                "verify-evidence"
+            ]
             let sanitized = raw.replacingOccurrences(
                 of: "[^A-Za-z0-9 _:-]",
                 with: " ",
                 options: .regularExpression
             )
             let bounded = String(sanitized.prefix(160)).trimmingCharacters(in: .whitespacesAndNewlines)
+            let stage = allowedStages.first { raw.contains("live-server fixture failed at \($0)") }
+                ?? allowedStages.first { bounded.contains("live-server fixture failed at \($0)") }
             recordFixtureFailure(
-                bounded.isEmpty ? "bounded diagnostic unavailable" : bounded,
+                stage: stage,
                 action: action,
                 status: process.terminationStatus
             )
@@ -174,16 +181,10 @@ final class LiveServerSnapshotTests: XCTestCase {
         return true
     }
 
-    private func recordFixtureFailure(_ diagnostic: String, action: String, status: Int32) {
+    private func recordFixtureFailure(stage: String?, action: String, status: Int32) {
         // Distinct XCTAssertEqual sites make the allowlisted stage visible to
         // the existing bounded xcresult parser without emitting raw IO. The
         // caller immediately returns from the test after this records failure.
-        let allowedStages = [
-            "validate-input", "provision-domain", "request-pairing",
-            "approve-pairing", "redeem-pairing", "add-second-sentinel",
-            "verify-evidence"
-        ]
-        let stage = allowedStages.first { diagnostic.contains("live-server fixture failed at \($0)") }
         switch stage {
         case "validate-input":
             XCTAssertEqual(status, 0, "live-server-stage=validate-input action=\(action)")

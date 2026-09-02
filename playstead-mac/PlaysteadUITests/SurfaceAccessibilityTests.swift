@@ -218,10 +218,12 @@ final class SurfaceAccessibilityTests: XCTestCase {
         )
         harness.traverseExactFocusSequence(
             [
-                "playstead.curation.collection-command.move-up",
-                "playstead.curation.collection-command.move-down"
+                "playstead.curation.collection-member.\(memberIDs[0]).move-down",
+                "playstead.curation.collection-member.\(memberIDs[1]).move-up",
+                "playstead.curation.collection-member.\(memberIDs[1]).move-down",
+                "playstead.curation.collection-member.\(memberIDs[2]).move-up"
             ],
-            activate: "playstead.curation.collection-command.move-down",
+            activate: "playstead.curation.collection-member.\(memberIDs[1]).move-down",
             failureStage: "all-surface-collection-reorder"
         )
         try auditEveryCategory(root: "playstead.surface.collection-detail")
