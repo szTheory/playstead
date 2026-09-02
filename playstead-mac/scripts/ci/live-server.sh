@@ -31,7 +31,13 @@ write_failure_stage() {
   mv -f "$temporary" "$marker"
 }
 
+enter_stage() {
+  stage="$1"
+  write_failure_stage
+}
+
 trap 'status=$?; if [ "$status" -ne 0 ]; then write_failure_stage; printf "live-server fixture failed at %s\n" "$stage" >&3; fi' EXIT
+enter_stage "validate-input"
 
 die() { exit 1; }
 
@@ -55,12 +61,12 @@ case "$action" in
     device_code="$control/device-code"
     handoff="$root/credential-handoff.json"
 
-    stage="provision-domain"
+    enter_stage "provision-domain"
     (cd "$server_root" && PLAYSTEAD_MAC_CI_TASK=1 mix playstead.mac_ci_fixture provision --output "$server_first") >/dev/null
     install -m 0600 "$server_first" "$first"
     rm -f "$server_first"
 
-    stage="request-pairing"
+    enter_stage "request-pairing"
     python3 - "$request" "$device_code" <<'PY'
 import json, os, pathlib, secrets, sys, urllib.request
 request_path, code_path = map(pathlib.Path, sys.argv[1:])
@@ -85,10 +91,10 @@ PY
 
     request_id="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["id"])' "$request")"
     display_code="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["display_code"])' "$request")"
-    stage="approve-pairing"
+    enter_stage "approve-pairing"
     (cd "$server_root" && PLAYSTEAD_MAC_CI_TASK=1 mix playstead.mac_ci_fixture approve --request-id "$request_id" --display-code "$display_code" --device-label "Playstead Hosted Mac") >/dev/null
 
-    stage="redeem-pairing"
+    enter_stage "redeem-pairing"
     python3 - "$request" "$device_code" "$handoff" <<'PY'
 import json, os, pathlib, sys, urllib.request
 request_path, code_path, handoff_path = map(pathlib.Path, sys.argv[1:])
@@ -110,7 +116,7 @@ code_path.unlink()
 PY
     ;;
   second)
-    stage="add-second-sentinel"
+    enter_stage "add-second-sentinel"
     server_second="$server_control/second-sentinel.json"
     client_second="$control/second-sentinel.json"
     (cd "$server_root" && PLAYSTEAD_MAC_CI_TASK=1 mix playstead.mac_ci_fixture second --output "$server_second") >/dev/null
@@ -118,7 +124,7 @@ PY
     rm -f "$server_second"
     ;;
   verify)
-    stage="verify-evidence"
+    enter_stage "verify-evidence"
     python3 - "$root" "$(dirname "$PLAYSTEAD_MAC_CI_ROOT")/phoenix.log" <<'PY'
 import pathlib, sqlite3, sys
 root, log_path = map(pathlib.Path, sys.argv[1:])

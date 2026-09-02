@@ -216,15 +216,31 @@ final class SurfaceAccessibilityTests: XCTestCase {
             equals: memberIDs[1],
             stage: "all-surface-collection-second-member-selection"
         )
-        harness.traverseExactFocusSequence(
-            [
-                "playstead.curation.collection-member.\(memberIDs[0]).move-down",
-                "playstead.curation.collection-member.\(memberIDs[1]).move-up",
-                "playstead.curation.collection-member.\(memberIDs[1]).move-down",
-                "playstead.curation.collection-member.\(memberIDs[2]).move-up"
-            ],
-            activate: "playstead.curation.collection-member.\(memberIDs[1]).move-down",
-            failureStage: "all-surface-collection-reorder"
+        // A macOS SwiftUI List owns arrow-key focus as one control; its row
+        // actions are semantic audit targets, not an independent Tab ring.
+        // Exercise the production command-bar shortcut used by the focused
+        // List and prove the selected member actually settles at the edge.
+        let selectedMoveUp = harness.element(
+            "playstead.curation.collection-command.move-up",
+            type: .button
+        )
+        let selectedMoveDown = harness.element(
+            "playstead.curation.collection-command.move-down",
+            type: .button
+        )
+        XCTAssertTrue(selectedMoveUp.isEnabled, "all-surface-collection-selected-move-up-disabled")
+        XCTAssertTrue(selectedMoveDown.isEnabled, "all-surface-collection-selected-move-down-disabled")
+        harness.app.typeKey("d", modifierFlags: [.command, .option])
+        waitForEnabled(
+            selectedMoveDown,
+            equals: false,
+            stage: "all-surface-collection-keyboard-reorder-not-settled"
+        )
+        XCTAssertTrue(selectedMoveUp.isEnabled, "all-surface-collection-selected-move-up-lost")
+        XCTAssertEqual(
+            harness.element("playstead.curation.collection-selection").value as? String,
+            memberIDs[1],
+            "all-surface-collection-selection-lost-after-reorder"
         )
         try auditEveryCategory(root: "playstead.surface.collection-detail")
 
@@ -432,5 +448,12 @@ final class SurfaceAccessibilityTests: XCTestCase {
         let expectation = XCTNSPredicateExpectation(predicate: settled, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed, stage)
         XCTAssertEqual(element.value as? String, expected, stage)
+    }
+
+    private func waitForEnabled(_ element: XCUIElement, equals expected: Bool, stage: String) {
+        let settled = NSPredicate { _, _ in element.isEnabled == expected }
+        let expectation = XCTNSPredicateExpectation(predicate: settled, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed, stage)
+        XCTAssertEqual(element.isEnabled, expected, stage)
     }
 }
