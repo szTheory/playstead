@@ -17,36 +17,71 @@ FOUR_LAYER_EVIDENCE="${FOUR_LAYER_ROOT}/evidence"
 COMPLETE_EVIDENCE="${FOUR_LAYER_EVIDENCE}/complete-verification-evidence.json"
 FAILURE_EVIDENCE="${BUILD_ROOT}/failure-evidence"
 SNAPSHOT_CANDIDATES="${BUILD_ROOT}/snapshot-candidates"
-LIVE_SERVER_TEST_PLAN="${MAC_ROOT}/TestPlans/LiveServer.xctestplan"
 
 # EXIT traps run after their caller's local scope has unwound. Keep every
 # trap-owned value globally initialized so an early return/failure can never
 # replace the underlying result with a `set -u` cleanup error.
 KEYBOARD_MODE_CAPTURED=false
 KEYBOARD_MODE_PREVIOUS=""
-LIVE_SERVER_TEST_PLAN_BACKUP=""
-LIVE_SERVER_TEST_PLAN_PATCHED=false
+LIVE_SERVER_XCTESTRUN=""
+LIVE_SERVER_XCTESTRUN_BACKUP=""
+LIVE_SERVER_XCTESTRUN_PATCHED=false
 
-restore_live_server_test_plan() {
-  [ "${LIVE_SERVER_TEST_PLAN_PATCHED:-false}" = "true" ] || return 0
-  local backup="${LIVE_SERVER_TEST_PLAN_BACKUP:-}"
-  LIVE_SERVER_TEST_PLAN_PATCHED=false
-  [ -n "$backup" ] && [ -f "$backup" ] || die "live-server test-plan backup is missing"
-  mv -f "$backup" "$LIVE_SERVER_TEST_PLAN"
-  LIVE_SERVER_TEST_PLAN_BACKUP=""
+restore_live_server_xctestrun() {
+  [ "${LIVE_SERVER_XCTESTRUN_PATCHED:-false}" = "true" ] || return 0
+  local target="${LIVE_SERVER_XCTESTRUN:-}"
+  local backup="${LIVE_SERVER_XCTESTRUN_BACKUP:-}"
+  LIVE_SERVER_XCTESTRUN_PATCHED=false
+  [ -n "$target" ] && [ -n "$backup" ] && [ -f "$backup" ] || die "live-server xctestrun backup is missing"
+  mv -f "$backup" "$target"
+  LIVE_SERVER_XCTESTRUN=""
+  LIVE_SERVER_XCTESTRUN_BACKUP=""
 }
 
-materialize_live_server_test_plan() {
-  local backup="${FOUR_LAYER_RAW}/LiveServer.xctestplan.original"
-  [ -f "$LIVE_SERVER_TEST_PLAN" ] || die "LiveServer test plan is missing"
-  [ ! -e "$backup" ] || die "LiveServer test-plan backup already exists"
-  cp -p "$LIVE_SERVER_TEST_PLAN" "$backup"
-  LIVE_SERVER_TEST_PLAN_BACKUP="$backup"
-  LIVE_SERVER_TEST_PLAN_PATCHED=true
-  python3 - "$LIVE_SERVER_TEST_PLAN" \
+materialize_live_server_xctestrun() {
+  local backup="${FOUR_LAYER_RAW}/LiveServer.xctestrun.original"
+  local target
+  [ ! -e "$backup" ] || die "live-server xctestrun backup already exists"
+  target="$(python3 - "$DERIVED_DATA" <<'PY'
+import pathlib, plistlib, sys
+
+products = pathlib.Path(sys.argv[1]).resolve() / "Build" / "Products"
+matches = []
+for path in products.rglob("*.xctestrun"):
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > 16 * 1024 * 1024:
+        continue
+    try:
+        data = plistlib.loads(path.read_bytes())
+    except Exception:
+        continue
+    if data.get("TestPlan", {}).get("Name") != "LiveServer":
+        continue
+    targets = [
+        target
+        for config in data.get("TestConfigurations", [])
+        if isinstance(config, dict) and config.get("Name") == "LiveServer"
+        for target in config.get("TestTargets", [])
+        if isinstance(target, dict) and target.get("BlueprintName") == "PlaysteadUITests"
+    ]
+    if targets:
+        matches.append((path.resolve(), len(targets)))
+if len(matches) != 1 or matches[0][1] != 1:
+    raise SystemExit("expected exactly one generated LiveServer PlaysteadUITests xctestrun target")
+path = matches[0][0]
+if products != path and products not in path.parents:
+    raise SystemExit("generated xctestrun escaped DerivedData products")
+print(path)
+PY
+)"
+  [ -n "$target" ] && [ -f "$target" ] || die "generated PlaysteadUITests xctestrun is missing"
+  cp -p "$target" "$backup"
+  LIVE_SERVER_XCTESTRUN="$target"
+  LIVE_SERVER_XCTESTRUN_BACKUP="$backup"
+  LIVE_SERVER_XCTESTRUN_PATCHED=true
+  python3 - "$target" \
     "$PLAYSTEAD_MAC_CI_ROOT" "$PLAYSTEAD_LIVE_SERVER_STAGE_ROOT" \
     "$PLAYSTEAD_LIVE_SERVER_STAGE_FILE" "$MAC_CI_DATABASE_URL" "$MIX_ENV" "$PORT" <<'PY'
-import json, os, pathlib, sys
+import os, pathlib, plistlib, sys
 
 path = pathlib.Path(sys.argv[1])
 keys = (
@@ -64,20 +99,25 @@ for key in keys[:3]:
 if values["MIX_ENV"] != "mac_ci" or values["PORT"] != "4010":
     raise SystemExit("live-server test environment identity drifted")
 
-data = json.loads(path.read_text(encoding="utf-8"))
-entries = data.get("defaultOptions", {}).get("environmentVariableEntries")
-if not isinstance(entries, list):
-    raise SystemExit("LiveServer environment entries are missing")
-by_key = {entry.get("key"): entry for entry in entries if isinstance(entry, dict)}
-if set(by_key) != set(keys) or len(entries) != len(keys):
-    raise SystemExit("LiveServer environment entry identity drifted")
-for key in keys:
-    if by_key[key].get("value") != f"$({key})":
-        raise SystemExit(f"LiveServer environment macro drifted: {key}")
-    by_key[key]["value"] = values[key]
+raw = path.read_bytes()
+data = plistlib.loads(raw)
+targets = [
+    target
+    for config in data.get("TestConfigurations", [])
+    if isinstance(config, dict) and config.get("Name") == "LiveServer"
+    for target in config.get("TestTargets", [])
+    if isinstance(target, dict) and target.get("BlueprintName") == "PlaysteadUITests"
+]
+if data.get("TestPlan", {}).get("Name") != "LiveServer" or len(targets) != 1:
+    raise SystemExit("generated xctestrun target identity drifted")
+environment = targets[0].setdefault("EnvironmentVariables", {})
+if not isinstance(environment, dict):
+    raise SystemExit("generated xctestrun environment is not a dictionary")
+environment.update(values)
 
 temporary = path.with_name(path.name + ".tmp")
-temporary.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+with temporary.open("wb") as stream:
+    plistlib.dump(data, stream, fmt=plistlib.FMT_BINARY if raw.startswith(b"bplist") else plistlib.FMT_XML, sort_keys=False)
 os.chmod(temporary, path.stat().st_mode & 0o777)
 temporary.replace(path)
 PY
@@ -1149,15 +1189,15 @@ PY
   # The LiveServer layer is the native client/server behavior proof (D-04).
   # Keep PostgreSQL/Phoenix scoped to that layer and compose its fail-safe
   # service cleanup with the already-armed keyboard-mode restoration.
-  trap 'restore_live_server_test_plan; cleanup_native_services; restore_keyboard_mode' EXIT
+  trap 'restore_live_server_xctestrun; cleanup_native_services; restore_keyboard_mode' EXIT
   start_native_services
   prepare_live_server_failure_stage
-  materialize_live_server_test_plan
+  materialize_live_server_xctestrun
   run_test_layer live-server LiveServer 900 \
     --required-test PlaysteadUITests.HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner \
     --required-test PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
-  restore_live_server_test_plan
+  restore_live_server_xctestrun
   cleanup_native_services
   trap restore_keyboard_mode EXIT
 
