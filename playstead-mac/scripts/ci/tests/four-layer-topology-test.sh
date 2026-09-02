@@ -148,6 +148,10 @@ if any(seconds <= 0 or seconds > 1800 for seconds in deadlines.values()):
 test_layer = runner_source.split("run_test_layer() {", 1)[1].split("run_four_layer_verification() {", 1)[0]
 if test_layer.count("test-without-building") != 1 or "retry" in test_layer.lower():
     raise SystemExit("a layer must execute once without automatic retry")
+if 'test_selection=(-xctestrun "$LIVE_SERVER_XCTESTRUN")' not in test_layer:
+    raise SystemExit("LiveServer must consume the exact generated xctestrun that received its concrete environment")
+if 'live-server layer requires a materialized generated xctestrun' not in test_layer:
+    raise SystemExit("LiveServer must fail closed before resolving an unpatched test configuration")
 PY
 
 grep -F 'app.launchEnvironment["PLAYSTEAD_WAVE_0_LAUNCH_CANARY"] = "1"' "$UI_CANARY" >/dev/null

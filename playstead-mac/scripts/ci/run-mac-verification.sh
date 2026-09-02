@@ -987,9 +987,20 @@ run_test_layer() {
   local log="${FOUR_LAYER_RAW}/${slug}.log"
   local signing=(CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=)
   local layer_settings=()
+  local test_selection=(-project "$PROJECT" -scheme "$SCHEME" -testPlan "$plan" -derivedDataPath "$DERIVED_DATA")
+  local test_settings=(
+    "${signing[@]}"
+    PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT="${FOUR_LAYER_EVIDENCE}/snapshot-triplet"
+    PLAYSTEAD_STORAGE_SNAPSHOT_CANDIDATE_OUTPUT="${FOUR_LAYER_EVIDENCE}/storage-candidate/storage-surfaces.actual.png"
+    PLAYSTEAD_SNAPSHOT_RECORDING=0
+  )
   local xcode_status=0 parse_status=0 verify_status=0
 
   if [ "$slug" = "live-server" ]; then
+    [ "${LIVE_SERVER_XCTESTRUN_PATCHED:-false}" = "true" ] && [ -f "${LIVE_SERVER_XCTESTRUN:-}" ] || \
+      die "live-server layer requires a materialized generated xctestrun"
+    test_selection=(-xctestrun "$LIVE_SERVER_XCTESTRUN")
+    test_settings=()
     layer_settings=(
       PLAYSTEAD_MAC_CI_ROOT="$PLAYSTEAD_MAC_CI_ROOT"
       PLAYSTEAD_LIVE_SERVER_STAGE_ROOT="$PLAYSTEAD_LIVE_SERVER_STAGE_ROOT"
@@ -1003,13 +1014,9 @@ run_test_layer() {
   rm -rf "$result_bundle"
   run_with_deadline "$deadline" "$log" \
     env ${layer_settings[@]+"${layer_settings[@]}"} \
-      xcodebuild test-without-building -project "$PROJECT" -scheme "$SCHEME" \
-      -testPlan "$plan" -destination 'platform=macOS' \
-      -derivedDataPath "$DERIVED_DATA" -resultBundlePath "$result_bundle" \
-      "${signing[@]}" PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT="${FOUR_LAYER_EVIDENCE}/snapshot-triplet" \
-      PLAYSTEAD_STORAGE_SNAPSHOT_CANDIDATE_OUTPUT="${FOUR_LAYER_EVIDENCE}/storage-candidate/storage-surfaces.actual.png" \
-      PLAYSTEAD_SNAPSHOT_RECORDING=0 \
-      ${layer_settings[@]+"${layer_settings[@]}"} || xcode_status=$?
+      xcodebuild test-without-building ${test_selection[@]+"${test_selection[@]}"} \
+      -destination 'platform=macOS' -resultBundlePath "$result_bundle" \
+      ${test_settings[@]+"${test_settings[@]}"} || xcode_status=$?
 
   if [ -d "$result_bundle" ]; then
     xcrun xcresulttool get test-results tests --path "$result_bundle" --compact \
