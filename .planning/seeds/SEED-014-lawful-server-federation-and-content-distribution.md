@@ -35,6 +35,16 @@ reveal a person's interests or possession claims. A content hash is not anonymou
 proof of ownership, proof of legality, or authorization. Private-library hashes
 must not be broadcast or used as global discovery keys by default.
 
+The product shape may need to distinguish two legitimate personas: a **collector**
+who wants to maintain and archive a broad library, and a **player** who wants a
+small set of known-good games available quickly. A future, explicitly authorized
+**depot** could address that difference by exposing signed manifests and
+checksum-verified transfers from a user's own server, a paired server, or a
+lawful publisher/homebrew source. A per-artifact magnet or other swarm transport
+is only a possible adapter—not a license, discovery catalogue, or acquisition
+workflow—and must preserve rights declarations, authorization, privacy, quotas,
+and local full-byte verification.
+
 ## Research Questions
 
 ### Product boundaries
