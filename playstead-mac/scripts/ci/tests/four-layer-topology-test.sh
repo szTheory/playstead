@@ -125,11 +125,15 @@ live_layer = four_layer.find("run_test_layer live-server LiveServer")
 native_cleanup = four_layer.find("cleanup_native_services", live_layer)
 if not (0 <= native_start < live_layer < native_cleanup):
     raise SystemExit("native PostgreSQL/Phoenix must wrap only the LiveServer layer")
-if "trap 'cleanup_native_services; restore_keyboard_mode' EXIT" not in four_layer:
-    raise SystemExit("LiveServer native cleanup must preserve keyboard-mode restoration")
+if "trap 'restore_live_server_test_plan; cleanup_native_services; restore_keyboard_mode' EXIT" not in four_layer:
+    raise SystemExit("LiveServer test-plan/native cleanup must preserve keyboard-mode restoration")
 stage_preflight = four_layer.find("prepare_live_server_failure_stage")
 if not (0 <= stage_preflight < live_layer):
     raise SystemExit("failure-stage channel must be cleared and validated before LiveServer")
+plan_materialize = four_layer.find("materialize_live_server_test_plan")
+plan_restore = four_layer.find("restore_live_server_test_plan", live_layer)
+if not (stage_preflight < plan_materialize < live_layer < plan_restore < native_cleanup):
+    raise SystemExit("concrete LiveServer test plan must be materialized and restored around only its layer")
 deadline_pairs = re.findall(
     r"^\s*run_test_layer (unit|rendering|ui|live-server)\s+\S+\s+(\d+)\s+\\$",
     four_layer,

@@ -17,12 +17,71 @@ FOUR_LAYER_EVIDENCE="${FOUR_LAYER_ROOT}/evidence"
 COMPLETE_EVIDENCE="${FOUR_LAYER_EVIDENCE}/complete-verification-evidence.json"
 FAILURE_EVIDENCE="${BUILD_ROOT}/failure-evidence"
 SNAPSHOT_CANDIDATES="${BUILD_ROOT}/snapshot-candidates"
+LIVE_SERVER_TEST_PLAN="${MAC_ROOT}/TestPlans/LiveServer.xctestplan"
 
 # EXIT traps run after their caller's local scope has unwound. Keep every
 # trap-owned value globally initialized so an early return/failure can never
 # replace the underlying result with a `set -u` cleanup error.
 KEYBOARD_MODE_CAPTURED=false
 KEYBOARD_MODE_PREVIOUS=""
+LIVE_SERVER_TEST_PLAN_BACKUP=""
+LIVE_SERVER_TEST_PLAN_PATCHED=false
+
+restore_live_server_test_plan() {
+  [ "${LIVE_SERVER_TEST_PLAN_PATCHED:-false}" = "true" ] || return 0
+  local backup="${LIVE_SERVER_TEST_PLAN_BACKUP:-}"
+  LIVE_SERVER_TEST_PLAN_PATCHED=false
+  [ -n "$backup" ] && [ -f "$backup" ] || die "live-server test-plan backup is missing"
+  mv -f "$backup" "$LIVE_SERVER_TEST_PLAN"
+  LIVE_SERVER_TEST_PLAN_BACKUP=""
+}
+
+materialize_live_server_test_plan() {
+  local backup="${FOUR_LAYER_RAW}/LiveServer.xctestplan.original"
+  [ -f "$LIVE_SERVER_TEST_PLAN" ] || die "LiveServer test plan is missing"
+  [ ! -e "$backup" ] || die "LiveServer test-plan backup already exists"
+  cp -p "$LIVE_SERVER_TEST_PLAN" "$backup"
+  LIVE_SERVER_TEST_PLAN_BACKUP="$backup"
+  LIVE_SERVER_TEST_PLAN_PATCHED=true
+  python3 - "$LIVE_SERVER_TEST_PLAN" \
+    "$PLAYSTEAD_MAC_CI_ROOT" "$PLAYSTEAD_LIVE_SERVER_STAGE_ROOT" \
+    "$PLAYSTEAD_LIVE_SERVER_STAGE_FILE" "$MAC_CI_DATABASE_URL" "$MIX_ENV" "$PORT" <<'PY'
+import json, os, pathlib, sys
+
+path = pathlib.Path(sys.argv[1])
+keys = (
+    "PLAYSTEAD_MAC_CI_ROOT", "PLAYSTEAD_LIVE_SERVER_STAGE_ROOT",
+    "PLAYSTEAD_LIVE_SERVER_STAGE_FILE", "MAC_CI_DATABASE_URL", "MIX_ENV", "PORT",
+)
+if len(sys.argv) != len(keys) + 2:
+    raise SystemExit("live-server test environment argument count drifted")
+values = dict(zip(keys, sys.argv[2:]))
+if any(not value or "\n" in value or "\x00" in value or len(value) > 4096 for value in values.values()):
+    raise SystemExit("live-server test environment contains an invalid value")
+for key in keys[:3]:
+    if not pathlib.PurePath(values[key]).is_absolute():
+        raise SystemExit(f"live-server test environment path is not absolute: {key}")
+if values["MIX_ENV"] != "mac_ci" or values["PORT"] != "4010":
+    raise SystemExit("live-server test environment identity drifted")
+
+data = json.loads(path.read_text(encoding="utf-8"))
+entries = data.get("defaultOptions", {}).get("environmentVariableEntries")
+if not isinstance(entries, list):
+    raise SystemExit("LiveServer environment entries are missing")
+by_key = {entry.get("key"): entry for entry in entries if isinstance(entry, dict)}
+if set(by_key) != set(keys) or len(entries) != len(keys):
+    raise SystemExit("LiveServer environment entry identity drifted")
+for key in keys:
+    if by_key[key].get("value") != f"$({key})":
+        raise SystemExit(f"LiveServer environment macro drifted: {key}")
+    by_key[key]["value"] = values[key]
+
+temporary = path.with_name(path.name + ".tmp")
+temporary.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+os.chmod(temporary, path.stat().st_mode & 0o777)
+temporary.replace(path)
+PY
+}
 
 restore_keyboard_mode() {
   [ "${KEYBOARD_MODE_CAPTURED:-false}" = "true" ] || return 0
@@ -1090,13 +1149,15 @@ PY
   # The LiveServer layer is the native client/server behavior proof (D-04).
   # Keep PostgreSQL/Phoenix scoped to that layer and compose its fail-safe
   # service cleanup with the already-armed keyboard-mode restoration.
-  trap 'cleanup_native_services; restore_keyboard_mode' EXIT
+  trap 'restore_live_server_test_plan; cleanup_native_services; restore_keyboard_mode' EXIT
   start_native_services
   prepare_live_server_failure_stage
+  materialize_live_server_test_plan
   run_test_layer live-server LiveServer 900 \
     --required-test PlaysteadUITests.HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner \
     --required-test PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
+  restore_live_server_test_plan
   cleanup_native_services
   trap restore_keyboard_mode EXIT
 
