@@ -30,6 +30,12 @@ an LLM, making network inference a dependency, or coupling the product to one
 vendor. A future MCP server or agent skill could wrap the CLI or the same client
 library after real use demonstrates which tasks deserve higher-level tools.
 
+Useful early agent workflows may include proposing or maintaining curated
+collections, applying explicit favorite/unfavorite changes, finding uncategorized
+items, and carrying out bounded owner-approved administration. The agent should
+remain an optional client: Playstead owns the durable commands, receipts, policy,
+and audit trail, while the model supplies suggestions or invokes authorized tools.
+
 ## Design and Research Questions
 
 ### Jobs and domain language
@@ -60,6 +66,26 @@ library after real use demonstrates which tasks deserve higher-level tools.
 - Supply examples, shell completion, man/help pages, a machine-readable command
   catalogue, copyable remediation, and deterministic fixtures. Evaluate whether
   a small read-only discovery command should work before authentication.
+
+### MCP and higher-level agent tools
+
+- Evaluate a first-party MCP server only after the CLI/API task model is proven.
+  Prefer both surfaces over the same application client and domain operations;
+  do not implement MCP as browser automation, shell-string assembly, or a bypass
+  around authorization and command receipts.
+- Start with read-only discovery and bounded curation tools: query the library,
+  inspect collections, propose collection membership, identify uncategorized
+  games, and preview favorite/unfavorite changes. Promote write tools only when
+  scopes, idempotency, dry-run, confirmation, receipts, and audit behavior are
+  explicit and testable.
+- Distinguish suggestions from committed mutations. Agents may draft a curation
+  plan, but the tool result must say whether it was merely proposed, accepted,
+  queued, completed, or failed; destructive and bulk operations fail closed
+  without explicit owner-approved intent.
+- Design for Claude Code and other MCP-capable clients without coupling the
+  contract to one vendor. Research tool granularity, capability negotiation,
+  pagination/context budgets, prompt-injection risks in game metadata, consent
+  UX, and least-privilege credentials before choosing the transport/package.
 
 ### Safety and trust
 
@@ -128,6 +154,7 @@ plugins, an MCP layer, or autonomous agent workflows are separate later decision
 ## Notes
 
 Captured during Phase 03.5 from the owner's explicit preference for a future
-Playstead CLI that makes the system easier and safer for AI agents to operate.
+Playstead CLI and MCP surface that make the system easier and safer for AI agents
+to operate, including owner-approved collection curation and administration.
 When surfaced, fan out research across user jobs, agent ergonomics, security,
-prior art, packaging, and API boundaries before selecting an implementation.
+MCP prior art, packaging, and API boundaries before selecting an implementation.
