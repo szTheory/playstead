@@ -630,9 +630,10 @@ allowed_ui_stages = {
     "all-surface-quota-list", "all-surface-adapter-actions",
 }
 allowed_live_stages = {
-    "validate-input", "provision-domain", "request-pairing",
-    "approve-pairing", "redeem-pairing", "add-second-sentinel",
-    "verify-evidence", "bounded-diagnostic-unavailable",
+    "validate-input", "resolve-server-root", "create-control-root",
+    "create-server-control", "secure-roots", "provision-domain",
+    "request-pairing", "approve-pairing", "redeem-pairing",
+    "add-second-sentinel", "verify-evidence", "bounded-diagnostic-unavailable",
 }
 allowed_live_actions = {"prepare", "second", "verify", "unknown"}
 assertion_pattern = re.compile(
@@ -922,7 +923,10 @@ print_live_server_failure_stage() {
     return
   fi
   case "$token" in
-    validate-input|provision-domain|request-pairing|approve-pairing|redeem-pairing|add-second-sentinel|verify-evidence)
+    validate-input|resolve-server-root|create-control-root|create-server-control|secure-roots)
+      printf 'live-server: FAILURE_STAGE %s\n' "$token"
+      ;;
+    provision-domain|request-pairing|approve-pairing|redeem-pairing|add-second-sentinel|verify-evidence)
       printf 'live-server: FAILURE_STAGE %s\n' "$token"
       ;;
     *) printf '%s\n' "live-server: FAILURE_STAGE invalid-token" ;;

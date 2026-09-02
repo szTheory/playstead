@@ -200,9 +200,10 @@ final class LiveServerSnapshotTests: XCTestCase {
                 as: UTF8.self
             )
             let allowedStages = [
-                "validate-input", "provision-domain", "request-pairing",
-                "approve-pairing", "redeem-pairing", "add-second-sentinel",
-                "verify-evidence"
+                "validate-input", "resolve-server-root", "create-control-root",
+                "create-server-control", "secure-roots", "provision-domain",
+                "request-pairing", "approve-pairing", "redeem-pairing",
+                "add-second-sentinel", "verify-evidence"
             ]
             let sanitized = raw.replacingOccurrences(
                 of: "[^A-Za-z0-9 _:-]",
@@ -263,6 +264,14 @@ final class LiveServerSnapshotTests: XCTestCase {
         switch stage {
         case "validate-input":
             XCTAssertEqual(status, 0, "live-server-stage=validate-input action=\(action)")
+        case "resolve-server-root":
+            XCTAssertEqual(status, 0, "live-server-stage=resolve-server-root action=\(action)")
+        case "create-control-root":
+            XCTAssertEqual(status, 0, "live-server-stage=create-control-root action=\(action)")
+        case "create-server-control":
+            XCTAssertEqual(status, 0, "live-server-stage=create-server-control action=\(action)")
+        case "secure-roots":
+            XCTAssertEqual(status, 0, "live-server-stage=secure-roots action=\(action)")
         case "provision-domain":
             XCTAssertEqual(status, 0, "live-server-stage=provision-domain action=\(action)")
         case "request-pairing":

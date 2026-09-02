@@ -10,7 +10,8 @@ exec 2>/dev/null
 
 write_failure_stage() {
   case "$stage" in
-    validate-input|provision-domain|request-pairing|approve-pairing|redeem-pairing|add-second-sentinel|verify-evidence) ;;
+    validate-input|resolve-server-root|create-control-root|create-server-control|secure-roots) ;;
+    provision-domain|request-pairing|approve-pairing|redeem-pairing|add-second-sentinel|verify-evidence) ;;
     *) return ;;
   esac
 
@@ -48,11 +49,21 @@ server_data_root="${3:-${PLAYSTEAD_MAC_CI_ROOT:-}}"
 [ -n "$server_data_root" ] && [ "${server_data_root#/}" != "$server_data_root" ] || die
 export PLAYSTEAD_MAC_CI_ROOT="$server_data_root"
 
+# Each of these can fail independently on a hosted runner, and a single
+# "validate-input" token cannot say which. The sub-stages stay bounded names --
+# no paths, no errno text -- so the published evidence contract is unchanged.
+enter_stage "resolve-server-root"
 server_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../playstead-server" && pwd)"
 control="$root/control"
 server_control="$server_data_root/mac-client-control"
+
+enter_stage "create-control-root"
 mkdir -p "$control"
+
+enter_stage "create-server-control"
 mkdir -p "$server_control"
+
+enter_stage "secure-roots"
 chmod 0700 "$root" "$control" "$server_control"
 
 case "$action" in
