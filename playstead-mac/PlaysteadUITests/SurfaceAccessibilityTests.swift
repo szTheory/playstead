@@ -187,6 +187,8 @@ final class SurfaceAccessibilityTests: XCTestCase {
             try auditEveryCategory(root: root)
         }
 
+        harness.app.terminate()
+        launchLibrary(profile: .populatedCurationReorder)
         selectSidebar("Collections")
         recordRequired(["playstead.surface.collections"], in: &visited)
         let collection = harness.element(

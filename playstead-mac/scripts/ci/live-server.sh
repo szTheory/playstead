@@ -33,10 +33,10 @@ write_failure_stage() {
 
 enter_stage() {
   stage="$1"
-  write_failure_stage
+  write_failure_stage || true
 }
 
-trap 'status=$?; if [ "$status" -ne 0 ]; then write_failure_stage; printf "live-server fixture failed at %s\n" "$stage" >&3; fi' EXIT
+trap 'status=$?; if [ "$status" -ne 0 ]; then write_failure_stage || true; printf "live-server fixture failed at %s\n" "$stage" >&3; fi' EXIT
 enter_stage "validate-input"
 
 die() { exit 1; }
