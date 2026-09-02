@@ -885,7 +885,8 @@ run_test_layer() {
       -derivedDataPath "$DERIVED_DATA" -resultBundlePath "$result_bundle" \
       "${signing[@]}" PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT="${FOUR_LAYER_EVIDENCE}/snapshot-triplet" \
       PLAYSTEAD_STORAGE_SNAPSHOT_CANDIDATE_OUTPUT="${FOUR_LAYER_EVIDENCE}/storage-candidate/storage-surfaces.actual.png" \
-      PLAYSTEAD_SNAPSHOT_RECORDING=0 "${layer_settings[@]}" || xcode_status=$?
+      PLAYSTEAD_SNAPSHOT_RECORDING=0 \
+      ${layer_settings[@]+"${layer_settings[@]}"} || xcode_status=$?
 
   if [ -d "$result_bundle" ]; then
     xcrun xcresulttool get test-results tests --path "$result_bundle" --compact \

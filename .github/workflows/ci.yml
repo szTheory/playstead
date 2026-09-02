@@ -122,7 +122,9 @@ jobs:
         with:
           name: mac-verification-failure
           path: playstead-mac/.build/ci/failure-evidence
-          if-no-files-found: error
+          # A wrapper/setup failure can precede bundle creation. Preserve the
+          # original failing step instead of replacing it with an artifact error.
+          if-no-files-found: warn
           retention-days: 7
 
   # Cold-start deployment proof (docker build + compose up from destroyed
