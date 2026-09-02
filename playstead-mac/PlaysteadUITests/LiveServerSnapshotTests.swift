@@ -6,11 +6,13 @@ final class LiveServerSnapshotTests: XCTestCase {
     private var app: XCUIApplication?
     private var keychain: SecKeychain?
     private var root: URL?
+    private var fixtureEnvironment: [String: String]?
 
     override func tearDownWithError() throws {
         app?.terminate()
         if let keychain { SecKeychainDelete(keychain) }
         if let root { try? FileManager.default.removeItem(at: root) }
+        fixtureEnvironment = nil
     }
 
     func testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch() throws {
@@ -98,7 +100,11 @@ final class LiveServerSnapshotTests: XCTestCase {
 
     private func fixtureEnvironmentIsReady() -> Bool {
         let manager = FileManager.default
-        let environment = ProcessInfo.processInfo.environment
+        guard let environment = resolvedFixtureEnvironment() else {
+            XCTAssertTrue(false, "live-server-preflight=runtime-config-invalid")
+            return false
+        }
+        fixtureEnvironment = environment
         let script = fixtureScriptURL()
         guard manager.fileExists(atPath: script.path) else {
             XCTAssertTrue(false, "live-server-preflight=script-missing")
@@ -143,17 +149,46 @@ final class LiveServerSnapshotTests: XCTestCase {
             .appendingPathComponent("scripts/ci/live-server.sh")
     }
 
+    private func runtimeConfigurationURL() -> URL {
+        fixtureScriptURL()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent(".build/ci/four-layer/raw/live-server-runtime.json")
+    }
+
+    private func resolvedFixtureEnvironment() -> [String: String]? {
+        let required = Set([
+            "PLAYSTEAD_MAC_CI_ROOT", "PLAYSTEAD_LIVE_SERVER_STAGE_ROOT",
+            "PLAYSTEAD_LIVE_SERVER_STAGE_FILE", "MAC_CI_DATABASE_URL", "MIX_ENV", "PORT"
+        ])
+        let inherited = ProcessInfo.processInfo.environment
+        if required.allSatisfy({ !(inherited[$0] ?? "").isEmpty }) { return inherited }
+
+        let url = runtimeConfigurationURL()
+        guard
+            (try? permissions(of: url)) == 0o600,
+            let data = try? Data(contentsOf: url),
+            data.count <= 32_768,
+            let configured = try? JSONDecoder().decode([String: String].self, from: data),
+            Set(configured.keys) == required,
+            required.allSatisfy({ !(configured[$0] ?? "").isEmpty }),
+            configured["MIX_ENV"] == "mac_ci",
+            configured["PORT"] == "4010"
+        else { return nil }
+        return inherited.merging(configured) { _, configuredValue in configuredValue }
+    }
+
     private func runFixture(_ action: String, root: URL) throws -> Bool {
         seedFixtureStageBestEffort(for: action)
         let script = fixtureScriptURL()
-        guard let serverRoot = ProcessInfo.processInfo.environment["PLAYSTEAD_MAC_CI_ROOT"] else {
+        guard let environment = fixtureEnvironment,
+              let serverRoot = environment["PLAYSTEAD_MAC_CI_ROOT"] else {
             recordFixtureFailure(stage: "validate-input", action: action, status: -1)
             return false
         }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         process.arguments = [script.path, action, root.path, serverRoot]
-        process.environment = ProcessInfo.processInfo.environment
+        process.environment = environment
         let diagnostics = Pipe()
         process.standardOutput = FileHandle.nullDevice
         process.standardError = diagnostics
@@ -198,7 +233,7 @@ final class LiveServerSnapshotTests: XCTestCase {
 
     private func seedFixtureStageBestEffort(for action: String) {
         guard let stage = fixtureEntryStage(for: action) else { return }
-        let environment = ProcessInfo.processInfo.environment
+        guard let environment = fixtureEnvironment else { return }
         guard
             let stageRoot = environment["PLAYSTEAD_LIVE_SERVER_STAGE_ROOT"],
             let stageFile = environment["PLAYSTEAD_LIVE_SERVER_STAGE_FILE"]

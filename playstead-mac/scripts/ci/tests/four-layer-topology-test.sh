@@ -125,14 +125,16 @@ live_layer = four_layer.find("run_test_layer live-server LiveServer")
 native_cleanup = four_layer.find("cleanup_native_services", live_layer)
 if not (0 <= native_start < live_layer < native_cleanup):
     raise SystemExit("native PostgreSQL/Phoenix must wrap only the LiveServer layer")
-if "trap 'restore_live_server_xctestrun; cleanup_native_services; restore_keyboard_mode' EXIT" not in four_layer:
-    raise SystemExit("LiveServer xctestrun/native cleanup must preserve keyboard-mode restoration")
+if "trap 'restore_live_server_xctestrun; cleanup_live_server_runtime_config; cleanup_native_services; restore_keyboard_mode' EXIT" not in four_layer:
+    raise SystemExit("LiveServer xctestrun/config/native cleanup must preserve keyboard-mode restoration")
 stage_preflight = four_layer.find("prepare_live_server_failure_stage")
 if not (0 <= stage_preflight < live_layer):
     raise SystemExit("failure-stage channel must be cleared and validated before LiveServer")
 xctestrun_materialize = four_layer.find("materialize_live_server_xctestrun")
 xctestrun_restore = four_layer.find("restore_live_server_xctestrun", live_layer)
-if not (stage_preflight < xctestrun_materialize < live_layer < xctestrun_restore < native_cleanup):
+config_materialize = four_layer.find("materialize_live_server_runtime_config")
+config_cleanup = four_layer.find("cleanup_live_server_runtime_config", live_layer)
+if not (stage_preflight < config_materialize < xctestrun_materialize < live_layer < xctestrun_restore < config_cleanup < native_cleanup):
     raise SystemExit("generated LiveServer xctestrun must be materialized and restored around only its layer")
 deadline_pairs = re.findall(
     r"^\s*run_test_layer (unit|rendering|ui|live-server)\s+\S+\s+(\d+)\s+\\$",

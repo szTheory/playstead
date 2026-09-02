@@ -104,8 +104,13 @@ final class CurationInteractionTests: XCTestCase {
     func testCollectionMoveUpClickProducesOneEffect() throws {
         let harness = launchPersistentCurationHarness()
         openSyntheticCollection(in: harness)
+        let initialOrder = [memberID(1), memberID(2), memberID(3)]
+        assertEvidence(order: initialOrder, outboxCount: 0, in: harness)
+        assertExactCollectionOrder(initialOrder, in: harness)
         let action = harness.element(moveID(memberID(2), direction: "up"), type: .button)
         XCTAssertTrue(action.waitForExistence(timeout: 5))
+        XCTAssertTrue(action.isEnabled)
+        XCTAssertTrue(action.isHittable)
         action.click()
         let order = [memberID(2), memberID(1), memberID(3)]
         assertEvidence(order: order, outboxCount: 1, in: harness)

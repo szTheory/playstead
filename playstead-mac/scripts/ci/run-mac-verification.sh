@@ -17,6 +17,7 @@ FOUR_LAYER_EVIDENCE="${FOUR_LAYER_ROOT}/evidence"
 COMPLETE_EVIDENCE="${FOUR_LAYER_EVIDENCE}/complete-verification-evidence.json"
 FAILURE_EVIDENCE="${BUILD_ROOT}/failure-evidence"
 SNAPSHOT_CANDIDATES="${BUILD_ROOT}/snapshot-candidates"
+LIVE_SERVER_RUNTIME_CONFIG="${FOUR_LAYER_RAW}/live-server-runtime.json"
 
 # EXIT traps run after their caller's local scope has unwound. Keep every
 # trap-owned value globally initialized so an early return/failure can never
@@ -26,6 +27,42 @@ KEYBOARD_MODE_PREVIOUS=""
 LIVE_SERVER_XCTESTRUN=""
 LIVE_SERVER_XCTESTRUN_BACKUP=""
 LIVE_SERVER_XCTESTRUN_PATCHED=false
+LIVE_SERVER_RUNTIME_CONFIG_READY=false
+
+cleanup_live_server_runtime_config() {
+  [ "${LIVE_SERVER_RUNTIME_CONFIG_READY:-false}" = "true" ] || return 0
+  LIVE_SERVER_RUNTIME_CONFIG_READY=false
+  rm -f "$LIVE_SERVER_RUNTIME_CONFIG" "${LIVE_SERVER_RUNTIME_CONFIG}.tmp"
+}
+
+materialize_live_server_runtime_config() {
+  local temporary="${LIVE_SERVER_RUNTIME_CONFIG}.tmp"
+  [ ! -e "$LIVE_SERVER_RUNTIME_CONFIG" ] && [ ! -e "$temporary" ] || \
+    die "live-server runtime config already exists"
+  LIVE_SERVER_RUNTIME_CONFIG_READY=true
+  python3 - "$temporary" "$LIVE_SERVER_RUNTIME_CONFIG" \
+    "$PLAYSTEAD_MAC_CI_ROOT" "$PLAYSTEAD_LIVE_SERVER_STAGE_ROOT" \
+    "$PLAYSTEAD_LIVE_SERVER_STAGE_FILE" "$MAC_CI_DATABASE_URL" "$MIX_ENV" "$PORT" <<'PY'
+import json, os, pathlib, sys
+
+temporary, destination = map(pathlib.Path, sys.argv[1:3])
+keys = (
+    "PLAYSTEAD_MAC_CI_ROOT", "PLAYSTEAD_LIVE_SERVER_STAGE_ROOT",
+    "PLAYSTEAD_LIVE_SERVER_STAGE_FILE", "MAC_CI_DATABASE_URL", "MIX_ENV", "PORT",
+)
+values = dict(zip(keys, sys.argv[3:]))
+if len(sys.argv) != len(keys) + 3 or any(not value or "\n" in value or "\x00" in value or len(value) > 4096 for value in values.values()):
+    raise SystemExit("live-server runtime config contains an invalid value")
+for key in keys[:3]:
+    if not pathlib.PurePath(values[key]).is_absolute():
+        raise SystemExit(f"live-server runtime config path is not absolute: {key}")
+if values["MIX_ENV"] != "mac_ci" or values["PORT"] != "4010":
+    raise SystemExit("live-server runtime config identity drifted")
+temporary.write_text(json.dumps(values, sort_keys=True) + "\n", encoding="utf-8")
+os.chmod(temporary, 0o600)
+temporary.replace(destination)
+PY
+}
 
 restore_live_server_xctestrun() {
   [ "${LIVE_SERVER_XCTESTRUN_PATCHED:-false}" = "true" ] || return 0
@@ -1200,15 +1237,17 @@ PY
   # The LiveServer layer is the native client/server behavior proof (D-04).
   # Keep PostgreSQL/Phoenix scoped to that layer and compose its fail-safe
   # service cleanup with the already-armed keyboard-mode restoration.
-  trap 'restore_live_server_xctestrun; cleanup_native_services; restore_keyboard_mode' EXIT
+  trap 'restore_live_server_xctestrun; cleanup_live_server_runtime_config; cleanup_native_services; restore_keyboard_mode' EXIT
   start_native_services
   prepare_live_server_failure_stage
+  materialize_live_server_runtime_config
   materialize_live_server_xctestrun
   run_test_layer live-server LiveServer 900 \
     --required-test PlaysteadUITests.HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner \
     --required-test PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
   restore_live_server_xctestrun
+  cleanup_live_server_runtime_config
   cleanup_native_services
   trap restore_keyboard_mode EXIT
 
