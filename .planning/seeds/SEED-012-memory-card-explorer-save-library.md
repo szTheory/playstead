@@ -5,7 +5,7 @@ planted: 2026-09-01
 planted_during: v1.0 / Phase 03.5 (Mac Verification Automation)
 trigger_when: when relevant
 scope: unknown
-related: SEED-001 (save-file curation), SEED-010 (physical memory-card save archive), SEED-006 (save-progress screenshots and game hub)
+related: SEED-001 (save-file curation), SEED-010 (physical memory-card save archive), SEED-006 (save-progress screenshots and game hub), SEED-019 (system saves versus save states)
 ---
 
 # SEED-012: Reimagine the console memory-card screen as a save explorer
@@ -54,6 +54,8 @@ the relevant save or client-UX milestone is selected.
 
 ## Breadcrumbs
 
+- `.planning/seeds/SEED-019-system-saves-versus-save-states.md` — the prior
+  question of what these artifacts are and which differences must stay visible
 - `.planning/seeds/SEED-001-save-file-curation.md` — owner annotations,
   favorites, keep/protect intent, provenance, and conflict-safe save curation
 - `.planning/seeds/SEED-010-physical-memory-card-save-archive.md` — read-only
