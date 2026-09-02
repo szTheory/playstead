@@ -150,39 +150,69 @@ final class LiveServerSnapshotTests: XCTestCase {
             XCTAssertEqual(resolved(serverRoot), resolved(stageRoot), "live-server-preflight=root-mismatch")
             return false
         }
+        // The published diagnostic carries only file:line -- never the
+        // assertion message -- so each distinct cause needs its own assertion
+        // site. That is also what keeps this bounded: a line number names the
+        // cause without publishing a path, an errno string, or runner state.
+        if let owner = ownerUID(of: serverRoot), owner != getuid() {
+            XCTAssertTrue(false, "live-server-preflight=server-root-foreign-owner")
+            return false
+        }
         // Probe with a real create/remove rather than isWritableFile, which
         // answers access(2) and can disagree with what the filesystem actually
         // permits. The fixture only writes files into this root -- the runner
         // that owns the root creates its directories -- so file creation is the
         // capability to require here.
-        guard probeCreate(in: serverRoot, directory: false) else {
-            XCTAssertTrue(false, "live-server-preflight=server-root-file-write-denied")
+        let denial = probeWriteErrno(in: serverRoot)
+        if denial == 0 {
+            return true
+        }
+        if denial == EACCES {
+            XCTAssertTrue(false, "live-server-preflight=server-root-eacces")
             return false
         }
-        return true
+        if denial == EPERM {
+            XCTAssertTrue(false, "live-server-preflight=server-root-eperm")
+            return false
+        }
+        if denial == EROFS {
+            XCTAssertTrue(false, "live-server-preflight=server-root-erofs")
+            return false
+        }
+        if denial == ENOENT {
+            XCTAssertTrue(false, "live-server-preflight=server-root-enoent")
+            return false
+        }
+        if denial == ENOSPC {
+            XCTAssertTrue(false, "live-server-preflight=server-root-enospc")
+            return false
+        }
+        XCTAssertTrue(false, "live-server-preflight=server-root-write-denied-other")
+        return false
+    }
+
+    /// Create and remove a uniquely named file in `root` using raw POSIX calls,
+    /// returning 0 on success or the errno that stopped it. Foundation rewrites
+    /// underlying codes on its way to NSError, and here the errno is the whole
+    /// answer.
+    private func probeWriteErrno(in root: String) -> Int32 {
+        let path = (root as NSString)
+            .appendingPathComponent(".live-server-probe.\(UUID().uuidString.lowercased())")
+        let descriptor = path.withCString { open($0, O_CREAT | O_EXCL | O_WRONLY, 0o600) }
+        guard descriptor >= 0 else { return errno }
+        close(descriptor)
+        _ = path.withCString { unlink($0) }
+        return 0
+    }
+
+    private func ownerUID(of path: String) -> uid_t? {
+        var info = stat()
+        guard path.withCString({ stat($0, &info) }) == 0 else { return nil }
+        return info.st_uid
     }
 
     private func resolved(_ path: String) -> URL {
         URL(fileURLWithPath: path, isDirectory: true).resolvingSymlinksInPath().standardizedFileURL
-    }
-
-    /// Create a uniquely named entry in `root` and remove it again, reporting
-    /// whether the operation actually succeeded.
-    private func probeCreate(in root: String, directory: Bool) -> Bool {
-        let manager = FileManager.default
-        let probe = URL(fileURLWithPath: root, isDirectory: true)
-            .appendingPathComponent(".live-server-probe.\(UUID().uuidString.lowercased())")
-        do {
-            if directory {
-                try manager.createDirectory(at: probe, withIntermediateDirectories: false)
-            } else {
-                try Data("probe\n".utf8).write(to: probe, options: .atomic)
-            }
-        } catch {
-            return false
-        }
-        try? manager.removeItem(at: probe)
-        return true
     }
 
     private func fixtureScriptURL() -> URL {
