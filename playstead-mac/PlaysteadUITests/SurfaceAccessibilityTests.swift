@@ -208,7 +208,13 @@ final class SurfaceAccessibilityTests: XCTestCase {
         harness.validateSemanticTargets(collectionControls.map { .init($0, type: .button) })
         let memberList = harness.element("playstead.curation.collection-member-list")
         XCTAssertTrue(memberList.waitForExistence(timeout: 5))
+        waitForKeyboardFocus(memberList, stage: "all-surface-collection-list-focus")
         memberList.typeKey(.downArrow, modifierFlags: [])
+        waitForValue(
+            harness.element("playstead.curation.collection-selection"),
+            equals: memberIDs[1],
+            stage: "all-surface-collection-second-member-selection"
+        )
         harness.traverseExactFocusSequence(
             [
                 "playstead.curation.collection-command.move-up",
@@ -407,5 +413,18 @@ final class SurfaceAccessibilityTests: XCTestCase {
         for category in UITestHarness.AuditCategory.allCases {
             try harness.audit(category, rootIdentifier: root)
         }
+    }
+
+    private func waitForKeyboardFocus(_ element: XCUIElement, stage: String) {
+        let focused = NSPredicate { _, _ in element.value(forKey: "hasKeyboardFocus") as? Bool == true }
+        let expectation = XCTNSPredicateExpectation(predicate: focused, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed, stage)
+    }
+
+    private func waitForValue(_ element: XCUIElement, equals expected: String, stage: String) {
+        let settled = NSPredicate { _, _ in element.value as? String == expected }
+        let expectation = XCTNSPredicateExpectation(predicate: settled, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed, stage)
+        XCTAssertEqual(element.value as? String, expected, stage)
     }
 }

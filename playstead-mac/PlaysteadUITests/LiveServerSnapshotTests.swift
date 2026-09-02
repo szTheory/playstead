@@ -178,20 +178,26 @@ final class LiveServerSnapshotTests: XCTestCase {
         // Distinct XCTAssertEqual sites make the allowlisted stage visible to
         // the existing bounded xcresult parser without emitting raw IO. The
         // caller immediately returns from the test after this records failure.
-        switch diagnostic {
-        case "live-server fixture failed at validate-input":
+        let allowedStages = [
+            "validate-input", "provision-domain", "request-pairing",
+            "approve-pairing", "redeem-pairing", "add-second-sentinel",
+            "verify-evidence"
+        ]
+        let stage = allowedStages.first { diagnostic.contains("live-server fixture failed at \($0)") }
+        switch stage {
+        case "validate-input":
             XCTAssertEqual(status, 0, "live-server-stage=validate-input action=\(action)")
-        case "live-server fixture failed at provision-domain":
+        case "provision-domain":
             XCTAssertEqual(status, 0, "live-server-stage=provision-domain action=\(action)")
-        case "live-server fixture failed at request-pairing":
+        case "request-pairing":
             XCTAssertEqual(status, 0, "live-server-stage=request-pairing action=\(action)")
-        case "live-server fixture failed at approve-pairing":
+        case "approve-pairing":
             XCTAssertEqual(status, 0, "live-server-stage=approve-pairing action=\(action)")
-        case "live-server fixture failed at redeem-pairing":
+        case "redeem-pairing":
             XCTAssertEqual(status, 0, "live-server-stage=redeem-pairing action=\(action)")
-        case "live-server fixture failed at add-second-sentinel":
+        case "add-second-sentinel":
             XCTAssertEqual(status, 0, "live-server-stage=add-second-sentinel action=\(action)")
-        case "live-server fixture failed at verify-evidence":
+        case "verify-evidence":
             XCTAssertEqual(status, 0, "live-server-stage=verify-evidence action=\(action)")
         default:
             XCTAssertEqual(status, 0, "live-server-stage=bounded-diagnostic-unavailable action=\(action)")
