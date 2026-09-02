@@ -4,10 +4,10 @@ milestone: v1.0
 current_phase: 03.5
 current_phase_name: Mac Verification Automation
 status: executing
-stopped_at: Completed 03.5-08-PLAN.md with hosted run 33569123780 green at aab1a1c
+stopped_at: "Plan 03.5-09 Task 3 blocked on a green hosted run; live-server root-mismatch fixed at 18413b1, run in flight"
 last_updated: "2026-09-01T23:14:13.335Z"
-last_activity: 2026-09-01
-last_activity_desc: Plan 03.5-08 native pairing and Keychain relaunch verification completed
+last_activity: 2026-09-02
+last_activity_desc: "Plan 03.5-09 live-server root-mismatch root-caused and fixed; Task 3 prepared and pre-validated"
 state_head: aab1a1c64910fd250baab12839ad127f7e85e35e
 progress:
   total_phases: 6
@@ -29,9 +29,13 @@ See: `.planning/PROJECT.md` (updated 2026-08-30)
 ## Current Position
 
 Phase: 03.5 (Mac Verification Automation) — EXECUTING
-Plan: 9 of 10
-Status: Ready to execute
-Last activity: 2026-09-01 — Plan 03.5-08 native pairing and Keychain relaunch verification completed
+Plan: 10 of 10 (03.5-09 is the only incomplete plan)
+Status: BLOCKED — 03.5-09 Task 3 needs one green hosted run
+Last activity: 2026-09-02 — live-server root-mismatch root-caused and fixed (18413b1); Task 3 tooling prepared and pre-validated
+
+**Read `.planning/phases/03.5-mac-verification-automation/.continue-here.md` before resuming 03.5-09.**
+It carries the root-cause analysis, the prepared Task 3 sequence, three blocking
+anti-patterns, and the deviations to record in the SUMMARY.
 
 Progress: [█████████░] 90% (Phase 03.5)
 
@@ -161,6 +165,11 @@ Progress: [█████████░] 90% (Phase 03.5)
 - [Phase 03.5]: Plan 03.5-08: Public pairing, exact approval, normal snapshot convergence, and scoped Keychain relaunch are the native Mac acceptance path; no private endpoint or credential override.
 - [Phase 03.5]: Plan 03.5-08: Dynamic native-service values enter XCUITest through explicit LiveServer test-plan build-setting expansion, not incidental Xcode environment inheritance.
 - [Phase 03.5]: Plan 03.5-08: Hosted fixture failures publish only an allowlisted stage token from a fixed mode-0600 runner-owned file.
+- [Phase 03.5]: Plan 03.5-09: The live fixture's PLAYSTEAD_MAC_CI_ROOT and PLAYSTEAD_LIVE_SERVER_STAGE_ROOT must resolve to one directory; an inherited environment is trusted only when self-consistent, otherwise the materialized runtime config is authoritative.
+- [Phase 03.5]: Plan 03.5-09: mac-client-control belongs to the native server root's layout and is created by the runner that owns that root, not by the fixture.
+- [Phase 03.5]: Plan 03.5-09: When a bounded stage token cannot identify the failing statement, split the stage into finer bounded sub-stages rather than guessing; seven consecutive fix attempts preceded doing so.
+- [Phase 03.5]: Plan 03.5-09: validate-phase-3-uat-evidence.py's AUTOMATED_MAPPINGS (23 identifiers) is authoritative over 03.5-09-PLAN.md's stale mapping table.
+- [Phase 03.5]: Plan 03.5-09: Every gate must be exercised against the real file it guards; a fixture-only contract passes its own suite while being unable to accept production input.
 
 ### Pending Todos
 
@@ -174,6 +183,9 @@ None yet.
 - ⚠️ [Phase 01] `mix test` is intermittently flaky (~1 in 3 full runs): `System.put_env("PLAYSTEAD_PROXY", ...)` in tls_trust_test.exs / setup_live_test.exs races async tests in devices_live_test.exs. Fix test isolation before relying on CI as a gate.
 - ⚠️ [Phase 01] Volumes provisioned against a pre-01-08 image keep a root-owned /app/blobs; docs/UPGRADE.md has no note on the symptom or the one-line remediation (`docker compose exec -u root app chown nobody /app/blobs`).
 - ⚠️ [Phase 01] Readiness panel is only visible inside the one-shot setup wizard; recovery codes cannot be regenerated from the console (both added to PROJECT.md Active requirements).
+- ⚠️ [Phase 03.5] Plan 03.5-09 Task 3 is gated on one green hosted run. All four Mac layers plus both Linux jobs must pass; as of 18413b1 only live-server had ever failed.
+- ⚠️ [Phase 03.5] Two local gates are dormant and unreachable from CI: wave-0-topology-test.sh (stale `server: true` literal, superseded by plan 08) and plan-05-surface-contract-test.sh (identity drift from plan 09 plus launch-env drift from plans 06/07). Neither has protected anything since ~plan 06. Fix and wire into the mac job after 03.5 closes.
+- ⚠️ [Phase 03.5] ci.yml uses `concurrency: ci-${{ github.ref }}` with cancel-in-progress. Any push — including a docs-only commit — cancels a run in flight. Commit locally and push after the run you need has landed.
 
 ### Quick Tasks Completed
 
@@ -191,6 +203,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-01T23:14:13.262Z
-Stopped at: Completed 03.5-08-PLAN.md with hosted run 33569123780 green at aab1a1c
-Resume file: None
+Last session: 2026-09-02T20:20:00.000Z
+Stopped at: 03.5-09 Task 3 blocked on a green hosted run (root cause fixed at 18413b1)
+Resume file: .planning/phases/03.5-mac-verification-automation/.continue-here.md
