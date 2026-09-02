@@ -212,11 +212,14 @@ final class SurfaceAccessibilityTests: XCTestCase {
         let memberList = harness.element("playstead.curation.collection-member-list")
         XCTAssertTrue(memberList.waitForExistence(timeout: 5))
         waitForKeyboardFocus(memberList, stage: "all-surface-collection-list-focus")
-        memberList.typeKey(.downArrow, modifierFlags: [])
+        let selection = harness.element("playstead.curation.collection-selection")
+        for _ in 0..<3 where selection.value as? String != memberIDs[2] {
+            memberList.typeKey(.downArrow, modifierFlags: [])
+        }
         waitForValue(
-            harness.element("playstead.curation.collection-selection"),
-            equals: memberIDs[1],
-            stage: "all-surface-collection-second-member-selection"
+            selection,
+            equals: memberIDs[2],
+            stage: "all-surface-collection-last-member-selection"
         )
         // A macOS SwiftUI List owns arrow-key focus as one control; its row
         // actions are semantic audit targets, not an independent Tab ring.
@@ -231,18 +234,18 @@ final class SurfaceAccessibilityTests: XCTestCase {
             type: .button
         )
         XCTAssertTrue(selectedMoveUp.isEnabled, "all-surface-collection-selected-move-up-disabled")
-        XCTAssertTrue(selectedMoveDown.isEnabled, "all-surface-collection-selected-move-down-disabled")
-        harness.app.typeKey("d", modifierFlags: [.command, .option])
+        XCTAssertFalse(selectedMoveDown.isEnabled, "all-surface-collection-last-member-move-down-enabled")
+        harness.app.typeKey("u", modifierFlags: [.command, .option])
         waitForValue(
             harness.element("playstead.test.curation.evidence"),
             equals: curationEvidence(order: [memberIDs[0], memberIDs[2], memberIDs[1]], outboxCount: 1),
             stage: "all-surface-collection-keyboard-reorder-not-settled"
         )
-        XCTAssertFalse(selectedMoveDown.isEnabled, "all-surface-collection-selected-move-down-still-enabled")
+        XCTAssertTrue(selectedMoveDown.isEnabled, "all-surface-collection-selected-move-down-lost")
         XCTAssertTrue(selectedMoveUp.isEnabled, "all-surface-collection-selected-move-up-lost")
         XCTAssertEqual(
-            harness.element("playstead.curation.collection-selection").value as? String,
-            memberIDs[1],
+            selection.value as? String,
+            memberIDs[2],
             "all-surface-collection-selection-lost-after-reorder"
         )
         try auditEveryCategory(root: "playstead.surface.collection-detail")

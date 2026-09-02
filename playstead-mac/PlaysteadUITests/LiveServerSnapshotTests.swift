@@ -156,6 +156,7 @@ final class LiveServerSnapshotTests: XCTestCase {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         process.arguments = [script.path, action, root.path]
+        process.environment = ProcessInfo.processInfo.environment
         let diagnostics = Pipe()
         process.standardOutput = FileHandle.nullDevice
         process.standardError = diagnostics
