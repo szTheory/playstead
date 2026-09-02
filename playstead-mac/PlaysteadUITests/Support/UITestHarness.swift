@@ -103,7 +103,8 @@ final class UITestHarness {
     func traverseExactFocusSequence(
         _ identifiers: [String],
         activate identifier: String,
-        failureStage: String = "exact-focus-generic"
+        failureStage: String = "exact-focus-generic",
+        rootIdentifier: String? = nil
     ) {
         let marker = "PLAYSTEAD_FAILURE_STAGE[\(failureStage)]"
         XCTAssertFalse(identifiers.isEmpty, "focus order must be test-owned and nonempty \(marker)")
@@ -116,11 +117,11 @@ final class UITestHarness {
             if hasKeyboardFocus(expected[0]) { foundStart = true; break }
         }
         XCTAssertTrue(foundStart, "Tab never reached the independently declared first control \(marker)")
-        assertExactlyOneFocusedAction(expected: expected[0], marker: marker)
+        assertExactlyOneFocusedAction(expected: expected[0], marker: marker, rootIdentifier: rootIdentifier)
 
         for next in expected.dropFirst() {
             app.typeKey(.tab, modifierFlags: [])
-            assertExactlyOneFocusedAction(expected: next, marker: marker)
+            assertExactlyOneFocusedAction(expected: next, marker: marker, rootIdentifier: rootIdentifier)
         }
         var wrappedForward = false
         for _ in 0..<24 {
@@ -129,7 +130,7 @@ final class UITestHarness {
             XCTAssertFalse(expected.dropFirst().contains(where: hasKeyboardFocus), "focus sequence wrapped to the wrong declared control \(marker)")
         }
         XCTAssertTrue(wrappedForward, "focus sequence did not wrap to its first declared control \(marker)")
-        assertExactlyOneFocusedAction(expected: expected[0], marker: marker)
+        assertExactlyOneFocusedAction(expected: expected[0], marker: marker, rootIdentifier: rootIdentifier)
 
         var wrappedReverse = false
         for _ in 0..<24 {
@@ -138,7 +139,11 @@ final class UITestHarness {
             XCTAssertFalse(expected.dropLast().contains(where: hasKeyboardFocus), "reverse focus sequence reached the wrong declared control \(marker)")
         }
         XCTAssertTrue(wrappedReverse, "reverse focus sequence did not wrap to its last declared control \(marker)")
-        assertExactlyOneFocusedAction(expected: expected[expected.count - 1], marker: marker)
+        assertExactlyOneFocusedAction(
+            expected: expected[expected.count - 1],
+            marker: marker,
+            rootIdentifier: rootIdentifier
+        )
 
         let activationTarget = element(identifier, type: .button)
         guard let activationIndex = identifiers.firstIndex(of: identifier) else {
@@ -163,7 +168,7 @@ final class UITestHarness {
             }
         }
         XCTAssertTrue(foundActivationTarget, "activation target was absent from the exact focus sequence \(marker)")
-        assertExactlyOneFocusedAction(expected: activationTarget, marker: marker)
+        assertExactlyOneFocusedAction(expected: activationTarget, marker: marker, rootIdentifier: rootIdentifier)
         XCTAssertTrue(hasKeyboardFocus(activationTarget), "activation target did not own focus \(marker)")
         app.typeKey(.space, modifierFlags: [])
         identifierTrace.append(identifier)
@@ -311,8 +316,13 @@ final class UITestHarness {
         element.value(forKey: "hasKeyboardFocus") as? Bool == true
     }
 
-    private func assertExactlyOneFocusedAction(expected: XCUIElement, marker: String) {
-        let focused = app.buttons.matching(NSPredicate(format: "hasKeyboardFocus == true")).allElementsBoundByIndex
+    private func assertExactlyOneFocusedAction(
+        expected: XCUIElement,
+        marker: String,
+        rootIdentifier: String?
+    ) {
+        let buttons = rootIdentifier.map { element($0).descendants(matching: .button) } ?? app.buttons
+        let focused = buttons.matching(NSPredicate(format: "hasKeyboardFocus == true")).allElementsBoundByIndex
         XCTAssertEqual(focused.count, 1, "exactly one actionable element must own focus \(marker)")
         XCTAssertTrue(hasKeyboardFocus(expected), "focus order diverged from the test-owned sequence \(marker)")
     }

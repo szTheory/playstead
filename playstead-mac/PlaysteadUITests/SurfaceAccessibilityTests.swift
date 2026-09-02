@@ -307,7 +307,8 @@ final class SurfaceAccessibilityTests: XCTestCase {
         harness.traverseExactFocusSequence(
             ["playstead.control.install-adapter", "playstead.control.choose-adapter"],
             activate: "playstead.control.install-adapter",
-            failureStage: "all-surface-adapter-actions"
+            failureStage: "all-surface-adapter-actions",
+            rootIdentifier: "playstead.surface.adapter"
         )
         try auditEveryCategory(root: "playstead.surface.adapter")
         dismissSheet(root: "playstead.surface.adapter", opener: adapterOpener)

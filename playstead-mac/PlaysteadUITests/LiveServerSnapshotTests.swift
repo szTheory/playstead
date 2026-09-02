@@ -153,9 +153,13 @@ final class LiveServerSnapshotTests: XCTestCase {
             return false
         }
         let script = fixtureScriptURL()
+        guard let serverRoot = ProcessInfo.processInfo.environment["PLAYSTEAD_MAC_CI_ROOT"] else {
+            recordFixtureFailure(stage: "validate-input", action: action, status: -1)
+            return false
+        }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = [script.path, action, root.path]
+        process.arguments = [script.path, action, root.path, serverRoot]
         process.environment = ProcessInfo.processInfo.environment
         let diagnostics = Pipe()
         process.standardOutput = FileHandle.nullDevice

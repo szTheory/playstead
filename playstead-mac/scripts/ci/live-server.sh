@@ -44,11 +44,13 @@ die() { exit 1; }
 [ "$#" -ge 1 ] || die
 root="${2:-}"
 [ -n "$root" ] && [ "${root#/}" != "$root" ] || die
-[ -n "${PLAYSTEAD_MAC_CI_ROOT:-}" ] || die
+server_data_root="${3:-${PLAYSTEAD_MAC_CI_ROOT:-}}"
+[ -n "$server_data_root" ] && [ "${server_data_root#/}" != "$server_data_root" ] || die
+export PLAYSTEAD_MAC_CI_ROOT="$server_data_root"
 
 server_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../playstead-server" && pwd)"
 control="$root/control"
-server_control="$PLAYSTEAD_MAC_CI_ROOT/mac-client-control"
+server_control="$server_data_root/mac-client-control"
 mkdir -p "$control"
 mkdir -p "$server_control"
 chmod 0700 "$root" "$control" "$server_control"
