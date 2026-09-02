@@ -152,6 +152,11 @@ if 'test_selection=(-xctestrun "$LIVE_SERVER_XCTESTRUN")' not in test_layer:
     raise SystemExit("LiveServer must consume the exact generated xctestrun that received its concrete environment")
 if 'live-server layer requires a materialized generated xctestrun' not in test_layer:
     raise SystemExit("LiveServer must fail closed before resolving an unpatched test configuration")
+xctestrun_materializer = runner_source.split("materialize_live_server_xctestrun() {", 1)[1].split("restore_keyboard_mode() {", 1)[0]
+if 'targets[0].setdefault("EnvironmentVariables", {})' not in xctestrun_materializer:
+    raise SystemExit("LiveServer xctestrun must carry concrete scheme test-host environment")
+if 'targets[0].setdefault("TestingEnvironmentVariables", {})' not in xctestrun_materializer:
+    raise SystemExit("LiveServer xctestrun must carry concrete XCTest-host environment")
 PY
 
 grep -F 'app.launchEnvironment["PLAYSTEAD_WAVE_0_LAUNCH_CANARY"] = "1"' "$UI_CANARY" >/dev/null

@@ -114,6 +114,10 @@ environment = targets[0].setdefault("EnvironmentVariables", {})
 if not isinstance(environment, dict):
     raise SystemExit("generated xctestrun environment is not a dictionary")
 environment.update(values)
+testing_environment = targets[0].setdefault("TestingEnvironmentVariables", {})
+if not isinstance(testing_environment, dict):
+    raise SystemExit("generated xctestrun testing environment is not a dictionary")
+testing_environment.update(values)
 
 temporary = path.with_name(path.name + ".tmp")
 with temporary.open("wb") as stream:
