@@ -23,6 +23,14 @@
       <MacroExpansion>
          <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="44DC10C2CEB44A12A91241F2" BuildableName="Playstead.app" BlueprintName="Playstead" ReferencedContainer="container:Playstead.xcodeproj"/>
       </MacroExpansion>
+      <EnvironmentVariables>
+         <EnvironmentVariable key="PLAYSTEAD_MAC_CI_ROOT" value="$(PLAYSTEAD_MAC_CI_ROOT)" isEnabled="YES"/>
+         <EnvironmentVariable key="PLAYSTEAD_LIVE_SERVER_STAGE_ROOT" value="$(PLAYSTEAD_LIVE_SERVER_STAGE_ROOT)" isEnabled="YES"/>
+         <EnvironmentVariable key="PLAYSTEAD_LIVE_SERVER_STAGE_FILE" value="$(PLAYSTEAD_LIVE_SERVER_STAGE_FILE)" isEnabled="YES"/>
+         <EnvironmentVariable key="MAC_CI_DATABASE_URL" value="$(MAC_CI_DATABASE_URL)" isEnabled="YES"/>
+         <EnvironmentVariable key="MIX_ENV" value="$(MIX_ENV)" isEnabled="YES"/>
+         <EnvironmentVariable key="PORT" value="$(PORT)" isEnabled="YES"/>
+      </EnvironmentVariables>
    </TestAction>
    <LaunchAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.DebuggerFoundation.Launcher.LLDB" launchStyle="0" useCustomWorkingDirectory="NO" ignoresPersistentStateOnLaunch="NO" debugDocumentVersioning="YES" debugServiceExtension="internal" allowLocationSimulation="YES">
       <BuildableProductRunnable runnableDebuggingMode="0">
