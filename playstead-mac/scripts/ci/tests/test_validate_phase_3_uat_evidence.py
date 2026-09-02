@@ -210,6 +210,54 @@ class ValidatorTests(unittest.TestCase):
     def test_rejects_non_partial_frontmatter(self):
         self.assert_rejected(uat=valid_uat().replace("status: partial", "status: complete", 1))
 
+    def test_accepts_canonical_roadmap_heading_shape(self):
+        """The canonical ROADMAP.md nests `### Phase 3.5` under `## Phase Details`,
+        introduces its list with a bold `**Success Criteria**` label, and indents the
+        entries. A validator that only parses the fixture's flatter shape passes its
+        own suite while being unable to accept the real file it gates."""
+        canonical = """# Roadmap
+
+## Phase Details
+
+### Phase 3: Mac Offline Play Vertical Slice
+
+**Goal**: Fixture goal.
+
+### Phase 3.5: Mac Verification Automation
+
+**Goal**: Fixture goal.
+**Success Criteria** (what must be TRUE):
+
+  1. Fixture criterion.
+  2. Fixture criterion.
+  3. Fixture criterion.
+  4. Linux `compose-smoke` proves deployment topology; native PostgreSQL 17 plus Phoenix beside XCUITest proves Mac client/server behavior.
+  5. Fixture criterion.
+
+**Research / spike flags**: Fixture note.
+
+### Phase 4: Persistent Save Continuity
+
+**Goal**: Fixture goal.
+"""
+        result = self.run_validator(roadmap=canonical)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_rejects_drift_in_canonical_roadmap_heading_shape(self):
+        canonical = """# Roadmap
+
+## Phase Details
+
+### Phase 3.5: Mac Verification Automation
+
+**Success Criteria** (what must be TRUE):
+
+  4. Linux `compose-smoke` and the Mac tests both pass.
+
+**Research / spike flags**: Fixture note.
+"""
+        self.assert_rejected(roadmap=canonical)
+
     def test_rejects_roadmap_topology_claim_outside_phase_3_5_or_wrong_mechanism(self):
         claim = "Linux `compose-smoke` proves deployment topology; native PostgreSQL 17 plus Phoenix beside XCUITest proves Mac client/server behavior."
         self.assert_rejected(roadmap=valid_roadmap().replace(claim, "Compose and Mac tests pass."))

@@ -140,22 +140,41 @@ def validate_uat(document):
     validate_checkpoint_10(sections[10])
 
 
-def markdown_level_two_sections(document):
-    matches = list(re.finditer(r"(?m)^## (?P<title>.+)$", document))
-    return [
-        (match.group("title"), document[match.start():(matches[index + 1].start() if index + 1 < len(matches) else len(document))])
-        for index, match in enumerate(matches)
-    ]
+def heading_sections(document):
+    """Every ATX heading with its body, which runs to the next heading of the
+    same or shallower level. Depth-aware because a phase may be nested (the
+    canonical ROADMAP.md nests `### Phase N` under `## Phase Details`) or
+    top-level, and a nested subheading must not truncate its own parent."""
+    matches = list(re.finditer(r"(?m)^(?P<hashes>#{2,6}) (?P<title>.+)$", document))
+    sections = []
+    for index, match in enumerate(matches):
+        level = len(match.group("hashes"))
+        end = len(document)
+        for later in matches[index + 1:]:
+            if len(later.group("hashes")) <= level:
+                end = later.start()
+                break
+        sections.append((match.group("title"), document[match.start():end]))
+    return sections
 
 
 def validate_roadmap(document):
-    phase_sections = [body for title, body in markdown_level_two_sections(document) if re.match(r"Phase 3\.5(?:\b|:)", title)]
+    phase_sections = [body for title, body in heading_sections(document) if re.match(r"Phase 3\.5(?:\b|:)", title)]
     require(len(phase_sections) == 1, "Roadmap must contain exactly one Phase 3.5 section")
     phase = phase_sections[0]
-    success_match = re.search(r"(?ms)^### Success Criteria\s*$\n(?P<body>.*?)(?=^### |\Z)", phase)
+    # The criteria list is introduced either by its own subheading or by a bold
+    # label (`**Success Criteria** (what must be TRUE):`), and its entries may be
+    # indented. It ends at the next heading or the next bold label.
+    success_match = re.search(
+        r"(?ms)^(?:#{3,6} Success Criteria[ \t]*|\*\*Success Criteria\*\*[^\n]*)\n(?P<body>.*?)(?=^#{2,6} |^\*\*|\Z)",
+        phase,
+    )
     require(success_match is not None, "Phase 3.5 success criteria section missing")
     criteria = success_match.group("body")
-    criterion_four = re.search(r"(?ms)^4\. (?P<body>.*?)(?=^[1-9][0-9]*\. |\Z)", criteria)
+    criterion_four = re.search(
+        r"(?ms)^[ \t]*4\. (?P<body>.*?)(?=^[ \t]*[1-9][0-9]*\. |^#{2,6} |^\*\*|\Z)",
+        criteria,
+    )
     require(criterion_four is not None, "Phase 3.5 success criterion 4 missing")
     normalized = " ".join(criterion_four.group("body").split())
     require(normalized == ROADMAP_CRITERION, "Phase 3.5 success criterion 4 topology wording drifted")
