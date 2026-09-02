@@ -170,7 +170,8 @@ final class SurfaceAccessibilityTests: XCTestCase {
                 "playstead.control.show-list",
                 "playstead.control.open-readiness"
             ],
-            activate: "playstead.control.show-list"
+            activate: "playstead.control.show-list",
+            failureStage: "all-surface-library-layout"
         )
         recordRequired(["playstead.surface.game-list"], in: &visited)
         try auditEveryCategory(root: "playstead.surface.library")
@@ -220,7 +221,8 @@ final class SurfaceAccessibilityTests: XCTestCase {
                 "playstead.curation.collection-command.move-up",
                 "playstead.curation.collection-command.move-down"
             ],
-            activate: "playstead.curation.collection-command.move-down"
+            activate: "playstead.curation.collection-command.move-down",
+            failureStage: "all-surface-collection-reorder"
         )
         try auditEveryCategory(root: "playstead.surface.collection-detail")
 
@@ -259,7 +261,8 @@ final class SurfaceAccessibilityTests: XCTestCase {
                 "playstead.control.show-list",
                 "playstead.control.open-readiness"
             ],
-            activate: "playstead.control.show-list"
+            activate: "playstead.control.show-list",
+            failureStage: "all-surface-quota-list"
         )
         selectQuotaDownloadByKeyboard()
         harness.app.typeKey("d", modifierFlags: [.command])
@@ -279,7 +282,8 @@ final class SurfaceAccessibilityTests: XCTestCase {
         harness.validateSemanticTargets(adapterTargets)
         harness.traverseExactFocusSequence(
             ["playstead.control.install-adapter", "playstead.control.choose-adapter"],
-            activate: "playstead.control.install-adapter"
+            activate: "playstead.control.install-adapter",
+            failureStage: "all-surface-adapter-actions"
         )
         try auditEveryCategory(root: "playstead.surface.adapter")
         dismissSheet(root: "playstead.surface.adapter", opener: adapterOpener)

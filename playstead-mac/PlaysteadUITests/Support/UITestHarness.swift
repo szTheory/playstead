@@ -100,44 +100,49 @@ final class UITestHarness {
         }
     }
 
-    func traverseExactFocusSequence(_ identifiers: [String], activate identifier: String) {
-        XCTAssertFalse(identifiers.isEmpty, "focus order must be test-owned and nonempty")
+    func traverseExactFocusSequence(
+        _ identifiers: [String],
+        activate identifier: String,
+        failureStage: String = "exact-focus-generic"
+    ) {
+        let marker = "PLAYSTEAD_FAILURE_STAGE[\(failureStage)]"
+        XCTAssertFalse(identifiers.isEmpty, "focus order must be test-owned and nonempty \(marker)")
         let expected = identifiers.map { element($0, type: .button) }
-        for target in expected { XCTAssertTrue(target.waitForExistence(timeout: 5)) }
+        for target in expected { XCTAssertTrue(target.waitForExistence(timeout: 5), marker) }
 
         var foundStart = false
         for _ in 0..<24 {
             app.typeKey(.tab, modifierFlags: [])
             if hasKeyboardFocus(expected[0]) { foundStart = true; break }
         }
-        XCTAssertTrue(foundStart, "Tab never reached the independently declared first control")
-        assertExactlyOneFocusedAction(expected: expected[0])
+        XCTAssertTrue(foundStart, "Tab never reached the independently declared first control \(marker)")
+        assertExactlyOneFocusedAction(expected: expected[0], marker: marker)
 
         for next in expected.dropFirst() {
             app.typeKey(.tab, modifierFlags: [])
-            assertExactlyOneFocusedAction(expected: next)
+            assertExactlyOneFocusedAction(expected: next, marker: marker)
         }
         var wrappedForward = false
         for _ in 0..<24 {
             app.typeKey(.tab, modifierFlags: [])
             if hasKeyboardFocus(expected[0]) { wrappedForward = true; break }
-            XCTAssertFalse(expected.dropFirst().contains(where: hasKeyboardFocus), "focus sequence wrapped to the wrong declared control")
+            XCTAssertFalse(expected.dropFirst().contains(where: hasKeyboardFocus), "focus sequence wrapped to the wrong declared control \(marker)")
         }
-        XCTAssertTrue(wrappedForward, "focus sequence did not wrap to its first declared control")
-        assertExactlyOneFocusedAction(expected: expected[0])
+        XCTAssertTrue(wrappedForward, "focus sequence did not wrap to its first declared control \(marker)")
+        assertExactlyOneFocusedAction(expected: expected[0], marker: marker)
 
         var wrappedReverse = false
         for _ in 0..<24 {
             app.typeKey(.tab, modifierFlags: [.shift])
             if hasKeyboardFocus(expected[expected.count - 1]) { wrappedReverse = true; break }
-            XCTAssertFalse(expected.dropLast().contains(where: hasKeyboardFocus), "reverse focus sequence reached the wrong declared control")
+            XCTAssertFalse(expected.dropLast().contains(where: hasKeyboardFocus), "reverse focus sequence reached the wrong declared control \(marker)")
         }
-        XCTAssertTrue(wrappedReverse, "reverse focus sequence did not wrap to its last declared control")
-        assertExactlyOneFocusedAction(expected: expected[expected.count - 1])
+        XCTAssertTrue(wrappedReverse, "reverse focus sequence did not wrap to its last declared control \(marker)")
+        assertExactlyOneFocusedAction(expected: expected[expected.count - 1], marker: marker)
 
         let activationTarget = element(identifier, type: .button)
         guard let activationIndex = identifiers.firstIndex(of: identifier) else {
-            return XCTFail("activation target is not part of the test-owned focus sequence")
+            return XCTFail("activation target is not part of the test-owned focus sequence \(marker)")
         }
         var foundActivationTarget = hasKeyboardFocus(activationTarget)
         var nextDeclaredIndex = 0
@@ -148,7 +153,7 @@ final class UITestHarness {
                 XCTAssertEqual(
                     focusedDeclared,
                     [nextDeclaredIndex],
-                    "activation search crossed declared controls out of cyclic order"
+                    "activation search crossed declared controls out of cyclic order \(marker)"
                 )
                 if focusedDeclared[0] == activationIndex {
                     foundActivationTarget = true
@@ -157,9 +162,9 @@ final class UITestHarness {
                 nextDeclaredIndex = (nextDeclaredIndex + 1) % expected.count
             }
         }
-        XCTAssertTrue(foundActivationTarget, "activation target was absent from the exact focus sequence")
-        assertExactlyOneFocusedAction(expected: activationTarget)
-        XCTAssertTrue(hasKeyboardFocus(activationTarget), "activation target did not own focus")
+        XCTAssertTrue(foundActivationTarget, "activation target was absent from the exact focus sequence \(marker)")
+        assertExactlyOneFocusedAction(expected: activationTarget, marker: marker)
+        XCTAssertTrue(hasKeyboardFocus(activationTarget), "activation target did not own focus \(marker)")
         app.typeKey(.space, modifierFlags: [])
         identifierTrace.append(identifier)
     }
@@ -306,10 +311,10 @@ final class UITestHarness {
         element.value(forKey: "hasKeyboardFocus") as? Bool == true
     }
 
-    private func assertExactlyOneFocusedAction(expected: XCUIElement) {
+    private func assertExactlyOneFocusedAction(expected: XCUIElement, marker: String) {
         let focused = app.buttons.matching(NSPredicate(format: "hasKeyboardFocus == true")).allElementsBoundByIndex
-        XCTAssertEqual(focused.count, 1, "exactly one actionable element must own focus")
-        XCTAssertTrue(hasKeyboardFocus(expected), "focus order diverged from the test-owned sequence")
+        XCTAssertEqual(focused.count, 1, "exactly one actionable element must own focus \(marker)")
+        XCTAssertTrue(hasKeyboardFocus(expected), "focus order diverged from the test-owned sequence \(marker)")
     }
 }
 

@@ -481,7 +481,20 @@ def normalized_outcome(result):
 nodes = []
 audit_issues = []
 failure_diagnostics = []
+failure_stages = set()
 audit_pattern = re.compile(r"PLAYSTEAD_A11Y_ISSUES\[([A-Za-z]+)\]=([a-z0-9.,@-]+)")
+ui_stage_pattern = re.compile(r"PLAYSTEAD_FAILURE_STAGE\[([a-z0-9-]+)\]")
+live_stage_pattern = re.compile(r"live-server-stage=([a-z0-9-]+) action=([a-z0-9-]+)")
+allowed_ui_stages = {
+    "all-surface-library-layout", "all-surface-collection-reorder",
+    "all-surface-quota-list", "all-surface-adapter-actions",
+}
+allowed_live_stages = {
+    "validate-input", "provision-domain", "request-pairing",
+    "approve-pairing", "redeem-pairing", "add-second-sentinel",
+    "verify-evidence", "bounded-diagnostic-unavailable",
+}
+allowed_live_actions = {"prepare", "second", "verify", "unknown"}
 assertion_pattern = re.compile(
     r"\b(XCTAssert(?:True|False|Equal|NotEqual|Nil|NotNil|LessThan|LessThanOrEqual|GreaterThan|GreaterThanOrEqual|NoThrow|ThrowsError)|XCTFail|XCTUnwrap)\b"
 )
@@ -587,6 +600,14 @@ def walk(value):
                 if diagnostic is not None:
                     failure_diagnostics.append(diagnostic)
             for diagnostic in strings(value):
+                for match in ui_stage_pattern.finditer(diagnostic):
+                    stage = match.group(1)
+                    if stage in allowed_ui_stages:
+                        failure_stages.add(stage)
+                for match in live_stage_pattern.finditer(diagnostic):
+                    stage, action = match.groups()
+                    if stage in allowed_live_stages and action in allowed_live_actions:
+                        failure_stages.add(f"live-server-{stage}-{action}")
                 for match in audit_pattern.finditer(diagnostic):
                     category, identifiers = match.groups()
                     for element in identifiers.split(","):
@@ -668,6 +689,8 @@ summary = {
 pathlib.Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 pathlib.Path(output_path).write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 print(f"{layer}: verified {len(required)} required test(s) across {len(nodes)} executed test(s)")
+for stage in sorted(failure_stages):
+    print(f"{layer}: FAILURE_STAGE {stage}")
 if verification_errors:
     raise SystemExit(f"{layer}: " + "; ".join(verification_errors))
 PY
