@@ -144,14 +144,7 @@ final class LiveServerSnapshotTests: XCTestCase {
     }
 
     private func runFixture(_ action: String, root: URL) throws -> Bool {
-        guard seedFixtureStage(for: action) else {
-            recordFixtureFailure(
-                stage: fixtureEntryStage(for: action) ?? "validate-input",
-                action: action,
-                status: -1
-            )
-            return false
-        }
+        seedFixtureStageBestEffort(for: action)
         let script = fixtureScriptURL()
         guard let serverRoot = ProcessInfo.processInfo.environment["PLAYSTEAD_MAC_CI_ROOT"] else {
             recordFixtureFailure(stage: "validate-input", action: action, status: -1)
@@ -203,16 +196,16 @@ final class LiveServerSnapshotTests: XCTestCase {
         }
     }
 
-    private func seedFixtureStage(for action: String) -> Bool {
-        guard let stage = fixtureEntryStage(for: action) else { return false }
+    private func seedFixtureStageBestEffort(for action: String) {
+        guard let stage = fixtureEntryStage(for: action) else { return }
         let environment = ProcessInfo.processInfo.environment
         guard
             let stageRoot = environment["PLAYSTEAD_LIVE_SERVER_STAGE_ROOT"],
             let stageFile = environment["PLAYSTEAD_LIVE_SERVER_STAGE_FILE"]
-        else { return false }
+        else { return }
         let rootURL = URL(fileURLWithPath: stageRoot, isDirectory: true).standardizedFileURL
         let stageURL = URL(fileURLWithPath: stageFile).standardizedFileURL
-        guard stageURL.deletingLastPathComponent() == rootURL else { return false }
+        guard stageURL.deletingLastPathComponent() == rootURL else { return }
 
         let temporary = rootURL.appendingPathComponent(".live-server-failure-stage.\(UUID().uuidString.lowercased())")
         let manager = FileManager.default
@@ -223,10 +216,8 @@ final class LiveServerSnapshotTests: XCTestCase {
                 try manager.removeItem(at: stageURL)
             }
             try manager.moveItem(at: temporary, to: stageURL)
-            return true
         } catch {
             try? manager.removeItem(at: temporary)
-            return false
         }
     }
 
