@@ -231,11 +231,12 @@ final class SurfaceAccessibilityTests: XCTestCase {
         XCTAssertTrue(selectedMoveUp.isEnabled, "all-surface-collection-selected-move-up-disabled")
         XCTAssertTrue(selectedMoveDown.isEnabled, "all-surface-collection-selected-move-down-disabled")
         harness.app.typeKey("d", modifierFlags: [.command, .option])
-        waitForEnabled(
-            selectedMoveDown,
-            equals: false,
+        waitForValue(
+            harness.element("playstead.test.curation.evidence"),
+            equals: curationEvidence(order: [memberIDs[0], memberIDs[2], memberIDs[1]], outboxCount: 1),
             stage: "all-surface-collection-keyboard-reorder-not-settled"
         )
+        XCTAssertFalse(selectedMoveDown.isEnabled, "all-surface-collection-selected-move-down-still-enabled")
         XCTAssertTrue(selectedMoveUp.isEnabled, "all-surface-collection-selected-move-up-lost")
         XCTAssertEqual(
             harness.element("playstead.curation.collection-selection").value as? String,
@@ -450,10 +451,12 @@ final class SurfaceAccessibilityTests: XCTestCase {
         XCTAssertEqual(element.value as? String, expected, stage)
     }
 
-    private func waitForEnabled(_ element: XCUIElement, equals expected: Bool, stage: String) {
-        let settled = NSPredicate { _, _ in element.isEnabled == expected }
-        let expectation = XCTNSPredicateExpectation(predicate: settled, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed, stage)
-        XCTAssertEqual(element.isEnabled, expected, stage)
+    private func curationEvidence(order: [String], outboxCount: Int) -> String {
+        let catalogueFingerprint = [
+            "72cd6e8422c407fb6d098690f1130b7ded7ec2f7f5e1d30bd9d521f015363793",
+            "75877bb41d393b5fb8455ce60ecd8dda001d06316496b14dfa7f895656eeca4a",
+            "648aa5c579fb30f38af744d97d6ec840c7a91277a499a0d780f3e7314eca090b"
+        ].sorted().joined(separator: ",")
+        return "order=\(order.joined(separator: ","));outbox=\(outboxCount);catalogue=\(catalogueFingerprint)"
     }
 }

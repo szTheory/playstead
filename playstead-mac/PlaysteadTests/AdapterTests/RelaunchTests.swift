@@ -60,32 +60,35 @@ final class RelaunchTests: XCTestCase {
     func testPreviouslyLaunchableGameStillEvaluatesLaunchableAfterClosingAndReopeningEveryStoreWithNetworkStubbedToFail() throws {
         let paths = AppPaths(root: tempRoot)
 
-        // First "session": seed a verified cached object, an installed
-        // adapter, and a validated BIOS, and confirm readiness.
-        let casA = CASManager(paths: paths)
-        let localStoreA = try LocalStore(paths: paths)
-        let downloadQueueA = DownloadQueue(localStore: localStoreA)
-        let member = try seedVerifiedObject(paths: paths, cas: casA, seed: "relaunch-game")
-
         let managedBiosDir = tempRoot.appendingPathComponent("bios", isDirectory: true)
-        let biosStoreA = BiosStore(
-            localStore: localStoreA, managedDirectory: managedBiosDir,
-            references: [BiosStore.Reference(system: "gba", expectedByteLength: 4, knownSHA256Digests: [sha256Hex(Data([1, 2, 3, 4]))])]
-        )
-        let biosCandidate = tempRoot.appendingPathComponent("candidate.bin")
-        try Data([1, 2, 3, 4]).write(to: biosCandidate)
-        try biosStoreA.validateAndAccept(candidateURL: biosCandidate, system: "gba")
+        let member: RequiredMember
+        do {
+            // First "session": seed a verified cached object, an installed
+            // adapter, and a validated BIOS, and confirm readiness.
+            let casA = CASManager(paths: paths)
+            let localStoreA = try LocalStore(paths: paths)
+            let downloadQueueA = DownloadQueue(localStore: localStoreA)
+            member = try seedVerifiedObject(paths: paths, cas: casA, seed: "relaunch-game")
 
-        let engineA = ReadinessEngine(
-            cas: casA, downloadQueue: downloadQueueA,
-            adapterInstallState: { .installed(executablePath: "/usr/bin/true", verified: true) },
-            biosRequired: true,
-            hasManagedBIOS: { biosStoreA.hasManagedBIOS(forSystem: "gba") },
-            hasController: { false }, hasKeyboard: { true },
-            saveDirectoryURL: saveDir
-        )
-        let reportA = engineA.evaluate(assetSetID: "relaunch-game", requiredMembers: [member])
-        XCTAssertTrue(reportA.isReady, "expected the first session to be launch-ready before simulating a restart")
+            let biosStoreA = BiosStore(
+                localStore: localStoreA, managedDirectory: managedBiosDir,
+                references: [BiosStore.Reference(system: "gba", expectedByteLength: 4, knownSHA256Digests: [sha256Hex(Data([1, 2, 3, 4]))])]
+            )
+            let biosCandidate = tempRoot.appendingPathComponent("candidate.bin")
+            try Data([1, 2, 3, 4]).write(to: biosCandidate)
+            try biosStoreA.validateAndAccept(candidateURL: biosCandidate, system: "gba")
+
+            let engineA = ReadinessEngine(
+                cas: casA, downloadQueue: downloadQueueA,
+                adapterInstallState: { .installed(executablePath: "/usr/bin/true", verified: true) },
+                biosRequired: true,
+                hasManagedBIOS: { biosStoreA.hasManagedBIOS(forSystem: "gba") },
+                hasController: { false }, hasKeyboard: { true },
+                saveDirectoryURL: saveDir
+            )
+            let reportA = engineA.evaluate(assetSetID: "relaunch-game", requiredMembers: [member])
+            XCTAssertTrue(reportA.isReady, "expected the first session to be launch-ready before simulating a restart")
+        }
 
         // Simulate an application restart: every `LocalStore`/`CASManager`
         // instance above goes out of scope here; nothing from this test

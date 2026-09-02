@@ -144,6 +144,14 @@ final class LiveServerSnapshotTests: XCTestCase {
     }
 
     private func runFixture(_ action: String, root: URL) throws -> Bool {
+        guard seedFixtureStage(for: action) else {
+            recordFixtureFailure(
+                stage: fixtureEntryStage(for: action) ?? "validate-input",
+                action: action,
+                status: -1
+            )
+            return false
+        }
         let script = fixtureScriptURL()
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
@@ -179,6 +187,42 @@ final class LiveServerSnapshotTests: XCTestCase {
             return false
         }
         return true
+    }
+
+    private func fixtureEntryStage(for action: String) -> String? {
+        switch action {
+        case "prepare": "validate-input"
+        case "second": "add-second-sentinel"
+        case "verify": "verify-evidence"
+        default: nil
+        }
+    }
+
+    private func seedFixtureStage(for action: String) -> Bool {
+        guard let stage = fixtureEntryStage(for: action) else { return false }
+        let environment = ProcessInfo.processInfo.environment
+        guard
+            let stageRoot = environment["PLAYSTEAD_LIVE_SERVER_STAGE_ROOT"],
+            let stageFile = environment["PLAYSTEAD_LIVE_SERVER_STAGE_FILE"]
+        else { return false }
+        let rootURL = URL(fileURLWithPath: stageRoot, isDirectory: true).standardizedFileURL
+        let stageURL = URL(fileURLWithPath: stageFile).standardizedFileURL
+        guard stageURL.deletingLastPathComponent() == rootURL else { return false }
+
+        let temporary = rootURL.appendingPathComponent(".live-server-failure-stage.\(UUID().uuidString.lowercased())")
+        let manager = FileManager.default
+        do {
+            try Data("\(stage)\n".utf8).write(to: temporary, options: .atomic)
+            try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: temporary.path)
+            if manager.fileExists(atPath: stageURL.path) {
+                try manager.removeItem(at: stageURL)
+            }
+            try manager.moveItem(at: temporary, to: stageURL)
+            return true
+        } catch {
+            try? manager.removeItem(at: temporary)
+            return false
+        }
     }
 
     private func recordFixtureFailure(stage: String?, action: String, status: Int32) {
