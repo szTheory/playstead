@@ -93,6 +93,14 @@ granular_coverage = {
     "testReadinessControlsHaveRolesLabelsAndFrames": (
         "validateSemanticTargets(readinessTargets)",
     ),
+    # Plan 09's D-18 whole-surface inventory. Pinned on the two assertions that
+    # make it non-vacuous: a fixed-size expected inventory, and the final
+    # equality proving every surface was actually visited.
+    "testKeyboardOnlySurfaceInventoryAndLiveAudit": (
+        "XCTAssertEqual(expectedSurfaces.count, 20",
+        "XCTAssertEqual(visited, expectedSurfaces",
+        "sanitizedTrace()",
+    ),
 }
 
 audit_surfaces = {
@@ -270,12 +278,29 @@ for marker, source_name in (
 
 def check_ui_profile_launch(harness_source):
     assignments = dict(re.findall(r'app\.launchEnvironment\["([A-Z0-9_]+)"\] = (.+)', harness_source))
-    expected = {
+    required = {
         "PLAYSTEAD_UI_TESTING": '"1"',
         "PLAYSTEAD_UI_TEST_PROFILE": "profile.rawValue",
     }
-    if assignments != expected:
-        raise AssertionError(f"UI harness launch environment must be exactly mode + finite profile: {assignments}")
+    # Plan 06 added an opt-in per-session identity so a deterministic profile
+    # survives process relaunch. It is the ONLY permitted addition, it must be a
+    # freshly generated UUID (never a fixed or caller-supplied value, which would
+    # let one test observe another's store), and it must stay gated behind
+    # `persistentSession` so the default launch is still exactly mode + profile.
+    optional = {
+        "PLAYSTEAD_UI_TEST_SESSION_ID": "UUID().uuidString.lowercased()",
+    }
+    for key, value in required.items():
+        if assignments.get(key) != value:
+            raise AssertionError(f"UI harness launch environment lost required {key}: {assignments}")
+    unexpected = set(assignments) - set(required) - set(optional)
+    if unexpected:
+        raise AssertionError(f"UI harness launch environment gained unexpected keys: {sorted(unexpected)}")
+    for key, value in optional.items():
+        if key in assignments and assignments[key] != value:
+            raise AssertionError(f"{key} must be a freshly generated UUID, got: {assignments[key]}")
+    if "PLAYSTEAD_UI_TEST_SESSION_ID" in assignments and "if persistentSession {" not in harness_source:
+        raise AssertionError("per-session identity must stay gated behind persistentSession")
     if "enum Profile: String, CaseIterable" not in harness_source:
         raise AssertionError("UI harness profile selector is not finite")
 
@@ -305,7 +330,9 @@ if "LibraryShellView()" not in profile_root or ".environment(session.environment
 if any(name in profile_root for name in ("AdapterSetupView()", "ReadinessSheetView(", "BiosDropTargetView(", "ControllerSettingsView(")):
     raise SystemExit("deterministic UI profile duplicates a Plan 05 production surface")
 for marker in (
-    "let fixture = try profile.makeFixture()",
+    # Plan 06 threads the opt-in per-session identity into the fixture so a
+    # deterministic profile survives relaunch; composition is otherwise unchanged.
+    "let fixture = try profile.makeFixture(sessionID: processEnvironment[sessionIDKey])",
     "uiTestingPaths: fixture.paths",
     "localStore: fixture.localStore",
     "appEnvironment.blockExternalIOForUITesting()",
@@ -334,7 +361,12 @@ def check_audit_repairs(shell_source, row_source, token_source, focus_source):
         raise AssertionError("small game-row metadata regressed to the low-contrast secondary role")
     if ".accessibilityHidden(true)" not in focus_source:
         raise AssertionError("decorative focus-ring shape leaked into the accessibility tree")
-    for marker in (".accessibilityElement(children: .combine)", ".accessibilityLabel(rowSummaryAccessibilityLabel)"):
+    # 03.5-07 (73cd594) moved the row from `.combine` to `.contain`. `.combine`
+    # flattens children away, which would have hidden the per-row favorite/queue/
+    # pin buttons that plans 06/07 require as individually addressable targets.
+    # The requirement the marker encodes is unchanged: the row is one explicitly
+    # described accessibility element, not an unlabeled pile of leaves.
+    for marker in (".accessibilityElement(children: .contain)", ".accessibilityLabel(rowSummaryAccessibilityLabel)"):
         if marker not in row_source:
             raise AssertionError("game-row summary is not one described accessibility element")
 
@@ -364,7 +396,14 @@ def check_hosted_audit_repairs(shell_source, readiness_source, card_source, slot
     focus_modifier = card_source.find(".playsteadFocusable(identifier: Self.accessibilityIdentifier)")
     card_element = card_source.find(".accessibilityElement(children: .ignore)")
     card_label = card_source.find(".accessibilityLabel(accessibleLabel)")
-    if focus_modifier < 0 or not (focus_modifier < card_element < card_label) or ".accessibilityElement(children: .combine)" in card_source:
+    # 03.5-06 (824b44b) inverted this order deliberately: applying identity before
+    # `.accessibilityElement` left it on a child the hosted accessibility hierarchy
+    # discards. Collapse first, then attach description and identity to that final
+    # node. The invariant is unchanged -- one collapsed, described, focusable node
+    # with no nested subtree -- only the required order moved.
+    # All three must be present: with the focus modifier last, a bare ordering
+    # comparison would read a missing marker's -1 as "earliest" and pass.
+    if min(focus_modifier, card_element, card_label) < 0 or not (card_element < card_label < focus_modifier) or ".accessibilityElement(children: .combine)" in card_source:
         raise AssertionError("described game card exposes a conflicting nested accessibility subtree")
     if '?? ""' in slot_source or "Color.clear" not in slot_source or ".accessibilityHidden(true)" not in slot_source:
         raise AssertionError("empty status slot can become an undescribed accessibility element")

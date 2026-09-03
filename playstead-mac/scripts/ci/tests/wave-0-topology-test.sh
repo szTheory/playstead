@@ -32,7 +32,11 @@ require_text "$project" 'https://github.com/pointfreeco/swift-snapshot-testing'
 require_text "$project" 'version = 1.19.4;'
 require_text "$lockfile" '59a99c458de4d2dee580529b61b4f78dca7b7fa6'
 require_text "$config" 'ip: {127, 0, 0, 1}'
-require_text "$config" 'server: true'
+# Plan 08 made the listener conditional so fixture Mix tasks do not contend for
+# the port. The topology requirement is unchanged -- the long-lived Phoenix
+# process must still own a real loopback listener -- so pin the exact
+# task-exclusion form rather than the pre-Plan-08 literal 'server: true'.
+require_text "$config" 'server: System.get_env("PLAYSTEAD_MAC_CI_TASK") != "1"'
 if grep -F 'Ecto.Adapters.SQL.Sandbox' "$config" >/dev/null; then
   printf 'mac_ci must not use the SQL sandbox\n' >&2
   exit 1
