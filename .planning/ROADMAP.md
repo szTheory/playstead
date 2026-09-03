@@ -14,7 +14,7 @@ This MVP proves one trustworthy Mac-to-server custody and continuity journey: de
 - [x] **Phase 1: Private Custody and Durable Protocol** - Establish the self-hosted foundation and HTTP contracts every client can safely recover through. (completed 2026-08-28)
 - [x] **Phase 2: Explainable Import and Exact Export** - Turn user files into recoverable, provenance-backed canonical assets through durable work. (completed 2026-08-30)
 - [ ] **Phase 3: Mac Offline Play Vertical Slice** - Let a paired Mac browse, selectively cache, preflight, and launch one proven adapter path offline.
-- [ ] **Phase 3.5: Mac Verification Automation** - Stand up macOS CI and a UI-test harness so Mac client behavior is machine-verified instead of hand-checked.
+- [x] **Phase 3.5: Mac Verification Automation** - Stand up macOS CI and a UI-test harness so Mac client behavior is machine-verified instead of hand-checked. (completed 2026-09-03)
 - [ ] **Phase 4: Persistent Save Continuity** - Preserve compatible progress through offline queues, immutable revisions, restore, and conflict recovery.
 - [ ] **Phase 5: Recovery and Release Proof** - Demonstrate independently backed-up recovery, safe updates, diagnostics, and release-quality operations.
 
@@ -231,7 +231,7 @@ Plans:
 
 **Wave 8**
 
-- [ ] 03.5-09-PLAN.md — Final allowlist, authorized exact hosted run, structured Roadmap/UAT handoff
+- [x] 03.5-09-PLAN.md — Final allowlist, authorized exact hosted run, structured Roadmap/UAT handoff
 
 ### Phase 4: Persistent Save Continuity
 

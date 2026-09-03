@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: 03.5-09 Task 3 blocked on a green hosted run (root cause fixed at 18413b1)
-last_updated: "2026-09-03T02:46:01.726Z"
+status: ready_to_plan
+stopped_at: Phase 03.5 complete (10/10) — ready to discuss Phase 4
+last_updated: 2026-09-03T03:56:11.984Z
 last_activity: 2026-09-03 -- Phase 03.5 execution started
 progress:
   total_phases: 6
@@ -21,14 +21,14 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-08-30)
 
 **Core value:** A locally available game and its progress remain effortless to play, safe, understandable, synchronized, and fully under the user's control.
-**Current focus:** Phase 03.5 — mac-verification-automation
+**Current focus:** Phase 4 — persistent save continuity
 
 ## Current Position
 
-Phase: 03.5 (mac-verification-automation) — EXECUTING
-Plan: 1 of 10
-Status: Executing Phase 03.5
-Last activity: 2026-09-03 -- Phase 03.5 execution started
+Phase: 4
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-09-03
 
 **Read `.planning/phases/03.5-mac-verification-automation/.continue-here.md` before resuming 03.5-09.**
 It carries the root-cause analysis, the prepared Task 3 sequence, three blocking
@@ -40,7 +40,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 
 **Velocity:**
 
-- Total plans completed: 18
+- Total plans completed: 28
 - Average duration: —
 - Total execution time: 0 hours
 
@@ -51,6 +51,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 | — | — | — | — |
 | 01 | 8 | - | - |
 | 02 | 10 | - | - |
+| 03.5 | 10 | - | - |
 
 **Recent Trend:**
 
