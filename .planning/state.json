@@ -1,0 +1,38 @@
+{
+  "contract": "1.0.0",
+  "flavor": "core",
+  "milestone": "v1.0",
+  "phases": [
+    {
+      "number": "1",
+      "name": "Private Custody and Durable Protocol",
+      "status": "complete"
+    },
+    {
+      "number": "2",
+      "name": "Explainable Import and Exact Export",
+      "status": "complete"
+    },
+    {
+      "number": "3",
+      "name": "Mac Offline Play Vertical Slice",
+      "status": "in_progress"
+    },
+    {
+      "number": "4",
+      "name": "Persistent Save Continuity",
+      "status": "pending"
+    },
+    {
+      "number": "5",
+      "name": "Recovery and Release Proof",
+      "status": "pending"
+    }
+  ],
+  "next": {
+    "command": "/gsd:progress --next",
+    "label": "Advance to the next step",
+    "reason": "Phase 3 of 6 · executing"
+  },
+  "updated_at": "2026-09-01T23:14:11.881Z"
+}
