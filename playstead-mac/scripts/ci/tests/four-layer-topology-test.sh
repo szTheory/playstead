@@ -23,6 +23,9 @@ STORAGE_VIEW="${MAC_ROOT}/Playstead/Library/StorageView.swift"
 WORKFLOW="${REPO_ROOT}/.github/workflows/ci.yml"
 REFRESH_WORKFLOW="${REPO_ROOT}/.github/workflows/mac-snapshot-refresh.yml"
 SANITIZER="${MAC_ROOT}/scripts/ci/sanitize-evidence.sh"
+PBXPROJ="${MAC_ROOT}/Playstead.xcodeproj/project.pbxproj"
+UITEST_ENTITLEMENTS="${MAC_ROOT}/PlaysteadUITests/PlaysteadUITests.entitlements"
+APP_ENTITLEMENTS="${MAC_ROOT}/Playstead/App/Playstead.entitlements"
 PROMPT_SAFETY="${MAC_ROOT}/scripts/ci/tests/keychain-prompt-safety-test.sh"
 KEYBOARD_CLEANUP="${MAC_ROOT}/scripts/ci/tests/keyboard-mode-cleanup-test.sh"
 SWIFT_SEMANTIC="${MAC_ROOT}/scripts/ci/tests/wave6-swift-semantic-test.sh"
@@ -468,6 +471,32 @@ grep -F 'len(audit_issues) > 50' "$SANITIZER" >/dev/null
 grep -F '{"identifier", "outcome"}' "$SANITIZER" >/dev/null
 grep -F '{"test_identifier", "assertion", "source_file", "source_line"}' "$SANITIZER" >/dev/null
 grep -F '{"test_identifier", "category", "element_identifier", "element_role"}' "$SANITIZER" >/dev/null
+
+# Xcode generates the UI test runner sandboxed with a read-only exception for
+# "/" and no write exception, which denies every fixture write with EPERM no
+# matter the uid or mode bits. The live-server layer cannot work without this
+# override, and nothing else in the suite would notice if it were dropped --
+# the layer would just start failing at a preflight line number again.
+plutil -lint "$UITEST_ENTITLEMENTS" >/dev/null
+[ "$(grep -c 'CODE_SIGN_ENTITLEMENTS = PlaysteadUITests/PlaysteadUITests.entitlements;' "$PBXPROJ")" -eq 2 ]
+python3 - "$UITEST_ENTITLEMENTS" "$APP_ENTITLEMENTS" <<'SANDBOX'
+import pathlib, plistlib, sys
+
+runner, app = (plistlib.loads(pathlib.Path(path).read_bytes()) for path in sys.argv[1:3])
+# The UI test runner spawns the live-server fixture, which writes into the
+# native server root and executes the Elixir toolchain. Xcode's generated
+# runner entitlements sandbox it read-only, which denies both -- EPERM on
+# write, exit 126 on exec -- so the layer silently stops working if this
+# override is dropped. Filesystem exceptions alone are not sufficient: exec is
+# a separate sandbox operation whose sbpl exception is not honored here.
+if runner.get("com.apple.security.app-sandbox") is not False:
+    raise SystemExit("UI test runner must set com.apple.security.app-sandbox = false")
+# Separate decision, separate reason: the shipped app is unsandboxed so it can
+# launch a downloaded emulator process, per D-04. Pinned here so neither the
+# test-only override nor the product decision can drift unnoticed.
+if app.get("com.apple.security.app-sandbox") is not False:
+    raise SystemExit("shipped app must keep com.apple.security.app-sandbox = false (D-04)")
+SANDBOX
 
 "$PROMPT_SAFETY"
 bash "$KEYBOARD_CLEANUP"

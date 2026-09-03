@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Xcode generates PlaysteadUITests-Runner.app sandboxed, with a read-only
+	     exception for "/" and no write exception. The live-server layer cannot
+	     work under that: the test spawns live-server.sh, which writes into the
+	     native server root and executes the Elixir toolchain, and a sandboxed
+	     process's children inherit its sandbox. Denials surface as EPERM on
+	     write and exit 126 on exec. Neither is a permission problem that any
+	     amount of chmod or ownership can fix.
+
+	     Filesystem temporary exceptions alone are not enough, because exec is a
+	     separate sandbox operation, and the sbpl exception that would grant it
+	     is not honored for this ad-hoc signed runner. Measured, not assumed:
+	     with the sandbox on and read-write "/" the fixture reaches
+	     provision-domain and fails 126; with it off the whole prepare path
+	     through redeem-pairing succeeds.
+
+	     This applies ONLY to the UI test runner, which is never distributed.
+	     The shipped app keeps com.apple.security.app-sandbox = false with the
+	     Developer ID hardened runtime per D-04 (see Playstead.entitlements).
+	     That is a separate decision made for a different reason, and the
+	     four-layer topology gate pins both so neither can drift unnoticed. -->
+	<key>com.apple.security.app-sandbox</key>
+	<false/>
+</dict>
+</plist>
