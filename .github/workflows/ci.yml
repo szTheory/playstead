@@ -41,20 +41,20 @@ jobs:
     env:
       MIX_ENV: test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
-      - uses: erlef/setup-beam@v1
+      - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124  # v1.24.1
         with:
           version-file: playstead-server/.tool-versions
           version-type: strict
 
       - id: chrome
-        uses: browser-actions/setup-chrome@v1
+        uses: browser-actions/setup-chrome@c785b87e244131f27c9f19c1a33e2ead956ab7ce  # v1.7.3
         with:
           chrome-version: stable
           install-chromedriver: true
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
           path: |
             playstead-server/deps
@@ -72,7 +72,7 @@ jobs:
 
       - name: Upload browser failure screenshots
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: wallaby-screenshots
           path: playstead-server/tmp/wallaby_screenshots
@@ -97,9 +97,9 @@ jobs:
       LINUX_TEST_CONCLUSION: ${{ needs.test.result }}
       LINUX_COMPOSE_CONCLUSION: ${{ needs.compose-smoke.result }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
-      - uses: erlef/setup-beam@v1
+      - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124  # v1.24.1
         with:
           version-file: playstead-server/.tool-versions
           version-type: strict
@@ -117,7 +117,7 @@ jobs:
         run: scripts/ci/run-mac-verification.sh --run-four-layer-verification
 
       - name: Upload complete six-job verification evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: complete-verification-evidence
           path: playstead-mac/.build/ci/four-layer/evidence/complete-verification-evidence.json
@@ -126,7 +126,7 @@ jobs:
 
       - name: Upload sanitized Mac failure evidence
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: mac-verification-failure
           path: playstead-mac/.build/ci/failure-evidence
@@ -144,10 +144,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
       - id: changes
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad  # v3.0.4
         with:
           filters: |
             infra:
@@ -163,10 +163,10 @@ jobs:
               - '.github/workflows/ci.yml'
 
       - if: github.ref == 'refs/heads/main' || steps.changes.outputs.infra == 'true'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3.12.0
 
       - if: github.ref == 'refs/heads/main' || steps.changes.outputs.infra == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8  # v6.19.2
         with:
           context: playstead-server
           load: true
