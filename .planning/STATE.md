@@ -1,20 +1,17 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.0
-current_phase: 03.5
-current_phase_name: Mac Verification Automation
+milestone_name: milestone
 status: executing
-stopped_at: "Plan 03.5-09 Task 3 blocked on a green hosted run; live-server root-mismatch fixed at 18413b1, run in flight"
-last_updated: "2026-09-01T23:14:13.335Z"
-last_activity: 2026-09-02
-last_activity_desc: "Plan 03.5-09 live-server root-mismatch root-caused and fixed; Task 3 prepared and pre-validated"
-state_head: aab1a1c64910fd250baab12839ad127f7e85e35e
+stopped_at: 03.5-09 Task 3 blocked on a green hosted run (root cause fixed at 18413b1)
+last_updated: "2026-09-03T02:46:01.726Z"
+last_activity: 2026-09-03 -- Phase 03.5 execution started
 progress:
   total_phases: 6
-  completed_phases: 2
+  completed_phases: 4
   total_plans: 38
-  completed_plans: 37
-milestone_name: milestone
+  completed_plans: 38
+  percent: 67
 ---
 
 # Project State
@@ -24,14 +21,14 @@ milestone_name: milestone
 See: `.planning/PROJECT.md` (updated 2026-08-30)
 
 **Core value:** A locally available game and its progress remain effortless to play, safe, understandable, synchronized, and fully under the user's control.
-**Current focus:** Phase 03.5 — Mac Verification Automation
+**Current focus:** Phase 03.5 — mac-verification-automation
 
 ## Current Position
 
-Phase: 03.5 (Mac Verification Automation) — EXECUTING
-Plan: 10 of 10 (03.5-09 is the only incomplete plan)
-Status: 03.5 execution complete — 10 of 10 plans summarized. Plan 09 closed by hosted run 33702909968 at 548121e (all six jobs green); Phase 3 UAT checkpoints 2/3/5/6 are now source: automated, checkpoint 10 split, 9 items still outstanding (8 blocked, 1 scope decision). Next: phase verification, then Phase 3's own gaps_found verification.
-Last activity: 2026-09-02 — live-server root-mismatch root-caused and fixed (18413b1); Task 3 tooling prepared and pre-validated
+Phase: 03.5 (mac-verification-automation) — EXECUTING
+Plan: 1 of 10
+Status: Executing Phase 03.5
+Last activity: 2026-09-03 -- Phase 03.5 execution started
 
 **Read `.planning/phases/03.5-mac-verification-automation/.continue-here.md` before resuming 03.5-09.**
 It carries the root-cause analysis, the prepared Task 3 sequence, three blocking
