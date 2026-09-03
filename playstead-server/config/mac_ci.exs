@@ -37,7 +37,7 @@ port = String.to_integer(System.get_env("PORT", "4010"))
 # fixed value within one hosted run (e.g. multiple cooperating processes).
 secret_key_base =
   System.get_env("PLAYSTEAD_MAC_CI_SECRET_KEY_BASE") ||
-    (:crypto.strong_rand_bytes(48) |> Base.encode64())
+    :crypto.strong_rand_bytes(48) |> Base.encode64()
 
 config :playstead, Playstead.Repo,
   url: database_url,
