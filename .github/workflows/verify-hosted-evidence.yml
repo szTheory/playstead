@@ -1,0 +1,104 @@
+# Closes T-03.5-01 and T-03.5-20.
+#
+# `run-mac-verification.sh --verify-hosted-run complete` binds a run's evidence
+# manifest to its real identity: workflow, event, branch, run id, head SHA,
+# completion, conclusion, both Linux job conclusions, the four Mac layers, and
+# per-layer non-vacuity. It was fully implemented and correct, but nothing ever
+# invoked it — CI uploaded `complete-verification-evidence.json` and no
+# automated step checked that the artifact actually belonged to the run that
+# claimed it. The threat model described this validator as *the* fail-closed
+# control, with no human carve-out, so an opt-in CLI was weaker than claimed.
+#
+# It cannot run inside `ci` itself: it asserts the run's `conclusion`, and a job
+# cannot observe its own run's conclusion while that run is still in progress.
+# Hence `workflow_run`, which fires once `ci` has completed.
+name: verify hosted evidence
+
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  verify-hosted-evidence:
+    name: bind hosted evidence to its run
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # A failed `ci` run produces no evidence artifact and has already reported
+    # failure, so there is nothing to bind. Every SUCCESSFUL run must be
+    # validated -- that is the case this gate exists for, and it is why the
+    # condition tests for success rather than excluding a specific failure.
+    if: github.event.workflow_run.conclusion == 'success'
+    steps:
+      # Check out the exact commit that produced the evidence, so the validator
+      # is the one that shipped with it rather than whatever is on HEAD now.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+
+      - name: Download the evidence manifest from the triggering run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          mkdir -p hosted-evidence
+          # Fail closed: a successful ci run that uploaded no manifest is
+          # exactly the missing-evidence case this gate must catch.
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name complete-verification-evidence --dir hosted-evidence
+          test -s hosted-evidence/complete-verification-evidence.json
+
+      - name: Bind the manifest to the run's real identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --json databaseId,workflowName,event,headBranch,headSha,status,conclusion,url,jobs \
+            > hosted-evidence/run-view.json
+
+          # The record is DERIVED from the API view, never hand-authored: the
+          # validator's job is to prove the manifest agrees with the run, so
+          # both of its identity inputs must come from GitHub, not from us.
+          python3 - hosted-evidence/run-view.json hosted-evidence/run-record.json <<'PY'
+          import json, pathlib, sys
+
+          view = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          names = {
+              "mix precommit (unit + LiveView + browser + integration)": "test",
+              "docker compose cold start": "compose-smoke",
+              "macOS 26 unit + rendering + UI + live server": "mac-verification",
+          }
+          jobs = {}
+          for job in view.get("jobs", []):
+              key = names.get(job.get("name"))
+              if key:
+                  jobs[key] = job.get("conclusion")
+          record = {
+              "schema_version": 1,
+              "run_id": view["databaseId"],
+              "workflow": view["workflowName"],
+              "event": view["event"],
+              "head_branch": view["headBranch"],
+              "head_sha": view["headSha"],
+              "status": view["status"],
+              "conclusion": view["conclusion"],
+              "url": view["url"],
+              "jobs": jobs,
+          }
+          pathlib.Path(sys.argv[2]).write_text(
+              json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+          )
+          PY
+
+          playstead-mac/scripts/ci/run-mac-verification.sh --verify-hosted-run complete \
+            --run-record hosted-evidence/run-record.json \
+            --run-view hosted-evidence/run-view.json \
+            --manifest hosted-evidence/complete-verification-evidence.json

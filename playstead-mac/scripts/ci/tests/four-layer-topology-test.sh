@@ -447,6 +447,44 @@ if gate < 0 or build < 0 or gate > build:
     raise SystemExit("the static contract gate must run before the four-layer build")
 print("contract gate wiring: passed")
 PY_GATE
+# T-03.5-01/T-03.5-20: the hosted-evidence validator must stay wired to a real
+# run's artifact, not merely exist. It cannot live in `ci` -- it asserts the
+# run's own conclusion -- so it runs from a workflow_run-triggered workflow.
+EVIDENCE_WORKFLOW="${REPO_ROOT}/.github/workflows/verify-hosted-evidence.yml"
+[ -f "$EVIDENCE_WORKFLOW" ] || {
+  printf 'missing .github/workflows/verify-hosted-evidence.yml\n' >&2
+  exit 1
+}
+python3 - "$EVIDENCE_WORKFLOW" <<'PY_EVIDENCE'
+import pathlib, sys
+raw = pathlib.Path(sys.argv[1]).read_text()
+# Check EXECUTABLE content only. This file documents the very flags it wires,
+# so scanning the whole text lets a comment satisfy a marker whose real
+# invocation was removed -- the guard passes while the wiring is gone. Strip
+# whole-line comments first. (Deliberately no YAML parse: PyYAML is not in the
+# stdlib and is absent from the runner image, which is how the ripgrep
+# dependency turned this suite's sibling guard into a vacuous pass.)
+workflow = "\n".join(
+    line for line in raw.split("\n") if not line.lstrip().startswith("#")
+)
+for marker in (
+    "workflow_run:",            # cannot self-validate inside `ci`
+    "workflows: [ci]",          # triggered by the run that produced the evidence
+    "types: [completed]",
+    "actions: read",            # needed to download the triggering run's artifact
+    "--verify-hosted-run complete",
+    "--run-record",
+    "--run-view",
+    "--manifest",
+    "complete-verification-evidence",
+    "github.event.workflow_run.conclusion == 'success'",
+):
+    if marker not in workflow:
+        raise SystemExit(f"hosted-evidence workflow lost required wiring: {marker}")
+if "contents: write" in workflow or "pull-requests: write" in workflow:
+    raise SystemExit("hosted-evidence workflow must stay read-only")
+print("hosted-evidence wiring: passed")
+PY_EVIDENCE
 grep -F 'if: failure()' "$WORKFLOW" >/dev/null
 grep -F 'path: playstead-mac/.build/ci/failure-evidence' "$WORKFLOW" >/dev/null
 grep -F 'retention-days: 7' "$WORKFLOW" >/dev/null
