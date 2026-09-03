@@ -5,7 +5,7 @@ planted: 2026-09-01
 planted_during: v1.0 / Phase 03.5 (Mac Verification Automation)
 trigger_when: when planning multi-server discovery, library federation, lawful homebrew distribution, shared backup, or non-origin blob transfer
 scope: large — protocol, trust, privacy, abuse, legal, and distributed-systems research programme
-related: SEED-003 (indie/homebrew marketplace), SEED-013 (real-device compatibility lab)
+related: SEED-003 (indie/homebrew marketplace), SEED-013 (real-device compatibility lab), SEED-025 (SSO and credential UX — the relying-party half of the identity question), SEED-004 (household player profiles)
 ---
 
 # SEED-014: Explore lawful Playstead server federation and content-addressed peer distribution
@@ -93,6 +93,38 @@ and local full-byte verification.
   experience failed.
 - Look specifically for operational postmortems and community experience, not
   just protocol descriptions or enthusiastic launch material.
+
+### Identity dimension (added 2026-09-03, Phase 04 planning)
+
+The owner raised the identity half of federation while thinking about sharing
+collections: *"I guess it would be that you have your own library — maybe that
+means we are an OAuth provider? ... I don't know if we'd have multi-user or
+single-user. I guess this is really more single-user, but eventually we might
+want the ability to interact with other users."*
+
+That instinct is right, and it names a prerequisite this seed had not made
+explicit: **federation is an identity problem before it is a transport problem.**
+Two servers cannot grant each other scoped, revocable access to anything without
+a way to say who is asking and on whose authority.
+
+- Playstead already issues scoped, revocable, header-only device credentials
+  through the pairing ceremony (Phase 1). That is a small identity-provider
+  story that already exists — the question is whether it generalizes from
+  "my devices" to "another person's server", or whether that is a different
+  trust model wearing similar clothes.
+- Becoming an **OAuth/OIDC provider** is the conventional answer, and it composes
+  with SEED-025's SSO question from the other direction: SSO makes Playstead a
+  *relying party*; federation would make it an *issuer*. Deciding those
+  independently risks two incompatible identity models.
+- **Single-user today is a real constraint, not an oversight.** There is one
+  owner. Sharing between people implies at minimum an identity for the other
+  party, and probably SEED-004's multi-user model. Federation planning that
+  assumes multi-user support is planning on top of something that does not exist.
+- Sequencing implication: SEED-004 (household profiles) → SEED-025 (auth
+  architecture, relying party *and* issuer decided together) → this seed's
+  transport and discovery work. Attempting transport first produces a sharing
+  feature with no revocation story, which is the failure mode this seed's
+  privacy section already warns about.
 
 ## When to Surface
 
