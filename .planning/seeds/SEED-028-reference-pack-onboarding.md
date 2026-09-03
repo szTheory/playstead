@@ -88,6 +88,44 @@ What would still need deciding before automating it:
   accept a drag-and-drop, and verify it clearly. That preserves the posture and
   removes almost all of the friction, which is what the owner actually asked for.
 
+### Decided posture (research completed 2026-09-03)
+
+Research into the two sources resolved this more cleanly than expected. **The two
+datfile providers are not equivalent, and the answer differs per source:**
+
+| | No-Intro | Redump |
+|---|---|---|
+| Stated terms for datfiles | **None found** — only a generic anti-piracy disclaimer, no license or copyright assertion | Explicit: *"Dumpers only submit metadata and Redump only stores metadata. This information is considered **public domain** to be used however people see fit"* (wiki Disclaimer) |
+| Automation posture | **Actively blocks non-browser requests** — a block page citing a "client filter" and a ban-removal contact. Reproduced independently twice | Publishes static datfile URLs, unauthenticated |
+| Public API | None documented | n/a — static paths |
+
+**Decision: auto-fetch Redump; keep No-Intro user-supplied.** This is the
+maximally-convenient option that stays clearly defensible, and it falls out of
+documented facts rather than caution.
+
+Supporting analysis:
+
+- **US copyright.** Under *Feist v. Rural* (499 U.S. 340), facts are uncopyrightable
+  regardless of the effort spent gathering them; "sweat of the brow" was rejected. A
+  datfile entry — name, size, CRC32/MD5/SHA1 — is a paradigmatic factual compilation.
+- **The real open question is the EU sui generis database right** (Directive 96/9/EC),
+  which is *investment*-based rather than originality-based and can therefore protect
+  a compilation whose individual facts are unprotected. This is the one item worth
+  counsel's specific attention, and it is narrow.
+- **Industry norm supports the split.** Every actively-maintained tool surveyed —
+  igir, RomVault, Retool — requires manual datfile supply. ROMM avoids the question
+  entirely via third-party hash services (Hasheous, Playmatch). `libretro-database` is
+  the lone bulk mirror and cites no permission grant. So requiring manual supply is
+  not timidity; it is what everyone reputable does.
+- **The risk is specific, not general.** Auto-scraping No-Intro — a gated source with
+  no stated license that actively blocks automation — is the one behavior that would
+  move this project from the safe column toward the risky one. That is structurally
+  the Dolphin pattern: one narrow choice (bundling a single decryption key), not the
+  core function, created the exposure.
+
+Practical consequence for the empty state: it can honestly say *"Redump packs can be
+fetched for you; No-Intro packs you supply, and here is exactly where to get them."*
+
 ## Notes
 
 Captured during the owner's first real import. Worth pairing with the finding
