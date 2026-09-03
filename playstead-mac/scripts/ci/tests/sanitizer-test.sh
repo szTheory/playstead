@@ -222,6 +222,30 @@ grep -F '[REDACTED SECRET-BEARING LINE]' "$TMP_ROOT/bad-log-output/logs/server.l
 }
 PASS_COUNT=$((PASS_COUNT + 1))
 
+# WR-04: colon-separated `KEY: value` credential shape (not the historical
+# `KEY=value` form). Exercises a realistic Phoenix/Postgres structured log line.
+colon_separated_log="$TMP_ROOT/colon-separated-log"
+make_valid "$colon_separated_log"
+printf 'DATABASE_URL: ecto://playstead:synthetic-secret@db/playstead\n' >"$colon_separated_log/evidence/logs/server.log"
+expect_pass redacted_colon_log "$SANITIZER" --input "$colon_separated_log" --output "$TMP_ROOT/colon-separated-log-output"
+grep -F '[REDACTED SECRET-BEARING LINE]' "$TMP_ROOT/colon-separated-log-output/logs/server.log" >/dev/null || {
+  printf 'FAIL: colon-separated secret-bearing log line was not redacted\n' >&2
+  exit 1
+}
+PASS_COUNT=$((PASS_COUNT + 1))
+
+# WR-04: a connection string with embedded user:pass@ credentials, appearing
+# mid-sentence in an exception message rather than as a standalone KEY=value.
+embedded_credential_url="$TMP_ROOT/embedded-credential-url"
+make_valid "$embedded_credential_url"
+printf 'connection refused while dialing postgres://playstead:synthetic-secret@127.0.0.1:5432/playstead_ci\n' >"$embedded_credential_url/evidence/logs/app.log"
+expect_pass redacted_credential_url "$SANITIZER" --input "$embedded_credential_url" --output "$TMP_ROOT/embedded-credential-url-output"
+grep -F '[REDACTED SECRET-BEARING LINE]' "$TMP_ROOT/embedded-credential-url-output/logs/app.log" >/dev/null || {
+  printf 'FAIL: embedded user:pass@ connection string was not redacted\n' >&2
+  exit 1
+}
+PASS_COUNT=$((PASS_COUNT + 1))
+
 if [ "$FAIL_COUNT" -ne 0 ]; then
   printf 'evidence sanitizer: %d check(s) failed\n' "$FAIL_COUNT" >&2
   exit 1

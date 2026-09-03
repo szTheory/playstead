@@ -66,12 +66,30 @@ if len(allowed) > max_files:
 sensitive_keys = {
     "authorization", "credential", "credentials", "token", "database_url",
     "raw_log", "keychain_path", "handoff", "environment", "env",
+    "password", "secret", "secret_key_base", "api_key",
 }
+# Sensitive-key vocabulary matched regardless of separator (`:` or `=`), so
+# `KEY: value` (colon-separated, e.g. a Postgres/Phoenix structured log line
+# like `DATABASE_URL: ecto://...`) is caught alongside the historical
+# `KEY=value` shape. This is a structural check on the key name, not a fixed
+# list of literal `key<sep>` strings, so it also fails closed for shapes not
+# explicitly enumerated below.
+sensitive_key_vocabulary = (
+    r"authorization|bearer|token|database_url|secret_key_base|password|"
+    r"api[-_]?key|secret"
+)
+# A connection string / URL with embedded `user:pass@` credentials, in any
+# scheme (ecto://, postgres://, https://, etc.), anywhere in the line —
+# including mid-sentence in a stack trace or exception message.
+credential_url = r"[A-Za-z][A-Za-z0-9+.-]*://[^\s\"'/@]+:[^\s\"'/@]+@"
 sensitive_text = re.compile(
-    r"(?i)(authorization\s*[:=]|bearer\s+[A-Za-z0-9._~+/=-]+|"
-    r"database_url\s*=|secret_key_base\s*=|\.keychain(?:-db)?\b|"
+    r"(?i)("
+    rf"\b(?:{sensitive_key_vocabulary})\b\s*[:=]\s*\S+|"
+    r"bearer\s+[A-Za-z0-9._~+/=-]+|"
+    r"\.keychain(?:-db)?\b|"
     r"(?:^|[/\\])\.env(?:\b|[/\\])|credential[-_ ]?handoff|"
     r"(?:^|[/\\])(?:objects|partials)(?:[/\\]|$)|"
+    rf"{credential_url}|"
     r"\b[0-9a-f]{64}\b|\.(?:rom|nes|sfc|smc|gba|gbc|iso|chd|cue|bios)\b)"
 )
 path_text = re.compile(r"(?:file://)?/(?:Users|private|var/folders|tmp)/[^\s\"']+")
