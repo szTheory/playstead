@@ -30,7 +30,7 @@ See: `.planning/PROJECT.md` (updated 2026-08-30)
 
 Phase: 03.5 (Mac Verification Automation) — EXECUTING
 Plan: 10 of 10 (03.5-09 is the only incomplete plan)
-Status: BLOCKED — 03.5-09 Task 3 needs one green hosted run. Live-server root cause found 2026-09-02: sandboxed XCUITest runner (plus PATH and a SwiftUI double-init handoff race), all three fixed. One issue remains: sync_cursor is never persisted. See the phase .continue-here.md.
+Status: 03.5 execution complete — 10 of 10 plans summarized. Plan 09 closed by hosted run 33702909968 at 548121e (all six jobs green); Phase 3 UAT checkpoints 2/3/5/6 are now source: automated, checkpoint 10 split, 9 items still outstanding (8 blocked, 1 scope decision). Next: phase verification, then Phase 3's own gaps_found verification.
 Last activity: 2026-09-02 — live-server root-mismatch root-caused and fixed (18413b1); Task 3 tooling prepared and pre-validated
 
 **Read `.planning/phases/03.5-mac-verification-automation/.continue-here.md` before resuming 03.5-09.**
