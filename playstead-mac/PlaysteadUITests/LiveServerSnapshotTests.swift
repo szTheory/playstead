@@ -233,29 +233,38 @@ final class LiveServerSnapshotTests: XCTestCase {
             "PLAYSTEAD_LIVE_SERVER_STAGE_FILE", "MAC_CI_DATABASE_URL", "MIX_ENV", "PORT"
         ])
         let inherited = ProcessInfo.processInfo.environment
-        // Only trust a fully inherited environment when it is self-consistent.
-        // The runner derives both roots from one native server root, so if they
-        // disagree the inherited values did not come from this run's runner and
-        // the materialized runtime config below is the authoritative source.
+
+        // The runner writes this file with the environment that actually
+        // provisioned the native services -- PATH included -- so it is
+        // authoritative over whatever this process happened to inherit. That
+        // ordering matters: the fixture shells out to `mix`, and the test
+        // process inherits a PATH without the Elixir toolchain, so trusting
+        // the inherited environment first fails the fixture with exit 127.
+        let url = runtimeConfigurationURL()
+        if
+            (try? permissions(of: url)) == 0o600,
+            let data = try? Data(contentsOf: url),
+            data.count <= 32_768,
+            let configured = try? JSONDecoder().decode([String: String].self, from: data),
+            Set(configured.keys) == required.union(["PATH"]),
+            required.allSatisfy({ !(configured[$0] ?? "").isEmpty }),
+            configured["MIX_ENV"] == "mac_ci",
+            configured["PORT"] == "4010"
+        {
+            return inherited.merging(configured) { _, configuredValue in configuredValue }
+        }
+
+        // Without a config, fall back to a fully inherited environment, and
+        // only when it is self-consistent. The runner derives both roots from
+        // one native server root, so if they disagree the inherited values did
+        // not come from this run's runner.
         let inheritedRootsAgree =
             resolved(inherited["PLAYSTEAD_MAC_CI_ROOT"] ?? "")
                 == resolved(inherited["PLAYSTEAD_LIVE_SERVER_STAGE_ROOT"] ?? "")
         if required.allSatisfy({ !(inherited[$0] ?? "").isEmpty }), inheritedRootsAgree {
             return inherited
         }
-
-        let url = runtimeConfigurationURL()
-        guard
-            (try? permissions(of: url)) == 0o600,
-            let data = try? Data(contentsOf: url),
-            data.count <= 32_768,
-            let configured = try? JSONDecoder().decode([String: String].self, from: data),
-            Set(configured.keys) == required,
-            required.allSatisfy({ !(configured[$0] ?? "").isEmpty }),
-            configured["MIX_ENV"] == "mac_ci",
-            configured["PORT"] == "4010"
-        else { return nil }
-        return inherited.merging(configured) { _, configuredValue in configuredValue }
+        return nil
     }
 
     private func runFixture(_ action: String, root: URL) throws -> Bool {

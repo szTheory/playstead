@@ -42,13 +42,18 @@ materialize_live_server_runtime_config() {
   LIVE_SERVER_RUNTIME_CONFIG_READY=true
   python3 - "$temporary" "$LIVE_SERVER_RUNTIME_CONFIG" \
     "$PLAYSTEAD_MAC_CI_ROOT" "$PLAYSTEAD_LIVE_SERVER_STAGE_ROOT" \
-    "$PLAYSTEAD_LIVE_SERVER_STAGE_FILE" "$MAC_CI_DATABASE_URL" "$MIX_ENV" "$PORT" <<'PY'
+    "$PLAYSTEAD_LIVE_SERVER_STAGE_FILE" "$MAC_CI_DATABASE_URL" "$MIX_ENV" "$PORT" "$PATH" <<'PY'
 import json, os, pathlib, sys
 
 temporary, destination = map(pathlib.Path, sys.argv[1:3])
+# PATH travels with the rest: the fixture shells out to `mix`, and the test
+# process inherits a PATH that does not contain the Elixir toolchain this
+# shell installed. This config is the only channel both the local test-plan
+# run and the hosted patched-xctestrun run share.
 keys = (
     "PLAYSTEAD_MAC_CI_ROOT", "PLAYSTEAD_LIVE_SERVER_STAGE_ROOT",
     "PLAYSTEAD_LIVE_SERVER_STAGE_FILE", "MAC_CI_DATABASE_URL", "MIX_ENV", "PORT",
+    "PATH",
 )
 values = dict(zip(keys, sys.argv[3:]))
 if len(sys.argv) != len(keys) + 3 or any(not value or "\n" in value or "\x00" in value or len(value) > 4096 for value in values.values()):
