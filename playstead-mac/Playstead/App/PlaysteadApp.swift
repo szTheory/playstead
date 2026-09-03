@@ -553,12 +553,15 @@ final class AppEnvironment {
     func syncNow() async {
         guard let client = await apiClientIfAvailable() else { return }
 
-        if cursorStore.load() == nil && catalogueStore.count() == 0 {
-            let snapshot = SnapshotClient(apiClient: client, localStore: localStore)
-            _ = try? await snapshot.fetch()
-        } else {
-            await syncEngine.syncNow()
-        }
+        // One owner for every pass. SyncEngine already bootstraps from the
+        // snapshot when no cursor is stored, and its bootstrap is strictly more
+        // complete than SnapshotClient's: it applies the curation branch in the
+        // same transaction as the catalogue and records the as-of cursor the
+        // data reflects. Routing the first pass through SnapshotClient instead
+        // left the mirror with no position, so the incremental /changes path
+        // stayed unreachable until some later pass happened to run, and the
+        // curation rows that snapshot carried were dropped on the floor.
+        await syncEngine.syncNow()
 
         refreshCurationViewModels()
         await libraryViewModel.refreshSyncState()

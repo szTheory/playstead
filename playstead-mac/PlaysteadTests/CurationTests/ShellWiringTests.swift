@@ -215,11 +215,11 @@ final class ShellWiringTests: XCTestCase {
 
     // MARK: - Sync sequencing
 
-    /// With an empty mirror and no stored cursor, the first pass is
-    /// `SnapshotClient`'s bootstrap; afterwards `SyncEngine` owns the
-    /// refresh and stores a cursor. The two never run against the same
-    /// stores at once.
-    func testFirstSyncBootstrapsFromSnapshotThenSyncEngineTakesOver() async throws {
+    /// With an empty mirror and no stored cursor, `SyncEngine` bootstraps from
+    /// the snapshot and records the as-of cursor that data reflects, so the
+    /// very next pass can resume incrementally. One owner for every pass, so
+    /// two paths can never run against the same stores at once.
+    func testFirstSyncBootstrapsFromSnapshotAndStoresItsCursor() async throws {
         XCTAssertNil(environment.cursorStore.load())
         StubURLProtocol.responder = { _ in
             StubURLProtocol.Stub(
@@ -234,10 +234,14 @@ final class ShellWiringTests: XCTestCase {
 
         await environment.syncNow()
         XCTAssertEqual(environment.catalogueStore.count(), 1)
-        XCTAssertNil(environment.cursorStore.load(), "the bootstrap path is SnapshotClient's, which stores no cursor")
+        XCTAssertEqual(
+            environment.cursorStore.load()?.rawValue,
+            "cursor-1",
+            "the bootstrap must record the position its data reflects"
+        )
 
-        // Second pass: the mirror is non-empty, so SyncEngine runs and
-        // commits a cursor of its own.
+        // Second pass resumes from that cursor rather than re-bootstrapping,
+        // and a pass that cannot be applied leaves the stored position alone.
         await environment.syncNow()
         XCTAssertNotNil(environment.cursorStore.load())
     }
