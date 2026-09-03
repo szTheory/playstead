@@ -695,9 +695,9 @@ final class AppEnvironment {
             return ReadinessReport(checks: [
                 ReadinessCheck(
                     kind: .saveDirectory,
-                    outcome: .blocked("Save directory not writable."),
+                    outcome: .blocked("Playstead can't write this game's saves."),
                     finding: "This title's identifier can't be used as a folder name, so Playstead has nowhere safe to keep its saves.",
-                    remedy: Remedy(title: "Repair save directory", action: .repairSaveDirectory)
+                    remedy: Remedy(title: "Repair save folder", action: .repairSaveDirectory)
                 )
             ])
         }

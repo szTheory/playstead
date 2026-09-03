@@ -246,20 +246,69 @@ struct ReadinessEngine {
 
     // MARK: - Save directory
 
+    /// Widened from "directory is writable" to "a file can be atomically
+    /// placed here" (D-42): the previous `isWritableFile` check passed
+    /// against a directory containing an existing immutable `.sav`, and
+    /// the emulator then failed at spawn trying to replace it. This
+    /// exercises the exact operation the launch path needs — writing a
+    /// probe file and atomically replacing a target name in the save
+    /// directory — rather than a weaker proxy for it.
+    ///
+    /// Stays inside this file's documented purity contract: touching
+    /// disk here is the named exception, and this makes zero network
+    /// calls. Every outcome removes all residue the probe created, so
+    /// repeated evaluation leaves the save directory's contents
+    /// unchanged.
     private func evaluateSaveDirectory() -> ReadinessCheck {
         let fm = FileManager.default
+        let blocked = ReadinessCheck(
+            kind: .saveDirectory,
+            outcome: .blocked("Playstead can't write this game's saves."),
+            finding: "Nothing has been lost — your saved progress is still on your server. Playstead needs to be able to write to this game's save folder before it starts the game.",
+            remedy: Remedy(title: "Repair save folder", action: .repairSaveDirectory)
+        )
+
         var isDir: ObjCBool = false
         let exists = fm.fileExists(atPath: saveDirectoryURL.path, isDirectory: &isDir)
-        let writable = exists && isDir.boolValue && fm.isWritableFile(atPath: saveDirectoryURL.path)
-        guard writable else {
-            return ReadinessCheck(
-                kind: .saveDirectory,
-                outcome: .blocked("Save directory not writable."),
-                finding: "Playstead can't currently write saves to its save directory.",
-                remedy: Remedy(title: "Repair save directory", action: .repairSaveDirectory)
-            )
+        guard exists, isDir.boolValue else {
+            return blocked
         }
-        return ReadinessCheck(kind: .saveDirectory, outcome: .ready, finding: "Save directory is writable.", remedy: nil)
+
+        // `targetName` is a fixed, well-known name — not a fresh random
+        // name per evaluation — because the operation launch actually
+        // needs is REPLACING a name that may already be occupied. An
+        // existing immutable `.sav` sitting at a fixed target name is
+        // exactly the case a plain writability check cannot see; a
+        // brand-new random target name every time could never collide
+        // with anything already on disk and would prove nothing beyond
+        // "an empty name is available", which `isWritableFile` already
+        // (weakly) proved.
+        let probeURL = saveDirectoryURL.appendingPathComponent(
+            ".playstead-readiness-probe-\(UUID().uuidString)", isDirectory: false
+        )
+        let targetURL = saveDirectoryURL.appendingPathComponent(
+            ".playstead-readiness-write-probe-target", isDirectory: false
+        )
+
+        defer {
+            try? fm.removeItem(at: probeURL)
+            try? fm.removeItem(at: targetURL)
+        }
+
+        do {
+            try Data().write(to: probeURL)
+            // `replaceItemAt` creates `targetURL` when it doesn't
+            // already exist, and atomically replaces it when it does —
+            // exactly the operation the launch path performs against a
+            // real `.sav`.
+            _ = try fm.replaceItemAt(targetURL, withItemAt: probeURL)
+        } catch {
+            return blocked
+        }
+
+        return ReadinessCheck(
+            kind: .saveDirectory, outcome: .ready, finding: "Save directory is writable.", remedy: nil
+        )
     }
 
     // MARK: - Ordering
