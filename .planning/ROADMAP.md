@@ -253,7 +253,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 04-01-PLAN.md — Run probe SAVE-P1 and pin its report (D-02)
+- [x] 04-01-PLAN.md — Run probe SAVE-P1 and pin its report (D-02)
 - [ ] 04-02-PLAN.md — Fix the Mac inherited defects: backup exclusion, launch mutex, widened saveDirectory check (D-63, D-65, D-42)
 - [ ] 04-03-PLAN.md — Server free-space reserve, save problem codes, and save-lane limits (D-64, D-33)
 

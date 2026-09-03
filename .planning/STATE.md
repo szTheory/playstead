@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 04
 current_phase_name: Persistent Save Continuity
 status: executing
-stopped_at: Phase 4 context gathered
-last_updated: "2026-09-03T20:34:06.929Z"
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-09-03T23:42:20.979Z"
 last_activity: 2026-09-03
-last_activity_desc: Phase 04 planning complete
-state_head: dfb006ed81ad70855d75945521c759aa775352a6
+last_activity_desc: Phase 04 execution started
+state_head: caa7599b4473c755c9f85373fd9be500a8001701
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 51
-  completed_plans: 38
+  completed_plans: 39
 milestone_name: milestone
 ---
 
@@ -24,14 +24,14 @@ milestone_name: milestone
 See: `.planning/PROJECT.md` (updated 2026-08-30)
 
 **Core value:** A locally available game and its progress remain effortless to play, safe, understandable, synchronized, and fully under the user's control.
-**Current focus:** Phase 4 — persistent save continuity
+**Current focus:** Phase 04 — Persistent Save Continuity
 
 ## Current Position
 
-Phase: 04 (Persistent Save Continuity) — READY TO EXECUTE
-Plan: Not started
+Phase: 04 (Persistent Save Continuity) — EXECUTING
+Plan: 2 of 13
 Status: Ready to execute
-Last activity: 2026-09-03 — Phase 04 planning complete
+Last activity: 2026-09-03 — Phase 04 execution started
 
 **Read `.planning/phases/03.5-mac-verification-automation/.continue-here.md` before resuming 03.5-09.**
 It carries the root-cause analysis, the prepared Task 3 sequence, three blocking
@@ -91,6 +91,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 | Phase 03.5 P06 | 12m22s | 2 tasks | 8 files |
 | Phase 03.5 P07 | 12h10m | 3 tasks | 19 files |
 | Phase 03.5 P08 | 4h37m | 2 tasks | 10 files |
+| Phase 04-persistent-save-continuity P01 | 25min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -175,6 +176,8 @@ Progress: [█████████░] 90% (Phase 03.5)
 - [Phase 03.5]: A missing command exits 127, and `if cmd ...; then fail` reads 127 as "clean" — so a guard whose tooling is absent passes vacuously. Guards depend only on stdlib and preinstalled tooling (python3/POSIX; no ripgrep, no PyYAML), and every guard carries a negative control asserting it catches a known-bad input before being trusted.
 - [Phase 03.5]: A gate's wiring is itself guarded and mutation-tested (delete each marker, confirm failure); the contract gate enumerates tests/*.sh from the directory rather than a hand-kept list, so a new guard is picked up by existing. Beware scanning a file for a marker that also appears in its own comments — that made the first wiring guard fail-open.
 - [Phase 03.5]: A claimed control must match the enforced control. T-03.5-22/23/24 name human observation as their mitigation, so human execution IS the control; T-03.5-01/20 described an automated fail-closed validator with no human carve-out, so an opt-in CLI was strictly weaker than promised and had to be wired (verify-hosted-evidence.yml, proven on run 33717728601).
+- [Phase 04]: Combined inode_stability and mtime_fidelity measurement into one shared set of mutation rounds rather than two passes
+- [Phase 04]: post_death_writeback spawns the writer child as a fresh swift --writer-child process rather than raw fork(), avoiding Swift runtime/fork hazards
 
 ### Pending Todos
 
@@ -208,6 +211,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-03T18:48:13.807Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-persistent-save-continuity/04-CONTEXT.md
+Last session: 2026-09-03T23:42:20.850Z
+Stopped at: Completed 04-01-PLAN.md
+Resume file: None
