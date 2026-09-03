@@ -168,6 +168,10 @@ Progress: [█████████░] 90% (Phase 03.5)
 - [Phase 03.5]: Plan 03.5-09: When a bounded stage token cannot identify the failing statement, split the stage into finer bounded sub-stages rather than guessing; seven consecutive fix attempts preceded doing so.
 - [Phase 03.5]: Plan 03.5-09: validate-phase-3-uat-evidence.py's AUTOMATED_MAPPINGS (23 identifiers) is authoritative over 03.5-09-PLAN.md's stale mapping table.
 - [Phase 03.5]: Plan 03.5-09: Every gate must be exercised against the real file it guards; a fixture-only contract passes its own suite while being unable to accept production input.
+- [Phase 03.5]: Phase close found FOUR fail-open gates, all correctly written and none protecting anything: ten static guards unreachable from ci.yml; a guard depending on Homebrew ripgrep absent from the runner image; a validator's fixture meta-test unwired; and the hosted-evidence validator itself unwired. The hazard is never a bad check, it is a check that does not execute.
+- [Phase 03.5]: A missing command exits 127, and `if cmd ...; then fail` reads 127 as "clean" — so a guard whose tooling is absent passes vacuously. Guards depend only on stdlib and preinstalled tooling (python3/POSIX; no ripgrep, no PyYAML), and every guard carries a negative control asserting it catches a known-bad input before being trusted.
+- [Phase 03.5]: A gate's wiring is itself guarded and mutation-tested (delete each marker, confirm failure); the contract gate enumerates tests/*.sh from the directory rather than a hand-kept list, so a new guard is picked up by existing. Beware scanning a file for a marker that also appears in its own comments — that made the first wiring guard fail-open.
+- [Phase 03.5]: A claimed control must match the enforced control. T-03.5-22/23/24 name human observation as their mitigation, so human execution IS the control; T-03.5-01/20 described an automated fail-closed validator with no human carve-out, so an opt-in CLI was strictly weaker than promised and had to be wired (verify-hosted-evidence.yml, proven on run 33717728601).
 
 ### Pending Todos
 
