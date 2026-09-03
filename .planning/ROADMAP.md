@@ -248,7 +248,22 @@ Plans:
   5. When two devices save from the same base revision, both revisions remain available with device, time, and play context; the user can inspect, choose, export, and resolve either side without silent last-write-wins.
 
 **Research / spike flags**: Required compatibility gate: test the selected adapter's persistent-save type, safe-flush/debounce, crash behavior, and two-device divergent offline revisions. Save states remain local-only and outside the v1 portability contract.
-**Plans**: TBD
+**Plans**: 13 plans
+
+Plans:
+- [ ] 04-01-PLAN.md — Run probe SAVE-P1 and pin its report (D-02)
+- [ ] 04-02-PLAN.md — Fix the Mac inherited defects: backup exclusion, launch mutex, widened saveDirectory check (D-63, D-65, D-42)
+- [ ] 04-03-PLAN.md — Server free-space reserve, save problem codes, and save-lane limits (D-64, D-33)
+- [ ] 04-04-PLAN.md — Tracer: one save end-to-end, Mac capture to server revision and back
+- [ ] 04-05-PLAN.md — Revision DAG, accept-and-branch, branch heads, and append-only resolution (D-09–D-15, D-30, D-48)
+- [ ] 04-06-PLAN.md — Capture tiers, crash recovery, disk-full path, and quota rules (D-04–D-08, D-29, D-31)
+- [ ] 04-07-PLAN.md — Restore compatibility gate, LaunchSavePlanner, and the never-in-place executor (D-18–D-24, D-41–D-47)
+- [ ] 04-08-PLAN.md — Fill the reserved saves export slot with deterministic layout and manifest (D-56–D-62)
+- [ ] 04-09-PLAN.md — Shared save vocabulary, three-axis state model, rollup, Save row, and history sheet (D-34–D-40, D-67)
+- [ ] 04-10-PLAN.md — Saves-owned attention source and the LiveView console saves surface (D-66, D-67, D-53)
+- [ ] 04-11-PLAN.md — Two versions of your progress: comparison sheet and append-only resolution on the Mac (D-48–D-55)
+- [ ] 04-12-PLAN.md — The only-copy danger case: escalated panel and interruptive modal (D-32, D-40)
+- [ ] 04-13-PLAN.md — Restore proof, zero-network Play flow, validation map, and CP7-SAVE-C (D-68)
 
 ### Phase 5: Recovery and Release Proof
 
