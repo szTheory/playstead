@@ -1569,6 +1569,16 @@ run_contract_self_tests() {
     "$test_script" || failed=1
   done
 
+  # In-process validators whose meta-tests need no hosted evidence.
+  # verify_complete_hosted_run() itself cannot run here -- it audits a COMPLETED
+  # run's `gh` API JSON, so it is an operator tool, not a self-check. Its
+  # 17-fixture rejection meta-test can run, and that is what keeps it honest;
+  # without it the validator is unexercised code that would rot unnoticed.
+  printf 'contract: complete hosted-run validator fixtures\n'
+  run_complete_hosted_self_tests || failed=1
+  printf 'contract: cross-layer UAT allowlist anchors\n'
+  verify_required_uat_allowlist || failed=1
+
   # The validator's own unit tests. `unittest` is stdlib on purpose -- a gate
   # that needs an uninstalled third-party runner is a gate that does not run.
   printf 'contract: validator unit tests\n'
