@@ -430,6 +430,23 @@ PY
 grep -F 'VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm)' "$STORAGE_VIEW" >/dev/null
 grep -F '.padding(DesignTokens.Spacing.sm)' "$STORAGE_VIEW" >/dev/null
 grep -F '.frame(minHeight: DesignTokens.InteractiveTarget.minimum)' "$STORAGE_VIEW" >/dev/null
+# The contract gate must stay wired into CI, and must stay ahead of the build so
+# static drift fails in seconds rather than after a ~20-minute compile. Without
+# this assertion the gate is one careless workflow edit away from being
+# unreachable again -- which is exactly how two guards silently drifted before.
+grep -F -- '--self-test-contracts' "$WORKFLOW" >/dev/null || {
+  printf 'ci.yml must invoke run-mac-verification.sh --self-test-contracts\n' >&2
+  exit 1
+}
+python3 - "$WORKFLOW" <<'PY_GATE'
+import pathlib, sys
+workflow = pathlib.Path(sys.argv[1]).read_text()
+gate = workflow.find("--self-test-contracts")
+build = workflow.find("--run-four-layer-verification")
+if gate < 0 or build < 0 or gate > build:
+    raise SystemExit("the static contract gate must run before the four-layer build")
+print("contract gate wiring: passed")
+PY_GATE
 grep -F 'if: failure()' "$WORKFLOW" >/dev/null
 grep -F 'path: playstead-mac/.build/ci/failure-evidence' "$WORKFLOW" >/dev/null
 grep -F 'retention-days: 7' "$WORKFLOW" >/dev/null

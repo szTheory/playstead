@@ -1549,6 +1549,41 @@ run_self_tests() {
   "${SCRIPT_DIR}/tests/wave-0-verifier-test.sh"
 }
 
+# Every static contract guard this phase produced, in one fail-closed gate.
+#
+# Each guard used to be reachable only through its own CLI flag, and CI invoked
+# exactly one flag (--run-four-layer-verification), which called none of them.
+# That let two guards drift silently against the code they guard: the wave-0
+# topology test still required the pre-Plan-08 literal `server: true`, and the
+# Plan 05 surface contract had not been told about Plan 09's D-18 inventory
+# test, Plan 06's per-session identity, or Plan 07's row AX-group change.
+#
+# The gate is enumerated from the directory rather than a hand-kept list, so a
+# new guard is picked up by existing it, not by remembering to register it.
+run_contract_self_tests() {
+  local failed=0 test_script
+
+  for test_script in "${SCRIPT_DIR}"/tests/*.sh; do
+    [ -f "$test_script" ] || continue
+    printf 'contract: %s\n' "$(basename "$test_script")"
+    "$test_script" || failed=1
+  done
+
+  # The validator's own unit tests. `unittest` is stdlib on purpose -- a gate
+  # that needs an uninstalled third-party runner is a gate that does not run.
+  printf 'contract: validator unit tests\n'
+  ( cd "${SCRIPT_DIR}/tests" && python3 -m unittest discover -s . -p 'test_*.py' -q ) || failed=1
+
+  # The validator itself, against the real artifacts it exists to protect.
+  printf 'contract: phase-3 UAT/roadmap evidence boundaries\n'
+  python3 "${SCRIPT_DIR}/validate-phase-3-uat-evidence.py" \
+    --uat "${REPO_ROOT}/.planning/phases/03-mac-offline-play-vertical-slice/03-UAT.md" \
+    --roadmap "${REPO_ROOT}/.planning/ROADMAP.md" || failed=1
+
+  [ "$failed" -eq 0 ] || die "one or more static contract guards failed"
+  printf 'all static contract guards passed\n'
+}
+
 run_layer_verifier_self_tests() {
   "${SCRIPT_DIR}/tests/four-layer-verifier-test.sh"
 }
@@ -1724,6 +1759,7 @@ usage() {
 Usage:
   run-mac-verification.sh --run-wave-0-adoption
   run-mac-verification.sh --run-four-layer-verification
+  run-mac-verification.sh --self-test-contracts
   run-mac-verification.sh --run-snapshot-candidates
   run-mac-verification.sh --layers {rendering|ui} --only-testing TEST [TEST ...]
   run-mac-verification.sh --verify-layer-result FILE LAYER OUTPUT --required-test ID [...]
@@ -1777,6 +1813,7 @@ case "$1" in
     [ "$#" -eq 0 ] || die "unexpected build diagnostic arguments"
     print_build_diagnostics "$log" "$layer"
     ;;
+  --self-test-contracts) shift; [ "$#" -eq 0 ] || die "unexpected contract self-test arguments"; run_contract_self_tests ;;
   --self-test-result-verifier) shift; [ "$#" -eq 0 ] || die "unexpected verifier self-test arguments"; run_layer_verifier_self_tests ;;
   --self-test-sanitizer)
     shift

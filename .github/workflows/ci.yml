@@ -104,6 +104,14 @@ jobs:
           version-file: playstead-server/.tool-versions
           version-type: strict
 
+      # Static contract guards run BEFORE the ~20-minute build so drift between a
+      # guard and the code it guards fails in seconds. Until this step existed,
+      # CI invoked exactly one harness flag and reached none of these guards, so
+      # two of them had silently drifted out of agreement with shipped code.
+      - name: Verify static contract guards
+        working-directory: playstead-mac
+        run: scripts/ci/run-mac-verification.sh --self-test-contracts
+
       - name: Run one build and four serial test layers
         working-directory: playstead-mac
         run: scripts/ci/run-mac-verification.sh --run-four-layer-verification
