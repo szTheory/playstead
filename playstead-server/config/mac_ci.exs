@@ -1,5 +1,14 @@
 import Config
 
+# WARNING: this file must never be reused as a starting point for a config
+# that binds beyond loopback or persists beyond a single CI job. It is
+# deliberately loopback-only (`ip: {127, 0, 0, 1}`) and its Postgres cluster
+# is ephemeral and torn down every run — the `--auth=trust` Postgres
+# invocation in `scripts/ci/run-mac-verification.sh` and the generated
+# `secret_key_base` below are only "no real secret to protect" in that exact
+# context. Copy-pasting either pattern into a longer-lived or
+# externally-reachable environment would be a real security regression.
+#
 # A real, standalone native server for the hosted Mac acceptance spine.
 # It deliberately does not inherit the test transaction owner, endpoint
 # isolation plug, or Oban's manual test engine: XCUITest is an external client
@@ -21,6 +30,15 @@ database_url =
 
 port = String.to_integer(System.get_env("PORT", "4010"))
 
+# Generated at boot rather than committed as a literal: this process is
+# single-run and ephemeral (the whole native root is discarded at the end
+# of the CI job), so there is no need for the value to be stable across
+# boots. An env var override is honored first for callers that need a
+# fixed value within one hosted run (e.g. multiple cooperating processes).
+secret_key_base =
+  System.get_env("PLAYSTEAD_MAC_CI_SECRET_KEY_BASE") ||
+    (:crypto.strong_rand_bytes(48) |> Base.encode64())
+
 config :playstead, Playstead.Repo,
   url: database_url,
   pool_size: 10,
@@ -30,7 +48,7 @@ config :playstead, Playstead.Repo,
 config :playstead, PlaysteadWeb.Endpoint,
   url: [host: "127.0.0.1", port: port, scheme: "http"],
   http: [ip: {127, 0, 0, 1}, port: port],
-  secret_key_base: "wave0-native-phoenix-only-not-a-production-secret-key-base-0000000000000000",
+  secret_key_base: secret_key_base,
   # The long-lived Phoenix process owns the loopback listener. Fixture Mix
   # tasks still start Repo/domain services, but must not contend for the port.
   server: System.get_env("PLAYSTEAD_MAC_CI_TASK") != "1",
