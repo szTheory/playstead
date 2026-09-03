@@ -16,11 +16,13 @@ set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 PG_PORT=55432
 PG_MODE=docker
+RUN_XCUITEST=false
 WORK=""
 for argument in "$@"; do
   case "$argument" in
     --brew) PG_MODE=brew ;;
     --docker) PG_MODE=docker ;;
+    --xcuitest) RUN_XCUITEST=true ;;
     -*) echo "unknown option: $argument" >&2; exit 2 ;;
     *) WORK="$argument" ;;
   esac
@@ -144,6 +146,64 @@ run_stage() {
   echo "== $1 exit=$status  stage=$(cat "$PLAYSTEAD_LIVE_SERVER_STAGE_FILE" 2>/dev/null || echo '<none>')"
   return "$status"
 }
+
+if [ "$RUN_XCUITEST" = true ]; then
+  # The real live-server layer: the XCUITest runner spawns the fixture itself,
+  # so this is the only local path that exercises the runner's sandbox -- the
+  # thing the shell-only path below structurally cannot reach.
+  #
+  # CI injects the fixture environment through a patched generated xctestrun.
+  # Locally the runtime-config JSON carries the same keys, which is what it is
+  # for, so a plain -testPlan run is faithful without patching anything.
+  MAC="$REPO/playstead-mac"
+  RUNTIME_CONFIG="$MAC/.build/ci/four-layer/raw/live-server-runtime.json"
+  mkdir -p "$(dirname "$RUNTIME_CONFIG")"
+  python3 - "$RUNTIME_CONFIG" "$SERVER_ROOT" "$PLAYSTEAD_LIVE_SERVER_STAGE_FILE" \
+    "$MAC_CI_DATABASE_URL" "$MIX_ENV" "$PORT" "$PATH" <<'CONFIG'
+import json, os, pathlib, sys
+destination = pathlib.Path(sys.argv[1])
+root, stage_file, database_url, mix_env, port, search_path = sys.argv[2:]
+destination.write_text(json.dumps({
+    "PLAYSTEAD_MAC_CI_ROOT": root,
+    "PLAYSTEAD_LIVE_SERVER_STAGE_ROOT": root,
+    "PLAYSTEAD_LIVE_SERVER_STAGE_FILE": stage_file,
+    "MAC_CI_DATABASE_URL": database_url,
+    "MIX_ENV": mix_env,
+    "PORT": port,
+    "PATH": search_path,
+}, sort_keys=True) + "\n", encoding="utf-8")
+os.chmod(destination, 0o600)
+CONFIG
+  trap 'rm -f "$LOCAL_FIXTURE" "$RUNTIME_CONFIG"; cleanup' EXIT
+
+  signing=(CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=)
+  derived="$NATIVE_ROOT/DerivedData"
+  echo "== build-for-testing"
+  ( cd "$MAC" && xcodebuild build-for-testing -project Playstead.xcodeproj -scheme Playstead \
+      -destination 'platform=macOS' -derivedDataPath "$derived" \
+      "${signing[@]}" PLAYSTEAD_SNAPSHOT_RECORDING=0 ) >"$NATIVE_ROOT/build.log" 2>&1 ||
+    { grep -E 'error:' "$NATIVE_ROOT/build.log" | head -20; exit 1; }
+
+  echo "== runner sandbox entitlements"
+  codesign -d --entitlements - --xml "$derived/Build/Products/Debug/PlaysteadUITests-Runner.app" 2>/dev/null |
+    plutil -convert xml1 -o - - | grep -A3 'absolute-path' | sed 's/^/   /'
+
+  echo "== run: LiveServer test plan (this drives the UI)"
+  set +e
+  ( cd "$MAC" && xcodebuild test-without-building -project Playstead.xcodeproj -scheme Playstead \
+      -testPlan LiveServer -derivedDataPath "$derived" -destination 'platform=macOS' \
+      -resultBundlePath "$NATIVE_ROOT/live-server.xcresult" "${signing[@]}" ) \
+    >"$NATIVE_ROOT/live-server.log" 2>&1
+  xcuitest_status=$?
+  set -e
+  echo "== xcuitest exit=$xcuitest_status  stage=$(cat "$PLAYSTEAD_LIVE_SERVER_STAGE_FILE" 2>/dev/null || echo '<none>')"
+  if [ "$xcuitest_status" -ne 0 ]; then
+    grep -E 'error:|XCTAssert|Failing tests' "$NATIVE_ROOT/live-server.log" | head -20
+    exit "$xcuitest_status"
+  fi
+  echo "== LIVE-SERVER LAYER OK"
+  exit 0
+fi
 
 run_stage prepare "$CLIENT_ROOT" "$SERVER_ROOT"
 run_stage second "$CLIENT_ROOT" "$SERVER_ROOT"
