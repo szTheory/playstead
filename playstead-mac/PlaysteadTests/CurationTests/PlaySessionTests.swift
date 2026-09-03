@@ -211,7 +211,7 @@ final class PlaySessionTests: XCTestCase {
         let host = AdapterHost(pin: pin, emulatorsRoot: tempRoot.appendingPathComponent("emulators"))
 
         let exitExpectation = expectation(description: "process exits")
-        _ = try await host.launch(romPath: "/tmp/rom.gba", saveDir: "/tmp/saves") { _ in
+        _ = try await host.launch(assetSetID: "test-asset-set", romPath: "/tmp/rom.gba", saveDir: "/tmp/saves") { _ in
             exitExpectation.fulfill()
         }
         await fulfillment(of: [exitExpectation], timeout: 5)

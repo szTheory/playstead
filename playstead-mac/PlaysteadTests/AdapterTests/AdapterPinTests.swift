@@ -111,7 +111,7 @@ final class AdapterPinTests: XCTestCase {
         let host = AdapterHost(pin: pin, emulatorsRoot: tempRoot.appendingPathComponent("emulators"))
 
         do {
-            _ = try await host.launch(romPath: "/tmp/rom.gba", saveDir: "/tmp/saves") { _ in }
+            _ = try await host.launch(assetSetID: "test-asset-set", romPath: "/tmp/rom.gba", saveDir: "/tmp/saves") { _ in }
             XCTFail("expected digestMismatch")
         } catch let error as AdapterHost.LaunchError {
             guard case .digestMismatch = error else {

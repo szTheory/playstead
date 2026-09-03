@@ -171,7 +171,7 @@ final class AdapterWiringTests: XCTestCase {
         let saveDir = tempRoot.appendingPathComponent("saves", isDirectory: true)
         try FileManager.default.createDirectory(at: saveDir, withIntermediateDirectories: true)
         let exited = expectation(description: "the adapter process exits")
-        _ = try await host.launch(romPath: "/tmp/rom.gba", saveDir: saveDir.path) { _ in
+        _ = try await host.launch(assetSetID: "test-asset-set", romPath: "/tmp/rom.gba", saveDir: saveDir.path) { _ in
             exited.fulfill()
         }
         await fulfillment(of: [exited], timeout: Self.firstLaunchTimeout)
@@ -243,7 +243,7 @@ final class AdapterWiringTests: XCTestCase {
         let saveDir = tempRoot.appendingPathComponent("fixture-saves", isDirectory: true)
         try FileManager.default.createDirectory(at: saveDir, withIntermediateDirectories: true)
         let exited = expectation(description: "the installed adapter process exits")
-        _ = try await host.launch(romPath: "/tmp/rom.gba", saveDir: saveDir.path) { _ in exited.fulfill() }
+        _ = try await host.launch(assetSetID: "test-asset-set", romPath: "/tmp/rom.gba", saveDir: saveDir.path) { _ in exited.fulfill() }
         await fulfillment(of: [exited], timeout: Self.firstLaunchTimeout)
     }
 

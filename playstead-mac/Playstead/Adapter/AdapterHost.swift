@@ -85,6 +85,47 @@ final class AdapterProcessRegistry: @unchecked Sendable {
     }
 }
 
+/// A per-`assetSetID` mutual-exclusion lock spanning one launch's whole
+/// prepare → spawn → exit span. Two mGBA instances mmap'ing one 32 KB
+/// `.sav` is guaranteed silent corruption (D-65) — this is a sibling
+/// structure to `AdapterProcessRegistry` above, following the identical
+/// locking discipline (`NSLock`-guarded, `@unchecked Sendable`), but
+/// keyed by `assetSetID: String` rather than `ObjectIdentifier(process)`.
+///
+/// `tryAcquire` never blocks: it returns `false` immediately when the
+/// key is already held, so a caller can surface an ordinary refusal
+/// rather than deadlocking the UI or queuing a second launch behind the
+/// first. Deliberately does **not** branch on `AdapterExit`'s
+/// classification (D-05) — release happens on process termination
+/// regardless of which of the four exit cases the classifier returns.
+final class AdapterLaunchMutex: @unchecked Sendable {
+    static let shared = AdapterLaunchMutex()
+
+    private let lock = NSLock()
+    private var held: Set<String> = []
+
+    /// Attempts to acquire the mutex for `assetSetID`. Returns `true`
+    /// and marks the key held on success; returns `false` without
+    /// blocking when another launch already holds it.
+    func tryAcquire(assetSetID: String) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !held.contains(assetSetID) else { return false }
+        held.insert(assetSetID)
+        return true
+    }
+
+    /// Releases the mutex for `assetSetID`. Idempotent — releasing a key
+    /// that is not currently held is a no-op, never a precondition
+    /// failure, so every early-return/error path between acquisition and
+    /// spawn can call this unconditionally via `defer`.
+    func release(assetSetID: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        held.remove(assetSetID)
+    }
+}
+
 /// Launches the pinned emulator via Foundation `Process` and observes
 /// its exit. Every consumer-facing value (executable path, argument
 /// template, exit signatures) comes from `AdapterPin` — no emulator
@@ -99,6 +140,10 @@ actor AdapterHost {
     enum LaunchError: Error, Equatable {
         case emulatorNotInstalled
         case digestMismatch(expected: String, actual: String)
+        /// Another launch of this same `assetSetID` is already in
+        /// progress (D-65) — the caller should surface this as an
+        /// ordinary refusal, not spawn a second process.
+        case launchInProgress(assetSetID: String)
     }
 
     private let pin: AdapterPin
@@ -319,13 +364,39 @@ actor AdapterHost {
     /// app-managed save directory, invoking `onExit` exactly once when
     /// the process terminates (clean/crashed/killed/unknown, per the
     /// pin's `exitDetection` table).
+    ///
+    /// Holds `AdapterLaunchMutex` for `assetSetID` across this call's
+    /// entire prepare → spawn → exit span (D-65): acquired before
+    /// `verifyInstalledDigest`, released via `defer` on every throw
+    /// between acquisition and a successful `proc.run()`, and released
+    /// exactly once more by the termination handler when the process
+    /// actually exits — regardless of which `AdapterExit` case that exit
+    /// classifies as (D-05). When another launch already holds the key,
+    /// this throws `.launchInProgress` immediately rather than spawning
+    /// a second process against the same save artifact.
     @discardableResult
     func launch(
+        assetSetID: String,
         romPath: String,
         saveDir: String,
         biosPath: String? = nil,
         onExit: @escaping @Sendable (AdapterExit) -> Void
     ) throws -> Process {
+        let mutex = AdapterLaunchMutex.shared
+        guard mutex.tryAcquire(assetSetID: assetSetID) else {
+            throw LaunchError.launchInProgress(assetSetID: assetSetID)
+        }
+        // Ownership of the mutex transfers to the termination handler
+        // once `proc.run()` succeeds — this flag is flipped to `false`
+        // at that point so this `defer` never double-releases a key the
+        // handler will release later on actual process exit.
+        var releaseOnReturn = true
+        defer {
+            if releaseOnReturn {
+                mutex.release(assetSetID: assetSetID)
+            }
+        }
+
         try verifyInstalledDigest()
 
         let proc = Process()
@@ -336,6 +407,7 @@ actor AdapterHost {
         let registry = AdapterProcessRegistry.shared
         proc.terminationHandler = { finished in
             registry.unregister(finished)
+            mutex.release(assetSetID: assetSetID)
             let exit = AdapterExit.classify(
                 status: finished.terminationStatus,
                 reason: finished.terminationReason,
@@ -345,6 +417,7 @@ actor AdapterHost {
         }
 
         try proc.run()
+        releaseOnReturn = false
         process = proc
         registry.register(proc)
         return proc

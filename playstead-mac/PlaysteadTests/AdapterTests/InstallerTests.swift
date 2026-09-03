@@ -218,7 +218,7 @@ final class InstallerTests: XCTestCase {
         await host.setInstallState(.installed(executablePath: "/tmp/does-not-matter", verified: false))
 
         do {
-            _ = try await host.launch(romPath: "/tmp/rom.gba", saveDir: "/tmp/saves") { _ in }
+            _ = try await host.launch(assetSetID: "test-asset-set", romPath: "/tmp/rom.gba", saveDir: "/tmp/saves") { _ in }
             XCTFail("expected digestMismatch")
         } catch let error as AdapterHost.LaunchError {
             guard case .digestMismatch = error else {

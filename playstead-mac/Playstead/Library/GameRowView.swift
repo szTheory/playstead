@@ -360,7 +360,7 @@ struct GameRowView: View {
             let sessionID = environment.playSessionRecorder.began(assetSetID: entry.id)
             environment.refreshCurationViewModels()
 
-            try await adapterHost.launch(romPath: romURL.path, saveDir: saveDir.path, biosPath: biosPath) { exit in
+            try await adapterHost.launch(assetSetID: entry.id, romPath: romURL.path, saveDir: saveDir.path, biosPath: biosPath) { exit in
                 Task { @MainActor in
                     lastExit = exit
                     environment.playSessionRecorder.ended(sessionID)
