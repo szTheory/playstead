@@ -188,7 +188,7 @@ Plans:
   1. A `macos-*` GitHub-hosted runner job builds the Mac app and runs the existing `PlaysteadTests` target on every push and pull request, and fails the build on any test failure.
   2. An XCUITest target exists and drives the real app: the library shell, the curation shelves (including the `.onMove` drag reorder), and the downloads/quota/reclaim/storage views are exercised by automated interaction rather than by hand.
   3. A view-rendering/snapshot harness asserts the locked 03-UI-SPEC.md contract — the 8-step navigation order, the status vocabulary and its ladder, honest empty states, and card geometry that never uses cover art or title-derived color — so a visual regression fails CI instead of a UAT question.
-  4. Linux `compose-smoke` proves deployment topology, while native PostgreSQL 17 plus Phoenix beside XCUITest on macOS proves Mac client/server behavior, including automated pairing and catalogue rendering from `/api/v1/snapshot` before any bytes are downloaded.
+  4. Linux `compose-smoke` proves deployment topology; native PostgreSQL 17 plus Phoenix beside XCUITest proves Mac client/server behavior.
   5. A keyboard-only navigation pass over every Mac surface is automated, and the accessibility audit runs against a live accessibility tree rather than the current declarative-manifest tree-walk.
   6. Each Phase 3 UAT checkpoint this phase closes is re-recorded in `03-UAT.md` as `source: automated` with its covering test named.
 

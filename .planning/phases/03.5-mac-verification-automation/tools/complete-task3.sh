@@ -31,7 +31,7 @@ gh run view "$RUN_ID" \
 python3 - "$WORK/run-view.json" <<'PY'
 import json, pathlib, sys
 view = json.loads(pathlib.Path(sys.argv[1]).read_text())
-if view.get("workflowName") != "CI":
+if view.get("workflowName") != "ci":
     raise SystemExit(f"unexpected workflow: {view.get('workflowName')}")
 if view.get("event") not in {"push", "pull_request"}:
     raise SystemExit(f"unexpected event: {view.get('event')}")

@@ -1,0 +1,16 @@
+{
+  "conclusion": "success",
+  "event": "push",
+  "head_branch": "main",
+  "head_sha": "548121ea35f8ac4a7cf6242c6fd7889a37c48ac2",
+  "jobs": {
+    "compose-smoke": "success",
+    "mac-verification": "success",
+    "test": "success"
+  },
+  "run_id": 33702909968,
+  "schema_version": 1,
+  "status": "completed",
+  "url": "https://github.com/szTheory/playstead/actions/runs/33702909968",
+  "workflow": "ci"
+}

@@ -3,12 +3,12 @@ status: partial
 phase: 03-mac-offline-play-vertical-slice
 source: 03-01-SUMMARY.md, 03-02-SUMMARY.md, 03-03-SUMMARY.md, 03-04-SUMMARY.md, 03-05-SUMMARY.md, 03-06-SUMMARY.md, 03-07-SUMMARY.md, 03-08-SUMMARY.md, 03-09-SUMMARY.md, 03-10-SUMMARY.md
 started: 2026-08-31T00:00:00Z
-updated: 2026-08-31T00:00:00Z
+updated: 2026-09-02T00:00:00Z
 ---
 
 ## Current Test
 
-[testing paused — 12 items outstanding: 11 blocked, 1 deliberate scope decision]
+[testing paused — 9 items outstanding: 8 blocked, 1 deliberate scope decision]
 
 ## Tests
 
@@ -30,16 +30,30 @@ evidence: |
 
 ### 2. Catalogue renders from a live paired server before any download
 expected: On a normal interactive Mac session with a live paired server, launch the Mac app. At least one catalogue entry fetched from /api/v1/snapshot renders in the library without any bytes of that game having been downloaded first.
-result: blocked
-blocked_by: prior-phase
-reason: "Needs the Mac app driven against a live compose-started server with automated pairing — no such harness exists (no XCUITest target, no macOS CI job). Scheduled for Phase 3.5 (Mac Verification Automation), which stands up the macOS CI job, the XCUITest target, and the view-rendering/snapshot harness this checkpoint needs. Re-record here as source: automated when that phase lands."
+result: pass
+source: automated
+evidence: |
+  Closed by hosted six-job verification run 33702909968 at 548121ea35f8ac4a7cf6242c6fd7889a37c48ac2, the live-server layer
+  green, with every identifier below discovered, executed, non-skipped and passed.
+  https://github.com/szTheory/playstead/actions/runs/33702909968
+  Exact covering tests:
+  - `LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch`
+  Evidence boundary: Public pairing and /api/v1/snapshot render, fresh mirror, Keychain relaunch, and zero blob routes only; no real game bytes.
 coverage_id: 03-03/D1
 
 ### 3. Library shell matches the locked UI spec
 expected: The library shows its canonical 8-step navigation order, one status vocabulary matching 03-UI-SPEC.md's locked ladder table, honest empty states (first-run banner, zero-import invitation, per-shelf empty explanations), and card geometry/typography that never uses cover art or title-derived color.
-result: blocked
-blocked_by: prior-phase
-reason: "Needs a view-rendering/snapshot harness to assert 03-UI-SPEC.md geometry, typography, and status vocabulary; none exists in PlaysteadTests/. Scheduled for Phase 3.5 (Mac Verification Automation), which stands up the macOS CI job, the XCUITest target, and the view-rendering/snapshot harness this checkpoint needs. Re-record here as source: automated when that phase lands."
+result: pass
+source: automated
+evidence: |
+  Closed by hosted six-job verification run 33702909968 at 548121ea35f8ac4a7cf6242c6fd7889a37c48ac2, the rendering layer
+  green, with every identifier below discovered, executed, non-skipped and passed.
+  https://github.com/szTheory/playstead/actions/runs/33702909968
+  Exact covering tests:
+  - `LibraryContractSnapshotTests/testCardAndStatusVisualContract`
+  - `LibraryContractSnapshotTests/testSemanticContractOracles`
+  - `LibraryContractSnapshotTests/testFiveCurationShelfVisualContract`
+  Evidence boundary: Locked card geometry, status vocabulary, navigation order, honest empty states, and curation visual/semantic contract only.
 coverage_id: 03-06/D2
 
 ### 4. Find any game by system, availability, and free-text search (web console)
@@ -51,16 +65,46 @@ coverage_id: 03-05/D3
 
 ### 5. Downloads / quota / reclaim / storage click-through
 expected: Against a live paired server on an interactive Mac session, click through DownloadsView, QuotaSettingsView, ReclaimPromptView, and StorageView. Visual fidelity, motion timing, and VoiceOver behavior match the spec; the queue/quota/reclaim/storage flows behave as described.
-result: blocked
-blocked_by: prior-phase
-reason: "Needs XCUITest interaction against a live server to click through DownloadsView/QuotaSettingsView/ReclaimPromptView/StorageView. Scheduled for Phase 3.5 (Mac Verification Automation), which stands up the macOS CI job, the XCUITest target, and the view-rendering/snapshot harness this checkpoint needs. Re-record here as source: automated when that phase lands."
+result: pass
+source: automated
+evidence: |
+  Closed by hosted six-job verification run 33702909968 at 548121ea35f8ac4a7cf6242c6fd7889a37c48ac2, the rendering and ui layers
+  green, with every identifier below discovered, executed, non-skipped and passed.
+  https://github.com/szTheory/playstead/actions/runs/33702909968
+  Exact covering tests:
+  - `StorageContractSnapshotTests/testDownloadsQuotaReclaimAndStorageVisualContract`
+  - `StorageContractSnapshotTests/testStorageMotionAndReducedMotionContract`
+  - `StorageInteractionTests/testDownloadsPauseResumeFlow`
+  - `StorageInteractionTests/testQuotaEditAndFocusRestoration`
+  - `StorageInteractionTests/testReclaimPromptPostMutationPreservesCanonicalRows`
+  - `StorageInteractionTests/testStorageInventoryPostMutationPreservesCanonicalRows`
+  - `StorageInteractionTests/testStorageInventoryProtectsPinnedCopy`
+  - `SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit`
+  Evidence boundary: Visual, motion and reduced-motion, interaction, focus restoration, and machine-checkable live semantics/audits only; experiential VoiceOver remains blocked.
 coverage_id: 03-07/D6
 
 ### 6. Curation shelf views and drag reorder by hand
 expected: The five shelf views (Favorites, Collections, CollectionDetail, Queue, Continue/Recent) match 03-UI-SPEC.md's spacing/typography/status vocabulary, and the SwiftUI drag-to-reorder gesture works by hand. Play-session recording never delays or fails a launch, delivers idempotently after the fact, and each session is individually deletable.
-result: blocked
-blocked_by: prior-phase
-reason: "Needs XCUITest to exercise the SwiftUI .onMove drag gesture and a snapshot harness for the five shelf views. Scheduled for Phase 3.5 (Mac Verification Automation), which stands up the macOS CI job, the XCUITest target, and the view-rendering/snapshot harness this checkpoint needs. Re-record here as source: automated when that phase lands."
+result: pass
+source: automated
+evidence: |
+  Closed by hosted six-job verification run 33702909968 at 548121ea35f8ac4a7cf6242c6fd7889a37c48ac2, the rendering, ui and unit layers
+  green, with every identifier below discovered, executed, non-skipped and passed.
+  https://github.com/szTheory/playstead/actions/runs/33702909968
+  Exact covering tests:
+  - `LibraryContractSnapshotTests/testFiveCurationShelfVisualContract`
+  - `CurationInteractionTests/testContinueShelfRendersHonestEmptyFixture`
+  - `CurationInteractionTests/testFavoritesShelfRendersExactSeededCard`
+  - `CurationInteractionTests/testCollectionsShelfRendersExactSeededRoute`
+  - `CurationInteractionTests/testQueueShelfRendersHonestEmptyFixture`
+  - `CurationInteractionTests/testRecentShelfRendersHonestEmptyFixture`
+  - `CurationInteractionTests/testDragReorderSurvivesRelaunch`
+  - `CurationInteractionTests/testKeyboardReorderRetainsFocusAndSurvivesRelaunch`
+  - `PlaySessionTests/test_launchSucceedsIndependentlyOfPlaySessionRecording`
+  - `PlaySessionTests/test_offlineSession_isDeliveredAfterReachabilityReturns`
+  - `PlaySessionTests/test_sameSessionIdentifierPostedTwice_resultsInOneServerSideEffect`
+  - `PlaySessionTests/test_userDeletion_enqueuesDeleteIntentAndRemovesFromRecent`
+  Evidence boundary: Shelf visuals, drag and keyboard reorder durability, launch independence, delivery idempotency, and individual deletion only.
 coverage_id: 03-08/D3
 
 ### 7. Play a game end to end with the real emulator, offline
@@ -86,9 +130,23 @@ coverage_id: 03-10/D1
 
 ### 10. Directional-pad / shoulder navigation and accessibility floor
 expected: Every Mac surface is navigable by d-pad/shoulder buttons and by keyboard alone, and a live VoiceOver pass reads each surface sensibly (per docs/ACCESSIBILITY.md).
+result: partial
+
+#### Automated keyboard/live-tree record
+result: pass
+source: automated
+evidence: |
+  Closed by hosted six-job verification run 33702909968 at 548121ea35f8ac4a7cf6242c6fd7889a37c48ac2, the ui layer green.
+  https://github.com/szTheory/playstead/actions/runs/33702909968
+  Exact covering test:
+  - `SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit`
+  Evidence boundary: Keyboard-only navigation over every D-18 surface and
+  machine-checkable live-tree labels, roles, state, hierarchy, focus, and audits only.
+
+#### Blocked physical-controller/experiential record
 result: blocked
-blocked_by: prior-phase
-reason: "Needs an automated keyboard-only pass over every Mac surface and an audit against a live accessibility tree rather than the current declarative-manifest tree-walk. Live VoiceOver *sentence quality* stays human judgment and is out of scope even then. Scheduled for Phase 3.5 (Mac Verification Automation), which stands up the macOS CI job, the XCUITest target, and the view-rendering/snapshot harness this checkpoint needs. Re-record here as source: automated when that phase lands."
+blocked_by: physical-device-and-experiential-review
+reason: "Physical controller d-pad/shoulder behavior needs real controller hardware, and experiential VoiceOver pronunciation, rotor behavior, sentence quality, and comprehension are human judgment. Both remain blocked and unclaimed; the automated record above must not be read as covering them."
 coverage_id: 03-10/D2
 
 ### 11. Web console keyboard + screen-reader walkthrough

@@ -148,7 +148,9 @@ def main():
     uat = replace_body(uat, 10, checkpoint_ten(args.run_id, args.sha, args.run_url))
 
     today = datetime.date.today().isoformat()
-    uat = re.sub(r"(?m)^updated: .+$", f'updated: "{today}T00:00:00Z"', uat, count=1)
+    # Unquoted, matching this file's own `started:` line -- the quotes were a
+    # gratuitous style change to a document under review.
+    uat = re.sub(r"(?m)^updated: .+$", f"updated: {today}T00:00:00Z", uat, count=1)
 
     blocked = len(re.findall(r"(?m)^result: blocked\s*$", uat))
     uat = re.sub(
