@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 22
+open_count: 24
 waived_count: 1
 fixed_count: 4
-total_count: 27
-last_updated: 2026-09-01T18:29:41.733Z
+total_count: 29
+last_updated: 2026-09-04T03:18:16.168Z
 ---
 
 # Broken Windows Ledger
@@ -42,6 +42,8 @@ last_updated: 2026-09-01T18:29:41.733Z
 | 25 | 03.5 | deviation | playstead-mac/PlaysteadUITests/CurationInteractionTests.swift |  | Hosted run 33513649409 lacked keyboard stage detail; curation now uses exact-target canary focus detection and bounded safe focus/effect/retention test IDs. | open |  | 2026-09-01T14:17:23.468Z |  |
 | 26 | 03.5 | deviation | playstead-mac/scripts/ci/run-mac-verification.sh |  | Hosted run 33518726537 executed but did not report the three curation keyboard stage tests; all are now required evidence before any production command-model change. | open |  | 2026-09-01T14:56:43.305Z |  |
 | 27 | 03.5 | deviation | playstead-mac/Playstead/Curation/CollectionDetailView.swift |  | Hosted run 33526574205 proved nested List row buttons are not ordinary Tab stops; keyboard reorder now uses exact List selection plus visible bounded commands through the existing settlement path. | open |  | 2026-09-01T16:09:38.131Z |  |
+| 28 | 04 | deviation | playstead-server/lib/playstead_web/controllers/api/v1/saves_controller.ex |  | Save-lane UploadSlots/RateLimiter (D-33) not yet wired into the save routes | open |  | 2026-09-04T03:18:16.081Z |  |
+| 29 | 04 | stub | playstead-mac/Playstead/Sync/JournalApplier.swift |  | CacheObjectsSaveBytesPrefetcher.onPrefetchNeeded is a no-op; real byte transfer for D-43 prefetch deferred to a later downloads-lane plan | open |  | 2026-09-04T03:18:16.168Z |  |
 
 ````json
 [
@@ -367,6 +369,30 @@ last_updated: 2026-09-01T18:29:41.733Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-01T16:09:38.131Z",
+    "resolved_at": null
+  },
+  {
+    "id": 28,
+    "kind": "deviation",
+    "phase": "04",
+    "file": "playstead-server/lib/playstead_web/controllers/api/v1/saves_controller.ex",
+    "line": null,
+    "description": "Save-lane UploadSlots/RateLimiter (D-33) not yet wired into the save routes",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-04T03:18:16.081Z",
+    "resolved_at": null
+  },
+  {
+    "id": 29,
+    "kind": "stub",
+    "phase": "04",
+    "file": "playstead-mac/Playstead/Sync/JournalApplier.swift",
+    "line": null,
+    "description": "CacheObjectsSaveBytesPrefetcher.onPrefetchNeeded is a no-op; real byte transfer for D-43 prefetch deferred to a later downloads-lane plan",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-04T03:18:16.168Z",
     "resolved_at": null
   }
 ]

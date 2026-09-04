@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 04
 current_phase_name: Persistent Save Continuity
 status: executing
-stopped_at: Completed 04-03-PLAN.md
-last_updated: "2026-09-04T01:02:11.786Z"
+stopped_at: Completed 04-04-PLAN.md
+last_updated: "2026-09-04T03:18:43.713Z"
 last_activity: 2026-09-03
 last_activity_desc: Phase 04 execution started
-state_head: 3c36f1a0c4c051a62c7269e45008946e68e931e5
+state_head: dd93e11cad9f0ec9ae61de2ec7c308714b0fd139
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 51
-  completed_plans: 41
+  completed_plans: 42
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: `.planning/PROJECT.md` (updated 2026-08-30)
 ## Current Position
 
 Phase: 04 (Persistent Save Continuity) — EXECUTING
-Plan: 4 of 13
+Plan: 5 of 13
 Status: Ready to execute
 Last activity: 2026-09-03 — Phase 04 execution started
 
@@ -94,6 +94,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 | Phase 04-persistent-save-continuity P01 | 25min | 2 tasks | 5 files |
 | Phase 04 P02 | 32min | 3 tasks | 12 files |
 | Phase 04 P03 | 20min | 3 tasks | 8 files |
+| Phase 04 P04 | 90min | 3 tasks | 24 files |
 
 ## Accumulated Context
 
@@ -184,6 +185,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 - [Phase 04]: AdapterHost.launch takes a required assetSetID parameter to key the new per-game launch mutex, updated across all call sites — D-65 mutex is per-assetSetID, not global; the key must be explicit at every call site
 - [Phase 04]: reserve: :critical bypasses only the general free-space margin, never the 64 MiB physical floor (D-64) — A 32 KB save write is the one artifact that cannot be reconstructed elsewhere; open_write/2 keeps required_bytes/2 untouched for every other caller
 - [Phase 04]: Save-lane limit constants and key derivation added to Playstead.Blobs rather than a new Playstead.Saves module — Playstead.Saves does not exist until plan 04-04; reuses UploadSlots/RateLimiter unchanged under a save: namespace
+- [Phase 04]: SaveUploadLane mints a fresh UUIDv7 per upload attempt for command_id (never revision.id), since CommandId.cast/1 requires UUIDv7 and Foundation's UUID() is v4 — A shipped bug found before it shipped: reusing revision.id would have made every real save upload fail invalid_command_id
 
 ### Pending Todos
 
@@ -217,6 +219,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-04T01:02:11.668Z
-Stopped at: Completed 04-03-PLAN.md
+Last session: 2026-09-04T03:18:43.580Z
+Stopped at: Completed 04-04-PLAN.md
 Resume file: None
