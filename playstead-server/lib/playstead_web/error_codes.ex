@@ -36,7 +36,13 @@ defmodule PlaysteadWeb.ErrorCodes do
     import_session_too_large: {422, "Import Session Too Large"},
     range_not_satisfiable: {416, "Range Not Satisfiable"},
     curation_limit_exceeded: {422, "Curation Limit Exceeded"},
-    curation_invalid_position: {422, "Curation Invalid Position"}
+    curation_invalid_position: {422, "Curation Invalid Position"},
+    save_binding_incompatible: {422, "Save Binding Incompatible"},
+    save_revision_digest_mismatch: {422, "Save Revision Digest Mismatch"},
+    save_revision_too_large: {413, "Save Revision Too Large"},
+    save_parent_unknown: {409, "Save Parent Unknown"},
+    save_branch_limit_exceeded: {422, "Save Branch Limit Exceeded"},
+    save_revision_immutable: {409, "Save Revision Immutable"}
   }
 
   @doc "The full code-to-{status, title} mapping."
