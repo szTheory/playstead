@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 04
 current_phase_name: Persistent Save Continuity
 status: executing
-stopped_at: Completed 04-08-PLAN.md
-last_updated: "2026-09-04T15:35:45.048Z"
+stopped_at: Completed 04-09-PLAN.md
+last_updated: "2026-09-04T18:02:44.962Z"
 last_activity: 2026-09-03
 last_activity_desc: Phase 04 execution started
-state_head: 31f4ce451a5e966997bd39e41a475ea94e5df968
+state_head: 9f561e9a26269ae1d0fd913148a28f8239f2dafc
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 51
-  completed_plans: 46
+  completed_plans: 47
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: `.planning/PROJECT.md` (updated 2026-08-30)
 ## Current Position
 
 Phase: 04 (Persistent Save Continuity) — EXECUTING
-Plan: 9 of 13
+Plan: 10 of 13
 Status: Ready to execute
 Last activity: 2026-09-03 — Phase 04 execution started
 
@@ -99,6 +99,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 | Phase 04 P06 | 65min | 3 tasks | 10 files |
 | Phase 04 P07 | 26min | 3 tasks | 10 files |
 | Phase 04 P08 | 40min | 3 tasks | 12 files |
+| Phase 04-persistent-save-continuity P09 | 55min | 3 tasks | 21 files |
 
 ## Accumulated Context
 
@@ -199,6 +200,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 - [Phase 04]: [Phase 04]: LaunchSavePlanner never silently restores on a same_title verdict -- only exact widens the launch path's silent auto-restore; same_title's explicit acknowledgement belongs to a later save-timeline action, not a launch-time write
 - [Phase 04]: SavesPlan takes an already-DAG-resolved revision_input (branch_key/is_head precomputed) rather than performing DAG traversal itself, keeping the export planner pure and testable standalone ahead of real Saves->Export data wiring
 - [Phase 04]: A missing-bytes save revision's manifest entry uses sha256: nil, reusing BagitWriter's existing manifest_lines filter that already excludes members with no blob, rather than a new exclusion path
+- [Phase 04]: SaveStateModel expresses D-35's axes as independent facts; SaveRollup/readiness Save row/SaveHistorySheet all derive copy from one shared vocabulary asserted exhaustive on both Mac and console
 
 ### Pending Todos
 
@@ -232,6 +234,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-04T15:35:44.907Z
-Stopped at: Completed 04-08-PLAN.md
+Last session: 2026-09-04T18:02:44.835Z
+Stopped at: Completed 04-09-PLAN.md
 Resume file: None

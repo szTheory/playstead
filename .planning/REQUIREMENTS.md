@@ -57,7 +57,7 @@ Requirements for the first complete Mac-to-server custody and continuity release
 ### Persistent Save Continuity
 
 - [ ] **SAVE-01**: After a proven safe flush, the Mac client can capture the adapter-declared persistent-save artifact and queue it locally when the server is unavailable.
-- [ ] **SAVE-02**: A user can see whether a save revision is local-only, queued, uploaded, current, restored, or in conflict without a generic “synced” label hiding the distinction.
+- [x] **SAVE-02**: A user can see whether a save revision is local-only, queued, uploaded, current, restored, or in conflict without a generic “synced” label hiding the distinction.
 - [ ] **SAVE-03**: A user can restore a compatible checksummed persistent-save revision and continue the game on a clean paired Mac installation.
 - [ ] **SAVE-04**: When two devices create revisions from the same base, the system retains both and lets the user inspect device/time/play context, choose or export either side, and resolve the conflict without silent last-write-wins.
 
@@ -145,7 +145,7 @@ Which phases cover which requirements. This table is populated by roadmap creati
 | PLAY-04 | Phase 3 | Pending |
 | PLAY-05 | Phase 3 | Pending |
 | SAVE-01 | Phase 4 | Pending |
-| SAVE-02 | Phase 4 | Pending |
+| SAVE-02 | Phase 4 | Complete |
 | SAVE-03 | Phase 4 | Pending |
 | SAVE-04 | Phase 4 | Pending |
 | PORT-01 | Phase 4 | Complete |
