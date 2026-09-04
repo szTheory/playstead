@@ -33,9 +33,10 @@ struct AbandonedSaveSession {
 /// (recovery included) sees its own settle-then-promote result already
 /// recorded and stops there.
 ///
-/// Never branches on `AdapterExit` -- a session with no recorded exit at
-/// all is replayed exactly like one with any of the four classifications,
-/// because this type never even receives an exit classification as input.
+/// Never branches on how the session's process exited -- a session with
+/// no recorded exit classification at all is replayed exactly like one
+/// with any exit classification, because this type never even receives
+/// one as input.
 actor SaveSessionRecovery {
     private let saveStore: SaveStore
 

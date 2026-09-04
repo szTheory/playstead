@@ -41,6 +41,14 @@ struct QuotaVerdict: Equatable {
 /// 03-07 task 1). This type never deletes anything; a blocked verdict
 /// only pauses the item and surfaces `ReclaimPromptView`.
 final class QuotaManager {
+    /// D-29's 256 MiB save reserve, subtracted from what downloads are
+    /// permitted to consume: the local mirror of the server-side reserve
+    /// from plan 04-03. Saves themselves are never counted against the
+    /// quota at all (they are not `cache_objects` rows) -- this constant
+    /// only stops a download from consuming the physical free-space
+    /// headroom a future save capture will need.
+    static let saveReserveBytes = 268_435_456
+
     private let localStore: LocalStore
     private let cacheUsageProvider: () -> Int
     private let freeSpaceProvider: () -> Int
@@ -110,15 +118,19 @@ final class QuotaManager {
 
     /// Whether a transfer of `bytes` additional bytes may start right
     /// now. The floor is checked first and always wins when both limits
-    /// would be crossed.
+    /// would be crossed. The floor itself is effectively raised by
+    /// `saveReserveBytes` (D-29) -- a download is never permitted to eat
+    /// into the headroom a save capture needs, even when the configured
+    /// floor alone would have allowed it.
     func verdict(forAdditional bytes: Int) -> QuotaVerdict {
         let currentPolicy = policy()
         let currentUsage = cacheUsageProvider()
         let currentFree = freeSpaceProvider()
+        let effectiveFloorBytes = currentPolicy.floorBytes + Self.saveReserveBytes
 
         let projectedFree = currentFree - bytes
-        if projectedFree < currentPolicy.floorBytes {
-            let shortfall = currentPolicy.floorBytes - projectedFree
+        if projectedFree < effectiveFloorBytes {
+            let shortfall = effectiveFloorBytes - projectedFree
             return QuotaVerdict(allowed: false, limitHit: .floor, shortfallBytes: max(0, shortfall))
         }
 
