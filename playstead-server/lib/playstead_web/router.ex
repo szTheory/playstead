@@ -258,6 +258,23 @@ defmodule PlaysteadWeb.Router do
     delete "/:id", PlaySessionsController, :delete
   end
 
+  # D-16: the streamed save-revision upload half. Idempotency.fingerprint/1
+  # canonicalizes a parsed body and cannot fingerprint a stream, so this
+  # route stays off the :idempotency pipeline -- :repr_digest verifies the
+  # declared digest/length exactly like the imports upload route.
+  scope "/api/v1", PlaysteadWeb.Api.V1 do
+    pipe_through [:api, :device_auth, :repr_digest]
+
+    put "/saves/uploads/:command_id", SavesController, :create_upload
+  end
+
+  # D-16: the idempotent metadata-commit half.
+  scope "/api/v1", PlaysteadWeb.Api.V1 do
+    pipe_through [:api, :device_auth, :idempotency]
+
+    post "/saves/revisions", SavesController, :create_revision
+  end
+
   # D-21, PROT-05: the resumable change feed and its transactional
   # snapshot counterpart. Both are read-only — never mutating, never
   # Idempotency-Key gated — so they stay on the plain device_auth

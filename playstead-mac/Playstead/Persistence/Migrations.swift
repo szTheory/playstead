@@ -332,5 +332,53 @@ enum Migrations {
             );
             """
         )
+
+        // Plan 04-04 task 1: the local mirror of the server's save-line
+        // identity tuple (D-10). `id` mirrors the server's `save_lines.id`
+        // once known (assigned locally as a client-generated placeholder
+        // the first time a line is created, and never re-keyed once the
+        // server converges it -- see `SaveStore`'s doc comment).
+        try connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS save_line (
+                id TEXT PRIMARY KEY,
+                content_key TEXT NOT NULL,
+                save_kind TEXT NOT NULL DEFAULT 'battery',
+                slot TEXT NOT NULL DEFAULT '0',
+                UNIQUE(content_key, save_kind, slot)
+            );
+            """
+        )
+
+        // One row per captured/uploaded revision. `durability` is a
+        // distinct axis from `current`/`restored`/`conflicted` (D-35) --
+        // this column never grows those other states; they are handled
+        // in plan 04-09. `parent_revision_id` mirrors the server's
+        // parent-pointer DAG (D-09); NULL means root.
+        try connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS save_revision (
+                id TEXT PRIMARY KEY,
+                save_line_id TEXT NOT NULL,
+                parent_revision_id TEXT,
+                blob_sha256 TEXT NOT NULL,
+                size_bytes INTEGER NOT NULL,
+                origin_device_id TEXT,
+                device_captured_at TEXT,
+                recorded_at TEXT,
+                capture_method TEXT,
+                adapter_id TEXT,
+                adapter_version TEXT,
+                save_format TEXT,
+                format_confidence TEXT,
+                play_session_id TEXT,
+                durability TEXT NOT NULL DEFAULT 'localOnly',
+                local_path TEXT,
+                FOREIGN KEY (save_line_id) REFERENCES save_line(id) ON DELETE CASCADE
+            );
+            """
+        )
+        try connection.execute("CREATE INDEX IF NOT EXISTS idx_save_revision_line ON save_revision(save_line_id, parent_revision_id);")
+        try connection.execute("CREATE INDEX IF NOT EXISTS idx_save_revision_durability ON save_revision(durability);")
     }
 }

@@ -145,12 +145,17 @@ actor APIClient: NSObject {
     /// `Idempotency-Key` header per D-20a). Shares `get(path:queryItems:
     /// headers:)`'s error-mapping/response-decoding behavior exactly —
     /// `get` is now a thin `method: "GET"` call through this.
+    /// `contentType` (added in plan 04-04 for `SaveUploadLane`'s streamed
+    /// binary upload) overrides the default `application/json` sent
+    /// whenever `body` is non-nil -- every existing JSON-bodied caller
+    /// keeps its current behavior by omitting it.
     func send(
         method: String,
         path: String,
         queryItems: [URLQueryItem] = [],
         body: Data?,
-        headers: [String: String] = [:]
+        headers: [String: String] = [:],
+        contentType: String? = nil
     ) async throws -> APIResponse {
         guard let credential = self.credential else {
             throw APIClientError.notPaired
@@ -172,7 +177,7 @@ actor APIClient: NSObject {
         request.setValue("Bearer \(credential.token)", forHTTPHeaderField: "Authorization")
         if let body {
             request.httpBody = body
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue(contentType ?? "application/json", forHTTPHeaderField: "Content-Type")
         }
         for (key, value) in headers {
             request.setValue(value, forHTTPHeaderField: key)
