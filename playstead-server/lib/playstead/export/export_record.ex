@@ -14,6 +14,7 @@ defmodule Playstead.Export.ExportRecord do
 
   @statuses ~w(writing verifying verified verification_failed)
   @scopes ~w(set library)
+  @saves_scopes ~w(all none)
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
@@ -22,6 +23,7 @@ defmodule Playstead.Export.ExportRecord do
     field :scope, :string
     field :scope_asset_set_id, :binary_id
     field :target_name, :string
+    field :saves_scope, :string, default: "all"
 
     field :status, :string, default: "writing"
     field :set_count, :integer, default: 0
@@ -46,9 +48,10 @@ defmodule Playstead.Export.ExportRecord do
   @doc false
   def create_changeset(export, attrs) do
     export
-    |> cast(attrs, [:id, :user_id, :scope, :scope_asset_set_id, :target_name])
+    |> cast(attrs, [:id, :user_id, :scope, :scope_asset_set_id, :target_name, :saves_scope])
     |> validate_required([:id, :user_id, :scope, :target_name])
     |> validate_inclusion(:scope, @scopes)
+    |> validate_inclusion(:saves_scope, @saves_scopes)
     |> put_change(:status, "writing")
     |> put_change(:started_at, DateTime.utc_now())
   end

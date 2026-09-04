@@ -69,15 +69,23 @@ defmodule Playstead.Export.Worker do
   defp build_layout(%ExportRecord{
          scope: "set",
          scope_asset_set_id: asset_set_id,
-         user_id: user_id
+         user_id: user_id,
+         saves_scope: saves_scope
        }) do
     asset_set = Export.fetch_asset_set(user_id, asset_set_id)
-    Layout.plan([Export.to_layout_input(asset_set)], include_excluded: true)
+
+    Layout.plan([Export.to_layout_input(asset_set)],
+      include_excluded: true,
+      saves: Layout.saves_scope_atom(saves_scope)
+    )
   end
 
-  defp build_layout(%ExportRecord{scope: "library", user_id: user_id}) do
+  defp build_layout(%ExportRecord{scope: "library", user_id: user_id, saves_scope: saves_scope}) do
     asset_sets = Export.fetch_all_asset_sets(user_id)
-    Layout.plan(Enum.map(asset_sets, &Export.to_layout_input/1))
+
+    Layout.plan(Enum.map(asset_sets, &Export.to_layout_input/1),
+      saves: Layout.saves_scope_atom(saves_scope)
+    )
   end
 
   @doc """

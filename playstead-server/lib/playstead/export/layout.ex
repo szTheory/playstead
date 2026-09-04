@@ -13,9 +13,16 @@ defmodule Playstead.Export.Layout do
   form are recorded. Everything is fully sorted and carries no
   timestamps, so planning the same library twice yields identical
   output.
+
+  Each set plan also carries a `saves_plan` (D-56, D-62), built by the
+  pure `Playstead.Export.SavesPlan` from whatever `:saves` revision
+  list the caller attached to that set's input map (default `[]`).
+  This module never calls into the saves bounded context itself —
+  `Export -> Saves` coupling exists at the caller's boundary only, and
+  this module reads data it is handed, never a query.
   """
 
-  alias Playstead.Export.Sanitize
+  alias Playstead.Export.{Sanitize, SavesPlan}
 
   @unsorted_folder "unsorted"
   @quarantine_folder "quarantine"
@@ -36,7 +43,8 @@ defmodule Playstead.Export.Layout do
           required(:status) => String.t(),
           required(:member_fingerprint) => String.t(),
           optional(:excluded) => boolean(),
-          required(:members) => [member_input()]
+          required(:members) => [member_input()],
+          optional(:saves) => [SavesPlan.revision_input()]
         }
 
   @doc """
@@ -45,11 +53,17 @@ defmodule Playstead.Export.Layout do
   (`%{sha256:, size_bytes:}`) to place under the quarantine folder.
   `opts[:include_excluded]` (default `false`) controls whether sets
   carrying `excluded: true` are included — only opt-in inclusion, never
-  the default.
+  the default. `opts[:saves]` (default `:all`) is read exactly the same
+  way: `:all` plans every save revision a set's input carries; `:none`
+  omits the reserved saves slot's history entirely, regardless of what
+  a set's input supplies (D-57) — a user choice, unlike
+  `include_excluded`, so the caller persists it rather than deriving it
+  from scope alone.
   """
   @spec plan([set_input()], keyword()) :: map()
   def plan(sets, opts \\ []) when is_list(sets) do
     include_excluded? = Keyword.get(opts, :include_excluded, false)
+    saves_scope = Keyword.get(opts, :saves, :all)
     quarantined = Keyword.get(opts, :quarantined, [])
 
     included_sets =
@@ -60,7 +74,7 @@ defmodule Playstead.Export.Layout do
       included_sets
       |> Enum.group_by(&system_folder/1)
       |> Enum.flat_map(fn {system_folder, sets_in_system} ->
-        plan_system(system_folder, sets_in_system)
+        plan_system(system_folder, sets_in_system, saves_scope)
       end)
       |> Enum.sort_by(& &1.relative_dir)
 
@@ -72,10 +86,21 @@ defmodule Playstead.Export.Layout do
     %{sets: set_plans, quarantine: quarantine_plans}
   end
 
+  @doc """
+  Converts a persisted `ExportRecord.saves_scope` string into the atom
+  `plan/2`'s `:saves` option expects. Any value other than the known
+  `"none"` resolves to `:all` — the safe, keep-everything default
+  (D-57) — so a corrupted or pre-migration record never silently
+  narrows what gets exported.
+  """
+  @spec saves_scope_atom(String.t() | nil) :: :all | :none
+  def saves_scope_atom("none"), do: :none
+  def saves_scope_atom(_other), do: :all
+
   defp system_folder(%{system_id: nil}), do: @unsorted_folder
   defp system_folder(%{system_id: system_id}), do: to_string(system_id)
 
-  defp plan_system(system_folder, sets_in_system) do
+  defp plan_system(system_folder, sets_in_system, saves_scope) do
     keyed =
       Enum.map(sets_in_system, fn set ->
         {sanitized_title, _changed?} = Sanitize.component(set.display_title)
@@ -97,7 +122,7 @@ defmodule Playstead.Export.Layout do
         end
 
       relative_dir = Path.join(system_folder, folder_name)
-      plan_set(set, relative_dir)
+      plan_set(set, relative_dir, saves_scope)
     end)
   end
 
@@ -105,7 +130,7 @@ defmodule Playstead.Export.Layout do
     id |> String.replace("-", "") |> String.slice(0, 8)
   end
 
-  defp plan_set(set, relative_dir) do
+  defp plan_set(set, relative_dir, saves_scope) do
     members =
       set.members
       |> Enum.sort_by(& &1.ordinal)
@@ -121,9 +146,47 @@ defmodule Playstead.Export.Layout do
       provenance: Map.get(set, :provenance, %{}),
       sidecar_path: Path.join(relative_dir, "playstead-set.json"),
       saves_path: Path.join(relative_dir, "saves"),
+      saves_plan: build_saves_plan(set, relative_dir, saves_scope),
       members: members
     }
   end
+
+  defp build_saves_plan(_set, relative_dir, :none) do
+    prefix_saves_plan(SavesPlan.plan([]), relative_dir)
+  end
+
+  defp build_saves_plan(set, relative_dir, _saves_scope) do
+    raw_revisions = Map.get(set, :saves, [])
+    primary_basename = primary_member_basename(set)
+
+    raw_revisions
+    |> SavesPlan.plan(primary_basename: primary_basename, ext: "sav")
+    |> prefix_saves_plan(relative_dir)
+  end
+
+  defp primary_member_basename(%{members: members}) do
+    case Enum.find(members, List.first(members), &(&1.role == "primary")) do
+      nil -> nil
+      member -> member.declared_name
+    end
+  end
+
+  defp prefix_saves_plan(saves_plan, relative_dir) do
+    %{
+      saves_plan
+      | entries: Enum.map(saves_plan.entries, &prefix_saves_entry(&1, relative_dir)),
+        branches:
+          Enum.map(saves_plan.branches, fn branch ->
+            %{branch | revisions: Enum.map(branch.revisions, &prefix_saves_entry(&1, relative_dir))}
+          end),
+        drop_in: prefix_saves_entry(saves_plan.drop_in, relative_dir)
+    }
+  end
+
+  defp prefix_saves_entry(nil, _relative_dir), do: nil
+
+  defp prefix_saves_entry(entry, relative_dir),
+    do: %{entry | relative: Path.join(relative_dir, entry.relative)}
 
   defp plan_member(relative_dir, member) do
     candidate = member.declared_name || "member-#{member.ordinal}"

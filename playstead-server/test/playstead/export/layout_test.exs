@@ -1,7 +1,15 @@
 defmodule Playstead.Export.LayoutTest do
-  use ExUnit.Case, async: true
+  use Playstead.DataCase, async: false
 
-  alias Playstead.Export.Layout
+  import Playstead.ImportFixtures
+
+  alias Playstead.Blobs.Store.LocalDisk
+  alias Playstead.Export.{BagitWriter, ExportRecord, Layout}
+
+  setup do
+    File.mkdir_p!(LocalDisk.blob_path())
+    :ok
+  end
 
   defp member(overrides \\ []) do
     Map.merge(
@@ -125,5 +133,161 @@ defmodule Playstead.Export.LayoutTest do
 
     assert Layout.plan(sets).sets == []
     assert length(Layout.plan(sets, include_excluded: true).sets) == 1
+  end
+
+  # --- D-57: opts[:saves] and persisted saves_scope ---
+
+  defp put(bytes), do: Playstead.Blobs.put_stream([bytes], byte_size(bytes))
+
+  defp ts(offset), do: DateTime.add(~U[2026-01-01 00:00:00Z], offset, :second)
+
+  defp save_revision(sha256, overrides \\ []) do
+    Map.merge(
+      %{
+        id: Ecto.UUID.generate(),
+        sha256: sha256,
+        size_bytes: 32_768,
+        recorded_at: ts(0),
+        save_kind: "system_save",
+        is_head: true,
+        branch_key: nil
+      },
+      Map.new(overrides)
+    )
+  end
+
+  test "opts[:saves] defaults to :all: a set's supplied save revisions are planned" do
+    {:ok, :stored, meta} = put(random_bytes(64))
+    revisions = [save_revision(meta.sha256)]
+
+    plan = Layout.plan([set(saves: revisions)])
+    [entry] = plan.sets
+
+    assert entry.saves_plan.entries != []
+  end
+
+  test "opts[:saves] :none omits the saves history entirely, regardless of what a set's input supplies" do
+    {:ok, :stored, meta} = put(random_bytes(64))
+    revisions = [save_revision(meta.sha256)]
+
+    plan = Layout.plan([set(saves: revisions)], saves: :none)
+    [entry] = plan.sets
+
+    assert entry.saves_plan.entries == []
+    assert entry.saves_plan.drop_in == nil
+  end
+
+  test "planning the same library twice with save revisions produces identical plans (plan purity)" do
+    {:ok, :stored, meta} = put(random_bytes(64))
+    revisions = [save_revision(meta.sha256)]
+    sets = [set(saves: revisions)]
+
+    assert Layout.plan(sets) == Layout.plan(sets)
+  end
+
+  # D-59: determinism is exactly plan purity, write reproducibility, and
+  # append-only stability, with three named exceptions -- two inherited
+  # from Phase 2 (bag-info.txt's Bagging-Date and the single
+  # tagmanifest-sha256.txt line covering it) plus one this plan
+  # introduces (the saves/{stem}.sav drop-in copy, which tracks the
+  # slot's head and is therefore expected to change only when the head
+  # itself changes -- not exercised by this test, which reuses one
+  # unchanged plan, but named here so a fourth exception can never be
+  # added silently).
+  @determinism_exceptions ["bag-info.txt", "tagmanifest-sha256.txt"]
+
+  defp hash_tree(dir) do
+    dir
+    |> Path.join("**/*")
+    |> Path.wildcard(match_dot: true)
+    |> Enum.filter(&File.regular?/1)
+    |> Map.new(fn path ->
+      relative = Path.relative_to(path, dir)
+      {relative, :crypto.hash(:sha256, File.read!(path))}
+    end)
+  end
+
+  test "two writes of the same plan produce byte-identical trees except the three named exceptions" do
+    {:ok, :stored, meta} = put(random_bytes(128))
+
+    layout =
+      Layout.plan([
+        set(
+          members: [member(sha256: meta.sha256, size_bytes: meta.size_bytes)],
+          saves: [save_revision(meta.sha256)]
+        )
+      ])
+
+    dir_a = Path.join(System.tmp_dir!(), "playstead-det-a-#{System.unique_integer([:positive])}")
+    dir_b = Path.join(System.tmp_dir!(), "playstead-det-b-#{System.unique_integer([:positive])}")
+    on_exit(fn -> File.rm_rf!(dir_a) && File.rm_rf!(dir_b) end)
+
+    assert {:ok, _} = BagitWriter.write_bag(dir_a, layout)
+    assert {:ok, _} = BagitWriter.write_bag(dir_b, layout)
+
+    tree_a = hash_tree(dir_a)
+    tree_b = hash_tree(dir_b)
+
+    differing =
+      tree_a
+      |> Map.keys()
+      |> Enum.filter(fn key -> tree_a[key] != tree_b[key] end)
+
+    assert Enum.all?(differing, &(&1 in @determinism_exceptions))
+
+    stripped_a = Map.drop(tree_a, @determinism_exceptions)
+    stripped_b = Map.drop(tree_b, @determinism_exceptions)
+    assert stripped_a == stripped_b
+  end
+
+  test "appending a save revision and re-exporting leaves every previously written revision file byte-identical" do
+    {:ok, :stored, meta_1} = put(random_bytes(64))
+    {:ok, :stored, meta_2} = put(random_bytes(96))
+
+    r1 = save_revision(meta_1.sha256, recorded_at: ts(0), is_head: false)
+    r2 = save_revision(meta_2.sha256, recorded_at: ts(10), is_head: true)
+
+    layout_before = Layout.plan([set(members: [], saves: [r1])])
+    layout_after = Layout.plan([set(members: [], saves: [r1, r2])])
+
+    dir = Path.join(System.tmp_dir!(), "playstead-append-#{System.unique_integer([:positive])}")
+    on_exit(fn -> File.rm_rf!(dir) end)
+
+    assert {:ok, _} = BagitWriter.write_bag(dir, layout_before)
+    [before_entry] = Enum.at(layout_before.sets, 0).saves_plan.entries
+    revision_path = Path.join(dir, Path.join("data", before_entry.relative))
+    bytes_before = File.read!(revision_path)
+
+    assert {:ok, _} = BagitWriter.write_bag(dir, layout_after)
+    assert File.read!(revision_path) == bytes_before
+  end
+
+  test "a re-enqueued job reproduces the same plan from the persisted saves_scope, never a default" do
+    {:ok, :stored, meta} = put(random_bytes(64))
+    revisions = [save_revision(meta.sha256)]
+    sets = [set(saves: revisions)]
+
+    record = %ExportRecord{saves_scope: "none"}
+
+    plan_from_persisted =
+      Layout.plan(sets, saves: Layout.saves_scope_atom(record.saves_scope))
+
+    [entry] = plan_from_persisted.sets
+    assert entry.saves_plan.entries == []
+
+    # Reconstructing again from the same persisted record (as a
+    # re-enqueued Oban job would, reading the row fresh) reproduces the
+    # identical plan -- not the :all default a missing/forgotten
+    # saves_scope would have silently fallen back to.
+    assert Layout.plan(sets, saves: Layout.saves_scope_atom(record.saves_scope)) ==
+             plan_from_persisted
+
+    refute Layout.plan(sets, saves: Layout.saves_scope_atom(record.saves_scope)) ==
+             Layout.plan(sets, saves: :all)
+  end
+
+  test "Layout never aliases the saves bounded context" do
+    source = File.read!("lib/playstead/export/layout.ex")
+    refute source =~ "Playstead.Saves"
   end
 end
