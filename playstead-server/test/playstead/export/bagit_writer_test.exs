@@ -85,7 +85,7 @@ defmodule Playstead.Export.BagitWriterTest do
     assert decoded["schema"] == Sidecar.schema_id()
     refute Map.has_key?(decoded, "timestamp")
     refute Map.has_key?(decoded, "generated_at")
-    assert decoded["saves"]["entries"] == []
+    assert decoded["saves"]["branches"] == []
   end
 
   test "a sidecar with an unknown major schema version is ignored rather than parsed" do

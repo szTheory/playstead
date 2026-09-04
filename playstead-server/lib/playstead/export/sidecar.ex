@@ -7,9 +7,16 @@ defmodule Playstead.Export.Sidecar do
   reader encountering an unknown major version ignores the sidecar
   entirely rather than guessing at its shape.
 
-  Entries carry a `kind` marker and both the root and each set sidecar
-  reserve an (empty, in this phase) `saves` collection for Phase 4.
+  Entries carry a `kind` marker. Both the root and each set sidecar
+  carry a `saves` object (D-56, D-60): the root's is a static,
+  library-wide marker (per-set detail lives where it belongs, in the
+  set sidecar); each set's `saves` object is populated from
+  `Playstead.Export.SavesPlan`'s output, with `branches` always
+  present -- even for a fully linear history -- so a diverged slot can
+  never serialise as a flat list that implies one history.
   """
+
+  alias Playstead.Export.SavesPlan
 
   @schema_name "playstead-bag"
   @major_version 1
@@ -21,15 +28,15 @@ defmodule Playstead.Export.Sidecar do
 
   @doc """
   Builds the canonical root sidecar map. Carries no timestamp field —
-  the schema identifier and the reserved (empty) saves collection are
-  the only content.
+  the schema identifier and the (structurally always-present) saves
+  marker are the only content.
   """
   @spec root(keyword()) :: map()
   def root(opts \\ []) do
     %{
       "kind" => "root",
       "schema" => @schema_id,
-      "saves" => %{"kind" => "reserved", "entries" => []},
+      "saves" => %{"kind" => "saves", "branches" => []},
       "generator" => Keyword.get(opts, :generator, "playstead")
     }
   end
@@ -47,7 +54,7 @@ defmodule Playstead.Export.Sidecar do
       "status" => set_plan.status,
       "provenance" => Map.get(set_plan, :provenance, %{}),
       "recognition" => Map.get(set_plan, :recognition, %{}),
-      "saves" => %{"kind" => "reserved", "entries" => []},
+      "saves" => saves_sidecar(Map.get(set_plan, :saves_plan, SavesPlan.plan([]))),
       "members" =>
         Enum.map(set_plan.members, fn m ->
           %{
@@ -61,6 +68,45 @@ defmodule Playstead.Export.Sidecar do
             "required" => m.required
           }
         end)
+    }
+  end
+
+  # D-60: `branches` is always present, even when the history is
+  # linear (a single-element list, `"branch" => nil`) -- this is what
+  # makes a diverged slot structurally incapable of serialising as a
+  # flat list. A revision whose bytes never uploaded (D-61) is named
+  # here with `"bytes" => "missing"` and carries no `path` -- it is
+  # never placed in the payload manifest or `fetch.txt`.
+  defp saves_sidecar(%{entries: []} = saves_plan) do
+    %{"kind" => "saves", "branches" => [], "drop_in" => saves_revision_ref(saves_plan.drop_in)}
+  end
+
+  defp saves_sidecar(saves_plan) do
+    %{
+      "kind" => "saves",
+      "branches" => Enum.map(saves_plan.branches, &saves_branch/1),
+      "drop_in" => saves_revision_ref(saves_plan.drop_in)
+    }
+  end
+
+  defp saves_branch(%{branch: branch, revisions: revisions}) do
+    %{
+      "branch" => branch,
+      "revisions" => Enum.map(revisions, &saves_revision_ref/1)
+    }
+  end
+
+  defp saves_revision_ref(nil), do: nil
+
+  defp saves_revision_ref(entry) do
+    bytes_status = to_string(Map.get(entry, :bytes, :present))
+
+    %{
+      "seq" => Map.get(entry, :seq),
+      "sha256" => entry.sha256,
+      "size_bytes" => entry.size_bytes,
+      "bytes" => bytes_status,
+      "path" => if(bytes_status == "present", do: Path.join("data", entry.relative), else: nil)
     }
   end
 

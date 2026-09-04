@@ -22,7 +22,7 @@ defmodule Playstead.Export.BagitWriter do
   """
 
   alias Playstead.Blobs
-  alias Playstead.Export.{Sanitize, Sidecar}
+  alias Playstead.Export.{Sanitize, SavesPlan, Sidecar}
 
   @marker_file ".playstead-bag"
   @bagit_profile_identifier "https://playstead.example/bagit-profile.json"
@@ -104,12 +104,48 @@ defmodule Playstead.Export.BagitWriter do
   defp write_payload(target_dir, %{sets: sets, quarantine: quarantine}) do
     set_entries =
       Enum.flat_map(sets, fn set_plan ->
-        Enum.map(set_plan.members, &write_member!(target_dir, &1))
+        Enum.map(set_plan.members, &write_member!(target_dir, &1)) ++
+          write_saves_payload!(target_dir, set_plan)
       end)
 
     quarantine_entries = Enum.map(quarantine, &write_quarantine_member!(target_dir, &1))
 
     (set_entries ++ quarantine_entries) |> Enum.sort_by(& &1.relative)
+  end
+
+  # D-61: a revision whose bytes never uploaded is written into the
+  # sidecar as missing (`Sidecar.saves_sidecar/1`) but is never opened,
+  # streamed, or hashed here -- its manifest entry carries `sha256:
+  # nil`, so `manifest_lines/1`'s existing `Enum.filter(& &1.sha256)`
+  # excludes it automatically, exactly like a member with no blob.
+  defp write_saves_payload!(target_dir, set_plan) do
+    saves_plan = Map.get(set_plan, :saves_plan)
+
+    if saves_plan do
+      revision_entries = Enum.map(saves_plan.entries, &write_save_entry!(target_dir, &1))
+
+      drop_in_entries =
+        case saves_plan.drop_in do
+          nil -> []
+          drop_in -> [write_save_entry!(target_dir, drop_in)]
+        end
+
+      revision_entries ++ drop_in_entries
+    else
+      []
+    end
+  end
+
+  defp write_save_entry!(target_dir, entry) do
+    relative = Path.join("data", entry.relative)
+
+    if Map.get(entry, :bytes, :present) == :present do
+      {:ok, full_path} = Sanitize.safe_join(target_dir, relative)
+      write_payload!(full_path, entry.sha256)
+      %{relative: relative, sha256: entry.sha256, size_bytes: entry.size_bytes}
+    else
+      %{relative: relative, sha256: nil, size_bytes: entry.size_bytes}
+    end
   end
 
   defp write_member!(target_dir, member) do
@@ -133,13 +169,52 @@ defmodule Playstead.Export.BagitWriter do
   end
 
   defp write_sidecars(target_dir, %{sets: sets}) do
-    Enum.map(sets, fn set_plan ->
+    Enum.flat_map(sets, fn set_plan ->
       relative = Path.join("tags", Path.join(set_plan.relative_dir, "playstead-set.json"))
       {:ok, full_path} = Sanitize.safe_join(target_dir, relative)
       content = Sidecar.encode(Sidecar.set(set_plan))
       write_file_durably!(full_path, content)
-      {relative, content}
+
+      saves_txt_relative = Path.join("tags", Path.join(set_plan.relative_dir, "saves.txt"))
+      {:ok, saves_txt_full_path} = Sanitize.safe_join(target_dir, saves_txt_relative)
+      saves_txt_content = saves_txt(set_plan)
+      write_file_durably!(saves_txt_full_path, saves_txt_content)
+
+      [{relative, content}, {saves_txt_relative, saves_txt_content}]
     end)
+  end
+
+  # D-60: the "readable" half of "readable manifest" -- one plain-text
+  # line per exported revision, grouped by branch, with the shared
+  # (unlettered) history first. No tooling required to read it.
+  defp saves_txt(set_plan) do
+    saves_plan = Map.get(set_plan, :saves_plan, SavesPlan.plan([]))
+    header = "Save history — #{set_plan.display_title}\n\n"
+
+    body =
+      if saves_plan.entries == [] do
+        "No save revisions recorded for this title.\n"
+      else
+        saves_plan.branches
+        |> Enum.map(&format_save_branch/1)
+        |> Enum.join("\n\n")
+        |> Kernel.<>("\n")
+      end
+
+    header <> body
+  end
+
+  defp format_save_branch(%{branch: branch, revisions: revisions}) do
+    label = if branch, do: "Branch #{branch}", else: "Shared history"
+
+    lines =
+      Enum.map(revisions, fn r ->
+        missing = if Map.get(r, :bytes, :present) == :missing, do: " (not on this server)", else: ""
+        seq = r.seq |> Integer.to_string() |> String.pad_leading(3, " ")
+        "  #{seq}  #{Path.basename(r.relative)}  #{r.sha256}  #{r.size_bytes} bytes#{missing}"
+      end)
+
+    Enum.join([label | lines], "\n")
   end
 
   defp manifest_lines(payload_entries) do
