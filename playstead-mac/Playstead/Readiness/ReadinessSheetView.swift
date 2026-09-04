@@ -18,14 +18,19 @@ struct ReadinessSheetView: View {
     var onPlay: () -> Void = {}
     var onClose: () -> Void = {}
     /// D-37: the Save row's "Review versions…" action -- navigational
-    /// only, opens the per-game save history sheet. Never invoked from
-    /// a blocking outcome; the Save row can't produce one.
+    /// only, opens the per-game save history sheet inline below. Never
+    /// invoked from a blocking outcome; the Save row can't produce one.
     var onReviewSaveVersions: () -> Void = {}
+    /// The sessions `SaveHistorySheet` renders once opened -- a closure
+    /// so this view stays fully testable without a live `SaveStore`
+    /// dependency; defaults to empty (the "No saves yet." empty state).
+    var saveHistorySessions: () -> [SaveHistorySession] = { [] }
 
     @Environment(AppEnvironment.self) private var environment
     @State private var showsAdapterSetup = false
     @State private var showsBiosDropTarget = false
     @State private var showsInputSettings = false
+    @State private var showsSaveHistory = false
     @FocusState private var doneHasFocus: Bool
 
     var body: some View {
@@ -61,6 +66,14 @@ struct ReadinessSheetView: View {
                         forControllerProductID: environment.controllerHost.assignedControllerID ?? ""
                     ),
                     onAssign: { environment.controllerHost.assign(controllerID: $0) }
+                )
+            }
+            if showsSaveHistory {
+                Divider()
+                SaveHistorySheet(
+                    title: entry.displayTitle,
+                    sessions: saveHistorySessions(),
+                    onClose: { showsSaveHistory = false }
                 )
             }
 
@@ -108,6 +121,7 @@ struct ReadinessSheetView: View {
             environment.repairSaveDirectory(for: entry)
             onRefresh()
         case .reviewSaveVersions:
+            showsSaveHistory = true
             onReviewSaveVersions()
         }
     }

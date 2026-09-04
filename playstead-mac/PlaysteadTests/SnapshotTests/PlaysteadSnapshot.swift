@@ -231,7 +231,8 @@ enum PlaysteadSnapshot {
 
     private static let supportedSuites = Set([
         "LibraryContractSnapshotTests",
-        "StorageContractSnapshotTests"
+        "StorageContractSnapshotTests",
+        "SaveHistoryContractSnapshotTests"
     ])
 
     private static func referenceDirectory(suite: String) -> URL {

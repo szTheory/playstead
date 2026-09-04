@@ -42,6 +42,7 @@
         "IdentityAndFocusPrimitiveTests",
         "LibraryContractSnapshotTests",
         "ReleaseHookAbsenceTests",
+        "SaveHistoryContractSnapshotTests",
         "SnapshotHarnessCanaryTests/testIntentionalMismatchProducesReviewableTriplet()",
         "SnapshotHarnessCanaryTests/testMeaningfulMutationFailsAndCalibratedNoisePasses()",
         "StorageContractSnapshotTests"

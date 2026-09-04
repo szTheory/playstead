@@ -123,3 +123,20 @@ struct StatusSlotView: View {
         }
     }
 }
+
+// MARK: - Save state -> the card's rank-1 union (D-38, plan 04-09)
+
+extension LibraryStatus {
+    /// D-38: only `conflicted` ever reaches the library card, and only
+    /// through the existing rank-1 `.needsAttention` rung -- no new
+    /// case, glyph, colour token, or copy is introduced for save state.
+    /// `nil` when the game's save state isn't conflicted, so a caller
+    /// unions this into the same `statuses` array
+    /// `forCard(availability:activeMemberProgressPercent:)` (plan
+    /// 03-07) already feeds `StatusSlotView` -- the card's attention
+    /// rung is a presentation rank fed by a union of sources, never
+    /// `Playstead.Attention.Reason` itself.
+    static func forSaveState(conflicted: Bool) -> LibraryStatus? {
+        conflicted ? .needsAttention : nil
+    }
+}
