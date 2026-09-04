@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 04
 current_phase_name: Persistent Save Continuity
 status: executing
-stopped_at: Completed 04-02-PLAN.md
-last_updated: "2026-09-03T23:58:52.047Z"
+stopped_at: Completed 04-03-PLAN.md
+last_updated: "2026-09-04T01:02:11.786Z"
 last_activity: 2026-09-03
 last_activity_desc: Phase 04 execution started
-state_head: 735cf0b5bbf24b0677eae983761345c5cb8b5531
+state_head: 3c36f1a0c4c051a62c7269e45008946e68e931e5
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 51
-  completed_plans: 40
+  completed_plans: 41
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: `.planning/PROJECT.md` (updated 2026-08-30)
 ## Current Position
 
 Phase: 04 (Persistent Save Continuity) — EXECUTING
-Plan: 3 of 13
+Plan: 4 of 13
 Status: Ready to execute
 Last activity: 2026-09-03 — Phase 04 execution started
 
@@ -93,6 +93,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 | Phase 03.5 P08 | 4h37m | 2 tasks | 10 files |
 | Phase 04-persistent-save-continuity P01 | 25min | 2 tasks | 5 files |
 | Phase 04 P02 | 32min | 3 tasks | 12 files |
+| Phase 04 P03 | 20min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -181,6 +182,8 @@ Progress: [█████████░] 90% (Phase 03.5)
 - [Phase 04]: post_death_writeback spawns the writer child as a fresh swift --writer-child process rather than raw fork(), avoiding Swift runtime/fork hazards
 - [Phase 04]: Clear-then-exclude ordering in AppPaths.init: clearStaleRootBackupExclusion always runs before excludeReconstructableDirectoriesFromBackup, so a pre-D-63 install's stale root flag can never re-inherit onto a directory whose own flag this same pass sets — Prevents a repaired install from re-inheriting a stale exclusion flag mid-migration
 - [Phase 04]: AdapterHost.launch takes a required assetSetID parameter to key the new per-game launch mutex, updated across all call sites — D-65 mutex is per-assetSetID, not global; the key must be explicit at every call site
+- [Phase 04]: reserve: :critical bypasses only the general free-space margin, never the 64 MiB physical floor (D-64) — A 32 KB save write is the one artifact that cannot be reconstructed elsewhere; open_write/2 keeps required_bytes/2 untouched for every other caller
+- [Phase 04]: Save-lane limit constants and key derivation added to Playstead.Blobs rather than a new Playstead.Saves module — Playstead.Saves does not exist until plan 04-04; reuses UploadSlots/RateLimiter unchanged under a save: namespace
 
 ### Pending Todos
 
@@ -214,6 +217,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-03T23:58:51.913Z
-Stopped at: Completed 04-02-PLAN.md
+Last session: 2026-09-04T01:02:11.668Z
+Stopped at: Completed 04-03-PLAN.md
 Resume file: None
