@@ -384,6 +384,40 @@ defmodule Playstead.Readiness do
     available_bytes >= required_bytes(requested_bytes, capacity_bytes)
   end
 
+  # --- critical reserve (D-64) -------------------------------------------
+  # A 32 KB save upload cannot be reconstructed from anywhere else, unlike
+  # a large game download the general `required_bytes/2` margin exists to
+  # protect. `reserve: :critical` (`LocalDisk.open_write/2`) bypasses that
+  # margin — never the physical floor below. `required_bytes/2` and
+  # `fits_free_space?/3` above are untouched by this section: every
+  # existing large-download caller keeps the full margin unchanged.
+
+  @critical_free_floor_bytes 67_108_864
+
+  @doc """
+  The hard physical free-space floor (64 MiB) a `reserve: :critical`
+  write must never cross, even though it bypasses `required_bytes/2`'s
+  general margin (D-64).
+  """
+  @spec critical_free_floor_bytes() :: non_neg_integer()
+  def critical_free_floor_bytes, do: @critical_free_floor_bytes
+
+  @doc """
+  Whether a `reserve: :critical` write of `requested_bytes` leaves at
+  least `critical_free_floor_bytes/0` bytes free on a volume with
+  `available_bytes` free right now — the physical floor only, with no
+  `required_bytes/2` margin applied. The sole caller is
+  `Playstead.Blobs.Store.LocalDisk.open_write/2`'s `reserve: :critical`
+  branch (D-64); every other write path keeps the full margin via
+  `fits_free_space?/3`.
+  """
+  @spec fits_critical_free_space?(non_neg_integer(), non_neg_integer()) :: boolean()
+  def fits_critical_free_space?(requested_bytes, available_bytes)
+      when is_integer(requested_bytes) and requested_bytes >= 0 and
+             is_integer(available_bytes) and available_bytes >= 0 do
+    available_bytes - requested_bytes >= critical_free_floor_bytes()
+  end
+
   # --- https ------------------------------------------------------------
   # Four distinct, honestly-labeled transport states (D-13, D-04): never
   # collapse them into a single boolean, and never call plain-HTTP or an

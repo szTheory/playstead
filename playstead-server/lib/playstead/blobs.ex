@@ -26,13 +26,20 @@ defmodule Playstead.Blobs do
   Streams `chunk_stream` (any `Enumerable` of binaries) through the
   configured store, hashing and writing as it goes. Aborts and cleans
   up on any write failure.
+
+  `opts` is passed through to both `store.open_write/2` and
+  `store.commit/2`: `reserve: :critical` (D-64) routes the space check
+  to the store's 64 MiB physical-floor-only path instead of the
+  general margin, for writes whose bytes cannot be reconstructed from
+  anywhere else (save uploads). Every other caller keeps its current
+  behaviour by omitting the option.
   """
   @spec put_stream(Enumerable.t(), non_neg_integer(), keyword()) ::
           {:ok, :stored, map()} | {:ok, :existing, map()} | {:error, term()}
   def put_stream(chunk_stream, byte_size_hint, opts \\ []) do
     store = store()
 
-    with {:ok, ref} <- store.open_write(byte_size_hint) do
+    with {:ok, ref} <- store.open_write(byte_size_hint, opts) do
       case reduce_chunks(store, ref, chunk_stream) do
         {:ok, ref} -> store.commit(ref, opts)
         {:error, reason} -> {:error, reason}

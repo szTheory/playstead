@@ -34,13 +34,24 @@ defmodule Playstead.Blobs.Store.LocalDisk do
   def blob_path, do: System.get_env(@blob_path_env) || @default_blob_path
 
   @impl true
-  def open_write(byte_size_hint) do
+  def open_write(byte_size_hint, opts \\ []) do
     path = blob_path()
 
-    if space_available?(path, byte_size_hint) do
+    if space_ok?(path, byte_size_hint, opts) do
       do_open_write(path)
     else
       {:error, :insufficient_space}
+    end
+  end
+
+  # `reserve: :critical` (D-64) routes to the 64 MiB physical-floor-only
+  # check; every other opts value (including the empty list `open_write/1`
+  # expands to) is byte-for-byte identical to the shipped behaviour.
+  defp space_ok?(path, byte_size_hint, opts) do
+    if Keyword.get(opts, :reserve) == :critical do
+      critical_space_available?(path, byte_size_hint)
+    else
+      space_available?(path, byte_size_hint)
     end
   end
 
@@ -56,6 +67,21 @@ defmodule Playstead.Blobs.Store.LocalDisk do
         # Cannot verify here (e.g. path does not exist yet in a fresh
         # dev checkout) — degrade gracefully rather than refuse every
         # write, matching Readiness's own graceful-fallback shape.
+        true
+    end
+  end
+
+  # D-64: physical floor only, never `required_bytes/2`'s margin — a
+  # save upload is the one artifact that cannot be reconstructed from
+  # anywhere else, so it bypasses the margin reserved for artifacts
+  # (large game downloads) that can be. Same unknown-degrades-to-allow
+  # fallback as `space_available?/2` above.
+  defp critical_space_available?(path, byte_size_hint) do
+    case Playstead.Readiness.free_bytes(path) do
+      available when is_integer(available) ->
+        Playstead.Readiness.fits_critical_free_space?(byte_size_hint, available)
+
+      :unknown ->
         true
     end
   end

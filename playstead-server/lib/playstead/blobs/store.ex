@@ -26,6 +26,17 @@ defmodule Playstead.Blobs.Store do
   @callback open_write(byte_size_hint :: non_neg_integer()) ::
               {:ok, write_ref()} | {:error, :insufficient_space} | {:error, term()}
 
+  @doc """
+  Same as `open_write/1`, plus `opts`. `reserve: :critical` (D-64) checks
+  only the 64 MiB physical floor (`Playstead.Readiness.fits_critical_free_space?/2`)
+  instead of the general `required_bytes/2` margin — for writes whose
+  bytes cannot be reconstructed from anywhere else (save uploads). Any
+  other `opts` value, and the absence of `opts`, is byte-for-byte
+  identical to `open_write/1`.
+  """
+  @callback open_write(byte_size_hint :: non_neg_integer(), opts :: keyword()) ::
+              {:ok, write_ref()} | {:error, :insufficient_space} | {:error, term()}
+
   @doc "Writes one chunk and folds it into the write's running multi-hash accumulator."
   @callback write_chunk(write_ref(), binary()) :: {:ok, write_ref()} | {:error, term()}
 

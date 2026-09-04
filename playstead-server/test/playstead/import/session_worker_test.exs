@@ -3,7 +3,7 @@ defmodule Playstead.Import.SessionWorkerTest.InsufficientSpaceStore do
   @behaviour Playstead.Blobs.Store
 
   @impl true
-  def open_write(_byte_size_hint), do: {:error, :insufficient_space}
+  def open_write(_byte_size_hint, _opts \\ []), do: {:error, :insufficient_space}
 
   @impl true
   def write_chunk(ref, _chunk), do: {:ok, ref}
