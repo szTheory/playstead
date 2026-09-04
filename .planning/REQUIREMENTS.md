@@ -63,7 +63,7 @@ Requirements for the first complete Mac-to-server custody and continuity release
 
 ### Portability and Recovery
 
-- [ ] **PORT-01**: A user can export exact original game bytes, persistent-save revisions, and a readable manifest with hashes into deterministic ordinary folders.
+- [x] **PORT-01**: A user can export exact original game bytes, persistent-save revisions, and a readable manifest with hashes into deterministic ordinary folders.
 - [x] **PORT-02**: A user can verify an export and reimport it without byte changes, lost asset relationships, or duplicate logical records.
 - [ ] **PORT-03**: A self-hoster can create full and incremental backups to an independent user-controlled destination and see exactly what each backup covers and when it was last verified.
 - [ ] **PORT-04**: A self-hoster can restore the server into a clean environment and verify database records, exact blobs, manifests, saves, and the known-playable Mac path.
@@ -148,7 +148,7 @@ Which phases cover which requirements. This table is populated by roadmap creati
 | SAVE-02 | Phase 4 | Pending |
 | SAVE-03 | Phase 4 | Pending |
 | SAVE-04 | Phase 4 | Pending |
-| PORT-01 | Phase 4 | Pending |
+| PORT-01 | Phase 4 | Complete |
 | PORT-02 | Phase 2 | Complete |
 | PORT-03 | Phase 5 | Pending |
 | PORT-04 | Phase 5 | Pending |

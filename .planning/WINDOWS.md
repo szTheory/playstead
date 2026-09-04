@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 24
+open_count: 26
 waived_count: 1
 fixed_count: 4
-total_count: 29
-last_updated: 2026-09-04T03:18:16.168Z
+total_count: 31
+last_updated: 2026-09-04T15:35:17.159Z
 ---
 
 # Broken Windows Ledger
@@ -44,6 +44,8 @@ last_updated: 2026-09-04T03:18:16.168Z
 | 27 | 03.5 | deviation | playstead-mac/Playstead/Curation/CollectionDetailView.swift |  | Hosted run 33526574205 proved nested List row buttons are not ordinary Tab stops; keyboard reorder now uses exact List selection plus visible bounded commands through the existing settlement path. | open |  | 2026-09-01T16:09:38.131Z |  |
 | 28 | 04 | deviation | playstead-server/lib/playstead_web/controllers/api/v1/saves_controller.ex |  | Save-lane UploadSlots/RateLimiter (D-33) not yet wired into the save routes | open |  | 2026-09-04T03:18:16.081Z |  |
 | 29 | 04 | stub | playstead-mac/Playstead/Sync/JournalApplier.swift |  | CacheObjectsSaveBytesPrefetcher.onPrefetchNeeded is a no-op; real byte transfer for D-43 prefetch deferred to a later downloads-lane plan | open |  | 2026-09-04T03:18:16.168Z |  |
+| 30 | 04 | deviation | playstead-server/lib/playstead/export/export.ex |  | Real Playstead.Saves revision data is not yet loaded into Export.to_layout_input/1; SavesPlan/Sidecar/BagitWriter pipeline is built+tested against synthetic data only (04-08) | open |  | 2026-09-04T15:35:17.080Z |  |
+| 31 | 04 | deviation | playstead-server/lib/playstead_web/live/exports_live.ex |  | No console UI control yet sets ExportRecord.saves_scope (defaults to all); field is persisted and fully threaded through Worker (04-08) | open |  | 2026-09-04T15:35:17.159Z |  |
 
 ````json
 [
@@ -393,6 +395,30 @@ last_updated: 2026-09-04T03:18:16.168Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-04T03:18:16.168Z",
+    "resolved_at": null
+  },
+  {
+    "id": 30,
+    "kind": "deviation",
+    "phase": "04",
+    "file": "playstead-server/lib/playstead/export/export.ex",
+    "line": null,
+    "description": "Real Playstead.Saves revision data is not yet loaded into Export.to_layout_input/1; SavesPlan/Sidecar/BagitWriter pipeline is built+tested against synthetic data only (04-08)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-04T15:35:17.080Z",
+    "resolved_at": null
+  },
+  {
+    "id": 31,
+    "kind": "deviation",
+    "phase": "04",
+    "file": "playstead-server/lib/playstead_web/live/exports_live.ex",
+    "line": null,
+    "description": "No console UI control yet sets ExportRecord.saves_scope (defaults to all); field is persisted and fully threaded through Worker (04-08)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-04T15:35:17.159Z",
     "resolved_at": null
   }
 ]

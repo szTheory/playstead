@@ -248,7 +248,7 @@ Plans:
   5. When two devices save from the same base revision, both revisions remain available with device, time, and play context; the user can inspect, choose, export, and resolve either side without silent last-write-wins.
 
 **Research / spike flags**: Required compatibility gate: test the selected adapter's persistent-save type, safe-flush/debounce, crash behavior, and two-device divergent offline revisions. Save states remain local-only and outside the v1 portability contract.
-**Plans**: 7/13 plans executed
+**Plans**: 8/13 plans executed
 
 Plans:
 **Wave 1**
@@ -269,7 +269,7 @@ Plans:
 **Wave 4** *(blocked on Wave 3 completion)*
 
 - [x] 04-07-PLAN.md — Restore compatibility gate, LaunchSavePlanner, and the never-in-place executor (D-18–D-24, D-41–D-47)
-- [ ] 04-08-PLAN.md — Fill the reserved saves export slot with deterministic layout and manifest (D-56–D-62)
+- [x] 04-08-PLAN.md — Fill the reserved saves export slot with deterministic layout and manifest (D-56–D-62)
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
@@ -309,5 +309,5 @@ Plans:
 | 1. Private Custody and Durable Protocol | 8/8 | Complete    | 2026-08-28 |
 | 2. Explainable Import and Exact Export | 10/10 | Complete    | 2026-08-30 |
 | 3. Mac Offline Play Vertical Slice | 10/10 | In Progress|  |
-| 4. Persistent Save Continuity | 7/13 | In Progress|  |
+| 4. Persistent Save Continuity | 8/13 | In Progress|  |
 | 5. Recovery and Release Proof | 0/TBD | Not started | - |
