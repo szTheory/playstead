@@ -124,7 +124,135 @@ enum UITestBootstrap {
             apiClient: APIClient(keychain: keychain),
             reachability: Reachability(startOnline: true, monitorAutomatically: false)
         )
+        maybeRunSaveEndToEnd(environment: environment, root: root, appEnvironment: appEnvironment)
         return UITestProfileSession(fixture: nil, environment: appEnvironment)
+    }
+
+    // MARK: - Plan 04-04 task 3: the save tracer's live end-to-end proof
+    //
+    // `SaveEndToEndTests` (PlaysteadUITests) cannot `@testable import
+    // Playstead` -- a UI test target drives the packaged app only through
+    // its accessible surface, never its internal Swift types. This hook
+    // is that surface: triggered by three additional env vars (an
+    // artifact path to write bytes to, a content key naming the save
+    // line's identity, and a result-file path), it runs the real
+    // capture -> local durability -> upload lane -> live-server commit ->
+    // sync-back round trip in-process using the app's own paired
+    // `APIClient`/`SyncEngine`, then writes a small JSON result the
+    // XCUITest polls for on disk -- mirroring the existing
+    // `first-sentinel.json`/`second-sentinel.json` convention rather
+    // than inventing a UI surface purely to be inspected by a test.
+    static let saveArtifactPathKey = "PLAYSTEAD_UI_TEST_SAVE_ARTIFACT_PATH"
+    static let saveContentKeyKey = "PLAYSTEAD_UI_TEST_SAVE_CONTENT_KEY"
+    static let saveResultPathKey = "PLAYSTEAD_UI_TEST_SAVE_RESULT_PATH"
+
+    private struct FixedArtifactSource: SaveArtifactSource {
+        let data: Data
+        func readArtifact() -> Data? { data }
+    }
+
+    private static func maybeRunSaveEndToEnd(
+        environment: [String: String], root: URL, appEnvironment: AppEnvironment
+    ) {
+        guard
+            let artifactRaw = environment[saveArtifactPathKey],
+            let resultRaw = environment[saveResultPathKey],
+            let contentKey = environment[saveContentKeyKey]
+        else { return }
+
+        // The artifact must already exist (the XCUITest writes it before
+        // launch) and go through the same ownership-checked path every
+        // other live-fixture path does. The result path does *not* yet
+        // exist at launch time -- this process is what creates it -- so
+        // it only needs root-containment, not `attributesOfItem`.
+        guard
+            let artifactURL = try? containedURL(artifactRaw, root: root, label: "save artifact"),
+            let resultURL = try? containedDestinationURL(resultRaw, root: root)
+        else { return }
+
+        Task {
+            do {
+                try await runSaveEndToEnd(
+                    artifactURL: artifactURL, resultURL: resultURL, contentKey: contentKey, appEnvironment: appEnvironment
+                )
+            } catch {
+                // Best effort: the absence of the result file at
+                // `resultURL` is itself the signal the polling XCUITest
+                // times out on -- no separate failure channel is needed.
+            }
+        }
+    }
+
+    private static func runSaveEndToEnd(
+        artifactURL: URL, resultURL: URL, contentKey: String, appEnvironment: AppEnvironment
+    ) async throws {
+        let bytes = try Data(contentsOf: artifactURL)
+        let saveStore = await SaveStore(localStore: appEnvironment.localStore)
+        let destinationDirectory = artifactURL.deletingLastPathComponent().appendingPathComponent("captured-saves", isDirectory: true)
+        let poller = SaveCapturePoller(source: FixedArtifactSource(data: bytes), destinationDirectory: destinationDirectory)
+
+        // Three identical reads, driven directly rather than via the 1 Hz
+        // poll loop, to reach quiescence (D-03) deterministically and
+        // instantly.
+        _ = try await poller.observe(bytes)
+        _ = try await poller.observe(bytes)
+        guard let capture = try await poller.observe(bytes) else {
+            throw DeterministicProfileError.stateMismatch("save-e2e: capture did not quiesce")
+        }
+
+        let line = try saveStore.resolveLine(
+            contentKey: contentKey, saveKind: "battery", slot: "0", placeholderID: UUIDv7.generate()
+        )
+
+        let revisionID = UUIDv7.generate()
+        try saveStore.insertRevision(SaveRevisionRow(
+            id: revisionID,
+            saveLineID: line.id,
+            parentRevisionID: nil,
+            blobSHA256: capture.sha256,
+            sizeBytes: capture.sizeBytes,
+            originDeviceID: nil,
+            deviceCapturedAt: nil,
+            recordedAt: nil,
+            captureMethod: "poll",
+            adapterID: "e2e-harness",
+            adapterVersion: "1.0",
+            saveFormat: "sram",
+            formatConfidence: "exact",
+            playSessionID: nil,
+            durability: SaveDurability.localOnly.rawValue,
+            localPath: capture.localPath
+        ))
+
+        guard let apiClient = await appEnvironment.apiClient else {
+            throw DeterministicProfileError.stateMismatch("save-e2e: no paired APIClient")
+        }
+
+        let lane = SaveUploadLane(apiClient: apiClient, saveStore: saveStore)
+        let drainResult = await lane.drainOnce()
+        guard drainResult.sent == 1 else {
+            throw DeterministicProfileError.stateMismatch("save-e2e: upload did not complete")
+        }
+
+        // Drive a fresh sync so the revision is observed coming back
+        // through the exact journal/snapshot spine a second device (or
+        // a clean reinstall) would use -- the tracer's whole point.
+        await appEnvironment.syncEngine.syncNow()
+
+        guard let roundTripped = saveStore.fetchRevision(id: revisionID) else {
+            throw DeterministicProfileError.stateMismatch("save-e2e: revision not found after sync")
+        }
+
+        let result: [String: Any] = [
+            "revision_id": revisionID,
+            "blob_sha256": roundTripped.blobSHA256,
+            "size_bytes": roundTripped.sizeBytes,
+            "durability": roundTripped.durability,
+            "captured_sha256": capture.sha256,
+            "captured_size_bytes": capture.sizeBytes
+        ]
+        let data = try JSONSerialization.data(withJSONObject: result)
+        try data.write(to: resultURL, options: .atomic)
     }
 
     /// Reads one credential handoff into the scoped Keychain and removes it.
@@ -165,6 +293,21 @@ enum UITestBootstrap {
             throw DeterministicProfileError.stateMismatch("live fixture path ownership is invalid")
         }
         _ = label
+        return url
+    }
+
+    /// A root-contained path that does not need to exist yet -- for a
+    /// destination this process itself will create (plan 04-04's save
+    /// e2e result file), unlike `containedURL`, which requires the path
+    /// to already exist with correct ownership.
+    private static func containedDestinationURL(_ raw: String?, root: URL) throws -> URL {
+        guard let raw, raw.hasPrefix("/"), !raw.contains("\0") else {
+            throw DeterministicProfileError.stateMismatch("live fixture destination path is invalid")
+        }
+        let url = URL(fileURLWithPath: raw).standardizedFileURL
+        guard url.path.hasPrefix(root.path + "/") else {
+            throw DeterministicProfileError.stateMismatch("live fixture destination path escaped its run root")
+        }
         return url
     }
 

@@ -62,7 +62,8 @@ defmodule Playstead.Sync.Snapshot do
   alias Playstead.Import.Session
   alias Playstead.Repo
   alias Playstead.Pairing.Device
-  alias Playstead.Sync.{ChangeJournal, Cursor, CurationPayload}
+  alias Playstead.Saves.{Revision, Save}
+  alias Playstead.Sync.{ChangeJournal, Cursor, CurationPayload, SavePayload}
 
   @default_page_size 200
 
@@ -116,7 +117,8 @@ defmodule Playstead.Sync.Snapshot do
           next_after_id: next_after_id(rows, has_more),
           catalogue: fetch_catalogue(user_id, as_of_time),
           job: fetch_jobs(user_id, as_of_time),
-          curation: fetch_curation(user_id, as_of_time)
+          curation: fetch_curation(user_id, as_of_time),
+          save: fetch_saves(user_id, as_of_time)
         }
       end)
 
@@ -215,6 +217,41 @@ defmodule Playstead.Sync.Snapshot do
       fetch_queue_items(user_id, as_of_time) ++
       fetch_continue_dismissals(user_id, as_of_time) ++
       fetch_recent(user_id, as_of_time)
+  end
+
+  # D-17: the `save:` branch, read from the same transaction and as-of
+  # position as every other branch above -- mandatory, not conditional
+  # on the user having saves. A user with none gets `save: []`, never a
+  # missing key. `Revision` carries only `save_line_id` (a plain field,
+  # not an Ecto association) so the owning `Save` line is batch-fetched
+  # separately rather than preloaded, following `fetch_catalogue/2`'s
+  # explicit-preload precedent for cross-schema reads in this module.
+  defp fetch_saves(user_id, as_of_time) do
+    revisions =
+      from(r in Revision,
+        where: r.user_id == ^user_id,
+        where: r.inserted_at <= ^as_of_time,
+        order_by: [asc: r.id]
+      )
+      |> Repo.all()
+
+    line_ids = revisions |> Enum.map(& &1.save_line_id) |> Enum.uniq()
+
+    lines_by_id =
+      from(s in Save, where: s.id in ^line_ids)
+      |> Repo.all()
+      |> Map.new(&{&1.id, &1})
+
+    Enum.flat_map(revisions, fn revision ->
+      case Map.get(lines_by_id, revision.save_line_id) do
+        # A revision whose line vanished between the two reads above is
+        # excluded rather than crashing the whole snapshot -- lines are
+        # never deleted in this phase, so this branch is defensive, not
+        # a designed path.
+        nil -> []
+        save -> [SavePayload.build(revision, save)]
+      end
+    end)
   end
 
   defp fetch_favorites(user_id, as_of_time) do

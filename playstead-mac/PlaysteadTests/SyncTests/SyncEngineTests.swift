@@ -395,4 +395,128 @@ final class SyncEngineTests: XCTestCase {
     func testCursorStoreLoadIsNilBeforeAnyStore() {
         XCTAssertNil(CursorStore(localStore: localStore).load())
     }
+
+    // MARK: - Plan 04-04 task 3: JournalApplier's `save` case (D-17, D-43)
+
+    private func savePayloadJSON(
+        revisionID: String,
+        saveLineID: String = "line-1",
+        contentKey: String = String(repeating: "a", count: 64),
+        blobSHA256: String = String(repeating: "b", count: 64)
+    ) -> String {
+        """
+        {"type":"revision","revision_id":"\(revisionID)","save_line_id":"\(saveLineID)",
+         "content_key":"\(contentKey)","save_kind":"battery","slot":"0",
+         "parent_revision_id":null,"blob_sha256":"\(blobSHA256)","size_bytes":32768,
+         "origin_device_id":"device-1","device_captured_at":null,"recorded_at":"2026-09-03T00:00:00Z",
+         "capture_method":"poll","adapter_id":"mgba","adapter_version":"1.0",
+         "save_format":"sram","format_confidence":"exact","play_session_id":null}
+        """
+    }
+
+    func testSaveEntry_upsertsRevisionWithUploadedDurability() throws {
+        let saveStore = SaveStore(localStore: localStore)
+        let applier = JournalApplier(
+            catalogueStore: CatalogueStore(localStore: localStore),
+            curationStore: CurationStore(localStore: localStore),
+            saveStore: saveStore
+        )
+
+        let entry = JournalEntry(
+            entityKind: "save", entityID: "rev-1", operation: "upsert",
+            payload: try makePayload(savePayloadJSON(revisionID: "rev-1"))
+        )
+
+        let result = applier.apply([entry])
+        XCTAssertEqual(result.appliedCount, 1)
+
+        let revision = saveStore.fetchRevision(id: "rev-1")
+        XCTAssertEqual(revision?.durability, SaveDurability.uploaded.rawValue)
+        XCTAssertEqual(revision?.saveLineID, "line-1")
+        XCTAssertNotNil(saveStore.fetchLine(id: "line-1"))
+    }
+
+    func testApplyingSameSavePageTwice_leavesLocalRowCountUnchanged() throws {
+        let saveStore = SaveStore(localStore: localStore)
+        let applier = JournalApplier(
+            catalogueStore: CatalogueStore(localStore: localStore),
+            curationStore: CurationStore(localStore: localStore),
+            saveStore: saveStore
+        )
+
+        let entry = JournalEntry(
+            entityKind: "save", entityID: "rev-1", operation: "upsert",
+            payload: try makePayload(savePayloadJSON(revisionID: "rev-1"))
+        )
+
+        applier.apply([entry])
+        let firstCount = saveStore.fetchAllRevisions().count
+        applier.apply([entry])
+        let secondCount = saveStore.fetchAllRevisions().count
+
+        XCTAssertEqual(firstCount, 1)
+        XCTAssertEqual(secondCount, 1)
+    }
+
+    /// A spy `SaveBytesPrefetcher` recording every presence check and
+    /// prefetch call it received.
+    private final class SpyPrefetcher: SaveBytesPrefetcher {
+        var presentContentKeys: Set<String> = []
+        private(set) var prefetchedDigests: [String] = []
+
+        func isContentPresentLocally(contentKey: String) -> Bool {
+            presentContentKeys.contains(contentKey)
+        }
+
+        func prefetch(blobSHA256: String, sizeBytes: Int) {
+            prefetchedDigests.append(blobSHA256)
+        }
+    }
+
+    func testSaveEntry_forContentPresentLocally_triggersUnconditionalPrefetch() throws {
+        let saveStore = SaveStore(localStore: localStore)
+        let contentKey = String(repeating: "c", count: 64)
+        let spy = SpyPrefetcher()
+        spy.presentContentKeys.insert(contentKey)
+
+        let applier = JournalApplier(
+            catalogueStore: CatalogueStore(localStore: localStore),
+            curationStore: CurationStore(localStore: localStore),
+            saveStore: saveStore,
+            saveBytesPrefetcher: spy
+        )
+
+        let entry = JournalEntry(
+            entityKind: "save", entityID: "rev-present", operation: "upsert",
+            payload: try makePayload(savePayloadJSON(
+                revisionID: "rev-present", saveLineID: "line-present", contentKey: contentKey
+            ))
+        )
+        applier.apply([entry])
+
+        XCTAssertEqual(spy.prefetchedDigests, [String(repeating: "b", count: 64)])
+    }
+
+    func testSaveEntry_forContentNotPresentLocally_doesNotPrefetch() throws {
+        let saveStore = SaveStore(localStore: localStore)
+        let spy = SpyPrefetcher() // presentContentKeys stays empty
+
+        let applier = JournalApplier(
+            catalogueStore: CatalogueStore(localStore: localStore),
+            curationStore: CurationStore(localStore: localStore),
+            saveStore: saveStore,
+            saveBytesPrefetcher: spy
+        )
+
+        let entry = JournalEntry(
+            entityKind: "save", entityID: "rev-absent", operation: "upsert",
+            payload: try makePayload(savePayloadJSON(
+                revisionID: "rev-absent", saveLineID: "line-absent",
+                contentKey: String(repeating: "d", count: 64)
+            ))
+        )
+        applier.apply([entry])
+
+        XCTAssertTrue(spy.prefetchedDigests.isEmpty)
+    }
 }

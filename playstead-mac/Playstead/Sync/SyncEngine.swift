@@ -27,14 +27,29 @@ enum SyncState: Equatable {
 private struct SnapshotEnvelope: Decodable {
     let catalogue: [CatalogueEntry]
     let curation: [JSONValue]
+    /// D-17: the mandatory `save:` branch -- an empty array (never a
+    /// missing key) is what a user with no saves sends; decoded as a
+    /// default-empty list here too, so an older server pin (predating
+    /// plan 04-04) that omits the key entirely still decodes.
+    let save: [JSONValue]
     let cursor: String
     let hasMore: Bool
     let nextAfterID: String?
 
     private enum CodingKeys: String, CodingKey {
-        case catalogue, curation, cursor
+        case catalogue, curation, save, cursor
         case hasMore = "has_more"
         case nextAfterID = "next_after_id"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        catalogue = try container.decode([CatalogueEntry].self, forKey: .catalogue)
+        curation = try container.decode([JSONValue].self, forKey: .curation)
+        save = try container.decodeIfPresent([JSONValue].self, forKey: .save) ?? []
+        cursor = try container.decode(String.self, forKey: .cursor)
+        hasMore = try container.decode(Bool.self, forKey: .hasMore)
+        nextAfterID = try container.decodeIfPresent(String.self, forKey: .nextAfterID)
     }
 }
 
@@ -51,6 +66,7 @@ actor SyncEngine {
     private let cursorStore: CursorStore
     private let catalogueStore: CatalogueStore
     private let curationStore: CurationStore
+    private let saveStore: SaveStore
     private let journalApplier: JournalApplier
 
     private(set) var state: SyncState = .neverSynced
@@ -62,7 +78,13 @@ actor SyncEngine {
         self.cursorStore = CursorStore(localStore: localStore)
         self.catalogueStore = CatalogueStore(localStore: localStore)
         self.curationStore = CurationStore(localStore: localStore)
-        self.journalApplier = JournalApplier(catalogueStore: catalogueStore, curationStore: curationStore)
+        self.saveStore = SaveStore(localStore: localStore)
+        self.journalApplier = JournalApplier(
+            catalogueStore: catalogueStore,
+            curationStore: curationStore,
+            saveStore: saveStore,
+            saveBytesPrefetcher: CacheObjectsSaveBytesPrefetcher(localStore: localStore)
+        )
     }
 
     /// Runs one full sync pass: bootstraps from the snapshot if the
@@ -158,6 +180,12 @@ actor SyncEngine {
     private func bootstrapFromSnapshot() async throws {
         var catalogueAccum: [CatalogueEntry] = []
         var curationAccum: [JournalEntry] = []
+        // Never cleared before applying (unlike catalogue/curation
+        // below) -- a not-yet-uploaded local capture (durability
+        // `localOnly`/`queued`) has no server-side counterpart the
+        // snapshot could know about, so wiping local save state on a
+        // reset would destroy exactly the bytes D-06 exists to protect.
+        var saveAccum: [JournalEntry] = []
         var pinnedCursor: String?
         var afterID: String?
         var finalCursor = ""
@@ -169,6 +197,7 @@ actor SyncEngine {
 
             catalogueAccum.append(contentsOf: page.catalogue)
             curationAccum.append(contentsOf: page.curation.compactMap(Self.synthesizedCurationEntry(from:)))
+            saveAccum.append(contentsOf: page.save.compactMap(Self.synthesizedSaveEntry(from:)))
 
             if page.hasMore, let next = page.nextAfterID {
                 afterID = next
@@ -184,6 +213,7 @@ actor SyncEngine {
                 try self.catalogueStore.upsert(entry)
             }
             self.journalApplier.apply(curationAccum)
+            self.journalApplier.apply(saveAccum)
         }
 
         try cursorStore.store(OpaqueCursor(rawValue: finalCursor), syncedAt: Date())
@@ -253,5 +283,17 @@ actor SyncEngine {
         }
 
         return JournalEntry(entityKind: "curation", entityID: syntheticID, operation: "upsert", payload: payload)
+    }
+
+    /// Builds a synthetic `save`-kind `JournalEntry` from one raw
+    /// snapshot `save` array element. Unlike curation's payload, D-17's
+    /// `SavePayload` already carries the revision's own id
+    /// (`revision_id`) inside the payload, so no synthesized fallback
+    /// key is needed here.
+    private static func synthesizedSaveEntry(from payload: JSONValue) -> JournalEntry? {
+        guard case .object(let object) = payload, let revisionID = object["revision_id"]?.stringValue else {
+            return nil
+        }
+        return JournalEntry(entityKind: "save", entityID: revisionID, operation: "upsert", payload: payload)
     }
 }

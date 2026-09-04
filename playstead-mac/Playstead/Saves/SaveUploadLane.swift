@@ -79,7 +79,10 @@ actor SaveUploadLane {
         guard let line = saveStore.fetchLine(id: revision.saveLineID) else { throw SaveUploadError.missingLine }
 
         let data = try Data(contentsOf: URL(fileURLWithPath: localPath))
-        let commandID = revision.id
+        // A fresh UUIDv7 per attempt — never `revision.id`, whose format
+        // this lane does not control, and `CommandId.cast/1` requires
+        // UUIDv7 specifically (D-20b, D-16).
+        let commandID = UUIDv7.generate()
 
         _ = try await apiClient.send(
             method: "PUT",
