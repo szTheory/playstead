@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 04
 current_phase_name: Persistent Save Continuity
 status: executing
-stopped_at: Completed 04-10-PLAN.md
-last_updated: "2026-09-04T19:52:12.340Z"
+stopped_at: Completed 04-11-PLAN.md
+last_updated: "2026-09-04T23:24:37.559Z"
 last_activity: 2026-09-03
 last_activity_desc: Phase 04 execution started
-state_head: 65c5a989a179126a387f6e478ea05e2340275169
+state_head: a6ae081ecd480c2247b59dc7d5908d629f2ffdf5
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 51
-  completed_plans: 48
+  completed_plans: 49
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: `.planning/PROJECT.md` (updated 2026-08-30)
 ## Current Position
 
 Phase: 04 (Persistent Save Continuity) — EXECUTING
-Plan: 11 of 13
+Plan: 12 of 13
 Status: Ready to execute
 Last activity: 2026-09-03 — Phase 04 execution started
 
@@ -101,6 +101,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 | Phase 04 P08 | 40min | 3 tasks | 12 files |
 | Phase 04-persistent-save-continuity P09 | 55min | 3 tasks | 21 files |
 | Phase 04 P10 | 130min | 3 tasks | 14 files |
+| Phase 04-persistent-save-continuity P11 | 45min | 3 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -203,6 +204,8 @@ Progress: [█████████░] 90% (Phase 03.5)
 - [Phase 04]: A missing-bytes save revision's manifest entry uses sha256: nil, reusing BagitWriter's existing manifest_lines filter that already excludes members with no blob, rather than a new exclusion path
 - [Phase 04]: SaveStateModel expresses D-35's axes as independent facts; SaveRollup/readiness Save row/SaveHistorySheet all derive copy from one shared vocabulary asserted exhaustive on both Mac and console
 - [Phase 04]: A saves-owned attention source (own table/vocabulary) unions into the shared inbox at read time rather than widening Playstead.Attention.Reason — Attention.Reason is a frozen, nine-member, import-recognition-scoped vocabulary; widening it to carry save-domain meaning is the infrastructure-leaks-into-domain error the boundary rule exists to prevent
+- [Phase 04-persistent-save-continuity]: Fork disposition suppression uses exact sorted-head-id-set matching, mirroring the server's fork_acknowledged?/3 rule — Keeps client/server agreement on which fork is disposed and cleanly separates head-set-scoped suppression from action-scoped no-op idempotency
+- [Phase 04-persistent-save-continuity]: SaveOutbox is a sibling durable outbox inside Outbox.swift with its own table/kind vocabulary rather than widening CurationIntentKind — CurationIntent's wire shape has no natural home for a two-case save-resolution intent, and widening it would blur two distinct bounded contexts
 
 ### Pending Todos
 
@@ -236,6 +239,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-04T19:52:12.205Z
-Stopped at: Completed 04-10-PLAN.md
+Last session: 2026-09-04T23:24:37.437Z
+Stopped at: Completed 04-11-PLAN.md
 Resume file: None

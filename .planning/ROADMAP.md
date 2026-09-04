@@ -278,7 +278,7 @@ Plans:
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 04-11-PLAN.md — Two versions of your progress: comparison sheet and append-only resolution on the Mac (D-48–D-55)
+- [x] 04-11-PLAN.md — Two versions of your progress: comparison sheet and append-only resolution on the Mac (D-48–D-55)
 - [ ] 04-12-PLAN.md — The only-copy danger case: escalated panel and interruptive modal (D-32, D-40)
 
 **Wave 7** *(blocked on Wave 6 completion)*
