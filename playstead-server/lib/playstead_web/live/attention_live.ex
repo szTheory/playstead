@@ -15,8 +15,15 @@ defmodule PlaysteadWeb.AttentionLive do
 
   alias Playstead.Attention
   alias Playstead.Attention.Resolutions
+  alias Playstead.Saves.AttentionSource, as: SavesAttention
   alias PlaysteadWeb.AttentionLive.{BulkBar, EvidenceCard}
   alias PlaysteadWeb.Problem
+
+  # D-66: the saves-owned reasons unioned into this inbox at read time
+  # (`load_items/1`) -- rendered through `saves_item/1` below, never
+  # through `EvidenceCard` (which is shaped for import-domain evidence
+  # this schema does not carry).
+  @saves_reasons Playstead.Saves.AttentionItem.reasons()
 
   import BulkBar, only: [bulk_bar: 1]
   import EvidenceCard, only: [evidence_card: 1]
@@ -49,13 +56,24 @@ defmodule PlaysteadWeb.AttentionLive do
         do: [import_session_id: socket.assigns.session_filter],
         else: []
 
-    grouped = Attention.list_items(scope.user.id, opts)
+    import_grouped = Attention.list_items(scope.user.id, opts)
     excluded = Attention.list_items(scope.user.id, Keyword.put(opts, :status, "excluded"))
+
+    # D-66: the saves-owned attention source is unioned in here, at
+    # read time -- the only place either context's rows meet. A
+    # session filter is import-domain only (`import_session_id`), so
+    # saves items are never included under a session filter.
+    saves_grouped =
+      if socket.assigns[:session_filter], do: %{}, else: SavesAttention.list_items(scope.user.id)
+
+    grouped = Map.merge(import_grouped, saves_grouped, fn _reason, a, b -> a ++ b end)
+
+    saves_count = if socket.assigns[:session_filter], do: 0, else: SavesAttention.count(scope.user.id)
 
     assign(socket,
       grouped: grouped,
       excluded: excluded,
-      count: Attention.count(scope.user.id),
+      count: Attention.count(scope.user.id) + saves_count,
       excluded_storage_bytes: Attention.excluded_storage_bytes(scope.user.id),
       selected: MapSet.new()
     )
@@ -195,7 +213,17 @@ defmodule PlaysteadWeb.AttentionLive do
         >
           <h2 class="text-heading font-semibold text-[#F1F5F9]">{group_title(reason)}</h2>
 
-          <table id={"table-#{reason}"} class="w-full">
+          <table :if={saves_reason?(reason)} id={"table-#{reason}"} class="w-full">
+            <tbody>
+              <tr :for={item <- items}>
+                <td class="py-2">
+                  <.saves_item item={item} />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <table :if={not saves_reason?(reason)} id={"table-#{reason}"} class="w-full">
             <tbody>
               <tr :for={item <- items}>
                 <td class="py-2">
@@ -299,6 +327,52 @@ defmodule PlaysteadWeb.AttentionLive do
     """
   end
 
+  # D-66: a minimal card for saves-owned items -- deliberately not
+  # `EvidenceCard`, which is shaped for import-domain evidence
+  # (`blob`/`source_file`/`asset_set`) this schema does not carry.
+  attr :item, :map, required: true
+
+  defp saves_item(assigns) do
+    ~H"""
+    <div
+      id={"attention-item-#{@item.id}"}
+      data-role="saves-item-card"
+      class="rounded-lg border border-[#334155] bg-[#1E293B] p-6"
+    >
+      <p id={"attention-item-#{@item.id}-reason"} class="text-base font-semibold text-[#F1F5F9]">
+        {saves_plain_language_reason(@item)}
+      </p>
+      <p :if={@item.count > 1} class="mt-1 text-sm text-[#94A3B8]">
+        Raised {@item.count} times.
+      </p>
+      <div class="mt-3">
+        <.link
+          :if={@item.reason == "divergence"}
+          href={"/saves/#{@item.grouping_key}"}
+          id={"compare-#{@item.id}"}
+          class="text-sm font-semibold text-[#94A3B8] hover:text-[#F1F5F9]"
+        >
+          Compare versions
+        </.link>
+      </div>
+    </div>
+    """
+  end
+
+  defp saves_reason?(reason), do: reason in @saves_reasons
+
+  defp saves_plain_language_reason(%{reason: "divergence"}),
+    do: "Two versions of your progress"
+
+  defp saves_plain_language_reason(%{reason: "capture_blocked"}),
+    do: "A save couldn't reach your server"
+
+  defp saves_plain_language_reason(%{reason: "retention_backstop"}),
+    do: "Your saves are approaching a size limit"
+
+  defp group_title("divergence"), do: "Two versions of your progress"
+  defp group_title("capture_blocked"), do: "Saves that couldn't reach your server"
+  defp group_title("retention_backstop"), do: "Approaching a save storage limit"
   defp group_title("missing_member"), do: "Some parts are missing"
   defp group_title("quarantined"), do: "Set aside for review"
   defp group_title("patch_file_detected"), do: "Patch files detected"

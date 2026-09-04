@@ -23,7 +23,7 @@ defmodule Playstead.Saves do
 
   alias Playstead.Blobs
   alias Playstead.Repo
-  alias Playstead.Saves.{Branches, PendingUpload, Revision, RevisionParent, Save}
+  alias Playstead.Saves.{AttentionSource, Branches, PendingUpload, Revision, RevisionParent, Save}
   alias Playstead.Sync.{ChangeJournal, Entry, SavePayload}
 
   # D-16: how long a streamed-upload's blob digest stays claimable by a
@@ -279,13 +279,77 @@ defmodule Playstead.Saves do
     case Repo.insert(changeset) do
       {:ok, revision} ->
         case ChangeJournal.append(user_id, :save, revision.id, SavePayload.build(revision, line)) do
-          {:ok, _entry} -> {:ok, revision}
-          {:error, reason} -> {:error, reason}
+          {:ok, _entry} ->
+            after_commit_attention(user_id, line)
+            {:ok, revision}
+
+          {:error, reason} ->
+            {:error, reason}
         end
 
       {:error, %Ecto.Changeset{} = changeset} ->
         classify_revision_changeset(changeset)
     end
+  end
+
+  # D-66: raised/cleared inside the same transaction as the revision
+  # commit itself, following `Playstead.Attention.raise_item/1`'s own
+  # discipline ("always called from inside the same transaction as the
+  # outcome that caused it") -- structurally through the saves-owned
+  # `AttentionSource`, never `Playstead.Attention.Reason`.
+  defp after_commit_attention(user_id, %Save{} = line) do
+    if needs_divergence_decision?(user_id, line.id) do
+      AttentionSource.raise_divergence(user_id, line.id)
+    else
+      AttentionSource.clear_divergence(user_id, line.id)
+    end
+
+    check_backstops(user_id)
+    :ok
+  end
+
+  # D-28: pressure as attention, never a refusal -- these checks run
+  # after the commit above has already succeeded and never affect its
+  # outcome.
+  defp check_backstops(user_id) do
+    revision_count =
+      Repo.aggregate(from(r in Revision, where: r.user_id == ^user_id), :count)
+
+    storage_bytes =
+      Repo.aggregate(from(r in Revision, where: r.user_id == ^user_id), :sum, :size_bytes) || 0
+
+    AttentionSource.maybe_raise_backstop(
+      user_id,
+      :revision_count,
+      revision_count,
+      @revision_count_backstop
+    )
+
+    AttentionSource.maybe_raise_backstop(
+      user_id,
+      :storage_bytes,
+      storage_bytes,
+      @storage_bytes_backstop
+    )
+
+    :ok
+  end
+
+  @doc """
+  Records that `save_line_id`'s capture was blocked (D-31) as
+  saves-owned attention -- a durable, loud-once signal, never a
+  refused commit and never anything deleted.
+  """
+  @spec report_capture_blocked(pos_integer(), binary()) ::
+          {:ok, Playstead.Saves.AttentionItem.t()} | {:error, term()}
+  def report_capture_blocked(user_id, save_line_id) do
+    AttentionSource.raise_capture_blocked(user_id, save_line_id)
+  end
+
+  @doc "Clears a previously reported blocked capture for `save_line_id`."
+  @spec clear_capture_blocked(pos_integer(), binary()) :: {:ok, non_neg_integer()}
+  def clear_capture_blocked(user_id, save_line_id) do
+    AttentionSource.clear_capture_blocked(user_id, save_line_id)
   end
 
   # D-13: a committed revision is immutable -- an `id` primary-key
@@ -406,6 +470,7 @@ defmodule Playstead.Saves do
            :ok <- insert_parent_edges(revision.id, heads, chosen_head_id),
            {:ok, _entry} <-
              ChangeJournal.append(user_id, :save, revision.id, SavePayload.build(revision, line)) do
+        AttentionSource.clear_divergence(user_id, save_line_id)
         revision
       else
         {:error, reason} -> Repo.rollback(reason)
@@ -431,8 +496,12 @@ defmodule Playstead.Saves do
              save_line_id: save_line_id,
              head_ids: head_ids
            }) do
-        {:ok, _entry} -> {:ok, %{save_line_id: save_line_id, head_ids: head_ids}}
-        {:error, reason} -> {:error, reason}
+        {:ok, _entry} ->
+          AttentionSource.clear_divergence(user_id, save_line_id)
+          {:ok, %{save_line_id: save_line_id, head_ids: head_ids}}
+
+        {:error, reason} ->
+          {:error, reason}
       end
     end
   end
