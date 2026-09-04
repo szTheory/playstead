@@ -467,6 +467,18 @@ defmodule PlaysteadWeb.Router do
     end
   end
 
+  ## Saves console: inspect, choose, keep both, export -- the third of
+  ## three entry points to the comparison sheet (D-53, D-67).
+  scope "/", PlaysteadWeb do
+    pipe_through [:browser, :require_authenticated]
+
+    live_session :saves,
+      on_mount: [{PlaysteadWeb.UserAuth, :mount_current_scope}] do
+      live "/saves", SavesLive, :index
+      live "/saves/:id", SavesLive, :show
+    end
+  end
+
   scope "/", PlaysteadWeb do
     pipe_through [:browser, :require_authenticated, :require_sudo]
 

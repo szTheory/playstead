@@ -13,7 +13,7 @@ defmodule PlaysteadWeb.BrowserScreens do
   import Playstead.PairingFixtures
   import Playstead.TlsFixtures
 
-  alias Playstead.{Accounts, Curation, Import, Pairing, Repo, Setup}
+  alias Playstead.{Accounts, Curation, Import, Pairing, Repo, Saves, Setup}
 
   @screens [
     :login,
@@ -30,7 +30,9 @@ defmodule PlaysteadWeb.BrowserScreens do
     :library_collection_detail,
     :attention,
     :exports,
-    :reference_packs
+    :reference_packs,
+    :saves,
+    :saves_detail
   ]
 
   def screens, do: @screens
@@ -50,6 +52,8 @@ defmodule PlaysteadWeb.BrowserScreens do
   def path(:attention), do: "/attention"
   def path(:exports), do: "/exports"
   def path(:reference_packs), do: "/reference-packs"
+  def path(:saves), do: "/saves"
+  def path(:saves_detail), do: "/saves/:id"
 
   @doc "Console routes that are deliberately NOT screens (no UI-SPEC element)."
   def excluded_paths,
@@ -254,6 +258,28 @@ defmodule PlaysteadWeb.BrowserScreens do
     {session, %{user: user, receipt: receipt}}
   end
 
+  def open(session, :saves) do
+    {user, line_id, _revision_a, _revision_b} = seed_diverged_save()
+
+    session =
+      session
+      |> log_in_via_cookie(user, token_authenticated_at: DateTime.utc_now(:second))
+      |> visit_live(path(:saves))
+
+    {session, %{user: user, line_id: line_id}}
+  end
+
+  def open(session, :saves_detail) do
+    {user, line_id, _revision_a, _revision_b} = seed_diverged_save()
+
+    session =
+      session
+      |> log_in_via_cookie(user, token_authenticated_at: DateTime.utc_now(:second))
+      |> visit_live("/saves/#{line_id}")
+
+    {session, %{user: user, line_id: line_id}}
+  end
+
   def open(session, :reference_packs) do
     user = owner_fixture()
 
@@ -288,6 +314,36 @@ defmodule PlaysteadWeb.BrowserScreens do
       |> visit_live(path(:sessions))
 
     {session, %{user: user, other_token: other}}
+  end
+
+  defp seed_diverged_save do
+    user = owner_fixture()
+    scope = Accounts.Scope.for_user(user)
+    File.mkdir_p!(Playstead.Blobs.Store.LocalDisk.blob_path())
+
+    %{device: device_a} = device_fixture(scope)
+    %{device: device_b} = device_fixture(scope)
+    content_key = :crypto.hash(:sha256, :crypto.strong_rand_bytes(16)) |> Base.encode16(case: :lower)
+
+    {:ok, revision_a} = save_commit(scope, device_a, content_key)
+    {:ok, revision_b} = save_commit(scope, device_b, content_key)
+
+    {user, revision_a.save_line_id, revision_a, revision_b}
+  end
+
+  defp save_commit(scope, device, content_key) do
+    bytes = :crypto.strong_rand_bytes(1024)
+    {:ok, _status, meta} = Playstead.Blobs.put_stream([bytes], byte_size(bytes))
+    command_id = Ecto.UUID.generate()
+
+    {:ok, _pending} =
+      Saves.record_pending_upload(scope.user.id, device.id, command_id, meta.sha256, meta.size_bytes)
+
+    Saves.commit_revision(scope.user.id, device, %{
+      "id" => Ecto.UUID.generate(),
+      "command_id" => command_id,
+      "content_key" => content_key
+    })
   end
 
   defp seed_library_asset do
