@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 25
+open_count: 28
 waived_count: 1
 fixed_count: 5
-total_count: 31
-last_updated: 2026-09-04T19:49:47.031Z
+total_count: 34
+last_updated: 2026-09-04T20:20:49.696Z
 ---
 
 # Broken Windows Ledger
@@ -46,6 +46,9 @@ last_updated: 2026-09-04T19:49:47.031Z
 | 29 | 04 | stub | playstead-mac/Playstead/Sync/JournalApplier.swift |  | CacheObjectsSaveBytesPrefetcher.onPrefetchNeeded is a no-op; real byte transfer for D-43 prefetch deferred to a later downloads-lane plan | open |  | 2026-09-04T03:18:16.168Z |  |
 | 30 | 04 | deviation | playstead-server/lib/playstead/export/export.ex |  | Real Playstead.Saves revision data is not yet loaded into Export.to_layout_input/1; SavesPlan/Sidecar/BagitWriter pipeline is built+tested against synthetic data only (04-08) | open |  | 2026-09-04T15:35:17.080Z |  |
 | 31 | 04 | deviation | playstead-server/lib/playstead_web/live/exports_live.ex |  | No console UI control yet sets ExportRecord.saves_scope (defaults to all); field is persisted and fully threaded through Worker (04-08) | fixed |  | 2026-09-04T15:35:17.159Z | 2026-09-04T19:49:47.031Z |
+| 32 | 04 | deviation | playstead-mac/Playstead/Saves/ConflictComparisonSheet.swift |  | Comparison sheet is built and tested standalone but not yet wired into a live attention-inbox or game-detail navigation path on the Mac (server console entry point already shipped in 04-10); presentation wiring is left for a later plan | open |  | 2026-09-04T20:20:49.523Z |  |
+| 33 | 04 | deviation | playstead-mac/Playstead/Sync/JournalApplier.swift |  | Divergence detection does not yet trigger an eager 32KB prefetch of both sides' artifacts (CacheObjectsSaveBytesPrefetcher.onPrefetchNeeded is still the no-op tracked by WINDOWS #29); comparing/choosing works offline only once both blobs are already locally cached by some other path | open |  | 2026-09-04T20:20:49.612Z |  |
+| 34 | 04 | unrun-verify | playstead-mac/PlaysteadUITests/ConflictResolutionInteractionTests.swift |  | UI-layer keyboard-interaction verification requires the centrally orchestrated hosted macOS runner; local execution is disabled by the project's login-Keychain launch guard (mirrors WINDOWS #9/#10 precedent) | open |  | 2026-09-04T20:20:49.696Z |  |
 
 ````json
 [
@@ -420,6 +423,42 @@ last_updated: 2026-09-04T19:49:47.031Z
     "reason": "",
     "recorded_at": "2026-09-04T15:35:17.159Z",
     "resolved_at": "2026-09-04T19:49:47.031Z"
+  },
+  {
+    "id": 32,
+    "kind": "deviation",
+    "phase": "04",
+    "file": "playstead-mac/Playstead/Saves/ConflictComparisonSheet.swift",
+    "line": null,
+    "description": "Comparison sheet is built and tested standalone but not yet wired into a live attention-inbox or game-detail navigation path on the Mac (server console entry point already shipped in 04-10); presentation wiring is left for a later plan",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-04T20:20:49.523Z",
+    "resolved_at": null
+  },
+  {
+    "id": 33,
+    "kind": "deviation",
+    "phase": "04",
+    "file": "playstead-mac/Playstead/Sync/JournalApplier.swift",
+    "line": null,
+    "description": "Divergence detection does not yet trigger an eager 32KB prefetch of both sides' artifacts (CacheObjectsSaveBytesPrefetcher.onPrefetchNeeded is still the no-op tracked by WINDOWS #29); comparing/choosing works offline only once both blobs are already locally cached by some other path",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-04T20:20:49.612Z",
+    "resolved_at": null
+  },
+  {
+    "id": 34,
+    "kind": "unrun-verify",
+    "phase": "04",
+    "file": "playstead-mac/PlaysteadUITests/ConflictResolutionInteractionTests.swift",
+    "line": null,
+    "description": "UI-layer keyboard-interaction verification requires the centrally orchestrated hosted macOS runner; local execution is disabled by the project's login-Keychain launch guard (mirrors WINDOWS #9/#10 precedent)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-04T20:20:49.696Z",
+    "resolved_at": null
   }
 ]
 ````
