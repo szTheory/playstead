@@ -17,6 +17,8 @@ struct PlaysteadApp: App {
                 XCTestHostInertRootView()
             } else if UITestBootstrap.isRequested() {
                 UITestProfileRootView()
+            } else if ProcessInfo.processInfo.environment["PLAYSTEAD_UI_TEST_CONFLICT_COMPARISON"] == "1" {
+                ConflictComparisonHarnessRootView()
             } else if ProcessInfo.processInfo.environment["PLAYSTEAD_WAVE_0_LAUNCH_CANARY"] == "1" {
                 HostedRunnerLaunchCanaryView()
             } else if ProcessInfo.processInfo.environment["PLAYSTEAD_WAVE_0_FOCUS_CANARY"] == "1" {

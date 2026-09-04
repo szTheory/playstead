@@ -38,6 +38,7 @@
     {
       "parallelizable" : false,
       "selectedTests" : [
+        "ConflictComparisonContractSnapshotTests",
         "DeterministicProfileTests",
         "IdentityAndFocusPrimitiveTests",
         "LibraryContractSnapshotTests",

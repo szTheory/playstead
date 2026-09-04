@@ -20,6 +20,7 @@
     {
       "parallelizable" : false,
       "selectedTests" : [
+        "ConflictResolutionInteractionTests",
         "CurationInteractionTests",
         "HostedRunnerCanaryTests/testFullKeyboardAccessCanaryFocusesAndActivatesTwoControls()",
         "HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice()",
