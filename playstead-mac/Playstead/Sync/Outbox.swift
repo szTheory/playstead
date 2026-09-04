@@ -220,6 +220,14 @@ class Outbox {
         }
     }
 
+    /// The generic transactional shape `enqueue` above hard-codes for
+    /// `CurationIntent`: apply a caller-supplied local mutation and
+    /// durably record a row in one transaction, so a crash between them
+    /// can never lose the entry. `SaveOutbox` below reuses this exact
+    /// discipline against its own table for save-resolution intents
+    /// (plan 04-11) -- a distinct kind vocabulary and envelope shape
+    /// from `CurationIntent`'s, so it is its own small class rather than
+    /// a new `CurationIntentKind` case.
     private func rows(where clause: String, orderBy: String, params: [SQLiteBindable] = []) -> [OutboxEntry] {
         (try? localStore.connection.query(
             """
@@ -251,5 +259,135 @@ class Outbox {
                 nextRetryAt: row.string(8)
             )
         }) ?? []
+    }
+}
+
+// MARK: - SaveOutbox (plan 04-11 task 3)
+
+/// One durable `save_outbox_entries` row.
+struct SaveOutboxEntry: Equatable {
+    let id: String
+    let kind: SaveIntentKind
+    let intent: SaveIntent?
+    let idempotencyKey: String
+    var attemptCount: Int
+    let createdAt: String
+}
+
+/// The durable outbox for save-fork resolution intents
+/// (choose-side/acknowledge-fork). `enqueue` applies a caller-supplied
+/// local mutation and durably records the entry inside one transaction
+/// -- the identical crash-safety discipline `Outbox.enqueue` documents
+/// above, against its own table, since `SaveIntent`'s kind vocabulary
+/// and envelope shape are distinct from `CurationIntent`'s. This is what
+/// makes the whole choose/keep-both flow work with no server reachable:
+/// the local write and the durable row both happen before any network
+/// attempt, and a crash between them cannot lose the entry.
+final class SaveOutbox {
+    private let localStore: LocalStore
+
+    init(localStore: LocalStore) {
+        self.localStore = localStore
+    }
+
+    /// Applies `localMutation` and enqueues `intent`, atomically. The
+    /// `Idempotency-Key` sent on the wire is anchored on the newly
+    /// generated `entryID` (never on `saveLineID` alone), matching
+    /// `Outbox.enqueue`'s reasoning: a retry of *this* entry always
+    /// replays with the same key, while a distinct later intent against
+    /// the same line gets its own key and is never mistaken for a
+    /// replay of this one.
+    @discardableResult
+    func enqueue(_ intent: SaveIntent, at now: Date = Date(), localMutation: () throws -> Void) throws -> SaveOutboxEntry {
+        let entryID = UUID().uuidString
+        let createdAt = ISO8601DateFormatter().string(from: now)
+        let idempotencyKey = "\(intent.kind.rawValue):\(entryID)"
+        let payloadData = try JSONEncoder().encode(intent.envelope)
+        guard let payloadJSON = String(data: payloadData, encoding: .utf8) else {
+            throw OutboxError.payloadEncodingFailed
+        }
+
+        try localStore.transaction {
+            try localMutation()
+            try self.localStore.connection.execute(
+                """
+                INSERT INTO save_outbox_entries (id, kind, payload_json, idempotency_key, attempt_count, created_at)
+                VALUES (?, ?, ?, ?, 0, ?);
+                """,
+                params: [entryID, intent.kind.rawValue, payloadJSON, idempotencyKey, createdAt]
+            )
+        }
+
+        return SaveOutboxEntry(
+            id: entryID, kind: intent.kind, intent: intent, idempotencyKey: idempotencyKey,
+            attemptCount: 0, createdAt: createdAt
+        )
+    }
+
+    func listPending() -> [SaveOutboxEntry] {
+        (try? localStore.connection.query(
+            """
+            SELECT id, kind, payload_json, idempotency_key, attempt_count, created_at
+            FROM save_outbox_entries ORDER BY created_at ASC, rowid ASC;
+            """
+        ) { row in
+            let kind = SaveIntentKind(rawValue: row.string(1) ?? "") ?? .unknown
+            let payloadJSON = row.string(2) ?? "{}"
+            let intent: SaveIntent? = {
+                guard
+                    let data = payloadJSON.data(using: .utf8),
+                    let envelope = try? JSONDecoder().decode(SaveIntentEnvelope.self, from: data)
+                else { return nil }
+                return SaveIntent.from(envelope)
+            }()
+            return SaveOutboxEntry(
+                id: row.string(0) ?? "", kind: kind, intent: intent,
+                idempotencyKey: row.string(3) ?? "", attemptCount: row.int(4) ?? 0, createdAt: row.string(5) ?? ""
+            )
+        }) ?? []
+    }
+
+    func count() -> Int {
+        ((try? localStore.connection.query("SELECT COUNT(*) FROM save_outbox_entries;") { row in row.int(0) ?? 0 }) ?? [0]).first ?? 0
+    }
+
+    /// A successful send -- the entry's job is done, exactly like
+    /// `Outbox.markDone`.
+    func markDone(_ entryID: String) throws {
+        try localStore.connection.execute("DELETE FROM save_outbox_entries WHERE id = ?;", params: [entryID])
+    }
+
+    /// A failed send (transport failure or non-2xx) -- the local row is
+    /// left alone (never reverted; nothing about a resolution/
+    /// acknowledgement is destructive to revert) and the attempt count
+    /// is incremented so a later drain retries it.
+    func markFailed(_ entryID: String) throws {
+        try localStore.connection.execute(
+            "UPDATE save_outbox_entries SET attempt_count = attempt_count + 1 WHERE id = ?;", params: [entryID]
+        )
+    }
+
+    /// Attempts to send every pending entry once. A transport failure or
+    /// server error leaves the entry queued -- never deleted, never
+    /// touching the local mutation `enqueue` already committed -- so a
+    /// later attempt can complete it. This is the only step in the whole
+    /// choose/keep-both flow that needs the network at all.
+    @discardableResult
+    func drainOnce(apiClient: APIClient) async -> Int {
+        var sent = 0
+        for entry in listPending() {
+            guard let intent = entry.intent else { continue }
+            do {
+                _ = try await apiClient.send(
+                    method: intent.httpMethod, path: intent.path, body: intent.wireBody,
+                    headers: ["Idempotency-Key": entry.idempotencyKey]
+                )
+                try? markDone(entry.id)
+                sent += 1
+            } catch {
+                try? markFailed(entry.id)
+            }
+        }
+        return sent
     }
 }

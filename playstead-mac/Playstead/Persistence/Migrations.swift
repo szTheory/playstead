@@ -449,5 +449,27 @@ enum Migrations {
             );
             """
         )
+
+        // Plan 04-11 task 3: the durable outbox for save-resolution
+        // intents (choose-side, acknowledge-fork). A separate table from
+        // `outbox_entries` -- distinct kind vocabulary
+        // (`SaveIntentKind`), distinct envelope shape, and a distinct
+        // consumer (`SaveOutbox.drainOnce`, never `OutboxWorker`) -- but
+        // the identical durability discipline: `SaveOutbox.enqueue`
+        // writes the local mutation and this row in one transaction, so
+        // a crash between them can never lose the entry.
+        try connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS save_outbox_entries (
+                id TEXT PRIMARY KEY,
+                kind TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                idempotency_key TEXT NOT NULL,
+                attempt_count INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
+            """
+        )
+        try connection.execute("CREATE INDEX IF NOT EXISTS idx_save_outbox_entries_created_at ON save_outbox_entries(created_at);")
     }
 }
