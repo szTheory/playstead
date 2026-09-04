@@ -110,6 +110,49 @@ defmodule PlaysteadWeb.Api.V1.SavesController do
     run_idempotent(conn, device, key, fingerprint, effect_fun)
   end
 
+  @doc """
+  `POST /api/v1/saves/lines/:id/resolve` (D-48). Idempotent, following
+  `create_revision/2`'s shape: chooses `chosen_head_id` among the
+  line's current heads and appends one resolution revision.
+  """
+  def resolve_divergence(conn, %{"id" => save_line_id, "chosen_head_id" => chosen_head_id}) do
+    device = conn.assigns.current_device
+    key = conn.assigns.idempotency_key
+    fingerprint = conn.assigns.idempotency_fingerprint
+
+    effect_fun = fn ->
+      case Saves.resolve_divergence(device.user_id, device, save_line_id, chosen_head_id) do
+        {:ok, revision} -> {:ok, 201, revision_json(revision)}
+        {:error, reason} -> {:error, reason}
+      end
+    end
+
+    run_idempotent(conn, device, key, fingerprint, effect_fun)
+  end
+
+  def resolve_divergence(_conn, %{"id" => _save_line_id}) do
+    {:error, {:validation_failed, "chosen_head_id is required."}}
+  end
+
+  @doc """
+  `POST /api/v1/saves/lines/:id/acknowledge` (D-52) -- "Keep both".
+  Idempotent, never mutates a head or deletes anything.
+  """
+  def acknowledge_divergence(conn, %{"id" => save_line_id}) do
+    device = conn.assigns.current_device
+    key = conn.assigns.idempotency_key
+    fingerprint = conn.assigns.idempotency_fingerprint
+
+    effect_fun = fn ->
+      case Saves.acknowledge_divergence(device.user_id, device, save_line_id) do
+        {:ok, ack} -> {:ok, 200, ack}
+        {:error, reason} -> {:error, reason}
+      end
+    end
+
+    run_idempotent(conn, device, key, fingerprint, effect_fun)
+  end
+
   defp run_idempotent(conn, device, key, fingerprint, effect_fun) do
     case Idempotency.execute(device.id, key, fingerprint, effect_fun) do
       {:ok, status, body} ->

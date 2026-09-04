@@ -23,8 +23,8 @@ defmodule Playstead.Saves do
 
   alias Playstead.Blobs
   alias Playstead.Repo
-  alias Playstead.Saves.{Branches, PendingUpload, Revision, Save}
-  alias Playstead.Sync.{ChangeJournal, SavePayload}
+  alias Playstead.Saves.{Branches, PendingUpload, Revision, RevisionParent, Save}
+  alias Playstead.Sync.{ChangeJournal, Entry, SavePayload}
 
   # D-16: how long a streamed-upload's blob digest stays claimable by a
   # matching metadata commit before it is considered abandoned. A sweep
@@ -367,6 +367,170 @@ defmodule Playstead.Saves do
   @spec get_revision(pos_integer(), binary()) :: Revision.t() | nil
   def get_revision(user_id, revision_id) do
     Repo.get_by(Revision, id: revision_id, user_id: user_id)
+  end
+
+  # A synthetic marker `type` distinguishing an acknowledgment journal
+  # entry from an ordinary `"revision"` save payload (D-17 additive
+  # discipline: an unrecognized `type` is safe for an older client to
+  # ignore). Never written to `save_revisions`/`save_revision_parents`
+  # -- acknowledging must never make any head non-a-head, so it cannot
+  # be represented as a DAG edge (any `save_revision_parents` row
+  # necessarily disqualifies its `parent_revision_id` from `heads/2`).
+  @fork_acknowledged_type "fork_acknowledged"
+
+  @doc """
+  Resolves a divergence on `save_line_id` by choosing `chosen_head_id`
+  among its current heads (D-48). Appends one new resolution revision
+  whose bytes are the chosen side's -- resolved through the CAS by
+  digest, so it adds zero new blob bytes -- and one `RevisionParent`
+  row per divergent head: exactly one with role `"chosen"`, every
+  other with role `"acknowledged"`. Nothing is moved, rewritten, or
+  deleted: every pre-existing head still exists afterward, simply no
+  longer a head (each is now referenced as the new revision's parent,
+  the same way any ordinary child revision retires its parent).
+
+  Two devices independently resolving the same fork while offline both
+  succeed when they arrive: each appends its own resolution revision
+  naming the same original heads as parents, and the two resolution
+  revisions coexist as siblings -- the retained-revision set is the
+  union either way, with no compare-and-swap race.
+  """
+  @spec resolve_divergence(pos_integer(), map(), binary(), binary()) ::
+          {:ok, Revision.t()} | {:error, term()}
+  def resolve_divergence(user_id, device, save_line_id, chosen_head_id) do
+    Repo.transaction(fn ->
+      with {:ok, line} <- fetch_owned_line(user_id, save_line_id),
+           heads <- Branches.heads(user_id, save_line_id),
+           {:ok, chosen} <- find_head(heads, chosen_head_id),
+           {:ok, revision} <- insert_resolution_revision(user_id, device, line, chosen),
+           :ok <- insert_parent_edges(revision.id, heads, chosen_head_id),
+           {:ok, _entry} <-
+             ChangeJournal.append(user_id, :save, revision.id, SavePayload.build(revision, line)) do
+        revision
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
+
+  @doc """
+  "Keep both" (D-52): appends an acknowledgment marker naming
+  `save_line_id`'s current heads, so this exact fork is never re-raised
+  as needing a decision. Moves nothing, deletes nothing -- every head
+  stays a head, forever if the user never resolves it (unresolved-
+  forever is a supported, first-class outcome).
+  """
+  @spec acknowledge_divergence(pos_integer(), map(), binary()) ::
+          {:ok, %{save_line_id: binary(), head_ids: [binary()]}} | {:error, term()}
+  def acknowledge_divergence(user_id, _device, save_line_id) do
+    with {:ok, _line} <- fetch_owned_line(user_id, save_line_id) do
+      head_ids = user_id |> Branches.heads(save_line_id) |> Enum.map(& &1.id) |> Enum.sort()
+
+      case ChangeJournal.append(user_id, :save, save_line_id, %{
+             type: @fork_acknowledged_type,
+             save_line_id: save_line_id,
+             head_ids: head_ids
+           }) do
+        {:ok, _entry} -> {:ok, %{save_line_id: save_line_id, head_ids: head_ids}}
+        {:error, reason} -> {:error, reason}
+      end
+    end
+  end
+
+  @doc """
+  Whether `save_line_id` has more than one head and the current head
+  set has not been acknowledged (`acknowledge_divergence/3`) or
+  already resolved down to one head. A fork acknowledged as keep-both
+  is not reported as needing a decision, even though its heads remain
+  heads (D-52).
+  """
+  @spec needs_divergence_decision?(pos_integer(), binary()) :: boolean()
+  def needs_divergence_decision?(user_id, save_line_id) do
+    heads = Branches.heads(user_id, save_line_id)
+    length(heads) > 1 and not fork_acknowledged?(user_id, save_line_id, heads)
+  end
+
+  defp fetch_owned_line(user_id, save_line_id) do
+    case Repo.get_by(Save, id: save_line_id, user_id: user_id) do
+      nil -> {:error, :not_found}
+      %Save{} = line -> {:ok, line}
+    end
+  end
+
+  defp find_head(heads, chosen_head_id) do
+    case Enum.find(heads, &(&1.id == chosen_head_id)) do
+      nil ->
+        {:error,
+         {:validation_failed, "chosen_head_id is not a current head of this save line."}}
+
+      %Revision{} = chosen ->
+        {:ok, chosen}
+    end
+  end
+
+  defp insert_resolution_revision(user_id, device, line, %Revision{} = chosen) do
+    now = DateTime.utc_now() |> DateTime.truncate(:microsecond)
+
+    changeset =
+      Revision.create_changeset(%Revision{}, %{
+        id: Ecto.UUID.generate(),
+        user_id: user_id,
+        save_line_id: line.id,
+        parent_revision_id: chosen.id,
+        blob_sha256: chosen.blob_sha256,
+        size_bytes: chosen.size_bytes,
+        origin_device_id: device.id,
+        recorded_at: now,
+        capture_method: "resolution",
+        origin: "resolution"
+      })
+
+    Repo.insert(changeset)
+  end
+
+  # One `RevisionParent` row per divergent head (D-48) -- including the
+  # chosen one, so the full N-way parentage is fully described by this
+  # table alone, not split between it and the plain `parent_revision_id`
+  # column. `on_conflict: :nothing` is defensive: `revision.id` is
+  # always fresh here, but a replayed effect (outside the normal
+  # idempotency-receipt guard) must never raise on a duplicate edge.
+  defp insert_parent_edges(revision_id, heads, chosen_head_id) do
+    Enum.reduce_while(heads, :ok, fn head, :ok ->
+      role = if head.id == chosen_head_id, do: "chosen", else: "acknowledged"
+
+      changeset =
+        RevisionParent.create_changeset(%RevisionParent{}, %{
+          revision_id: revision_id,
+          parent_revision_id: head.id,
+          role: role
+        })
+
+      case Repo.insert(changeset,
+             on_conflict: :nothing,
+             conflict_target: [:revision_id, :parent_revision_id]
+           ) do
+        {:ok, _row} -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  defp fork_acknowledged?(user_id, save_line_id, heads) do
+    head_ids = heads |> Enum.map(& &1.id) |> Enum.sort()
+
+    query =
+      from(e in Entry,
+        where:
+          e.user_id == ^user_id and e.entity_kind == "save" and e.entity_id == ^save_line_id and
+            fragment("?->>'type' = ?", e.payload, ^@fork_acknowledged_type),
+        order_by: [desc: e.seq],
+        limit: 1
+      )
+
+    case Repo.one(query) do
+      nil -> false
+      %Entry{payload: payload} -> Enum.sort(Map.get(payload, "head_ids", [])) == head_ids
+    end
   end
 
   defp get(attrs, key) when is_map(attrs), do: Map.get(attrs, key) || Map.get(attrs, String.to_atom(key))

@@ -283,6 +283,15 @@ defmodule PlaysteadWeb.Router do
     get "/saves/lines/:id/history", SaveHistoryController, :show
   end
 
+  # D-48/D-52: append-only divergence resolution and acknowledgment --
+  # both mutating, so both require an Idempotency-Key.
+  scope "/api/v1", PlaysteadWeb.Api.V1 do
+    pipe_through [:api, :device_auth, :idempotency]
+
+    post "/saves/lines/:id/resolve", SavesController, :resolve_divergence
+    post "/saves/lines/:id/acknowledge", SavesController, :acknowledge_divergence
+  end
+
   # D-21, PROT-05: the resumable change feed and its transactional
   # snapshot counterpart. Both are read-only — never mutating, never
   # Idempotency-Key gated — so they stay on the plain device_auth
