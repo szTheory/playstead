@@ -24,27 +24,48 @@ actor SaveUploadLane {
     private let apiClient: APIClient
     private let saveStore: SaveStore
 
+    /// Per-revision attempt count and next-eligible time, following
+    /// `Outbox.maxAttempts`/`retryDelay(forAttempt:)`'s exact curve
+    /// (task 2's `<action>`) — but where `OutboxWorker` quarantines an
+    /// entry once the cap is reached, this lane never does: once
+    /// `Outbox.maxAttempts` is reached the delay is held at its capped
+    /// value and the entry keeps retrying forever, because a revision
+    /// that exists on exactly one device is the most dangerous state in
+    /// the product (D-32) and must never go silent.
+    private var attemptCounts: [String: Int] = [:]
+    private var nextEligibleAt: [String: Date] = [:]
+
     init(apiClient: APIClient, saveStore: SaveStore) {
         self.apiClient = apiClient
         self.saveStore = saveStore
     }
 
     @discardableResult
-    func drainOnce() async -> OutboxDrainResult {
+    func drainOnce(at now: Date = Date()) async -> OutboxDrainResult {
         var result = OutboxDrainResult()
 
-        let pending = saveStore.fetchPending(durability: .localOnly) + saveStore.fetchPending(durability: .queued)
+        let pending = (saveStore.fetchPending(durability: .localOnly) + saveStore.fetchPending(durability: .queued))
+            .filter { revision in
+                guard let eligible = nextEligibleAt[revision.id] else { return true }
+                return eligible <= now
+            }
 
         for revision in pending {
             do {
                 try saveStore.updateDurability(id: revision.id, durability: .queued)
                 try await uploadAndCommit(revision)
                 try saveStore.updateDurability(id: revision.id, durability: .uploaded)
+                attemptCounts[revision.id] = nil
+                nextEligibleAt[revision.id] = nil
                 result.sent += 1
             } catch {
                 // Left `queued` — visible and non-terminal (D-32). The
                 // pass stops here so a later revision never uploads
                 // ahead of this still-outstanding one.
+                let attempt = (attemptCounts[revision.id] ?? 0) + 1
+                attemptCounts[revision.id] = attempt
+                let delayAttempt = min(attempt, Outbox.maxAttempts)
+                nextEligibleAt[revision.id] = now.addingTimeInterval(Outbox.retryDelay(forAttempt: delayAttempt))
                 result.stoppedForRetry = true
                 return result
             }

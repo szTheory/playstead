@@ -76,12 +76,22 @@ actor SaveCapturePoller {
         source: SaveArtifactSource,
         clock: SaveCaptureClock = SystemSaveCaptureClock(),
         destinationDirectory: URL,
-        pollInterval: TimeInterval = 1.0
+        pollInterval: TimeInterval = 1.0,
+        /// The digest of the local head already persisted for this
+        /// save's line, if any. Seeds `lastPromotedDigest` so a
+        /// same-device capture that is byte-identical to what's already
+        /// on record creates no second local revision (D-30's client
+        /// half) — the caller (whatever wires this poller to a play
+        /// session) is responsible for reading that head from
+        /// `SaveStore` before construction; this type stays free of any
+        /// direct `SaveStore` dependency.
+        knownHeadDigest: String? = nil
     ) {
         self.source = source
         self.clock = clock
         self.destinationDirectory = destinationDirectory
         self.pollInterval = pollInterval
+        self.lastPromotedDigest = knownHeadDigest
     }
 
     /// The digest of the last promoted capture, if any — exposed for
