@@ -17,6 +17,10 @@ struct ReadinessSheetView: View {
     var onDownload: () -> Void = {}
     var onPlay: () -> Void = {}
     var onClose: () -> Void = {}
+    /// D-37: the Save row's "Review versions…" action -- navigational
+    /// only, opens the per-game save history sheet. Never invoked from
+    /// a blocking outcome; the Save row can't produce one.
+    var onReviewSaveVersions: () -> Void = {}
 
     @Environment(AppEnvironment.self) private var environment
     @State private var showsAdapterSetup = false
@@ -103,6 +107,8 @@ struct ReadinessSheetView: View {
         case .repairSaveDirectory:
             environment.repairSaveDirectory(for: entry)
             onRefresh()
+        case .reviewSaveVersions:
+            onReviewSaveVersions()
         }
     }
 }

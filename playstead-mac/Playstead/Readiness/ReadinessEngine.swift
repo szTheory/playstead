@@ -1,11 +1,27 @@
 import Foundation
 
-/// Gates launch on six real, entirely local checks — game assets, local
-/// cache verification, emulator, BIOS, controller/input, and the
-/// persistent-save path — returning an ordered report where every
-/// blocking result carries an executable `Remedy`. This is the only gate
-/// between a user pressing Play and the adapter host launching; a check
-/// that is not here is a check that does not happen.
+/// One reading of a game's save state, fed to the navigational Save row
+/// (D-37, plan 04-09) -- never a blocking condition, regardless of which
+/// case applies. `.twoVersions` is a warning with a "Review versions…"
+/// action, never `.blocked`; divergence never blocks Play (D-46).
+enum SaveReadinessCase: Equatable {
+    case noSavesYet
+    case uploadedAndCurrent
+    /// Expected-offline: local-only because the server is unreachable
+    /// right now, not because anything is wrong.
+    case localOnlyExpectedOffline
+    case localOnlyReachable
+    case serverHasNewer(device: String, relativeTime: String)
+    case twoVersions
+}
+
+/// Gates launch on seven real, entirely local checks — game assets, local
+/// cache verification, emulator, BIOS, controller/input, the
+/// persistent-save write path, and the navigational save-state row —
+/// returning an ordered report where every blocking result carries an
+/// executable `Remedy`. This is the only gate between a user pressing
+/// Play and the adapter host launching; a check that is not here is a
+/// check that does not happen.
 ///
 /// **Zero network calls, ever.** Not a reachability probe, not a
 /// metadata lookup, not a token refresh — the promise is that a
@@ -37,6 +53,10 @@ struct ReadinessEngine {
     let hasKeyboard: () -> Bool
     let saveDirectoryURL: URL
     let now: () -> Date
+    /// The navigational Save row's current reading (D-37). Defaults to
+    /// `.noSavesYet` so every pre-existing call site that doesn't pass
+    /// this keeps compiling and keeps reporting `.ready` for this row.
+    let saveReadiness: () -> SaveReadinessCase
 
     init(
         cas: CASManager,
@@ -47,7 +67,8 @@ struct ReadinessEngine {
         hasController: @escaping () -> Bool = { false },
         hasKeyboard: @escaping () -> Bool = { true },
         saveDirectoryURL: URL,
-        now: @escaping () -> Date = Date.init
+        now: @escaping () -> Date = Date.init,
+        saveReadiness: @escaping () -> SaveReadinessCase = { .noSavesYet }
     ) {
         self.cas = cas
         self.downloadQueue = downloadQueue
@@ -58,6 +79,7 @@ struct ReadinessEngine {
         self.hasKeyboard = hasKeyboard
         self.saveDirectoryURL = saveDirectoryURL
         self.now = now
+        self.saveReadiness = saveReadiness
     }
 
     /// The fixed declaration order every evaluation starts from — also
@@ -65,7 +87,7 @@ struct ReadinessEngine {
     /// severity, which is what keeps repeated evaluations on unchanged
     /// inputs producing an identical report.
     private static let kindOrder: [ReadinessCheckKind] = [
-        .gameAssets, .cacheVerification, .emulator, .bios, .controllerAndInput, .saveDirectory
+        .gameAssets, .cacheVerification, .emulator, .bios, .controllerAndInput, .saveDirectory, .saveState
     ]
 
     func evaluate(assetSetID: String, requiredMembers: [RequiredMember]) -> ReadinessReport {
@@ -76,7 +98,8 @@ struct ReadinessEngine {
             evaluateEmulator(),
             evaluateBIOS(),
             evaluateControllerAndInput(),
-            evaluateSaveDirectory()
+            evaluateSaveDirectory(),
+            evaluateSaveState()
         ]
         return ReadinessReport(checks: order(checks))
     }
@@ -263,9 +286,9 @@ struct ReadinessEngine {
         let fm = FileManager.default
         let blocked = ReadinessCheck(
             kind: .saveDirectory,
-            outcome: .blocked("Playstead can't write this game's saves."),
-            finding: "Nothing has been lost — your saved progress is still on your server. Playstead needs to be able to write to this game's save folder before it starts the game.",
-            remedy: Remedy(title: "Repair save folder", action: .repairSaveDirectory)
+            outcome: .blocked(SaveVocabulary.blockerSaveDirectoryTitle),
+            finding: SaveVocabulary.blockerSaveDirectoryFinding,
+            remedy: Remedy(title: SaveVocabulary.blockerSaveDirectoryRemedy, action: .repairSaveDirectory)
         )
 
         var isDir: ObjCBool = false
@@ -309,6 +332,44 @@ struct ReadinessEngine {
         return ReadinessCheck(
             kind: .saveDirectory, outcome: .ready, finding: "Save directory is writable.", remedy: nil
         )
+    }
+
+    // MARK: - Save state (navigational, never blocking, D-37)
+
+    /// The Save row: purely navigational, entirely local, and never able
+    /// to produce `.blocked` for any input -- including two divergent
+    /// heads. `.twoVersions` is a `.warning` carrying the
+    /// "Review versions…" action; divergence never blocks Play (D-46).
+    /// This is distinct from `.saveDirectory` above, which remains the
+    /// only blocking save condition (the widened atomic-write check).
+    private func evaluateSaveState() -> ReadinessCheck {
+        switch saveReadiness() {
+        case .noSavesYet:
+            return ReadinessCheck(kind: .saveState, outcome: .ready, finding: "No saved progress yet.", remedy: nil)
+        case .uploadedAndCurrent:
+            return ReadinessCheck(kind: .saveState, outcome: .ready, finding: SaveVocabulary.readinessSaveRowReady, remedy: nil)
+        case .localOnlyExpectedOffline:
+            return ReadinessCheck(kind: .saveState, outcome: .ready, finding: SaveVocabulary.readinessSaveRowReadyOffline, remedy: nil)
+        case .localOnlyReachable:
+            return ReadinessCheck(
+                kind: .saveState,
+                outcome: .warning(SaveVocabulary.readinessSaveRowWarningNotUploaded),
+                finding: SaveVocabulary.readinessSaveRowWarningNotUploaded,
+                remedy: nil
+            )
+        case .serverHasNewer(let device, let relativeTime):
+            let text = SaveVocabulary.readinessSaveRowWarningServerNewer
+                .replacingOccurrences(of: "{device}", with: device)
+                .replacingOccurrences(of: "{relative time}", with: relativeTime)
+            return ReadinessCheck(kind: .saveState, outcome: .warning(text), finding: text, remedy: nil)
+        case .twoVersions:
+            return ReadinessCheck(
+                kind: .saveState,
+                outcome: .warning(SaveVocabulary.readinessSaveRowWarningTwoVersions),
+                finding: SaveVocabulary.readinessSaveRowWarningTwoVersions,
+                remedy: Remedy(title: SaveVocabulary.readinessSaveRowActionReviewVersions, action: .reviewSaveVersions)
+            )
+        }
     }
 
     // MARK: - Ordering

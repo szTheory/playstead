@@ -10,6 +10,11 @@ enum ReadinessCheckKind: String, CaseIterable, Equatable, Hashable {
     case bios
     case controllerAndInput
     case saveDirectory
+    /// The navigational Save row (D-37, plan 04-09) -- distinct from
+    /// `.saveDirectory`'s blocking write-access check. This kind can
+    /// never produce `.blocked`; it only ever routes to the save
+    /// history sheet.
+    case saveState
 }
 
 enum ReadinessOutcome: Equatable {
@@ -48,5 +53,12 @@ struct ReadinessReport: Equatable {
 
     var isReady: Bool {
         !checks.contains { $0.outcome.isBlocking }
+    }
+
+    /// How many checks are blocking Play right now -- used to prove the
+    /// navigational `.saveState` row never inflates this count (D-37),
+    /// including in its two-versions warning case.
+    var blockedCount: Int {
+        checks.filter(\.outcome.isBlocking).count
     }
 }
