@@ -254,15 +254,21 @@ final class SaveStore {
     /// `nil` if the line has no revisions yet. Used by the capture
     /// poller to decide same-device byte-identical de-dup (D-30) and
     /// to derive the next capture's `parent_revision_id`.
+    /// A `staged` row is a rolling, session-scoped working copy, never a
+    /// DAG node (D-04) -- excluded here so it can never be mistaken for
+    /// the line's real head, which only a `promoted` or `baseline` row
+    /// may be.
     func fetchHead(saveLineID: String) -> SaveRevisionRow? {
         (try? localStore.connection.query(
             """
             SELECT r.id, r.save_line_id, r.parent_revision_id, r.blob_sha256, r.size_bytes,
                    r.origin_device_id, r.device_captured_at, r.recorded_at, r.capture_method,
                    r.adapter_id, r.adapter_version, r.save_format, r.format_confidence,
-                   r.play_session_id, r.durability, r.local_path
+                   r.play_session_id, r.durability, r.local_path, r.tier, r.origin, r.manifest_digest,
+                   r.session_id, r.artifact_set_json
             FROM save_revision r
             WHERE r.save_line_id = ?
+              AND r.tier != 'staged'
               AND NOT EXISTS (SELECT 1 FROM save_revision c WHERE c.parent_revision_id = r.id)
             ORDER BY r.rowid DESC
             LIMIT 1;
