@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 04
 current_phase_name: Persistent Save Continuity
 status: executing
-stopped_at: Completed 04-06-PLAN.md
-last_updated: "2026-09-04T14:45:54.785Z"
+stopped_at: Completed 04-07-PLAN.md
+last_updated: "2026-09-04T15:14:28.381Z"
 last_activity: 2026-09-03
 last_activity_desc: Phase 04 execution started
-state_head: a324da6e1239a8cb4b46943395b51ec19157d24c
+state_head: 816219346733c74bc63e774569346455b1282952
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 51
-  completed_plans: 44
+  completed_plans: 45
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: `.planning/PROJECT.md` (updated 2026-08-30)
 ## Current Position
 
 Phase: 04 (Persistent Save Continuity) — EXECUTING
-Plan: 7 of 13
+Plan: 8 of 13
 Status: Ready to execute
 Last activity: 2026-09-03 — Phase 04 execution started
 
@@ -97,6 +97,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 | Phase 04 P04 | 90min | 3 tasks | 24 files |
 | Phase 04 P05 | 70min | 3 tasks | 13 files |
 | Phase 04 P06 | 65min | 3 tasks | 10 files |
+| Phase 04 P07 | 26min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -193,6 +194,8 @@ Progress: [█████████░] 90% (Phase 03.5)
 - [Phase 04]: [Phase 04]: SaveCapturePoller's observe()/settle() keep returning captures on the same reads 04-04's tests exercise (now tagged tier: .staged), with a new promote() as the distinct D-04 session-end step -- landed the two-tier model with zero changes to 04-04's shipped test file
 - [Phase 04]: [Phase 04]: SaveSessionRecovery derives "sessions left open" purely from save_revision's tier/session_id columns (a staged row with no matching promoted row) instead of a dedicated open-session table, staying within the plan's declared files and needing no new migration
 - [Phase 04]: [Phase 04]: The 256 MiB save reserve (D-29) is folded into QuotaManager's free-space floor check, not the logical quota, since it is specifically about physical disk headroom a future save capture needs
+- [Phase 04]: [Phase 04]: SaveCompatibilityGate.evaluate(candidate:target:) takes two plain SaveBinding value objects rather than a distinct LocalGameIdentity type -- both sides are denormalized facts the caller already has, keeping the gate testable with zero fixture-building layer
+- [Phase 04]: [Phase 04]: LaunchSavePlanner never silently restores on a same_title verdict -- only exact widens the launch path's silent auto-restore; same_title's explicit acknowledgement belongs to a later save-timeline action, not a launch-time write
 
 ### Pending Todos
 
@@ -226,6 +229,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-04T14:45:46.375Z
-Stopped at: Completed 04-06-PLAN.md
+Last session: 2026-09-04T15:14:28.219Z
+Stopped at: Completed 04-07-PLAN.md
 Resume file: None
