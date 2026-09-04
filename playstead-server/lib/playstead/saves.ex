@@ -76,6 +76,8 @@ defmodule Playstead.Saves do
       slot = get(attrs, "slot") || "0"
       revision_id = get(attrs, "id") || Ecto.UUID.generate()
       line_id = Ecto.UUID.generate()
+      parent_revision_id = get(attrs, "parent_revision_id")
+      base_sha256 = get(attrs, "base_sha256")
       now = DateTime.utc_now() |> DateTime.truncate(:microsecond)
 
       line_changeset =
@@ -104,12 +106,20 @@ defmodule Playstead.Saves do
           {:error, {:save_revision_digest_mismatch, "The uploaded blob could not be found."}}
         end
       end)
-      |> Ecto.Multi.insert(:revision, fn %{line: line} ->
+      # D-13: the server accepts and branches -- it never 409-rejects a
+      # non-fast-forward commit. This lookup exists only to record base
+      # evidence (D-12); a missing parent here is not itself rejected
+      # in this step (see D-13's Retry-After caveat for the unknown-
+      # parent case, handled at the controller boundary).
+      |> Ecto.Multi.run(:parent, fn _repo, _changes ->
+        {:ok, parent_revision_id && Repo.get_by(Revision, id: parent_revision_id, user_id: user_id)}
+      end)
+      |> Ecto.Multi.insert(:revision, fn %{line: line, parent: parent} ->
         Revision.create_changeset(%Revision{}, %{
           id: revision_id,
           user_id: user_id,
           save_line_id: line.id,
-          parent_revision_id: get(attrs, "parent_revision_id"),
+          parent_revision_id: parent_revision_id,
           blob_sha256: pending.blob_sha256,
           size_bytes: pending.size_bytes,
           origin_device_id: device.id,
@@ -120,7 +130,13 @@ defmodule Playstead.Saves do
           adapter_version: get(attrs, "adapter_version"),
           save_format: get(attrs, "save_format"),
           format_confidence: get(attrs, "format_confidence"),
-          play_session_id: get(attrs, "play_session_id")
+          play_session_id: get(attrs, "play_session_id"),
+          base_sha256: base_sha256,
+          base_matched: base_matched?(base_sha256, parent),
+          device_reported_now: get(attrs, "device_reported_now"),
+          device_clock_offset_ms: get(attrs, "device_clock_offset_ms"),
+          device_monotonic_ms: get(attrs, "device_monotonic_ms"),
+          origin: get(attrs, "origin")
         })
       end)
       |> Ecto.Multi.run(:journal, fn _repo, %{line: line, revision: revision} ->
@@ -133,6 +149,14 @@ defmodule Playstead.Saves do
       end
     end
   end
+
+  # D-12: nil when there is no base to compare (no submitted digest, or
+  # no parent to compare it against); otherwise a plain equality check
+  # against the named parent's stored blob digest. A mismatch is
+  # recorded, never rejected -- the caller proceeds regardless.
+  defp base_matched?(nil, _parent), do: nil
+  defp base_matched?(_base_sha256, nil), do: false
+  defp base_matched?(base_sha256, %Revision{blob_sha256: parent_sha256}), do: base_sha256 == parent_sha256
 
   @doc "Fetches the live (unexpired) pending upload for `user_id`/`command_id`."
   @spec fetch_pending_upload(pos_integer(), binary() | nil) ::

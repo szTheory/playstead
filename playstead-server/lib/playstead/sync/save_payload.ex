@@ -18,6 +18,8 @@ defmodule Playstead.Sync.SavePayload do
     parent_revision_id blob_sha256 size_bytes origin_device_id
     device_captured_at recorded_at capture_method adapter_id
     adapter_version save_format format_confidence play_session_id
+    base_sha256 base_matched device_reported_now
+    device_clock_offset_ms device_monotonic_ms origin
   )a
 
   @doc "The frozen key set, for tests that assert no accidental additions."
@@ -52,7 +54,13 @@ defmodule Playstead.Sync.SavePayload do
       adapter_version: revision.adapter_version,
       save_format: revision.save_format,
       format_confidence: revision.format_confidence,
-      play_session_id: revision.play_session_id
+      play_session_id: revision.play_session_id,
+      base_sha256: revision.base_sha256,
+      base_matched: revision.base_matched,
+      device_reported_now: revision.device_reported_now,
+      device_clock_offset_ms: revision.device_clock_offset_ms,
+      device_monotonic_ms: revision.device_monotonic_ms,
+      origin: revision.origin
     }
   end
 end

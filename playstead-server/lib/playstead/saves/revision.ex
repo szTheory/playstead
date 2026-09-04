@@ -33,6 +33,27 @@ defmodule Playstead.Saves.Revision do
     field :format_confidence, :string
     field :play_session_id, :binary_id
 
+    # D-12: recorded base evidence. base_matched is derived at commit
+    # time by comparing base_sha256 to the named parent's blob_sha256;
+    # a mismatch is recorded, never rejected.
+    field :base_sha256, :string
+    field :base_matched, :boolean
+
+    # D-15: device-claimed time is stored as evidence only, never
+    # orderable. device_clock_offset_ms separates clock error from
+    # queue delay; device_monotonic_ms is a device-local counter, also
+    # never orderable across devices.
+    field :device_reported_now, :utc_datetime_usec
+    field :device_clock_offset_ms, :integer
+    field :device_monotonic_ms, :integer
+
+    field :origin, :string
+
+    # D-30: same-device byte-identical capture bumps these on the
+    # existing head instead of creating a new revision.
+    field :last_confirmed_at, :utc_datetime_usec
+    field :confirm_count, :integer, default: 0
+
     timestamps(type: :utc_datetime)
   end
 
@@ -54,7 +75,15 @@ defmodule Playstead.Saves.Revision do
       :adapter_version,
       :save_format,
       :format_confidence,
-      :play_session_id
+      :play_session_id,
+      :base_sha256,
+      :base_matched,
+      :device_reported_now,
+      :device_clock_offset_ms,
+      :device_monotonic_ms,
+      :origin,
+      :last_confirmed_at,
+      :confirm_count
     ])
     |> validate_required([
       :id,
