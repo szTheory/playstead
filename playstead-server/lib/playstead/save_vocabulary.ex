@@ -1,13 +1,14 @@
 defmodule Playstead.SaveVocabulary do
   @moduledoc """
-  The console's partial mirror of `shared/save-vocabulary.json` (D-67).
+  The console's partial mirror of the shared save-copy fixture under
+  `shared/` (D-67).
 
   Only the keys the console actually renders -- today, the two
-  console-only divergence result variants -- are declared here. The JSON
-  file is a test resource only, read by `save_copy_contract_test.exs` to
-  prove this module and the JSON agree exhaustively, in both directions,
-  over this subset. Do not read the JSON file from any shipped runtime
-  code path.
+  console-only divergence result variants -- are declared here. That
+  fixture is a test resource only, read by `save_copy_contract_test.exs`
+  to prove this module and the fixture agree exhaustively, in both
+  directions, over this subset. Do not read that fixture from any
+  shipped runtime code path.
   """
 
   @all %{

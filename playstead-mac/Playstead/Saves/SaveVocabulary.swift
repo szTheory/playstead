@@ -1,11 +1,12 @@
 import Foundation
 
-/// The shipped Swift constants mirroring `shared/save-vocabulary.json` (D-67).
-/// This is the runtime source of truth for every save-surface user-facing
-/// string; the JSON file is a test resource only, read by
-/// `SaveCopyContractTests` and `save_copy_contract_test.exs` to prove this type
-/// and the JSON agree, exhaustively in both directions. Do not read the JSON
-/// file from any shipped runtime code path.
+/// The shipped Swift constants mirroring the shared save-copy fixture
+/// under `shared/` (D-67). This is the runtime source of truth for
+/// every save-surface user-facing string; that fixture is a test
+/// resource only, read by `SaveCopyContractTests` and
+/// `save_copy_contract_test.exs` to prove this type and the fixture
+/// agree, exhaustively in both directions. Do not read that fixture
+/// from any shipped runtime code path.
 enum SaveVocabulary {
     static let vocabularyRulesNounSave = "save"
     static let vocabularyRulesNounVersion = "version"
@@ -107,7 +108,7 @@ enum SaveVocabulary {
     static let dangerInterruptiveActionCancel = "Cancel"
     static let dangerInterruptiveActionRemove = "Remove anyway"
 
-    /// key -> value, identical in content to `shared/save-vocabulary.json`.
+    /// key -> value, identical in content to the shared save-copy fixture.
     /// The copy-contract test parses the JSON and asserts this dictionary is
     /// exactly equal to it -- exhaustive in both directions, never merely
     /// overlapping.
