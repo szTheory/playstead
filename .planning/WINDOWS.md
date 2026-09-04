@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 26
+open_count: 25
 waived_count: 1
-fixed_count: 4
+fixed_count: 5
 total_count: 31
-last_updated: 2026-09-04T15:35:17.159Z
+last_updated: 2026-09-04T19:49:47.031Z
 ---
 
 # Broken Windows Ledger
@@ -45,7 +45,7 @@ last_updated: 2026-09-04T15:35:17.159Z
 | 28 | 04 | deviation | playstead-server/lib/playstead_web/controllers/api/v1/saves_controller.ex |  | Save-lane UploadSlots/RateLimiter (D-33) not yet wired into the save routes | open |  | 2026-09-04T03:18:16.081Z |  |
 | 29 | 04 | stub | playstead-mac/Playstead/Sync/JournalApplier.swift |  | CacheObjectsSaveBytesPrefetcher.onPrefetchNeeded is a no-op; real byte transfer for D-43 prefetch deferred to a later downloads-lane plan | open |  | 2026-09-04T03:18:16.168Z |  |
 | 30 | 04 | deviation | playstead-server/lib/playstead/export/export.ex |  | Real Playstead.Saves revision data is not yet loaded into Export.to_layout_input/1; SavesPlan/Sidecar/BagitWriter pipeline is built+tested against synthetic data only (04-08) | open |  | 2026-09-04T15:35:17.080Z |  |
-| 31 | 04 | deviation | playstead-server/lib/playstead_web/live/exports_live.ex |  | No console UI control yet sets ExportRecord.saves_scope (defaults to all); field is persisted and fully threaded through Worker (04-08) | open |  | 2026-09-04T15:35:17.159Z |  |
+| 31 | 04 | deviation | playstead-server/lib/playstead_web/live/exports_live.ex |  | No console UI control yet sets ExportRecord.saves_scope (defaults to all); field is persisted and fully threaded through Worker (04-08) | fixed |  | 2026-09-04T15:35:17.159Z | 2026-09-04T19:49:47.031Z |
 
 ````json
 [
@@ -416,10 +416,10 @@ last_updated: 2026-09-04T15:35:17.159Z
     "file": "playstead-server/lib/playstead_web/live/exports_live.ex",
     "line": null,
     "description": "No console UI control yet sets ExportRecord.saves_scope (defaults to all); field is persisted and fully threaded through Worker (04-08)",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-04T15:35:17.159Z",
-    "resolved_at": null
+    "resolved_at": "2026-09-04T19:49:47.031Z"
   }
 ]
 ````
