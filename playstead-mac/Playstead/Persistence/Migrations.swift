@@ -374,11 +374,58 @@ enum Migrations {
                 play_session_id TEXT,
                 durability TEXT NOT NULL DEFAULT 'localOnly',
                 local_path TEXT,
+                tier TEXT NOT NULL DEFAULT 'promoted',
+                origin TEXT NOT NULL DEFAULT 'session',
+                manifest_digest TEXT,
+                session_id TEXT,
+                artifact_set_json TEXT,
                 FOREIGN KEY (save_line_id) REFERENCES save_line(id) ON DELETE CASCADE
             );
             """
         )
+        // Plan 04-06 task 1: D-04's tier/origin discriminator, D-08's
+        // manifest digest and JSON manifest, and the session grouping key
+        // -- defensive ALTERs for a pre-04-06 dev database whose
+        // save_revision already exists without these columns (see the
+        // catalogue_entries precedent above). A brand new database
+        // already has all five from the CREATE TABLE above; these no-op
+        // (duplicate column, swallowed) in that case. `tier` defaults to
+        // 'promoted' and `origin` to 'session' so any row created under
+        // 04-04's pre-tier semantics (every capture was, in effect, an
+        // immediately promoted revision) reads as exactly that under the
+        // new model, with no backfill required.
+        try? connection.execute("ALTER TABLE save_revision ADD COLUMN tier TEXT NOT NULL DEFAULT 'promoted';")
+        try? connection.execute("ALTER TABLE save_revision ADD COLUMN origin TEXT NOT NULL DEFAULT 'session';")
+        try? connection.execute("ALTER TABLE save_revision ADD COLUMN manifest_digest TEXT;")
+        try? connection.execute("ALTER TABLE save_revision ADD COLUMN session_id TEXT;")
+        try? connection.execute("ALTER TABLE save_revision ADD COLUMN artifact_set_json TEXT;")
         try connection.execute("CREATE INDEX IF NOT EXISTS idx_save_revision_line ON save_revision(save_line_id, parent_revision_id);")
         try connection.execute("CREATE INDEX IF NOT EXISTS idx_save_revision_durability ON save_revision(durability);")
+        try connection.execute("CREATE INDEX IF NOT EXISTS idx_save_revision_session ON save_revision(session_id);")
+
+        // Plan 04-06 task 2: durable blocked-capture rows (D-31). One row
+        // per distinct blockage; `resolved_at IS NULL` means the
+        // blockage is still active (retried on every poll cycle) and is
+        // what makes the "raise exactly one alert per distinct blockage"
+        // rule enforceable -- a second failure for the same still-open
+        // blockage updates this row's `last_failed_at`/`failure_count`
+        // rather than inserting a second row or re-alerting.
+        try connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS save_capture_blocked (
+                id TEXT PRIMARY KEY,
+                save_line_id TEXT NOT NULL,
+                session_id TEXT,
+                digest TEXT,
+                reason TEXT NOT NULL,
+                first_failed_at TEXT NOT NULL,
+                last_failed_at TEXT NOT NULL,
+                failure_count INTEGER NOT NULL DEFAULT 1,
+                alerted INTEGER NOT NULL DEFAULT 0,
+                resolved_at TEXT
+            );
+            """
+        )
+        try connection.execute("CREATE INDEX IF NOT EXISTS idx_save_capture_blocked_line ON save_capture_blocked(save_line_id, resolved_at);")
     }
 }

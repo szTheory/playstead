@@ -46,6 +46,72 @@ struct SaveRevisionRow: Equatable {
     /// at capture time (D-06's write-order result), so the upload lane
     /// can stream from disk without re-reading the live save directory.
     let localPath: String?
+    /// D-04's tier discriminator (`staged`/`promoted`/`baseline`) and
+    /// D-04's origin (`session`/`external`, the baseline case). Rows
+    /// created before plan 04-06 read as `promoted`/`session` (the
+    /// schema default), matching 04-04's pre-tier semantics exactly.
+    let tier: String
+    let origin: String
+    /// D-08: recorded alongside `blobSHA256` (the raw artifact digest,
+    /// always the stored blob identity) -- never used for dedupe, export
+    /// filenames, or the compatibility gate.
+    let manifestDigest: String?
+    /// Groups every staged/promoted/baseline row that belongs to one
+    /// open-to-close play session (D-04, D-07).
+    let sessionID: String?
+    /// The JSON-encoded `SaveArtifactSet` this revision was captured
+    /// from (D-08).
+    let artifactSetJSON: String?
+
+    /// Explicit memberwise init (defining any initializer suppresses
+    /// Swift's synthesized one) with defaults for the five fields plan
+    /// 04-06 added, so every pre-04-06 call site that only names the
+    /// original fields keeps compiling unchanged.
+    init(
+        id: String,
+        saveLineID: String,
+        parentRevisionID: String?,
+        blobSHA256: String,
+        sizeBytes: Int,
+        originDeviceID: String?,
+        deviceCapturedAt: String?,
+        recordedAt: String?,
+        captureMethod: String?,
+        adapterID: String?,
+        adapterVersion: String?,
+        saveFormat: String?,
+        formatConfidence: String?,
+        playSessionID: String?,
+        durability: String,
+        localPath: String?,
+        tier: String = SaveCaptureTier.promoted.rawValue,
+        origin: String = SaveCaptureOrigin.session.rawValue,
+        manifestDigest: String? = nil,
+        sessionID: String? = nil,
+        artifactSetJSON: String? = nil
+    ) {
+        self.id = id
+        self.saveLineID = saveLineID
+        self.parentRevisionID = parentRevisionID
+        self.blobSHA256 = blobSHA256
+        self.sizeBytes = sizeBytes
+        self.originDeviceID = originDeviceID
+        self.deviceCapturedAt = deviceCapturedAt
+        self.recordedAt = recordedAt
+        self.captureMethod = captureMethod
+        self.adapterID = adapterID
+        self.adapterVersion = adapterVersion
+        self.saveFormat = saveFormat
+        self.formatConfidence = formatConfidence
+        self.playSessionID = playSessionID
+        self.durability = durability
+        self.localPath = localPath
+        self.tier = tier
+        self.origin = origin
+        self.manifestDigest = manifestDigest
+        self.sessionID = sessionID
+        self.artifactSetJSON = artifactSetJSON
+    }
 }
 
 /// Reads and writes the two local `save_*` tables. Mirrors
@@ -132,9 +198,10 @@ final class SaveStore {
                 id, save_line_id, parent_revision_id, blob_sha256, size_bytes,
                 origin_device_id, device_captured_at, recorded_at, capture_method,
                 adapter_id, adapter_version, save_format, format_confidence,
-                play_session_id, durability, local_path
+                play_session_id, durability, local_path, tier, origin, manifest_digest,
+                session_id, artifact_set_json
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 save_line_id = excluded.save_line_id,
                 parent_revision_id = excluded.parent_revision_id,
@@ -150,13 +217,19 @@ final class SaveStore {
                 format_confidence = excluded.format_confidence,
                 play_session_id = excluded.play_session_id,
                 durability = excluded.durability,
-                local_path = excluded.local_path;
+                local_path = excluded.local_path,
+                tier = excluded.tier,
+                origin = excluded.origin,
+                manifest_digest = excluded.manifest_digest,
+                session_id = excluded.session_id,
+                artifact_set_json = excluded.artifact_set_json;
             """,
             params: [
                 row.id, row.saveLineID, row.parentRevisionID, row.blobSHA256, row.sizeBytes,
                 row.originDeviceID, row.deviceCapturedAt, row.recordedAt, row.captureMethod,
                 row.adapterID, row.adapterVersion, row.saveFormat, row.formatConfidence,
-                row.playSessionID, row.durability, row.localPath
+                row.playSessionID, row.durability, row.localPath, row.tier, row.origin, row.manifestDigest,
+                row.sessionID, row.artifactSetJSON
             ]
         )
     }
@@ -206,13 +279,21 @@ final class SaveStore {
         fetchRevisions(matching: "1 = 1", params: [])
     }
 
+    /// Every row captured under one open-to-close play session (D-04) --
+    /// used to assert "exactly one promoted revision per session" and to
+    /// distinguish a session's staged/promoted/baseline rows.
+    func fetchRevisions(sessionID: String) -> [SaveRevisionRow] {
+        fetchRevisions(matching: "session_id = ?", params: [sessionID])
+    }
+
     private func fetchRevisions(matching whereClause: String, params: [SQLiteBindable]) -> [SaveRevisionRow] {
         (try? localStore.connection.query(
             """
             SELECT id, save_line_id, parent_revision_id, blob_sha256, size_bytes,
                    origin_device_id, device_captured_at, recorded_at, capture_method,
                    adapter_id, adapter_version, save_format, format_confidence,
-                   play_session_id, durability, local_path
+                   play_session_id, durability, local_path, tier, origin, manifest_digest,
+                   session_id, artifact_set_json
             FROM save_revision WHERE \(whereClause) ORDER BY rowid ASC;
             """,
             params: params
@@ -236,7 +317,12 @@ final class SaveStore {
             formatConfidence: row.string(12),
             playSessionID: row.string(13),
             durability: row.string(14) ?? SaveDurability.localOnly.rawValue,
-            localPath: row.string(15)
+            localPath: row.string(15),
+            tier: row.string(16) ?? SaveCaptureTier.promoted.rawValue,
+            origin: row.string(17) ?? SaveCaptureOrigin.session.rawValue,
+            manifestDigest: row.string(18),
+            sessionID: row.string(19),
+            artifactSetJSON: row.string(20)
         )
     }
 
