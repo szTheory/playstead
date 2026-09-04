@@ -427,5 +427,27 @@ enum Migrations {
             """
         )
         try connection.execute("CREATE INDEX IF NOT EXISTS idx_save_capture_blocked_line ON save_capture_blocked(save_line_id, resolved_at);")
+
+        // Plan 04-11 task 3: the local, append-only-in-spirit record of
+        // how a save line's fork was last disposed (`SaveConflictResolver`).
+        // One row per line (upserted) recording the exact sorted head-id
+        // set that was disposed and how -- `SaveAttentionSource` compares
+        // a line's *current* head set against this row's `head_ids_json`
+        // to decide whether a fork is still "needing a decision" (D-52's
+        // exact-match rule, mirrored from the server's
+        // `fork_acknowledged?/3`). Choosing the other side later, or a
+        // fresh divergence on a *different* head set, is a legitimate new
+        // disposition, never suppressed by this row.
+        try connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS save_fork_dispositions (
+                save_line_id TEXT PRIMARY KEY,
+                head_ids_json TEXT NOT NULL,
+                action TEXT NOT NULL,
+                chosen_revision_id TEXT,
+                disposed_at TEXT NOT NULL
+            );
+            """
+        )
     }
 }

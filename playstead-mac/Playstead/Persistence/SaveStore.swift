@@ -277,6 +277,29 @@ final class SaveStore {
         ) { row in Self.row(from: row) })?.first
     }
 
+    /// Every current head (a revision with no children) for a line --
+    /// plural counterpart to `fetchHead`, needed once a line can have
+    /// more than one head (D-14-equivalent client read: computed fresh
+    /// from the DAG on every call, never stored). More than one entry
+    /// means the line has diverged (`SaveStateModel.isConflicted`).
+    func fetchHeads(saveLineID: String) -> [SaveRevisionRow] {
+        (try? localStore.connection.query(
+            """
+            SELECT r.id, r.save_line_id, r.parent_revision_id, r.blob_sha256, r.size_bytes,
+                   r.origin_device_id, r.device_captured_at, r.recorded_at, r.capture_method,
+                   r.adapter_id, r.adapter_version, r.save_format, r.format_confidence,
+                   r.play_session_id, r.durability, r.local_path, r.tier, r.origin, r.manifest_digest,
+                   r.session_id, r.artifact_set_json
+            FROM save_revision r
+            WHERE r.save_line_id = ?
+              AND r.tier != 'staged'
+              AND NOT EXISTS (SELECT 1 FROM save_revision c WHERE c.parent_revision_id = r.id)
+            ORDER BY r.rowid ASC;
+            """,
+            params: [saveLineID]
+        ) { row in Self.row(from: row) }) ?? []
+    }
+
     func fetchPending(durability: SaveDurability) -> [SaveRevisionRow] {
         fetchRevisions(matching: "durability = ?", params: [durability.rawValue])
     }
@@ -337,4 +360,66 @@ final class SaveStore {
         try localStore.connection.execute("DELETE FROM save_revision;")
         try localStore.connection.execute("DELETE FROM save_line;")
     }
+
+    // MARK: - Fork disposition (plan 04-11 task 3)
+
+    /// One line's last recorded fork disposition -- see
+    /// `save_fork_dispositions`'s moduledoc in `Migrations.swift`.
+    struct ForkDispositionRow: Equatable {
+        let saveLineID: String
+        let headRevisionIDs: [String]
+        let action: SaveForkDispositionAction
+        let chosenRevisionID: String?
+        let disposedAt: String
+    }
+
+    /// Upserts `saveLineID`'s disposition -- called inside
+    /// `SaveConflictResolver`'s single transaction alongside the outbox
+    /// enqueue. Always overwrites any prior row for this line: only the
+    /// most recent disposition matters for "is this exact fork still
+    /// undecided" (`SaveAttentionSource.hasUnacknowledgedDivergence`).
+    func upsertForkDisposition(
+        saveLineID: String, headRevisionIDs: [String], action: SaveForkDispositionAction,
+        chosenRevisionID: String?, disposedAt: String
+    ) throws {
+        let headIDsData = (try? JSONEncoder().encode(headRevisionIDs.sorted())) ?? Data("[]".utf8)
+        let headIDsJSON = String(data: headIDsData, encoding: .utf8) ?? "[]"
+        try localStore.connection.execute(
+            """
+            INSERT INTO save_fork_dispositions (save_line_id, head_ids_json, action, chosen_revision_id, disposed_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(save_line_id) DO UPDATE SET
+                head_ids_json = excluded.head_ids_json,
+                action = excluded.action,
+                chosen_revision_id = excluded.chosen_revision_id,
+                disposed_at = excluded.disposed_at;
+            """,
+            params: [saveLineID, headIDsJSON, action.rawValue, chosenRevisionID, disposedAt]
+        )
+    }
+
+    func fetchForkDisposition(saveLineID: String) -> ForkDispositionRow? {
+        (try? localStore.connection.query(
+            "SELECT save_line_id, head_ids_json, action, chosen_revision_id, disposed_at FROM save_fork_dispositions WHERE save_line_id = ?;",
+            params: [saveLineID]
+        ) { row -> ForkDispositionRow in
+            let headIDsJSON = row.string(1) ?? "[]"
+            let headIDs = (try? JSONDecoder().decode([String].self, from: Data(headIDsJSON.utf8))) ?? []
+            return ForkDispositionRow(
+                saveLineID: row.string(0) ?? "",
+                headRevisionIDs: headIDs,
+                action: SaveForkDispositionAction(rawValue: row.string(2) ?? "") ?? .keepBoth,
+                chosenRevisionID: row.string(3),
+                disposedAt: row.string(4) ?? ""
+            )
+        })?.first
+    }
+}
+
+/// The two ways a fork can be disposed -- mirrors the server's
+/// `resolve_divergence/4` (append-a-resolution) and
+/// `acknowledge_divergence/3` ("Keep both") one-for-one.
+enum SaveForkDispositionAction: String {
+    case choose
+    case keepBoth = "keep_both"
 }

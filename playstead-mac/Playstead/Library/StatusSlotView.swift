@@ -136,6 +136,13 @@ extension LibraryStatus {
     /// 03-07) already feeds `StatusSlotView` -- the card's attention
     /// rung is a presentation rank fed by a union of sources, never
     /// `Playstead.Attention.Reason` itself.
+    ///
+    /// Plan 04-11: the boolean a caller passes here is
+    /// `SaveAttentionSource.hasUnacknowledgedDivergence(...)`, not the
+    /// raw "more than one head" fact -- a disposed fork (chosen or kept
+    /// both) must stop raising this rung even though both heads remain
+    /// standing (D-49/D-52). This function's own signature is unchanged;
+    /// only what callers now feed into `conflicted` changed.
     static func forSaveState(conflicted: Bool) -> LibraryStatus? {
         conflicted ? .needsAttention : nil
     }
