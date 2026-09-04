@@ -98,6 +98,11 @@ defmodule Playstead.Saves.Revision do
     )
     |> foreign_key_constraint(:save_line_id)
     |> foreign_key_constraint(:parent_revision_id)
+    # D-13: a committed revision is immutable. An `id` conflict on
+    # insert is an attempt to modify an already-committed row, not a
+    # generic validation failure -- the caller (`Saves.commit_revision/3`)
+    # classifies this specific constraint into `save_revision_immutable`.
+    |> unique_constraint(:id, name: :save_revisions_pkey)
   end
 
   @type t :: %__MODULE__{}

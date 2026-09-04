@@ -31,6 +31,16 @@ defmodule PlaysteadWeb.Api.V1.FallbackController do
     PlaysteadWeb.Problem.send_problem(conn, 422, :validation_failed, detail)
   end
 
+  # D-13: the only rejection in the accept-and-branch commit path is a
+  # parent unknown to the server, reachable only by client outbox
+  # mis-ordering -- it is retried, never surfaced to the user, so it
+  # carries the same Retry-After header as an idempotency conflict.
+  def call(conn, {:error, {:save_parent_unknown, detail}}) do
+    conn
+    |> put_resp_header("retry-after", "1")
+    |> PlaysteadWeb.Problem.send_problem(409, :save_parent_unknown, detail)
+  end
+
   def call(conn, {:error, {code, detail}}) when is_atom(code) and is_binary(detail) do
     status = PlaysteadWeb.ErrorCodes.status_for(code)
     PlaysteadWeb.Problem.send_problem(conn, status, code, detail)

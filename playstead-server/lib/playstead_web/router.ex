@@ -275,6 +275,14 @@ defmodule PlaysteadWeb.Router do
     post "/saves/revisions", SavesController, :create_revision
   end
 
+  # D-14: read-only branch-head/history view, strictly user-scoped, no
+  # Idempotency-Key required.
+  scope "/api/v1", PlaysteadWeb.Api.V1 do
+    pipe_through [:api, :device_auth]
+
+    get "/saves/lines/:id/history", SaveHistoryController, :show
+  end
+
   # D-21, PROT-05: the resumable change feed and its transactional
   # snapshot counterpart. Both are read-only — never mutating, never
   # Idempotency-Key gated — so they stay on the plain device_auth

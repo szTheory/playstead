@@ -23,17 +23,21 @@ defmodule Playstead.SavesTest do
 
   defp content_key, do: :crypto.hash(:sha256, :crypto.strong_rand_bytes(16)) |> Base.encode16(case: :lower)
 
-  defp commit!(scope, device, content_key, bytes) do
+  defp commit!(scope, device, content_key, bytes, extra_attrs \\ []) do
     {:ok, _status, meta} = Blobs.put_stream([bytes], byte_size(bytes))
 
     command_id = Ecto.UUID.generate()
     {:ok, _pending} = Saves.record_pending_upload(scope.user.id, device.id, command_id, meta.sha256, meta.size_bytes)
 
-    Saves.commit_revision(scope.user.id, device, %{
-      "id" => Ecto.UUID.generate(),
-      "command_id" => command_id,
-      "content_key" => content_key
-    })
+    attrs =
+      %{
+        "id" => Ecto.UUID.generate(),
+        "command_id" => command_id,
+        "content_key" => content_key
+      }
+      |> Map.merge(Map.new(extra_attrs, fn {k, v} -> {to_string(k), v} end))
+
+    Saves.commit_revision(scope.user.id, device, attrs)
   end
 
   describe "assumption-delta invariant: two devices, one identity tuple, one save line" do
@@ -85,6 +89,51 @@ defmodule Playstead.SavesTest do
       first = Enum.find(page1.save, &(&1.revision_id == revision.id))
       second = Enum.find(page2.save, &(&1.revision_id == revision.id))
       assert first == second
+    end
+  end
+
+  describe "commit invariants (plan 04-05 task 2)" do
+    test "committing a revision naming an unknown parent returns save_parent_unknown" do
+      scope = user_scope_fixture()
+      %{device: device} = device_fixture(scope)
+
+      {:error, {:save_parent_unknown, _detail}} =
+        commit!(scope, device, content_key(), :crypto.strong_rand_bytes(64),
+          parent_revision_id: Ecto.UUID.generate()
+        )
+    end
+
+    test "an attempt to insert a revision under an id that already exists returns save_revision_immutable" do
+      scope = user_scope_fixture()
+      %{device: device} = device_fixture(scope)
+      {:ok, revision} = commit!(scope, device, content_key(), :crypto.strong_rand_bytes(64))
+
+      {:ok, _status, meta} = Blobs.put_stream([:crypto.strong_rand_bytes(64)], 64)
+      command_id = Ecto.UUID.generate()
+      {:ok, _pending} = Saves.record_pending_upload(scope.user.id, device.id, command_id, meta.sha256, meta.size_bytes)
+
+      assert {:error, {:save_revision_immutable, _detail}} =
+               Saves.commit_revision(scope.user.id, device, %{
+                 "id" => revision.id,
+                 "command_id" => command_id,
+                 "content_key" => content_key()
+               })
+    end
+
+    test "get_history/2 returns a line's revisions and derived heads, scoped by user_id" do
+      scope = user_scope_fixture()
+      %{device: device} = device_fixture(scope)
+      key = content_key()
+      {:ok, revision} = commit!(scope, device, key, :crypto.strong_rand_bytes(64))
+
+      other_scope = user_scope_fixture()
+      assert {:error, :not_found} = Saves.get_history(other_scope.user.id, revision.save_line_id)
+
+      assert {:ok, %{revisions: revisions, heads: heads}} =
+               Saves.get_history(scope.user.id, revision.save_line_id)
+
+      assert Enum.map(revisions, & &1.id) == [revision.id]
+      assert Enum.map(heads, & &1.id) == [revision.id]
     end
   end
 end
