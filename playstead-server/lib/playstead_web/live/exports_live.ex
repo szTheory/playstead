@@ -47,14 +47,27 @@ defmodule PlaysteadWeb.ExportsLive do
         </div>
 
         <section id="export-actions" class="rounded-lg border border-[#334155] bg-[#1E293B] p-6">
-          <button
-            id="export-library"
-            type="button"
-            phx-click="export_library"
-            class="rounded-md border border-[#334155] px-4 py-2 text-sm font-semibold text-[#F1F5F9]"
-          >
-            Export whole library
-          </button>
+          <form phx-submit="export_library" class="flex flex-wrap items-center gap-3">
+            <label for="saves-scope-select" class="text-sm text-[#94A3B8]">
+              Saves
+            </label>
+            <select
+              id="saves-scope-select"
+              name="saves_scope"
+              class="h-9 rounded-md bg-[#0F172A] px-2 text-sm text-[#F1F5F9]"
+            >
+              <option value="all">All save versions</option>
+              <option value="none">No save versions</option>
+            </select>
+
+            <button
+              id="export-library"
+              type="submit"
+              class="rounded-md border border-[#334155] px-4 py-2 text-sm font-semibold text-[#F1F5F9]"
+            >
+              Export whole library
+            </button>
+          </form>
         </section>
 
         <section id="exports">
@@ -99,12 +112,13 @@ defmodule PlaysteadWeb.ExportsLive do
   end
 
   @impl true
-  def handle_event("export_library", _params, socket) do
+  def handle_event("export_library", params, socket) do
     user_id = socket.assigns.current_scope.user.id
     target_name = "library-#{System.unique_integer([:positive])}"
+    saves_scope = normalize_saves_scope(params["saves_scope"])
 
     socket =
-      case Export.create_export(user_id, :library, target_name: target_name) do
+      case Export.create_export(user_id, :library, target_name: target_name, saves_scope: saves_scope) do
         {:ok, _export} -> load(socket)
         {:error, _reason} -> put_flash(socket, :error, generic_error_flash())
       end
@@ -146,6 +160,12 @@ defmodule PlaysteadWeb.ExportsLive do
   defp status_message(%{status: "verification_failed", mismatched_files: files}) do
     "#{length(files)} file(s) did not match on re-read: #{Enum.join(files, ", ")}"
   end
+
+  # D-57: any value other than the known "none" resolves to "all", the
+  # safe default -- an unrecognised or missing form value never
+  # silently narrows what gets exported.
+  defp normalize_saves_scope("none"), do: "none"
+  defp normalize_saves_scope(_other), do: "all"
 
   defp generic_error_flash do
     "Something went wrong on the server. Nothing already written was changed. " <>

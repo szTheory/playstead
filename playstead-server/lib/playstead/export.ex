@@ -121,6 +121,9 @@ defmodule Playstead.Export do
   def create_export(user_id, scope, opts) do
     target_name = Keyword.fetch!(opts, :target_name)
     asset_set_id = Keyword.get(opts, :asset_set_id)
+    # D-57: a user choice, persisted on the record (not derived from
+    # scope) so a re-enqueued job reproduces the same plan.
+    saves_scope = Keyword.get(opts, :saves_scope, "all")
 
     with {:ok, _target_dir} <- resolve_target(target_name) do
       Repo.transaction(fn ->
@@ -129,7 +132,8 @@ defmodule Playstead.Export do
           user_id: user_id,
           scope: to_string(scope),
           scope_asset_set_id: asset_set_id,
-          target_name: target_name
+          target_name: target_name,
+          saves_scope: saves_scope
         }
 
         with {:ok, export} <- Repo.insert(ExportRecord.create_changeset(%ExportRecord{}, attrs)),
