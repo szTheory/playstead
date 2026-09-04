@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 04
 current_phase_name: Persistent Save Continuity
 status: executing
-stopped_at: Completed 04-04-PLAN.md
-last_updated: "2026-09-04T03:18:43.713Z"
+stopped_at: Completed 04-05-PLAN.md
+last_updated: "2026-09-04T04:08:57.610Z"
 last_activity: 2026-09-03
 last_activity_desc: Phase 04 execution started
-state_head: dd93e11cad9f0ec9ae61de2ec7c308714b0fd139
+state_head: 2297f1ed6c112a9960a2fdf6cd1cb7cffc3e1b4b
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 51
-  completed_plans: 42
+  completed_plans: 43
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: `.planning/PROJECT.md` (updated 2026-08-30)
 ## Current Position
 
 Phase: 04 (Persistent Save Continuity) — EXECUTING
-Plan: 5 of 13
+Plan: 6 of 13
 Status: Ready to execute
 Last activity: 2026-09-03 — Phase 04 execution started
 
@@ -95,6 +95,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 | Phase 04 P02 | 32min | 3 tasks | 12 files |
 | Phase 04 P03 | 20min | 3 tasks | 8 files |
 | Phase 04 P04 | 90min | 3 tasks | 24 files |
+| Phase 04 P05 | 70min | 3 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -186,6 +187,8 @@ Progress: [█████████░] 90% (Phase 03.5)
 - [Phase 04]: reserve: :critical bypasses only the general free-space margin, never the 64 MiB physical floor (D-64) — A 32 KB save write is the one artifact that cannot be reconstructed elsewhere; open_write/2 keeps required_bytes/2 untouched for every other caller
 - [Phase 04]: Save-lane limit constants and key derivation added to Playstead.Blobs rather than a new Playstead.Saves module — Playstead.Saves does not exist until plan 04-04; reuses UploadSlots/RateLimiter unchanged under a save: namespace
 - [Phase 04]: SaveUploadLane mints a fresh UUIDv7 per upload attempt for command_id (never revision.id), since CommandId.cast/1 requires UUIDv7 and Foundation's UUID() is v4 — A shipped bug found before it shipped: reusing revision.id would have made every real save upload fail invalid_command_id
+- [Phase 04]: Branches.heads/2 retires a revision only via parent_revision_id or a role: chosen edge; a role: acknowledged edge never retires its parent — A role-blind retirement rule would make a resolved fork's non-chosen head vanish immediately, breaking D-49's permanent Continue-from-this-one promise and independent-resolution convergence
+- [Phase 04]: Keep both (acknowledge_divergence/3) is a ChangeJournal marker, never a save_revision_parents row — Any row in that table disqualifies its parent from head status, so acknowledging inside the DAG was structurally impossible without breaking heads stay heads (D-52)
 
 ### Pending Todos
 
@@ -219,6 +222,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-04T03:18:43.580Z
-Stopped at: Completed 04-04-PLAN.md
+Last session: 2026-09-04T04:08:57.490Z
+Stopped at: Completed 04-05-PLAN.md
 Resume file: None
