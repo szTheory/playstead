@@ -125,4 +125,49 @@ defmodule Playstead.ReadinessCriticalReserveTest do
       LocalDisk.abort(ref2)
     end
   end
+
+  describe "save-lane limits (D-33)" do
+    alias Playstead.Blobs
+    alias Playstead.Import.UploadSlots
+
+    test "max_save_revision_bytes/0 is exactly 8 MiB" do
+      assert Blobs.max_save_revision_bytes() == 8_388_608
+    end
+
+    test "the save upload slot key for a device is distinct from that device's import slot key" do
+      device_id = "device-#{System.unique_integer([:positive])}"
+
+      assert Blobs.save_upload_slot_key(device_id) != device_id
+      assert Blobs.save_upload_slot_key(device_id) == "save:" <> device_id
+    end
+
+    test "acquiring a save slot for a device does not consume that device's import slot" do
+      device_id = "device-#{System.unique_integer([:positive])}"
+      save_key = Blobs.save_upload_slot_key(device_id)
+
+      assert :ok = UploadSlots.acquire(save_key, 2)
+
+      # The device's own (unnamespaced) import slot counter is untouched —
+      # it can still acquire its full quota of import slots independently.
+      assert :ok = UploadSlots.acquire(device_id, 2)
+      assert :ok = UploadSlots.acquire(device_id, 2)
+      assert :error = UploadSlots.acquire(device_id, 2)
+
+      UploadSlots.release(save_key)
+      UploadSlots.release(device_id)
+      UploadSlots.release(device_id)
+    end
+
+    test "save_revision_rate_limit_per_hour/0 is 120" do
+      assert Blobs.save_revision_rate_limit_per_hour() == 120
+    end
+
+    test "save_revision_rate_limit_key/1 is namespaced under save: and includes the device id" do
+      device_id = "device-#{System.unique_integer([:positive])}"
+      key = Blobs.save_revision_rate_limit_key(device_id)
+
+      assert key =~ "save:"
+      assert key =~ device_id
+    end
+  end
 end

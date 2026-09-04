@@ -187,4 +187,51 @@ defmodule Playstead.Blobs do
   def released_for_user?(user_id, blob_id) do
     from(r in Release, where: r.user_id == ^user_id and r.blob_id == ^blob_id) |> Repo.exists?()
   end
+
+  # --- save-lane limits (D-33) ------------------------------------------
+  # Named here (rather than restated as literals at each call site) so
+  # plan 04-04's saves controller has one place to consume the save-lane
+  # size cap, upload-slot key, and rate-limit key from. Reuses Phase 2's
+  # shipped `Playstead.Import.UploadSlots` and `Playstead.RateLimiter`
+  # unchanged — no parallel limiter or slots module is created.
+
+  @max_save_revision_bytes 8_388_608
+  @save_revision_rate_limit_per_hour 120
+
+  @doc """
+  The maximum accepted size, in bytes, of a single save-revision
+  artifact (8 MiB, D-33). Enforced during streaming; a larger upload is
+  refused with the registered `save_revision_too_large` (413) code.
+  """
+  @spec max_save_revision_bytes() :: pos_integer()
+  def max_save_revision_bytes, do: @max_save_revision_bytes
+
+  @doc """
+  The per-device save-revision commit rate limit: 120 per hour (D-33).
+  Enforced via `Playstead.RateLimiter.hit/3` under
+  `save_revision_rate_limit_key/1`; a breach returns the already-
+  registered `rate_limited` code, not a new one.
+  """
+  @spec save_revision_rate_limit_per_hour() :: pos_integer()
+  def save_revision_rate_limit_per_hour, do: @save_revision_rate_limit_per_hour
+
+  @doc """
+  The `Playstead.Import.UploadSlots` key for a save upload in flight for
+  `device_id`, namespaced under `"save:"` so it is counted separately
+  from that device's game-import upload slot (D-33). A named function
+  rather than a string built at each call site, so the acquire and
+  release paths cannot drift apart.
+  """
+  @spec save_upload_slot_key(binary()) :: binary()
+  def save_upload_slot_key(device_id) when is_binary(device_id), do: "save:" <> device_id
+
+  @doc """
+  The `Playstead.RateLimiter` bucket key for `device_id`'s save-revision
+  commit rate limit (D-33), following the existing `"scope:action:id"`
+  key-shape convention used by `PlaysteadWeb.Plugs.Throttle` and
+  `Playstead.Pairing`.
+  """
+  @spec save_revision_rate_limit_key(binary()) :: binary()
+  def save_revision_rate_limit_key(device_id) when is_binary(device_id),
+    do: "save:revision:#{device_id}"
 end
