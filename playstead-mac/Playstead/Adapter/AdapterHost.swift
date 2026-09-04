@@ -380,6 +380,16 @@ actor AdapterHost {
         romPath: String,
         saveDir: String,
         biosPath: String? = nil,
+        /// D-44's `SavePlanExecutor` call, pre-bound by the caller to a
+        /// concrete `SavePlan` and target `.sav` path. Invoked here —
+        /// inside the same per-`assetSetID` mutex span as the process
+        /// spawn below — so two concurrent launches for the same
+        /// `assetSetID` can never both execute a plan against the same
+        /// save artifact. `nil` (the default) preserves every existing
+        /// call site's behaviour unchanged. A throw here aborts the
+        /// launch entirely: this type never spawns the emulator over a
+        /// save write it could not complete or verify.
+        executeSavePlan: (() throws -> Void)? = nil,
         onExit: @escaping @Sendable (AdapterExit) -> Void
     ) throws -> Process {
         let mutex = AdapterLaunchMutex.shared
@@ -398,6 +408,7 @@ actor AdapterHost {
         }
 
         try verifyInstalledDigest()
+        try executeSavePlan?()
 
         let proc = Process()
         proc.executableURL = resolvedExecutableURL
