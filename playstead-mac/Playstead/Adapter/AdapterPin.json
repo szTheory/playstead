@@ -24,7 +24,22 @@
       "clean_quit_but_sigterm_alone_does_not_trigger_a_graceful_flush_distinct_from_crash"
     ],
     "on_demand_flush_supported": false,
-    "worst_case_loss_seconds": 24
+    "worst_case_loss_seconds": 24,
+    "save_kind": "battery",
+    "media": [
+      {"id": "eeprom_512", "bytes": 512},
+      {"id": "eeprom_8k", "bytes": 8192},
+      {"id": "sram_32k", "bytes": 32768},
+      {"id": "flash_64k", "bytes": 65536},
+      {"id": "flash_128k", "bytes": 131072}
+    ],
+    "size_is_medium_identity": true,
+    "accepts_foreign_medium": false,
+    "portable_across_emulators": true,
+    "max_artifact_bytes": 131072,
+    "proven_media": ["sram_32k"],
+    "binding_fields": ["system_id", "save_kind", "medium_id", "artifact_bytes", "rom_sha256"],
+    "provenance_fields": ["emulator", "emulator_version", "core_version", "adapter_pin_sha256"]
   },
   "exit_detection": {
     "clean": {

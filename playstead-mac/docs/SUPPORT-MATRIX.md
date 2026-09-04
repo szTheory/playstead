@@ -44,6 +44,19 @@ independent of code signing) — is proven and covered by automated
 tests. See `docs/RELEASE.md` for the exact commands and the paid-membership
 path this posture will convert to once available.
 
+## Save restore support
+
+| Fact | Value |
+|---|---|
+| Save kinds supported | Persistent battery saves only. **Save states are not supported** and are not captured, synced, restored, or exported. |
+| Backup media recognised | SRAM 32 KB (`sram_32k`) — the only medium observed and proven by the plan 03-01 spike. EEPROM 512 B / 8 KB and Flash 64 KB / 128 KB are **declared in the adapter pin and captured, but no restore of them has been proven on real hardware in this environment.** |
+| Restore requires | Same system, same save kind, same backup medium and exact byte size, and either the exact same game file the save was made with, or a different copy of the same game confirmed by an installed reference pack. |
+| Restore across different copies of a game | Permitted **only** with an installed reference pack that identifies both copies as the same title with certainty, and only behind an explicit confirmation. Never automatic. |
+| Restore across emulators | A GBA battery save is written by the game, not the emulator, so these files are portable in principle. Playstead does not claim, and has not tested, restore into any emulator other than the pinned one. |
+| Restore from a physical cartridge | Not supported. No cartridge hardware path exists. |
+| Integrity | Every save revision is verified by full SHA-256 re-hash at restore time, and the written file is re-hashed before it is put in place. |
+| Overwrite behaviour | Restore never overwrites in place. The save currently on this Mac is captured as its own revision first; if that capture fails, the restore does not run. |
+
 ## Controller support
 
 The controller lifecycle (`ControllerHost`, `ControllerMapping`,

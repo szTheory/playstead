@@ -28,6 +28,21 @@ struct AdapterConfigInjection: Codable, Equatable {
     let keys: [String: String]
 }
 
+/// One backup-medium entry in `AdapterSaveContract.media` — the byte
+/// size the pinned adapter observes IS the medium's identity (D-24),
+/// never something this client infers independently.
+struct AdapterSaveMedium: Codable, Equatable {
+    let id: String
+    let bytes: Int
+}
+
+/// D-24: the additive fields below drive `SaveCompatibilityGate` (D-18,
+/// D-19). Every one is a Swift `Optional` — the original five keys
+/// (`artifactGlob` through `worstCaseLossSeconds`) are non-optional
+/// `let`s and shipped before this plan, so an older pin JSON lacking
+/// every new key must still decode with these fields `nil`. Swift's
+/// synthesized `Decodable` already treats a missing key as `nil` for an
+/// `Optional` property, so no custom `init(from:)` is needed here.
 struct AdapterSaveContract: Codable, Equatable {
     let artifactGlob: String
     let directoryKey: String
@@ -35,12 +50,54 @@ struct AdapterSaveContract: Codable, Equatable {
     let onDemandFlushSupported: Bool
     let worstCaseLossSeconds: Int
 
+    /// `"battery"` in every Phase 4 pin (SEED-019's frozen vocabulary
+    /// seam) — a future save-state adapter entry would declare
+    /// `"state"` here with a wider `bindingFields` set, with zero
+    /// client-side gate change.
+    let saveKind: String?
+    /// Every backup medium the pinned emulator's override database
+    /// knows about — not only the proven one. `provenMedia` below is
+    /// the honest subset.
+    let media: [AdapterSaveMedium]?
+    /// Whether the observed artifact byte size alone identifies the
+    /// medium (true for GBA — SDK-string detection is a ROM-content
+    /// fact, not something this client re-derives).
+    let sizeIsMediumIdentity: Bool?
+    let acceptsForeignMedium: Bool?
+    /// A battery save is written by the game, not the emulator, so it
+    /// is portable across emulator builds in principle — recorded as
+    /// data, never consulted by the gate (emulator/core/version are
+    /// provenance only, D-18).
+    let portableAcrossEmulators: Bool?
+    let maxArtifactBytes: Int?
+    /// The subset of `media` actually observed and proven restorable by
+    /// the plan 03-01 spike — `docs/SUPPORT-MATRIX.md`'s save-restore
+    /// section names this honestly rather than claiming the whole list.
+    let provenMedia: [String]?
+    /// The binding tuple's field names, as this adapter declares them —
+    /// `SaveCompatibilityGate` is generic over this list rather than
+    /// hardcoding GBA's fields, which is the exact seam a future
+    /// save-state adapter entry (SEED-019) widens without a client
+    /// change.
+    let bindingFields: [String]?
+    /// Recorded for provenance (SEED-001) and never read by the gate.
+    let provenanceFields: [String]?
+
     private enum CodingKeys: String, CodingKey {
         case artifactGlob = "artifact_glob"
         case directoryKey = "directory_key"
         case flushTriggers = "flush_triggers"
         case onDemandFlushSupported = "on_demand_flush_supported"
         case worstCaseLossSeconds = "worst_case_loss_seconds"
+        case saveKind = "save_kind"
+        case media
+        case sizeIsMediumIdentity = "size_is_medium_identity"
+        case acceptsForeignMedium = "accepts_foreign_medium"
+        case portableAcrossEmulators = "portable_across_emulators"
+        case maxArtifactBytes = "max_artifact_bytes"
+        case provenMedia = "proven_media"
+        case bindingFields = "binding_fields"
+        case provenanceFields = "provenance_fields"
     }
 }
 
