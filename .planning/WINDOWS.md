@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 36
+open_count: 41
 waived_count: 1
 fixed_count: 6
-total_count: 43
-last_updated: 2026-09-05T14:17:20.303Z
+total_count: 48
+last_updated: 2026-09-05T21:54:18.835Z
 ---
 
 # Broken Windows Ledger
@@ -58,6 +58,11 @@ last_updated: 2026-09-05T14:17:20.303Z
 | 41 | 04 | deviation | playstead-mac/Playstead/Readiness/ReadinessEngine.swift |  | AppEnvironment.saveReadinessCase(for:) does not compute .serverHasNewer -- distinguishing it from .localOnlyReachable needs per-device session context this client doesn't track yet; every other SaveReadinessCase, including the higher-priority .twoVersions, is computed (04-16) | open |  | 2026-09-05T14:17:20.065Z |  |
 | 42 | 04 | deviation | playstead-mac/Playstead/Sync/Outbox.swift |  | AppEnvironment now constructs a shared SaveOutbox/SaveConflictResolver so MC-06's resolution path durably records locally, but no drain trigger (OutboxDrainTrigger-equivalent) is wired for SaveOutbox yet -- a resolved fork is recorded locally but may not reach the server promptly (mac2 review WR-04's other half) (04-16) | open |  | 2026-09-05T14:17:20.181Z |  |
 | 43 | 04 | deviation | playstead-mac/Playstead/Readiness/ReadinessSheetView.swift |  | saveHistorySessions closure passed to ReadinessSheetView is still never populated from SaveStore (mac2 review CR-04's other half) -- SaveHistorySheet's 'Review versions...' path for a non-diverged line still renders its empty state; out of 04-16's declared MC-01..MC-06 scope | open |  | 2026-09-05T14:17:20.303Z |  |
+| 44 | 04 | unmet-truth | playstead-mac/Playstead/Saves/SaveUploadLane.swift |  | SaveUploadLane (the dedicated actor draining locally-captured save revisions to the server, D-16/D-32) is never constructed anywhere in production -- discovered baselining 04-18's reachability sweep. A more severe superset of the already-tracked WINDOWS #40 (which only covered its missing failure-classification output): the WHOLE upload path is unwired, not just one output of it. See 04-18-SUMMARY.md. | open |  | 2026-09-05T21:54:18.525Z |  |
+| 45 | 04 | unmet-truth | playstead-mac/Playstead/Saves/SaveCapturePoller.swift |  | SaveCapturePoller is constructed in production ONLY inside SaveSessionRecovery.replay, which itself has no production caller -- there is no live, in-play save-capture trigger anywhere in the shipped app. Discovered baselining 04-18's reachability sweep. See 04-18-SUMMARY.md. | open |  | 2026-09-05T21:54:18.602Z |  |
+| 46 | 04 | unmet-truth | playstead-mac/Playstead/Saves/SaveSessionRecovery.swift |  | SaveSessionRecovery (crash-recovery replay actor, D-05/D-07) is never constructed in production despite its own doc comment saying app launch should call it once per known save line. Discovered baselining 04-18's reachability sweep. See 04-18-SUMMARY.md. | open |  | 2026-09-05T21:54:18.681Z |  |
+| 47 | 04 | unmet-truth | playstead-mac/Playstead/Saves/SaveRollup.swift |  | SaveRollup.rollup(for:) (D-36's game-level save rollup string) has zero production callers -- not reachable from any shipped UI. Discovered baselining 04-18's reachability sweep. See 04-18-SUMMARY.md. | open |  | 2026-09-05T21:54:18.760Z |  |
+| 48 | 04 | unmet-truth | playstead-mac/Playstead/Controller/ControllerRecoveryBanner.swift |  | ControllerRecoveryBanner and ControllerTestView (Controller/) and FirstRunBanner and ShowAllSystemsControl (Library/) are fully built views with zero production call sites -- discovered baselining 04-18's reachability sweep. See 04-18-SUMMARY.md and scripts/ci/reachability-allowlist.txt for the full list and per-symbol detail. | open |  | 2026-09-05T21:54:18.835Z |  |
 
 ````json
 [
@@ -575,6 +580,66 @@ last_updated: 2026-09-05T14:17:20.303Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-05T14:17:20.303Z",
+    "resolved_at": null
+  },
+  {
+    "id": 44,
+    "kind": "unmet-truth",
+    "phase": "04",
+    "file": "playstead-mac/Playstead/Saves/SaveUploadLane.swift",
+    "line": null,
+    "description": "SaveUploadLane (the dedicated actor draining locally-captured save revisions to the server, D-16/D-32) is never constructed anywhere in production -- discovered baselining 04-18's reachability sweep. A more severe superset of the already-tracked WINDOWS #40 (which only covered its missing failure-classification output): the WHOLE upload path is unwired, not just one output of it. See 04-18-SUMMARY.md.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-05T21:54:18.525Z",
+    "resolved_at": null
+  },
+  {
+    "id": 45,
+    "kind": "unmet-truth",
+    "phase": "04",
+    "file": "playstead-mac/Playstead/Saves/SaveCapturePoller.swift",
+    "line": null,
+    "description": "SaveCapturePoller is constructed in production ONLY inside SaveSessionRecovery.replay, which itself has no production caller -- there is no live, in-play save-capture trigger anywhere in the shipped app. Discovered baselining 04-18's reachability sweep. See 04-18-SUMMARY.md.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-05T21:54:18.602Z",
+    "resolved_at": null
+  },
+  {
+    "id": 46,
+    "kind": "unmet-truth",
+    "phase": "04",
+    "file": "playstead-mac/Playstead/Saves/SaveSessionRecovery.swift",
+    "line": null,
+    "description": "SaveSessionRecovery (crash-recovery replay actor, D-05/D-07) is never constructed in production despite its own doc comment saying app launch should call it once per known save line. Discovered baselining 04-18's reachability sweep. See 04-18-SUMMARY.md.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-05T21:54:18.681Z",
+    "resolved_at": null
+  },
+  {
+    "id": 47,
+    "kind": "unmet-truth",
+    "phase": "04",
+    "file": "playstead-mac/Playstead/Saves/SaveRollup.swift",
+    "line": null,
+    "description": "SaveRollup.rollup(for:) (D-36's game-level save rollup string) has zero production callers -- not reachable from any shipped UI. Discovered baselining 04-18's reachability sweep. See 04-18-SUMMARY.md.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-05T21:54:18.760Z",
+    "resolved_at": null
+  },
+  {
+    "id": 48,
+    "kind": "unmet-truth",
+    "phase": "04",
+    "file": "playstead-mac/Playstead/Controller/ControllerRecoveryBanner.swift",
+    "line": null,
+    "description": "ControllerRecoveryBanner and ControllerTestView (Controller/) and FirstRunBanner and ShowAllSystemsControl (Library/) are fully built views with zero production call sites -- discovered baselining 04-18's reachability sweep. See 04-18-SUMMARY.md and scripts/ci/reachability-allowlist.txt for the full list and per-symbol detail.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-05T21:54:18.835Z",
     "resolved_at": null
   }
 ]
