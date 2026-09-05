@@ -89,6 +89,8 @@ i.e. test the enforcement, not the constant.
 
 ### MC-01 — The D-40 interruptive modal can never fire in production
 
+**Fixed:** plan 04-16, commit `c223218`.
+
 The single most safety-critical surface in the phase — what stands between a user and
 destroying their only copy of a save — is unreachable. The gate is
 `OnlyCopyInterruptionGate.shouldPresent(onlyOnThisMacCount:)`, which is `count > 0`. Every
@@ -106,6 +108,8 @@ on this Mac, and is never warned. D-40's entire interruptive tier is inert.
 
 ### MC-02 — The modal's escape hatch, its default button, does nothing
 
+**Fixed:** plan 04-16, commit `c223218`.
+
 `ReclaimPromptView.swift:157` and `StorageView.swift:245` both pass
 `onExport: { showOnlyCopyInterruption = false }`. The handler dismisses the sheet and
 exports nothing; neither deep-links to the console export control that plan 04-10 built for
@@ -119,6 +123,8 @@ strictly worse than having no modal, because it manufactures false confidence.
 
 ### MC-03 — The divergence-surfacing pipeline has no production call site
 
+**Fixed:** plan 04-16, commit `c223218`.
+
 `StatusSlotView.forSaveState(conflicted:)` is defined at `StatusSlotView.swift:146` and
 called from nowhere in the codebase. The card badge that announces "two versions of your
 progress" never appears, so the comparison sheet plan 04-11 built is unreachable by the
@@ -126,8 +132,31 @@ navigation path it was designed for.
 
 ### MC-04 — `ReadinessEngine` is constructed without `saveReadiness:`
 
+**Fixed:** plan 04-16, commit `c223218`.
+
 The D-37 Save row therefore always reports "No saved progress yet.", regardless of actual
 state — the readiness sheet gives a confidently wrong answer about saves.
+
+### MC-05 — `OnlyCopyEscalation`/`OnlyCopyEscalationPanel` has no production call site
+
+**Fixed:** plan 04-16, commit `c223218`.
+
+D-40's ESCALATED tier — the persistent panel for revoked auth, capability skew, server
+refusal, and compatibility rejection — was defined, unit-tested, and never called from
+`PlaysteadApp.swift` or any view. Now wired into `ReadinessSheetView`, gated by a real
+only-copy count and a reachability-based failure classification (never escalates an offline
+queue or a slow upload). The four unfixable reasons still cannot fire in practice until
+`SaveUploadLane` exposes a real failure classifier — a separate, pre-existing gap (mac2
+review WR-04) this fix does not itself close; see 04-16-SUMMARY.md.
+
+### MC-06 — `ConflictComparisonSheet` has no production call site
+
+**Fixed:** plan 04-16, commit `c223218`.
+
+Plan 04-11's "Two versions of your progress" sheet had zero production callers, so a
+diverged save line could never actually be compared or resolved on the Mac. Now opened from
+`ReadinessSheetView`'s "Review versions…" remedy whenever the line has a genuine,
+undisposed fork, backed by real `SaveConflictResolver.chooseSide`/`keepBoth` calls.
 
 ### Why all four hid behind a green suite
 
