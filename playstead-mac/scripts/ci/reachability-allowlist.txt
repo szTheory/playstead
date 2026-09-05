@@ -14,24 +14,26 @@
 #       .planning/phases/04-persistent-save-continuity/04-18-PLAN.md)
 #       surfaced real, previously-undocumented wiring gaps -- most
 #       significantly, the entire save-capture-and-upload pipeline
-#       (SaveCapturePoller/SaveUploadLane) has no production trigger at
-#       all. Fixing these is out of this gap-closure plan's declared
-#       scope (front-door journeys + promoting this sweep to a gate); each
-#       is written up in 04-18-SUMMARY.md and recorded in
+#       (SaveCapturePoller/SaveUploadLane) had no production trigger at
+#       all. Each is written up in 04-18-SUMMARY.md and recorded in
 #       .planning/WINDOWS.md so it stays visible instead of disappearing
 #       into a clean-looking allowlist. A future plan should shrink this
 #       file by fixing the wiring, not by deleting these lines.
+#
+#       Plan 04-19 did exactly that for the capture-and-upload pipeline:
+#       SaveCapturePoller, FileSaveArtifactSource, SaveSessionRecovery,
+#       SaveCaptureBlockedState and SaveUploadLane were removed from this
+#       file because they are now reached from the shipped app (the Play
+#       path, app launch, and AppEnvironment respectively), so the sweep
+#       itself is what proves it. Nothing else was removed -- the
+#       remaining (b) entries are still real, still out of scope, and
+#       still disclosed.
 
 # --- (a) Genuinely reflective / dispatched -----------------------------
 PlaysteadApp # @main App entry point (SwiftUI attribute), invoked by the runtime, never called by name in source.
 
-# --- (b) Genuinely unreachable -- the save-capture-and-upload pipeline --
+# --- (b) Genuinely unreachable -- residual save-pipeline symbols --------
 # (see 04-18-SUMMARY.md "Genuinely Unreachable Symbols Found" and WINDOWS.md)
-SaveCapturePoller # Constructed in production ONLY inside SaveSessionRecovery.replay, which itself has no production caller (see SaveSessionRecovery below) -- there is no live, in-play capture trigger anywhere. Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
-FileSaveArtifactSource # The one concrete production SaveArtifactSource; constructed only by test code because its sole would-be caller, SaveSessionRecovery.replayAll, is itself unreached. Same root cause as SaveCapturePoller above.
-SaveSessionRecovery # Crash-recovery replay actor (D-05/D-07); its own doc comment says "the shape app launch calls once per known save line", but no production file ever constructs it. Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
-SaveCaptureBlockedState # Capture-blocked alert actor; constructed only in tests. Downstream of the same unwired capture pipeline as SaveCapturePoller. Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
-SaveUploadLane # THE dedicated actor that drains locally-captured save revisions to the server (D-16/D-32) -- never constructed anywhere in production. A more severe, previously-undisclosed superset of the already-tracked WINDOWS #40 (which only covered its missing failure-classification output). Disclosed prominently in 04-18-SUMMARY.md, WINDOWS.md.
 SaveRollup # D-36's game-level save rollup computation; SaveRollup.rollup(for:) has zero production callers -- the rollup string this type computes is not reachable from any shipped UI. Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
 DownloadQueueError # itemNotFound is declared but never thrown from any DownloadQueue method -- defensive scaffolding that was never wired to an actual failure path. Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
 
