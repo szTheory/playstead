@@ -48,7 +48,8 @@
       "selectedTests" : [
         "HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner()",
         "LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch()",
-        "SaveEndToEndTests/testOneSaveRoundTripsCaptureUploadAndJournalReturn()"
+        "SaveEndToEndTests/testOneSaveRoundTripsCaptureUploadAndJournalReturn()",
+        "SaveRestoreProofTests/testCapturedRevisionRestoresToByteIdenticalArtifactInLaunchDir()"
       ],
       "target" : {
         "containerPath" : "container:Playstead.xcodeproj",

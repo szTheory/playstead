@@ -1240,7 +1240,8 @@ PY
     --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventoryConfirmMutationRemovesOnlyEligibleCopy \
     --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventoryPostMutationPreservesCanonicalRows \
     --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventoryProtectsPinnedCopy \
-    --required-test PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit
+    --required-test PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit \
+    --required-test PlaysteadUITests.ZeroNetworkPlayFlowTests/testWholePlayFlowRecordsZeroHTTPRequests
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
 
   # The LiveServer layer is the native client/server behavior proof (D-04).
@@ -1253,7 +1254,8 @@ PY
   materialize_live_server_xctestrun
   run_test_layer live-server LiveServer 900 \
     --required-test PlaysteadUITests.HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner \
-    --required-test PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch
+    --required-test PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch \
+    --required-test PlaysteadUITests.SaveRestoreProofTests/testCapturedRevisionRestoresToByteIdenticalArtifactInLaunchDir
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
   restore_live_server_xctestrun
   cleanup_live_server_runtime_config

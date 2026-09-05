@@ -26,7 +26,8 @@
         "HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice()",
         "OnlyCopyInterruptionTests",
         "StorageInteractionTests",
-        "SurfaceAccessibilityTests"
+        "SurfaceAccessibilityTests",
+        "ZeroNetworkPlayFlowTests"
       ],
       "target" : {
         "containerPath" : "container:Playstead.xcodeproj",

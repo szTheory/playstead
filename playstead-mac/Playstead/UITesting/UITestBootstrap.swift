@@ -1,5 +1,6 @@
 #if UI_TESTING
 import Foundation
+import CryptoKit
 
 @MainActor
 final class UITestProfileSession {
@@ -62,6 +63,8 @@ enum UITestBootstrap {
             reachability: Reachability(startOnline: false, monitorAutomatically: false)
         )
         appEnvironment.blockExternalIOForUITesting()
+        maybeRunSaveRestoreProof(environment: processEnvironment, root: fixture.root, appEnvironment: appEnvironment)
+        maybeRunZeroNetworkPlayFlowProof(environment: processEnvironment, root: fixture.root, appEnvironment: appEnvironment)
         // makeFixture validates a fresh seed exactly and validates a reopened
         // curation session against its durable inventory invariants. Requiring
         // fresh positions again here would reject the reorder state relaunch is
@@ -253,6 +256,279 @@ enum UITestBootstrap {
         ]
         let data = try JSONSerialization.data(withJSONObject: result)
         try data.write(to: resultURL, options: .atomic)
+    }
+
+    // MARK: - Plan 04-13 task 1: the named restore proof
+    //
+    // `SaveRestoreProofTests` (PlaysteadUITests) proves the file half of
+    // SAVE-03 -- a captured revision restores to byte-identical bytes on
+    // disk -- without a live server, exactly like the deterministic
+    // (non-live-server) profile branch above. This hook writes a
+    // 32,768-byte artifact's revision through the same capture pipeline
+    // `maybeRunSaveEndToEnd` uses, clears the restore target to simulate
+    // a clean save directory, then drives the *actual* `SavePlanExecutor`
+    // -- the type the launch path calls -- to restore it, and reports
+    // both digests so the XCUITest can assert byte-identical equality
+    // without ever inspecting internal Swift types directly (D-68).
+    static let saveRestoreArtifactPathKey = "PLAYSTEAD_UI_TEST_SAVE_RESTORE_ARTIFACT_PATH"
+    static let saveRestoreTargetPathKey = "PLAYSTEAD_UI_TEST_SAVE_RESTORE_TARGET_PATH"
+    static let saveRestoreResultPathKey = "PLAYSTEAD_UI_TEST_SAVE_RESTORE_RESULT_PATH"
+
+    /// A `SavePlanExecutorEnvironment` backed by the real bytes this
+    /// process just captured -- not a CAS/network lookup, because the
+    /// bytes for the one digest under test are already known locally.
+    /// The `.fastForward` plan this hook drives never calls
+    /// `captureExistingFile`/`quarantineCorruptRevision` on the happy
+    /// path exercised here, so both are inert rather than fabricated.
+    private struct KnownDigestEnvironment: SavePlanExecutorEnvironment {
+        let bytesByDigest: [String: Data]
+        func revisionBytes(forDigest digest: String) throws -> Data {
+            guard let data = bytesByDigest[digest] else {
+                throw SavePlanExecutorError.digestMismatch(expected: digest, actual: "missing")
+            }
+            return data
+        }
+        func captureExistingFile(at targetURL: URL) throws {}
+        func quarantineCorruptRevision(digest: String, actualDigest: String) {}
+    }
+
+    /// A path that must be absolute, owned by the current user (if it
+    /// already exists), and contain no NUL byte -- the same ownership bar
+    /// `ownedURL` enforces, but without also requiring containment inside
+    /// a specific fixture root. `maybeRunSaveRestoreProof`/
+    /// `maybeRunZeroNetworkPlayFlowProof` run against the deterministic
+    /// (non-live-server) profile, whose own fixture root is a private
+    /// implementation detail the driving XCUITest cannot discover — unlike
+    /// the live-server credential handoff above, these hooks touch no
+    /// credential and gain nothing from binding to that root.
+    private static func lenientDestinationURL(_ raw: String?) throws -> URL {
+        guard let raw, raw.hasPrefix("/"), !raw.contains("\0") else {
+            throw DeterministicProfileError.stateMismatch("test-hook path is invalid")
+        }
+        let url = URL(fileURLWithPath: raw).standardizedFileURL
+        if let attributes = try? FileManager.default.attributesOfItem(atPath: url.path) {
+            guard (attributes[.ownerAccountID] as? NSNumber)?.uint32Value == getuid() else {
+                throw DeterministicProfileError.stateMismatch("test-hook path ownership is invalid")
+            }
+        }
+        return url
+    }
+
+    private static func maybeRunSaveRestoreProof(
+        environment: [String: String], root: URL, appEnvironment: AppEnvironment
+    ) {
+        guard
+            let artifactRaw = environment[saveRestoreArtifactPathKey],
+            let targetRaw = environment[saveRestoreTargetPathKey],
+            let resultRaw = environment[saveRestoreResultPathKey]
+        else { return }
+
+        guard
+            let artifactURL = try? lenientDestinationURL(artifactRaw),
+            let targetURL = try? lenientDestinationURL(targetRaw),
+            let resultURL = try? lenientDestinationURL(resultRaw)
+        else { return }
+
+        Task {
+            do {
+                try await runSaveRestoreProof(artifactURL: artifactURL, targetURL: targetURL, resultURL: resultURL, appEnvironment: appEnvironment)
+            } catch {
+                // Best effort, mirroring `maybeRunSaveEndToEnd`: the
+                // absence of the result file is itself the signal the
+                // polling XCUITest times out on.
+            }
+        }
+    }
+
+    private static func runSaveRestoreProof(
+        artifactURL: URL, targetURL: URL, resultURL: URL, appEnvironment: AppEnvironment
+    ) async throws {
+        let bytes = try Data(contentsOf: artifactURL)
+        let destinationDirectory = artifactURL.deletingLastPathComponent()
+            .appendingPathComponent("restore-proof-captures", isDirectory: true)
+        let poller = SaveCapturePoller(source: FixedArtifactSource(data: bytes), destinationDirectory: destinationDirectory)
+
+        // Three identical reads to reach quiescence (D-03) deterministically,
+        // exactly as `runSaveEndToEnd` does above.
+        _ = try await poller.observe(bytes)
+        _ = try await poller.observe(bytes)
+        guard let capture = try await poller.observe(bytes) else {
+            throw DeterministicProfileError.stateMismatch("save-restore-proof: capture did not quiesce")
+        }
+
+        // Simulate a clean Mac: the restore target must not exist before
+        // the launch-path restore runs.
+        try? FileManager.default.removeItem(at: targetURL)
+
+        let capturedBytes = try Data(contentsOf: URL(fileURLWithPath: capture.localPath))
+        let restoreEnvironment = KnownDigestEnvironment(bytesByDigest: [capture.sha256: capturedBytes])
+        let executor = SavePlanExecutor(environment: restoreEnvironment)
+        // `.fastForward` is the launch path's silent, no-prompt restore
+        // (D-47) -- the exact case CP7-SAVE-C's step 3 ("no prompt")
+        // exercises against a real emulator.
+        try executor.execute(.fastForward(revisionDigest: capture.sha256), targetURL: targetURL)
+
+        let restoredBytes = try Data(contentsOf: targetURL)
+        let restoredDigest = sha256Hex(of: restoredBytes)
+
+        let result: [String: Any] = [
+            "captured_sha256": capture.sha256,
+            "captured_size_bytes": capture.sizeBytes,
+            "restored_sha256": restoredDigest,
+            "restored_size_bytes": restoredBytes.count,
+            "bytes_equal": restoredBytes == bytes
+        ]
+        let data = try JSONSerialization.data(withJSONObject: result)
+        try data.write(to: resultURL, options: .atomic)
+    }
+
+    private static func sha256Hex(of data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    // MARK: - Plan 04-13 task 1: the strict zero-network Play flow assertion
+    //
+    // Drives the same sequence `GameRowView.play()` drives -- readiness,
+    // materialize, save-plan execution, and adapter spawn -- directly
+    // against the assembled `AppEnvironment`, exactly as `AdapterWiringTests`
+    // proves the install/verify/launch chain is reachable from the
+    // assembled app rather than merely constructible in isolation.
+    // `RecordingURLProtocol` is armed for the whole span so any HTTP
+    // request attempted anywhere in-process -- including a detached or
+    // fire-and-forget task -- is caught, not only ones issued through the
+    // app's own `APIClient` session.
+    static let zeroNetworkResultPathKey = "PLAYSTEAD_UI_TEST_ZERO_NETWORK_PLAY_FLOW_RESULT_PATH"
+
+    private static func maybeRunZeroNetworkPlayFlowProof(
+        environment: [String: String], root: URL, appEnvironment: AppEnvironment
+    ) {
+        guard
+            let resultRaw = environment[zeroNetworkResultPathKey],
+            let resultURL = try? lenientDestinationURL(resultRaw)
+        else { return }
+
+        Task {
+            var requestCount = -1
+            var failureReason: String?
+            RecordingURLProtocol.armRecording()
+            do {
+                try await runZeroNetworkPlayFlow(root: root, appEnvironment: appEnvironment)
+            } catch {
+                failureReason = String(describing: error)
+            }
+            requestCount = RecordingURLProtocol.recordedRequestCount
+            RecordingURLProtocol.disarmRecording()
+
+            var result: [String: Any] = ["recorded_request_count": requestCount]
+            if let failureReason { result["failure_reason"] = failureReason }
+            if let data = try? JSONSerialization.data(withJSONObject: result) {
+                try? data.write(to: resultURL, options: .atomic)
+            }
+        }
+    }
+
+    /// Places a real, runnable stand-in executable at the pin's declared
+    /// path -- no emulator is available in this environment, so `/bin/echo`
+    /// stands in for one, re-signed ad hoc so macOS's Gatekeeper
+    /// application-bundle assessment does not suspend it at `_dyld_start`
+    /// forever (mirrors `AdapterWiringTests.installStandInExecutable`
+    /// exactly; duplicated here because that helper lives in the
+    /// `PlaysteadTests` target, unreachable from the app target this file
+    /// compiles into).
+    private static func installStandInAdapterExecutable(in appURL: URL, at executableRelativePath: String) throws {
+        let executableURL = appURL.appendingPathComponent(executableRelativePath)
+        try FileManager.default.createDirectory(at: executableURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/bin/echo"), to: executableURL)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executableURL.path)
+
+        let codesign = Process()
+        codesign.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        codesign.arguments = ["--force", "--sign", "-", executableURL.path]
+        codesign.standardOutput = FileHandle.nullDevice
+        codesign.standardError = FileHandle.nullDevice
+        try codesign.run()
+        codesign.waitUntilExit()
+        guard codesign.terminationStatus == 0 else {
+            throw DeterministicProfileError.stateMismatch("zero-network-play-flow: stand-in adapter could not be re-signed")
+        }
+    }
+
+    private static func runZeroNetworkPlayFlow(root: URL, appEnvironment: AppEnvironment) async throws {
+        let pin = try AdapterPin.load()
+        let appURL = root.appendingPathComponent("ZeroNetworkStandIn.app", isDirectory: true)
+        try installStandInAdapterExecutable(in: appURL, at: pin.launch.executableRelativePath)
+
+        guard await appEnvironment.selectExistingAdapter(appURL: appURL) else {
+            throw DeterministicProfileError.stateMismatch("zero-network-play-flow: stand-in adapter selection failed")
+        }
+        guard let host = await appEnvironment.adapterHost else {
+            throw DeterministicProfileError.stateMismatch("zero-network-play-flow: no adapter host")
+        }
+
+        // A synthetic playable entry with one verified, locally committed
+        // ROM member -- exactly `AdapterWiringTests.seedPlayableEntry`'s
+        // shape, so the readiness gate the real Play flow calls actually
+        // reports ready rather than being bypassed.
+        let assetSetID = "zero-network-play-flow-asset"
+        let romBytes = Data(repeating: 0xAB, count: 256)
+        let romDigest = sha256Hex(of: romBytes)
+        let partial = try await appEnvironment.appPaths.partialURL(for: romDigest)
+        try await FileManager.default.createDirectory(at: appEnvironment.appPaths.partials, withIntermediateDirectories: true)
+        try romBytes.write(to: partial)
+        try await appEnvironment.casManager.commit(partialAt: partial, sha256: romDigest)
+
+        let entry = CatalogueEntry(
+            id: assetSetID, system: "gba", displayTitle: "Zero Network Play Flow", tags: [:],
+            members: [AssetMember(ordinal: 0, role: "rom", required: true, sha256: romDigest, size: romBytes.count, name: "rom.gba")]
+        )
+        try await appEnvironment.catalogueStore.upsert(entry)
+
+        let members = entry.members.compactMap { member -> (sha256: String, declaredName: String)? in
+            guard let sha256 = member.sha256, let name = member.name else { return nil }
+            return (sha256, name)
+        }
+
+        let report = await appEnvironment.readinessReport(for: entry)
+        guard report.isReady else {
+            throw DeterministicProfileError.stateMismatch("zero-network-play-flow: synthetic entry was not readiness-ready")
+        }
+
+        let materialized = try await appEnvironment.launchMaterializer.materialize(assetSetID: entry.id, members: members)
+        guard let romURL = materialized.files.first else {
+            throw DeterministicProfileError.stateMismatch("zero-network-play-flow: materialize produced no launchable member")
+        }
+        let saveDir = try await appEnvironment.saveDirectoryURL(forAssetSetID: entry.id)
+        try FileManager.default.createDirectory(at: saveDir, withIntermediateDirectories: true)
+
+        // The two fire-and-forget calls the real `GameRowView.play()` makes
+        // between readiness and spawn -- exercised here unchanged, so a
+        // stray request from either one is caught by the armed recorder.
+        let sessionID = await appEnvironment.playSessionRecorder.began(assetSetID: entry.id)
+        await appEnvironment.refreshCurationViewModels()
+
+        let exited = SpawnExitSignal()
+        _ = try await host.launch(assetSetID: entry.id, romPath: romURL.path, saveDir: saveDir.path) { _ in
+            Task { @MainActor in
+                appEnvironment.playSessionRecorder.ended(sessionID)
+                appEnvironment.refreshCurationViewModels()
+            }
+            exited.signal()
+        }
+        try await exited.wait(timeoutSeconds: 20)
+    }
+
+    /// A tiny async-friendly exit latch — `AdapterHost.launch`'s `onExit`
+    /// closure is `@Sendable`, non-async, and may fire on an arbitrary
+    /// queue, so this hook cannot simply `await` the closure itself.
+    private final class SpawnExitSignal: @unchecked Sendable {
+        private let semaphore = DispatchSemaphore(value: 0)
+        func signal() { semaphore.signal() }
+        func wait(timeoutSeconds: Int) async throws {
+            let deadline = DispatchTime.now() + .seconds(timeoutSeconds)
+            if semaphore.wait(timeout: deadline) == .timedOut {
+                throw DeterministicProfileError.stateMismatch("zero-network-play-flow: adapter process never exited")
+            }
+        }
     }
 
     /// Reads one credential handoff into the scoped Keychain and removes it.
