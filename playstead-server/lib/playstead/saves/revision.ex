@@ -97,7 +97,13 @@ defmodule Playstead.Saves.Revision do
       message: "must be a 64-character lowercase hex sha256"
     )
     |> foreign_key_constraint(:save_line_id)
-    |> foreign_key_constraint(:parent_revision_id)
+    # CR-01: the plain single-column FK was replaced by a composite FK
+    # on (parent_revision_id, save_line_id) -- see migration
+    # 20260904000005 -- so the constraint name Ecto infers from the
+    # column no longer exists; it must be named explicitly.
+    |> foreign_key_constraint(:parent_revision_id,
+      name: :save_revisions_parent_revision_id_save_line_id_fkey
+    )
     # D-13: a committed revision is immutable. An `id` conflict on
     # insert is an attempt to modify an already-committed row, not a
     # generic validation failure -- the caller (`Saves.commit_revision/3`)

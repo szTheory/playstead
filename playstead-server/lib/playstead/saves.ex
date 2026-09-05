@@ -137,7 +137,14 @@ defmodule Playstead.Saves do
       # server is reachable only by client outbox mis-ordering; it is
       # retried (409 + Retry-After), never surfaced to the user, and
       # the same commit succeeds once the parent has been committed.
-      |> Ecto.Multi.run(:parent, fn _repo, _changes -> resolve_parent(user_id, parent_revision_id) end)
+      #
+      # CR-01: scoped to the save line being committed to (`line.id`),
+      # already resolved earlier in this same multi -- not merely to
+      # the user. A parent belonging to the same user but a different
+      # save line must be refused exactly like an unknown parent, since
+      # history is append-only and a cross-line link can never be
+      # corrected once committed.
+      |> Ecto.Multi.run(:parent, fn _repo, %{line: line} -> resolve_parent(line.id, parent_revision_id) end)
       |> Ecto.Multi.run(:outcome, fn _repo, %{line: line, parent: parent} ->
         commit_outcome(
           user_id,
@@ -160,10 +167,21 @@ defmodule Playstead.Saves do
     end
   end
 
-  defp resolve_parent(_user_id, nil), do: {:ok, nil}
+  defp resolve_parent(_line_id, nil), do: {:ok, nil}
 
-  defp resolve_parent(user_id, parent_revision_id) do
-    case Repo.get_by(Revision, id: parent_revision_id, user_id: user_id) do
+  # CR-01: scoping by `save_line_id` (rather than `user_id`) is
+  # strictly tighter, not merely different -- a save line belongs to
+  # exactly one user, and every revision on it is inserted with that
+  # same `user_id` (see `insert_revision/10`), so a parent found here
+  # is transitively guaranteed to belong to the calling user too. A
+  # parent belonging to a different save line -- whether that line
+  # belongs to the same user or a different one -- is refused exactly
+  # like an unknown parent; the client has no way to distinguish "the
+  # id doesn't exist" from "the id exists but isn't on this line",
+  # which is deliberate: neither case should leak information about
+  # save lines the caller doesn't own or isn't operating on.
+  defp resolve_parent(line_id, parent_revision_id) do
+    case Repo.get_by(Revision, id: parent_revision_id, save_line_id: line_id) do
       nil ->
         {:error,
          {:save_parent_unknown, "The named parent revision is not yet known to the server."}}
