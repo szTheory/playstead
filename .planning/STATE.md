@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 04
 current_phase_name: Persistent Save Continuity
 status: verifying
-stopped_at: "Completed 04-15-PLAN.md (gap closure: CR-01, CR-02)"
-last_updated: "2026-09-05T03:42:58.681Z"
+stopped_at: "Completed 04-16-PLAN.md (gap closure: MC-01..MC-06)"
+last_updated: "2026-09-05T14:20:00.000Z"
 last_activity: 2026-09-03
 last_activity_desc: Phase 04 execution started
-state_head: bfa721f4a899e0bebbdde9e4fa9195ce32a91114
+state_head: 02322b2d468882a5a59fe1210da3fc630a972c3e
 progress:
   total_phases: 6
   completed_phases: 3
-  total_plans: 54
-  completed_plans: 52
+  total_plans: 55
+  completed_plans: 53
 milestone_name: milestone
 ---
 
@@ -105,6 +105,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 | Phase 04-persistent-save-continuity P12 | 50min | 2 tasks | 11 files |
 | Phase 04 P14 | 50min | 2 tasks | 7 files |
 | Phase 04-persistent-save-continuity P15 | 55min | 2 tasks | 11 files |
+| Phase 04-persistent-save-continuity P16 | 95min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -214,6 +215,8 @@ Progress: [█████████░] 90% (Phase 03.5)
 - [Phase 04]: content_key for save lines is the ROM's own sha256 (never assetSetID), matching the server's Playstead.Saves.Save schema verbatim
 - [Phase 04]: CR-01 fix: resolve_parent/2 scoped to save_line_id (threaded from commit_revision's Multi), backstopped by a composite (parent_revision_id, save_line_id) DB FK; refusal reuses save_parent_unknown (409). — History is append-only so a cross-line parent link is unrecoverable once committed; app-only scoping is a single point of failure.
 - [Phase 04]: CR-02 fix: D-33's save-revision rate limit and namespaced upload-concurrency slot are now invoked; UploadSlots reworked to a (bucket, unique_key) dedup model so the save route's replay (off :idempotency, D-16) dedupes on command_id instead of consuming a second slot. — Constants existed but were never called (WINDOWS #37 shape); the plan's own design point required a deliberate replay-safety decision, recorded rather than papered over.
+- [Phase 04]: MC-01..MC-06 fix (plan 04-16): AppEnvironment now constructs a single shared SaveStore/SaveOutbox/SaveConflictResolver, feeding real only-copy counts into ReclaimPromptView/StorageView, a working console export deep link, the card's divergence badge, a real saveReadiness: closure on ReadinessEngine, and real ConflictComparisonSheet/OnlyCopyEscalationPanel call sites in ReadinessSheetView. — All six defects shared one root cause: tests constructed the leaf component directly and never asserted a user action reaches it; the fix is wiring at AppEnvironment's composition-root seam, backstopped by 18 new tests that drive that exact seam.
+- [Phase 04]: MC-05/WR-04 scope boundary: the escalated panel's four unfixable reasons (revoked auth, capability skew, server refusal, compatibility rejection) still cannot fire because SaveUploadLane has no wired failure-classification output — a distinct, pre-existing gap recorded in WINDOWS.md, not rebuilt inside the 04-16 wiring pass.
 
 ### Pending Todos
 
@@ -247,6 +250,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-05T03:42:58.547Z
-Stopped at: Completed 04-15-PLAN.md (gap closure: CR-01, CR-02)
+Last session: 2026-09-05T14:20:00.000Z
+Stopped at: Completed 04-16-PLAN.md (gap closure: MC-01..MC-06)
 Resume file: None
