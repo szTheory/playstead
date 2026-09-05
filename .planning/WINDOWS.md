@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 41
+open_count: 40
 waived_count: 1
-fixed_count: 6
-total_count: 48
-last_updated: 2026-09-05T21:54:18.835Z
+fixed_count: 10
+total_count: 51
+last_updated: 2026-09-05T22:19:41.957Z
 ---
 
 # Broken Windows Ledger
@@ -54,15 +54,18 @@ last_updated: 2026-09-05T21:54:18.835Z
 | 37 | 04 | deviation | playstead-mac/Playstead/Library/GameRowView.swift |  | LaunchSavePlanner/SavePlanExecutor are still not wired into GameRowView.play() -- AdapterHost.launch's executeSavePlan closure exists (04-07) but no call site passes one; 04-07-SUMMARY.md named plan 04-13 as the downstream consumer, but 04-13's declared task scope (files_modified) is limited to the two new proof tests, the two xctestplans, and run-mac-verification.sh, so this wiring remains open | fixed |  | 2026-09-05T01:50:48.874Z | 2026-09-05T02:27:54.263Z |
 | 38 | 04 | stub | playstead-mac/Playstead/Saves/LaunchSaveEnvironment.swift |  | captureExistingFile commits pre-existing save bytes into the CAS for durability but does not create a SaveStore revision row, so a pre-restore capture on the launch path is not yet visible in SaveHistorySheet (04-14) | open |  | 2026-09-05T02:28:02.845Z |  |
 | 39 | 04 | stub | playstead-mac/Playstead/Library/GameRowView.swift |  | SaveLaunchNotice from the launch-path save plan is held on GameRowView's saveLaunchNotice @State but not yet rendered -- no detail view with a Save section exists yet in this codebase to surface it inline into (04-14) | open |  | 2026-09-05T02:28:02.935Z |  |
-| 40 | 04 | deviation | playstead-mac/Playstead/Saves/OnlyCopyEscalation.swift |  | OnlyCopyEscalationPanel now has a real call site (ReadinessSheetView) gated by a real only-copy count, but the four unfixable escalation reasons (revokedAuth/capabilitySkew/serverRefusal/compatibilityRejection) still can't fire in production because SaveUploadLane has no wired failure-classification output yet (mac2 review WR-04) (04-16) | open |  | 2026-09-05T14:17:19.948Z |  |
+| 40 | 04 | deviation | playstead-mac/Playstead/Saves/OnlyCopyEscalation.swift |  | OnlyCopyEscalationPanel now has a real call site (ReadinessSheetView) gated by a real only-copy count, but the four unfixable escalation reasons (revokedAuth/capabilitySkew/serverRefusal/compatibilityRejection) still can't fire in production because SaveUploadLane has no wired failure-classification output yet (mac2 review WR-04) (04-16) FIXED by plan 04-19 (fb6ad53). | fixed |  | 2026-09-05T14:17:19.948Z | 2026-09-05T22:18:48.497Z |
 | 41 | 04 | deviation | playstead-mac/Playstead/Readiness/ReadinessEngine.swift |  | AppEnvironment.saveReadinessCase(for:) does not compute .serverHasNewer -- distinguishing it from .localOnlyReachable needs per-device session context this client doesn't track yet; every other SaveReadinessCase, including the higher-priority .twoVersions, is computed (04-16) | open |  | 2026-09-05T14:17:20.065Z |  |
 | 42 | 04 | deviation | playstead-mac/Playstead/Sync/Outbox.swift |  | AppEnvironment now constructs a shared SaveOutbox/SaveConflictResolver so MC-06's resolution path durably records locally, but no drain trigger (OutboxDrainTrigger-equivalent) is wired for SaveOutbox yet -- a resolved fork is recorded locally but may not reach the server promptly (mac2 review WR-04's other half) (04-16) | open |  | 2026-09-05T14:17:20.181Z |  |
 | 43 | 04 | deviation | playstead-mac/Playstead/Readiness/ReadinessSheetView.swift |  | saveHistorySessions closure passed to ReadinessSheetView is still never populated from SaveStore (mac2 review CR-04's other half) -- SaveHistorySheet's 'Review versions...' path for a non-diverged line still renders its empty state; out of 04-16's declared MC-01..MC-06 scope | open |  | 2026-09-05T14:17:20.303Z |  |
-| 44 | 04 | unmet-truth | playstead-mac/Playstead/Saves/SaveUploadLane.swift |  | SaveUploadLane (the dedicated actor draining locally-captured save revisions to the server, D-16/D-32) is never constructed anywhere in production -- discovered baselining 04-18's reachability sweep. A more severe superset of the already-tracked WINDOWS #40 (which only covered its missing failure-classification output): the WHOLE upload path is unwired, not just one output of it. See 04-18-SUMMARY.md. | open |  | 2026-09-05T21:54:18.525Z |  |
-| 45 | 04 | unmet-truth | playstead-mac/Playstead/Saves/SaveCapturePoller.swift |  | SaveCapturePoller is constructed in production ONLY inside SaveSessionRecovery.replay, which itself has no production caller -- there is no live, in-play save-capture trigger anywhere in the shipped app. Discovered baselining 04-18's reachability sweep. See 04-18-SUMMARY.md. | open |  | 2026-09-05T21:54:18.602Z |  |
-| 46 | 04 | unmet-truth | playstead-mac/Playstead/Saves/SaveSessionRecovery.swift |  | SaveSessionRecovery (crash-recovery replay actor, D-05/D-07) is never constructed in production despite its own doc comment saying app launch should call it once per known save line. Discovered baselining 04-18's reachability sweep. See 04-18-SUMMARY.md. | open |  | 2026-09-05T21:54:18.681Z |  |
+| 44 | 04 | unmet-truth | playstead-mac/Playstead/Saves/SaveUploadLane.swift |  | SaveUploadLane (the dedicated actor draining locally-captured save revisions to the server, D-16/D-32) is never constructed anywhere in production -- discovered baselining 04-18's reachability sweep. A more severe superset of the already-tracked WINDOWS #40 (which only covered its missing failure-classification output): the WHOLE upload path is unwired, not just one output of it. See 04-18-SUMMARY.md. FIXED by plan 04-19 (fb6ad53). | fixed |  | 2026-09-05T21:54:18.525Z | 2026-09-05T22:18:48.578Z |
+| 45 | 04 | unmet-truth | playstead-mac/Playstead/Saves/SaveCapturePoller.swift |  | SaveCapturePoller is constructed in production ONLY inside SaveSessionRecovery.replay, which itself has no production caller -- there is no live, in-play save-capture trigger anywhere in the shipped app. Discovered baselining 04-18's reachability sweep. See 04-18-SUMMARY.md. FIXED by plan 04-19 (3691ec3). | fixed |  | 2026-09-05T21:54:18.602Z | 2026-09-05T22:18:48.656Z |
+| 46 | 04 | unmet-truth | playstead-mac/Playstead/Saves/SaveSessionRecovery.swift |  | SaveSessionRecovery (crash-recovery replay actor, D-05/D-07) is never constructed in production despite its own doc comment saying app launch should call it once per known save line. Discovered baselining 04-18's reachability sweep. See 04-18-SUMMARY.md. FIXED by plan 04-19 (3691ec3). | fixed |  | 2026-09-05T21:54:18.681Z | 2026-09-05T22:18:48.732Z |
 | 47 | 04 | unmet-truth | playstead-mac/Playstead/Saves/SaveRollup.swift |  | SaveRollup.rollup(for:) (D-36's game-level save rollup string) has zero production callers -- not reachable from any shipped UI. Discovered baselining 04-18's reachability sweep. See 04-18-SUMMARY.md. | open |  | 2026-09-05T21:54:18.760Z |  |
 | 48 | 04 | unmet-truth | playstead-mac/Playstead/Controller/ControllerRecoveryBanner.swift |  | ControllerRecoveryBanner and ControllerTestView (Controller/) and FirstRunBanner and ShowAllSystemsControl (Library/) are fully built views with zero production call sites -- discovered baselining 04-18's reachability sweep. See 04-18-SUMMARY.md and scripts/ci/reachability-allowlist.txt for the full list and per-symbol detail. | open |  | 2026-09-05T21:54:18.835Z |  |
+| 49 | 04 | stub | playstead-mac/Playstead/Saves/SaveSessionCoordinator.swift |  | A promoted capture's bytes are written to the save-captures directory and recorded as a SaveStore revision, but are NOT committed into the CAS. LaunchSaveContextBuilder derives head candidates' bytesLocal from casManager.contains(blobSHA256), so a locally-captured revision reads as bytes-not-local at the next launch and cannot be restored from history until it has round-tripped through the server. Same-device continuity still works (the live .sav artifact persists), so this is the mirror image of WINDOWS #38 rather than a break in SAVE-01's main path. Out of 04-19's declared scope (capture -> SaveStore -> upload). | open |  | 2026-09-05T22:19:41.797Z |  |
+| 50 | 04 | stub | playstead-mac/Playstead/Saves/SaveCaptureBlockedState.swift |  | AppEnvironment constructs SaveCaptureBlockedState with no SaveCaptureAlertSink and no SaveDirectUploadTransport, so a blocked capture (D-31) is recorded durably and is queryable, but raises no user-visible alert and has no direct-upload escape hatch in the shipped app. The seams exist and are injected; no attention surface consumes them yet. | open |  | 2026-09-05T22:19:41.878Z |  |
+| 51 | 04 | deviation | playstead-mac/Playstead/Saves/SaveCapturePoller.swift |  | The save-captures directory (<root>/save-captures/<assetSetID>/) has no reclamation path: each session leaves one session-<id>.staged.sav plus one <digest>.sav promoted blob, and QuotaManager measures paths.objects only, so capture blobs count against neither the quota nor the free-space floor and are never evicted. Save artifacts are small (tens of KB), so this is slow growth rather than an immediate hazard, but nothing bounds it. | open |  | 2026-09-05T22:19:41.957Z |  |
 
 ````json
 [
@@ -540,11 +543,11 @@ last_updated: 2026-09-05T21:54:18.835Z
     "phase": "04",
     "file": "playstead-mac/Playstead/Saves/OnlyCopyEscalation.swift",
     "line": null,
-    "description": "OnlyCopyEscalationPanel now has a real call site (ReadinessSheetView) gated by a real only-copy count, but the four unfixable escalation reasons (revokedAuth/capabilitySkew/serverRefusal/compatibilityRejection) still can't fire in production because SaveUploadLane has no wired failure-classification output yet (mac2 review WR-04) (04-16)",
-    "status": "open",
+    "description": "OnlyCopyEscalationPanel now has a real call site (ReadinessSheetView) gated by a real only-copy count, but the four unfixable escalation reasons (revokedAuth/capabilitySkew/serverRefusal/compatibilityRejection) still can't fire in production because SaveUploadLane has no wired failure-classification output yet (mac2 review WR-04) (04-16) FIXED by plan 04-19 (fb6ad53).",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-05T14:17:19.948Z",
-    "resolved_at": null
+    "resolved_at": "2026-09-05T22:18:48.497Z"
   },
   {
     "id": 41,
@@ -588,11 +591,11 @@ last_updated: 2026-09-05T21:54:18.835Z
     "phase": "04",
     "file": "playstead-mac/Playstead/Saves/SaveUploadLane.swift",
     "line": null,
-    "description": "SaveUploadLane (the dedicated actor draining locally-captured save revisions to the server, D-16/D-32) is never constructed anywhere in production -- discovered baselining 04-18's reachability sweep. A more severe superset of the already-tracked WINDOWS #40 (which only covered its missing failure-classification output): the WHOLE upload path is unwired, not just one output of it. See 04-18-SUMMARY.md.",
-    "status": "open",
+    "description": "SaveUploadLane (the dedicated actor draining locally-captured save revisions to the server, D-16/D-32) is never constructed anywhere in production -- discovered baselining 04-18's reachability sweep. A more severe superset of the already-tracked WINDOWS #40 (which only covered its missing failure-classification output): the WHOLE upload path is unwired, not just one output of it. See 04-18-SUMMARY.md. FIXED by plan 04-19 (fb6ad53).",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-05T21:54:18.525Z",
-    "resolved_at": null
+    "resolved_at": "2026-09-05T22:18:48.578Z"
   },
   {
     "id": 45,
@@ -600,11 +603,11 @@ last_updated: 2026-09-05T21:54:18.835Z
     "phase": "04",
     "file": "playstead-mac/Playstead/Saves/SaveCapturePoller.swift",
     "line": null,
-    "description": "SaveCapturePoller is constructed in production ONLY inside SaveSessionRecovery.replay, which itself has no production caller -- there is no live, in-play save-capture trigger anywhere in the shipped app. Discovered baselining 04-18's reachability sweep. See 04-18-SUMMARY.md.",
-    "status": "open",
+    "description": "SaveCapturePoller is constructed in production ONLY inside SaveSessionRecovery.replay, which itself has no production caller -- there is no live, in-play save-capture trigger anywhere in the shipped app. Discovered baselining 04-18's reachability sweep. See 04-18-SUMMARY.md. FIXED by plan 04-19 (3691ec3).",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-05T21:54:18.602Z",
-    "resolved_at": null
+    "resolved_at": "2026-09-05T22:18:48.656Z"
   },
   {
     "id": 46,
@@ -612,11 +615,11 @@ last_updated: 2026-09-05T21:54:18.835Z
     "phase": "04",
     "file": "playstead-mac/Playstead/Saves/SaveSessionRecovery.swift",
     "line": null,
-    "description": "SaveSessionRecovery (crash-recovery replay actor, D-05/D-07) is never constructed in production despite its own doc comment saying app launch should call it once per known save line. Discovered baselining 04-18's reachability sweep. See 04-18-SUMMARY.md.",
-    "status": "open",
+    "description": "SaveSessionRecovery (crash-recovery replay actor, D-05/D-07) is never constructed in production despite its own doc comment saying app launch should call it once per known save line. Discovered baselining 04-18's reachability sweep. See 04-18-SUMMARY.md. FIXED by plan 04-19 (3691ec3).",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-05T21:54:18.681Z",
-    "resolved_at": null
+    "resolved_at": "2026-09-05T22:18:48.732Z"
   },
   {
     "id": 47,
@@ -640,6 +643,42 @@ last_updated: 2026-09-05T21:54:18.835Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-05T21:54:18.835Z",
+    "resolved_at": null
+  },
+  {
+    "id": 49,
+    "kind": "stub",
+    "phase": "04",
+    "file": "playstead-mac/Playstead/Saves/SaveSessionCoordinator.swift",
+    "line": null,
+    "description": "A promoted capture's bytes are written to the save-captures directory and recorded as a SaveStore revision, but are NOT committed into the CAS. LaunchSaveContextBuilder derives head candidates' bytesLocal from casManager.contains(blobSHA256), so a locally-captured revision reads as bytes-not-local at the next launch and cannot be restored from history until it has round-tripped through the server. Same-device continuity still works (the live .sav artifact persists), so this is the mirror image of WINDOWS #38 rather than a break in SAVE-01's main path. Out of 04-19's declared scope (capture -> SaveStore -> upload).",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-05T22:19:41.797Z",
+    "resolved_at": null
+  },
+  {
+    "id": 50,
+    "kind": "stub",
+    "phase": "04",
+    "file": "playstead-mac/Playstead/Saves/SaveCaptureBlockedState.swift",
+    "line": null,
+    "description": "AppEnvironment constructs SaveCaptureBlockedState with no SaveCaptureAlertSink and no SaveDirectUploadTransport, so a blocked capture (D-31) is recorded durably and is queryable, but raises no user-visible alert and has no direct-upload escape hatch in the shipped app. The seams exist and are injected; no attention surface consumes them yet.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-05T22:19:41.878Z",
+    "resolved_at": null
+  },
+  {
+    "id": 51,
+    "kind": "deviation",
+    "phase": "04",
+    "file": "playstead-mac/Playstead/Saves/SaveCapturePoller.swift",
+    "line": null,
+    "description": "The save-captures directory (<root>/save-captures/<assetSetID>/) has no reclamation path: each session leaves one session-<id>.staged.sav plus one <digest>.sav promoted blob, and QuotaManager measures paths.objects only, so capture blobs count against neither the quota nor the free-space floor and are never evicted. Save artifacts are small (tens of KB), so this is slow growth rather than an immediate hazard, but nothing bounds it.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-05T22:19:41.957Z",
     "resolved_at": null
   }
 ]
