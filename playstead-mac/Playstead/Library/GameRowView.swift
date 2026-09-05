@@ -43,6 +43,15 @@ struct GameRowView: View {
     /// blocked — the row never remembers a stale refusal.
     @State private var quotaBlock: QuotaVerdict?
     @State private var showsReclaimPrompt = false
+    /// The most recent launch's `SaveLaunchNotice`, when the save plan
+    /// carried one (WINDOWS #37). Surfaced inline in the detail view's
+    /// Save section once that surface exists — never as a modal, a
+    /// toast, or an entry in the card's status slot (D-45, 04-CONTEXT.md
+    /// "Launch-path notices"). No detail view exists yet in this
+    /// codebase to render it into; this property is the seam a future
+    /// plan wires up, held here rather than discarded so the notice is
+    /// never silently lost.
+    @State private var saveLaunchNotice: SaveLaunchNotice?
     /// Owned by the stable row rather than a modifier hosted inside `List`.
     /// This keeps SwiftUI focus and the final actionable AX button on the
     /// same identity when a row is recycled or its status is refreshed.
@@ -360,7 +369,22 @@ struct GameRowView: View {
             let sessionID = environment.playSessionRecorder.began(assetSetID: entry.id)
             environment.refreshCurationViewModels()
 
-            try await adapterHost.launch(assetSetID: entry.id, romPath: romURL.path, saveDir: saveDir.path, biosPath: biosPath) { exit in
+            // D-44/WINDOWS #37: build the save plan for this launch and
+            // pass it to `executeSavePlan`, the seam `AdapterHost`
+            // invokes inside its own per-assetSetID mutex span, right
+            // before spawning the emulator. The default `nil` this
+            // parameter takes everywhere else is never taken here, on
+            // the real Play path -- this is the exact wiring that was
+            // missing (04-07 built the seam, nothing called it).
+            let saveLaunch = GameRowView.buildSaveLaunchPlan(
+                environment: environment, entry: entry, members: members, romURL: romURL, saveDir: saveDir
+            )
+            saveLaunchNotice = saveLaunch.notice
+
+            try await adapterHost.launch(
+                assetSetID: entry.id, romPath: romURL.path, saveDir: saveDir.path, biosPath: biosPath,
+                executeSavePlan: saveLaunch.executeSavePlan
+            ) { exit in
                 Task { @MainActor in
                     lastExit = exit
                     environment.playSessionRecorder.ended(sessionID)
@@ -369,6 +393,60 @@ struct GameRowView: View {
             }
         } catch {
             status = .error("Launch failed: \(error)")
+        }
+    }
+
+    /// One launch's resolved save plan: the target `.sav` path, the
+    /// notice (if any) the plan carries, and the closure `AdapterHost`
+    /// invokes to execute it. Extracted from `play()` (which is a
+    /// private `@MainActor` method SwiftUI drives, not directly
+    /// callable from a test) so `PlayPathSaveWiringTests` can assert
+    /// this exact wiring -- that a write-requiring plan reaches the
+    /// executor with the expected target path, and that a throwing plan
+    /// prevents `AdapterHost.launch` from ever spawning the emulator --
+    /// without needing to drive `play()`'s SwiftUI machinery end to end.
+    /// This is the regression WINDOWS #37 recorded: the seam existed and
+    /// no call site ever used it.
+    static func buildSaveLaunchPlan(
+        environment: AppEnvironment,
+        entry: CatalogueEntry,
+        members: [(sha256: String, declaredName: String)],
+        romURL: URL,
+        saveDir: URL
+    ) -> (plan: SavePlan, targetURL: URL, notice: SaveLaunchNotice?, executeSavePlan: () throws -> Void) {
+        // The save contract names this `{saveDir}/{romBaseName}.sav`
+        // (SavePlanExecutor's own doc comment) -- `romBaseName` is the
+        // materialized ROM's own filename, extension stripped, since no
+        // production caller has defined this convention before now.
+        let targetURL = saveDir.appendingPathComponent(
+            "\(romURL.deletingPathExtension().lastPathComponent).sav"
+        )
+        // `content_key` is the ROM's own sha256 (D-10), never
+        // `assetSetID` -- the first required member is the ROM for
+        // every system this client supports today. Falling back to
+        // `entry.id` only guards a members list this codebase's own
+        // readiness gate should never allow to reach here empty.
+        let contentKey = members.first?.sha256 ?? entry.id
+
+        let contextBuilder = LaunchSaveContextBuilder(
+            saveStore: SaveStore(localStore: environment.localStore),
+            casManager: environment.casManager,
+            saveContract: environment.adapterCatalog?.descriptor.saveContract,
+            systemID: entry.system
+        )
+        let context = contextBuilder.buildContext(contentKey: contentKey, targetURL: targetURL)
+        let plan = LaunchSavePlanner.plan(context: context)
+        let executor = SavePlanExecutor(environment: LaunchSaveEnvironment(casManager: environment.casManager))
+
+        return (plan, targetURL, Self.notice(for: plan), { try executor.execute(plan, targetURL: targetURL) })
+    }
+
+    private static func notice(for plan: SavePlan) -> SaveLaunchNotice? {
+        switch plan {
+        case .fresh(let notice): return notice
+        case .restore(_, let notice): return notice
+        case .fastForward: return nil
+        case .keep(let notice): return notice
         }
     }
 }
