@@ -243,6 +243,124 @@ final class SaveSurfaceWiringTests: XCTestCase {
         XCTAssertNil(escalation)
     }
 
+    // MARK: - WINDOWS #40/#44: the lane's real failure classification
+
+    /// Seeds a local-only revision whose bytes actually exist on disk,
+    /// so the lane gets past its own local checks and reaches the
+    /// server -- the only way a real server classification can be
+    /// observed.
+    @discardableResult
+    private func seedUploadableRevision(contentKey: String, revisionID: String) throws -> SaveLineRow {
+        let line = try environment.saveStore.resolveLine(
+            contentKey: contentKey, saveKind: "battery", slot: "0", placeholderID: "line-\(contentKey)"
+        )
+        let blobDir = tempRoot.appendingPathComponent("save-captures/upload", isDirectory: true)
+        try FileManager.default.createDirectory(at: blobDir, withIntermediateDirectories: true)
+        let blobURL = blobDir.appendingPathComponent("\(revisionID).sav")
+        let bytes = Data(repeating: 0x2A, count: 128)
+        try bytes.write(to: blobURL)
+
+        try environment.saveStore.insertRevision(SaveRevisionRow(
+            id: revisionID, saveLineID: line.id, parentRevisionID: nil,
+            blobSHA256: digest(revisionID), sizeBytes: bytes.count, originDeviceID: "device-1",
+            deviceCapturedAt: nil, recordedAt: nil, captureMethod: "session", adapterID: nil,
+            adapterVersion: nil, saveFormat: nil, formatConfidence: nil, playSessionID: nil,
+            durability: SaveDurability.localOnly.rawValue, localPath: blobURL.path
+        ))
+        return line
+    }
+
+    private func respond(status: Int, code: String) {
+        StubURLProtocol.responder = { _ in
+            StubURLProtocol.Stub(
+                statusCode: status, headers: ["Content-Type": "application/problem+json"],
+                body: Data("{\"code\":\"\(code)\"}".utf8)
+            )
+        }
+    }
+
+    /// The gap WINDOWS #40 recorded: before 04-19 the online branch of
+    /// `saveUploadFailureClassification()` returned a constant `.none`,
+    /// so a revoked device -- the single most escalation-worthy state
+    /// D-40 names -- was unreachable in the shipped app.
+    func testARevokedDeviceReachesTheEscalationSurfaceThroughTheRealLane() async throws {
+        let entry = try seedGame(id: "game-40", title: "Revoked", digest: digest("rom-40"))
+        try seedUploadableRevision(contentKey: digest("rom-40"), revisionID: "rev-revoked")
+        respond(status: 401, code: "device_revoked")
+
+        _ = await environment.drainSaveUploads().value
+
+        XCTAssertEqual(environment.saveUploadFailureClassification(), .revokedAuth)
+
+        let escalation = OnlyCopyEscalation.evaluate(
+            OnlyCopyEscalationInput(
+                onlyOnThisMacCount: environment.onlyOnThisMacCount(forAssetSetID: entry.id),
+                title: entry.displayTitle,
+                failureClassification: environment.saveUploadFailureClassification()
+            )
+        )
+        XCTAssertNotNil(escalation, "a genuinely unfixable failure must now be able to escalate")
+    }
+
+    func testAServerBindingRejectionClassifiesAsCompatibilityRejection() async throws {
+        try seedGame(id: "game-41", title: "Bound", digest: digest("rom-41"))
+        try seedUploadableRevision(contentKey: digest("rom-41"), revisionID: "rev-binding")
+        respond(status: 422, code: "save_binding_incompatible")
+
+        _ = await environment.drainSaveUploads().value
+        XCTAssertEqual(environment.saveUploadFailureClassification(), .compatibilityRejection)
+    }
+
+    func testCapabilitySkewIsClassifiedFromTheServersOwnCode() async throws {
+        try seedGame(id: "game-42", title: "Skewed", digest: digest("rom-42"))
+        try seedUploadableRevision(contentKey: digest("rom-42"), revisionID: "rev-skew")
+        respond(status: 422, code: "capability_incompatible")
+
+        _ = await environment.drainSaveUploads().value
+        XCTAssertEqual(environment.saveUploadFailureClassification(), .capabilitySkew)
+    }
+
+    /// A retryable failure must never escalate: a 500 fixes itself.
+    func testAServerErrorIsRetryableAndNeverEscalates() async throws {
+        try seedGame(id: "game-43", title: "Flaky", digest: digest("rom-43"))
+        try seedUploadableRevision(contentKey: digest("rom-43"), revisionID: "rev-500")
+        respond(status: 500, code: "internal_error")
+
+        _ = await environment.drainSaveUploads().value
+        XCTAssertEqual(environment.saveUploadFailureClassification(), .none)
+    }
+
+    /// D-40's precedence rule survives a real prior failure: once
+    /// unreachable, the answer is `.offlineQueue` whatever the last
+    /// online attempt failed with.
+    func testGoingOfflineOutranksAPreviouslyRecordedUnfixableFailure() async throws {
+        try seedGame(id: "game-44", title: "Offline", digest: digest("rom-44"))
+        try seedUploadableRevision(contentKey: digest("rom-44"), revisionID: "rev-offline")
+        respond(status: 401, code: "device_revoked")
+
+        _ = await environment.drainSaveUploads().value
+        XCTAssertEqual(environment.saveUploadFailureClassification(), .revokedAuth)
+
+        reachability.simulate(online: false)
+        XCTAssertEqual(environment.saveUploadFailureClassification(), .offlineQueue)
+    }
+
+    /// The construction site itself: `SaveUploadLane` must exist in the
+    /// assembled composition root, not only in tests (WINDOWS #44).
+    func testTheAssembledEnvironmentOwnsALiveUploadLane() throws {
+        let sourceURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Playstead/App/PlaysteadApp.swift")
+        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+        XCTAssertTrue(source.contains("SaveUploadLane(apiClient:"), "the lane must be constructed in production")
+        XCTAssertFalse(
+            source.contains("reachability.isOnline ? .none : .offlineQueue"),
+            "the online branch must read the lane's real outcome, never a constant"
+        )
+    }
+
     // MARK: - MC-06: the comparison sheet's resolution path is real
 
     /// The exact data `ReadinessSheetView`'s production caller hands

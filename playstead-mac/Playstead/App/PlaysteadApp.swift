@@ -331,6 +331,16 @@ final class AppEnvironment {
     /// session interrupted between emulator exit and promotion was
     /// never replayed by the shipped app.
     let saveSessionRecovery: SaveSessionRecovery
+    /// D-16/D-32's dedicated upload lane. Constructed eagerly with the
+    /// same non-optional client `SyncEngine` and `OutboxWorker` already
+    /// take -- the established pattern here for a client-dependent
+    /// collaborator. An unpaired client makes `send` throw `.notPaired`
+    /// before any connection is opened, which leaves the revision
+    /// `queued` and retryable rather than silently dropped (D-32).
+    /// Before 04-19 this type was never constructed in production at
+    /// all (WINDOWS #44), so nothing a Playstead session captured ever
+    /// left the Mac.
+    let saveUploadLane: SaveUploadLane
     /// The one place drains are started from — see `OutboxDrainTrigger`.
     let drainTrigger: OutboxDrainTrigger
     let playSessionRecorder: PlaySessionRecorder
@@ -459,6 +469,8 @@ final class AppEnvironment {
         self.saveConflictResolver = SaveConflictResolver(saveStore: saveStore, saveOutbox: saveOutbox)
         self.saveCaptureBlockedState = SaveCaptureBlockedState(localStore: store)
         self.saveSessionRecovery = SaveSessionRecovery(saveStore: saveStore)
+        let uploadLane = SaveUploadLane(apiClient: client, saveStore: saveStore)
+        self.saveUploadLane = uploadLane
 
         self.libraryViewModel = LibraryViewModel(
             catalogueStore: catalogueStore, curationStore: curationStore, syncEngine: syncEngine
@@ -521,6 +533,12 @@ final class AppEnvironment {
         self.reachabilityToken = reachability.onChange { isOnline in
             guard isOnline else { return }
             trigger.fire()
+            // The save lane drains on the same transition, and ahead of
+            // nothing else here -- it is a separate actor, so this does
+            // not queue behind the curation outbox (D-32). The lane is
+            // captured directly rather than through `self`, which is not
+            // yet fully initialized at this point in `init`.
+            Task { await uploadLane.drainOnce() }
         }
 
         // Wires ControllerHost's connect/disconnect/assign transitions to
@@ -575,6 +593,14 @@ final class AppEnvironment {
     @discardableResult
     func drainOutbox() -> Task<OutboxDrainResult, Never> {
         drainTrigger.fire()
+    }
+
+    /// Starts one `SaveUploadLane.drainOnce()` pass. The lane is an
+    /// actor, so overlapping calls serialize rather than racing the same
+    /// revision.
+    @discardableResult
+    func drainSaveUploads() -> Task<OutboxDrainResult, Never> {
+        Task { [saveUploadLane] in await saveUploadLane.drainOnce() }
     }
 
     /// The favorite toggle behind every library row's Favorite button.
@@ -773,7 +799,12 @@ final class AppEnvironment {
     func makeSaveSessionCoordinator() -> SaveSessionCoordinator {
         SaveSessionCoordinator(
             saveStore: saveStore,
-            blockedState: saveCaptureBlockedState
+            blockedState: saveCaptureBlockedState,
+            // Drain trigger: a session's promotion is the moment a new
+            // local-only revision exists, and a revision that exists on
+            // exactly one device is the most dangerous state in the
+            // product (D-32).
+            onPromoted: { [saveUploadLane] in Task { await saveUploadLane.drainOnce() } }
         )
     }
 
@@ -826,6 +857,9 @@ final class AppEnvironment {
         if replayedCount > 0 {
             refreshCurationViewModels()
         }
+        // Launch is also the natural moment to flush anything a previous
+        // session captured and never managed to upload.
+        drainSaveUploads()
     }
 
     /// Runs the six real readiness checks for one catalogue entry. This
@@ -959,18 +993,22 @@ final class AppEnvironment {
     }
 
     /// D-32/D-40/MC-05: the escalated-tier failure classification this
-    /// Mac can currently determine on its own. `.offlineQueue` when
-    /// unreachable (D-40: an offline queue must never escalate);
-    /// `.none` otherwise. The four genuinely unfixable reasons (revoked
-    /// auth, capability skew, server refusal, compatibility rejection)
-    /// need `SaveUploadLane`'s own failure classification, which has no
-    /// production output yet — a distinct, pre-existing gap (mac2
-    /// review WR-04) this function does not itself close. This is the
-    /// real call site a future plan plugs that signal into; wiring a
-    /// second one later would be the second-export-mechanism mistake
-    /// this plan was told to avoid, applied to escalation instead.
+    /// Mac can currently determine on its own.
+    ///
+    /// `.offlineQueue` when unreachable, unconditionally and before
+    /// anything else is consulted (D-40: an offline queue must never
+    /// escalate, whatever the last online attempt happened to fail
+    /// with). Otherwise the live lane's own most recent outcome — which
+    /// is `.none` while uploads are succeeding, and one of D-40's four
+    /// unfixable reasons when the server has actually said so.
+    ///
+    /// Until 04-19 this returned a constant `.none` for the online case,
+    /// because `SaveUploadLane` had no classification output and no
+    /// production construction site at all: the four unfixable reasons
+    /// were unreachable code in the shipped app (WINDOWS #40, #44).
     func saveUploadFailureClassification() -> SaveUploadFailureClassification {
-        reachability.isOnline ? .none : .offlineQueue
+        guard reachability.isOnline else { return .offlineQueue }
+        return saveUploadLane.lastFailureClassification
     }
 
     /// D-50 through D-55/MC-06: the real `ConflictSide` array for a

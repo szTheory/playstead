@@ -6,6 +6,31 @@ enum SaveUploadError: Error, Equatable {
     case missingLine
 }
 
+/// A lock-guarded cell holding the lane's most recent failure
+/// classification.
+///
+/// It exists because the reader -- `AppEnvironment
+/// .saveUploadFailureClassification()`, which `OnlyCopyEscalationPanel`
+/// consults during a synchronous main-actor read -- cannot `await` into
+/// an actor. The lane owns the value; this cell is only the
+/// synchronously-readable window onto it.
+final class SaveUploadClassificationCell: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _value: SaveUploadFailureClassification = .none
+
+    var value: SaveUploadFailureClassification {
+        lock.lock()
+        defer { lock.unlock() }
+        return _value
+    }
+
+    func set(_ value: SaveUploadFailureClassification) {
+        lock.lock()
+        _value = value
+        lock.unlock()
+    }
+}
+
 /// Drains locally-captured save revisions to the server: a streamed
 /// upload, then the idempotent metadata commit, in that order, for one
 /// revision at a time (D-16, D-32). A dedicated lane — not a priority
@@ -35,9 +60,71 @@ actor SaveUploadLane {
     private var attemptCounts: [String: Int] = [:]
     private var nextEligibleAt: [String: Date] = [:]
 
+    private let classificationCell = SaveUploadClassificationCell()
+
     init(apiClient: APIClient, saveStore: SaveStore) {
         self.apiClient = apiClient
         self.saveStore = saveStore
+    }
+
+    /// D-32/D-40: what this lane's most recent attempt actually failed
+    /// with, in the escalation vocabulary `OnlyCopyEscalationPanel`
+    /// speaks. `.none` until something fails, and back to `.none` the
+    /// moment a revision uploads successfully.
+    ///
+    /// This is the output WINDOWS #40 recorded as missing: without it,
+    /// `AppEnvironment.saveUploadFailureClassification()` could only ever
+    /// return `.offlineQueue` or `.none`, so the four genuinely unfixable
+    /// reasons were permanently unreachable in the shipped app however
+    /// the server actually responded.
+    nonisolated var lastFailureClassification: SaveUploadFailureClassification {
+        classificationCell.value
+    }
+
+    /// Maps one upload failure onto D-40's escalation vocabulary.
+    ///
+    /// The rule is deliberately conservative: only a failure this Mac
+    /// genuinely cannot resolve by retrying escalates. Anything
+    /// retryable -- transport loss, 5xx, rate limiting, an unpaired
+    /// client -- stays `.none`, because escalating a condition that
+    /// fixes itself is exactly what D-40 forbids.
+    static func classify(_ error: Error) -> SaveUploadFailureClassification {
+        guard case APIClientError.server(let apiError) = error else {
+            // `.transport`, `.invalidResponse`, `.notPaired`, and the
+            // lane's own `missingLocalBytes`/`missingLine` are all
+            // either retryable or local bookkeeping, never one of
+            // D-40's four server-side unfixable reasons.
+            return .none
+        }
+
+        // The machine-readable `code` is the contract (D-22); status is
+        // only the fallback for a response that carried no known code.
+        switch apiError.code {
+        case "device_revoked", "unauthorized":
+            return .revokedAuth
+        case "capability_incompatible":
+            return .capabilitySkew
+        case "save_binding_incompatible", "save_revision_digest_mismatch", "save_parent_unknown",
+             "save_revision_immutable", "save_branch_limit_exceeded":
+            return .compatibilityRejection
+        case "slow_down", "rate_limited", "internal_error":
+            return .none
+        default:
+            break
+        }
+
+        switch apiError.status {
+        case 401, 403:
+            return .revokedAuth
+        case 408, 429:
+            return .none
+        case 500...:
+            return .none
+        case 400..<500:
+            return .serverRefusal
+        default:
+            return .none
+        }
     }
 
     @discardableResult
@@ -57,11 +144,16 @@ actor SaveUploadLane {
                 try saveStore.updateDurability(id: revision.id, durability: .uploaded)
                 attemptCounts[revision.id] = nil
                 nextEligibleAt[revision.id] = nil
+                // A successful upload retires whatever the previous
+                // attempt escalated -- the condition is demonstrably
+                // gone.
+                classificationCell.set(.none)
                 result.sent += 1
             } catch {
                 // Left `queued` — visible and non-terminal (D-32). The
                 // pass stops here so a later revision never uploads
                 // ahead of this still-outstanding one.
+                classificationCell.set(Self.classify(error))
                 let attempt = (attemptCounts[revision.id] ?? 0) + 1
                 attemptCounts[revision.id] = attempt
                 let delayAttempt = min(attempt, Outbox.maxAttempts)
