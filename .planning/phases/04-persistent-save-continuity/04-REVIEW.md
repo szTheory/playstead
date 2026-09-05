@@ -3,10 +3,10 @@ status: issues-found
 phase: 04-persistent-save-continuity
 depth: standard
 files_in_scope: 78
-files_reviewed: 56
-critical: 2
-warning: 11
-info: 5
+files_reviewed: 78
+critical: 6
+warning: 16
+info: 7
 reviewed: 2026-09-04
 ---
 
@@ -18,25 +18,31 @@ Full findings with line citations live in the two source documents:
 
 - [`04-REVIEW-mac.md`](04-REVIEW-mac.md) — Swift/Mac, 0 critical / 6 warning / 2 info
 - [`04-REVIEW-server.md`](04-REVIEW-server.md) — Elixir/server, 2 critical / 5 warning / 3 info
+- [`04-REVIEW-mac2.md`](04-REVIEW-mac2.md) — Swift/Mac remainder, 4 critical / 5 warning / 2 info
 
 ## Coverage — read this before trusting a "clean" reading
 
 | Half | In scope | Fully reviewed | Not opened |
 |---|---|---|---|
 | Elixir / server | 36 | 36 | 0 |
-| Swift / Mac | 42 | 20 | 22 |
+| Swift / Mac — safety-critical pass | 42 | 20 | — |
+| Swift / Mac — remainder pass | 22 | 22 | 0 |
 
-The Mac pass prioritized the files load-bearing for save-data safety and **disclosed that
-it did not open the remaining 22** (ConflictComparisonSheet, SaveHistorySheet, SaveRollup,
-SaveStateModel, SaveVocabulary, SaveCaptureBlockedState, SaveAttentionSource, AdapterPin,
-APIClient, Outbox, SyncEngine, the Readiness quartet, ReclaimPromptView, StatusSlotView,
-StorageView, PlaysteadApp, UITesting/*). Those files are **unreviewed, not cleared.** Most
-are presentation-layer and lower-risk, but that is an inference, not a finding.
+**Coverage is now complete.** The first Mac pass prioritized the 20 files load-bearing for
+save-data safety and disclosed that it had not opened the other 22. A second pass covered
+those, and found **four Critical defects the first pass could not have seen** — because they
+are wiring gaps between components, invisible from inside any single component. The
+inference that the remainder was "presentation-layer and lower-risk" was wrong, and it is
+worth recording that it was wrong: the most dangerous findings in this phase were in the
+files judged least likely to hold them.
 
 ## Critical
 
-Both are server-side, both independently verified by the orchestrator against the source
-before being recorded here.
+Six findings. All independently verified by the orchestrator against the source before being
+recorded here — each claim below was re-derived from the code, not taken on report.
+
+**Two are server-side enforcement gaps (CR-01, CR-02). Four are Mac-side wiring gaps
+(MC-01..MC-04) where a component works correctly and nothing reaches it.**
 
 ### CR-01 — A parent revision is scoped to the user but not to the save line
 
@@ -76,6 +82,62 @@ this as a deferral and it stayed unowned through nine subsequent plans.
 **Fix:** invoke the limit helpers on the commit path, add `:upload_concurrency` to the
 save-upload scope, and add a test that asserts a 121st revision in an hour is refused —
 i.e. test the enforcement, not the constant.
+
+### MC-01 — The D-40 interruptive modal can never fire in production
+
+The single most safety-critical surface in the phase — what stands between a user and
+destroying their only copy of a save — is unreachable. The gate is
+`OnlyCopyInterruptionGate.shouldPresent(onlyOnThisMacCount:)`, which is `count > 0`. Every
+production path supplies zero:
+
+- `LibraryShellView.swift:252` constructs `StorageView(...)` and never passes
+  `onlyOnThisMacCounts`, so it keeps its `[:]` default and every lookup yields 0.
+- `GameRowView.swift:170` constructs `ReclaimPromptView(...)` and never passes
+  `onlyOnThisMacCount`, so it keeps its `0` default.
+- `PlaysteadApp.swift:889` builds every row as `ReclaimCandidateRow(id:title:bytes:)`,
+  omitting `onlyOnThisMacCount`, so each candidate reports 0.
+
+**What breaks:** a user evicts or reclaims a game whose only surviving save revisions live
+on this Mac, and is never warned. D-40's entire interruptive tier is inert.
+
+### MC-02 — The modal's escape hatch, its default button, does nothing
+
+`ReclaimPromptView.swift:157` and `StorageView.swift:245` both pass
+`onExport: { showOnlyCopyInterruption = false }`. The handler dismisses the sheet and
+exports nothing; neither deep-links to the console export control that plan 04-10 built for
+exactly this purpose.
+
+**What breaks:** D-40 requires "Export saves…" to be the *default* button and the
+destructive action to be secondary, specifically so the safe path is the easy one. A user
+takes the safe path, watches the dialog close, reasonably concludes the export happened, and
+proceeds to delete. **The safe-by-design choice is the one that silently does nothing** —
+strictly worse than having no modal, because it manufactures false confidence.
+
+### MC-03 — The divergence-surfacing pipeline has no production call site
+
+`StatusSlotView.forSaveState(conflicted:)` is defined at `StatusSlotView.swift:146` and
+called from nowhere in the codebase. The card badge that announces "two versions of your
+progress" never appears, so the comparison sheet plan 04-11 built is unreachable by the
+navigation path it was designed for.
+
+### MC-04 — `ReadinessEngine` is constructed without `saveReadiness:`
+
+The D-37 Save row therefore always reports "No saved progress yet.", regardless of actual
+state — the readiness sheet gives a confidently wrong answer about saves.
+
+### Why all four hid behind a green suite
+
+`OnlyCopyEscalationTests`, `OnlyCopyContractSnapshotTests`, the UI-test harness inside
+`OnlyCopyInterruptiveSheet.swift`, and the save-state model tests all **construct the
+component directly** and assert it behaves correctly. It does. Nothing asserted that a user
+action reaches it. This is the fourth instance of one pattern in this phase — WINDOWS #37
+(planner built, never wired), CR-02 (limits defined, never invoked), and MC-01..MC-04 — and
+it is why 481 passing tests said nothing about whether the phase's safety features are
+connected.
+
+The `ReclaimCandidateRow` doc comment states the behaviour plainly: *"Zero (the default)
+means reclaiming this candidate raises no interruptive modal at all."* The default is
+documented; nothing checks that production ever supplies a real number.
 
 ## Warning — highest-signal items
 
@@ -132,6 +194,9 @@ hunt for defects. These were traced and confirmed:
 
 ## Recommended disposition
 
+0. Fix **MC-01** and **MC-02** before anything else. Together they mean a user can destroy
+   their only save with no warning, and that the one button designed to protect them is a
+   no-op. This is the phase's stated purpose failing at the point of contact.
 1. Fix **CR-01** and **CR-02** before this phase is marked complete. Both are enforcement
    gaps in code whose tests currently pass, which is precisely the failure mode this project
    has already been bitten by.
