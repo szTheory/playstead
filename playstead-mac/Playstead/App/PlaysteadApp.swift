@@ -232,6 +232,15 @@ final class AppEnvironment {
     /// Set before a deterministic profile shell renders. This prevents the
     /// background sync and download paths from consulting any Keychain or network.
     private(set) var uiTestingBlocksExternalIO = false
+    /// MC-02 test-only observability: every URL `openConsoleSavesExport`
+    /// resolved and would have opened. `NSWorkspace.shared.open` is
+    /// legitimately skipped under `UI_TESTING` (a real browser must never
+    /// launch during automated tests), which would otherwise leave no
+    /// observable trace that the default "Export saves…" button performs
+    /// a real action rather than a bare dismissal -- the exact shape of
+    /// the shipped MC-02 defect. A front-door journey reads this list,
+    /// never a routing flag.
+    private(set) var uiTestConsoleExportAttempts: [String] = []
 #endif
     private(set) var adapterHost: AdapterHost?
     private(set) var adapterPinLoadError: Error?
@@ -349,12 +358,23 @@ final class AppEnvironment {
     convenience init(
         uiTestingPaths paths: AppPaths,
         localStore: LocalStore,
-        reachability: Reachability
+        reachability: Reachability,
+        /// A deterministic profile's real, offline, synthetic pairing
+        /// credential -- `nil` (the default) keeps every existing
+        /// deterministic profile genuinely unpaired. This never opens a
+        /// real network connection: `openConsoleSavesExport` itself
+        /// never performs a network call, only resolves a URL and, under
+        /// `UI_TESTING`, records it for test observability instead of
+        /// calling `NSWorkspace.shared.open`. Seeding "this Mac is
+        /// already paired" is world state a save-safety journey may
+        /// legitimately need, never a routing flag.
+        credential: PairingCredential? = nil
     ) {
         self.init(
             paths: paths,
             openedStore: localStore,
-            apiClient: APIClient.unpairedForUITesting(),
+            apiClient: credential.map { APIClient(keychain: KeychainStore(), credential: $0) }
+                ?? APIClient.unpairedForUITesting(),
             reachability: reachability,
             downloadSession: nil
         )
@@ -934,7 +954,9 @@ final class AppEnvironment {
               let apiClient, let credential = await apiClient.credential,
               let url = consoleSavesExportURL(forAssetSetID: firstID, baseURL: credential.baseURL)
         else { return }
-#if !UI_TESTING
+#if UI_TESTING
+        uiTestConsoleExportAttempts.append(url.absoluteString)
+#else
         NSWorkspace.shared.open(url)
 #endif
     }

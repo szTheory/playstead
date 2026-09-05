@@ -95,6 +95,19 @@ struct LibraryShellView: View {
                     .padding(.horizontal, DesignTokens.Spacing.md)
                 detail
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+#if UI_TESTING
+                // MC-02 test-only observability (see
+                // `AppEnvironment.uiTestConsoleExportAttempts`): renders
+                // the most recent export URL `openConsoleSavesExport`
+                // resolved, so a front-door journey can prove the
+                // default "Export saves…" button performed a real
+                // action distinct from a bare dismissal, without a real
+                // browser ever launching during automated tests.
+                Text(environment.uiTestConsoleExportAttempts.last ?? "")
+                    .accessibilityIdentifier("playstead.harness.console-export-attempt")
+                    .accessibilityHidden(environment.uiTestConsoleExportAttempts.isEmpty)
+                    .frame(width: 0, height: 0)
+#endif
             }
         }
         .background(DesignTokens.background.ignoresSafeArea())

@@ -11,6 +11,9 @@ final class UITestHarness {
         case pausedActiveQueue = "paused-active-queue"
         case quotaBlockReclaim = "quota-block-reclaim"
         case storage = "storage"
+        case saveRestorable = "save-restorable"
+        case saveOnlyCopy = "save-only-copy"
+        case saveDiverged = "save-diverged"
     }
 
     struct AuditTarget {

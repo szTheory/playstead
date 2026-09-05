@@ -60,7 +60,8 @@ enum UITestBootstrap {
         let appEnvironment = AppEnvironment(
             uiTestingPaths: fixture.paths,
             localStore: fixture.localStore,
-            reachability: Reachability(startOnline: false, monitorAutomatically: false)
+            reachability: Reachability(startOnline: false, monitorAutomatically: false),
+            credential: profile.uiTestingCredential
         )
         appEnvironment.blockExternalIOForUITesting()
         maybeRunSaveRestoreProof(environment: processEnvironment, root: fixture.root, appEnvironment: appEnvironment)

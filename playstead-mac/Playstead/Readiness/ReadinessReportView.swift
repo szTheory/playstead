@@ -46,10 +46,12 @@ private struct ReadinessRow: View {
             Spacer()
             if let remedy = check.remedy {
                 Button(remedy.title) { onRemedy(remedy) }
+                    .accessibilityIdentifier("playstead.readiness.row.\(check.kind.rawValue).remedy")
             }
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(label). \(check.finding)")
+        .accessibilityIdentifier("playstead.readiness.row.\(check.kind.rawValue)")
     }
 
     private var glyphName: String {

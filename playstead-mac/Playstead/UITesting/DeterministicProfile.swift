@@ -18,6 +18,43 @@ enum DeterministicProfile: String, CaseIterable {
     case pausedActiveQueue = "paused-active-queue"
     case quotaBlockReclaim = "quota-block-reclaim"
     case storage = "storage"
+    /// 04-18 Journey 1 (SAVE-03): one game, its ROM cached, an empty
+    /// local save directory, and one `uploaded` restorable revision
+    /// committed for its content key -- a normal launch through the
+    /// real Play button should restore it. No routing flag ever
+    /// presents anything; this only seeds the world Play walks into.
+    case saveRestorable = "save-restorable"
+    /// 04-18 Journey 2 (D-40): one cached, evictable game whose only
+    /// committed save revision is `localOnly` -- reclaiming it through
+    /// the real Storage surface must raise the D-40 interruptive modal.
+    case saveOnlyCopy = "save-only-copy"
+    /// 04-18 Journeys 3 and 4 (D-38/D-37): one cached game with two
+    /// undisposed heads on the same save line -- a genuine fork the
+    /// card's badge and the readiness Save row must both report.
+    case saveDiverged = "save-diverged"
+
+    /// A real, offline, synthetic pairing credential this profile's
+    /// world requires -- `nil` for every profile that has no reason to
+    /// be paired. `.saveOnlyCopy` needs one so MC-02's "Export saves…"
+    /// escape hatch resolves a real URL through `AppEnvironment
+    /// .openConsoleSavesExport` (never a routing flag: whether this Mac
+    /// is paired is ordinary background state, not navigation to the
+    /// surface under test). This performs no network I/O -- resolving
+    /// the URL is pure, and the actual `NSWorkspace.shared.open` call it
+    /// would otherwise make is unconditionally skipped under
+    /// `UI_TESTING`.
+    var uiTestingCredential: PairingCredential? {
+        switch self {
+        case .saveOnlyCopy:
+            return PairingCredential(
+                deviceID: "ui-test-device",
+                baseURL: URL(string: "https://ui-test.invalid")!,
+                token: "ui-test-token"
+            )
+        default:
+            return nil
+        }
+    }
 
     static func parse(_ value: String?) throws -> DeterministicProfile {
         guard let value, !value.isEmpty else { throw DeterministicProfileError.missingProfile }
@@ -57,6 +94,7 @@ enum DeterministicProfile: String, CaseIterable {
                     cacheRootURL: paths.objects,
                     freeSpaceProvider: { Int.max }
                 ),
+                saveStore: SaveStore(localStore: localStore),
                 preservesRootForRelaunch: persistentRoot != nil
             )
             if databaseExisted {
@@ -114,6 +152,7 @@ final class DeterministicProfileFixture {
     let downloadQueue: DownloadQueue
     let pinStore: PinStore
     let quotaManager: QuotaManager
+    let saveStore: SaveStore
     let preservesRootForRelaunch: Bool
 
     var expected: DeterministicProfileExpectation {
@@ -146,6 +185,12 @@ final class DeterministicProfileFixture {
                 pinned: [Self.storageAssetID],
                 cached: 1
             )
+        case .saveRestorable:
+            return expectation(catalogue: 1, cached: 1)
+        case .saveOnlyCopy:
+            return expectation(catalogue: 1, cached: 1)
+        case .saveDiverged:
+            return expectation(catalogue: 1, cached: 1)
         }
     }
 
@@ -159,6 +204,7 @@ final class DeterministicProfileFixture {
         downloadQueue: DownloadQueue,
         pinStore: PinStore,
         quotaManager: QuotaManager,
+        saveStore: SaveStore,
         preservesRootForRelaunch: Bool
     ) {
         self.profile = profile
@@ -170,6 +216,7 @@ final class DeterministicProfileFixture {
         self.downloadQueue = downloadQueue
         self.pinStore = pinStore
         self.quotaManager = quotaManager
+        self.saveStore = saveStore
         self.preservesRootForRelaunch = preservesRootForRelaunch
     }
 
@@ -295,7 +342,186 @@ final class DeterministicProfileFixture {
             try catalogueStore.upsert(entry)
             try seedCachedObject(for: entry, bytes: 32, seed: 73)
             try pinStore.pin(assetSetID: entry.id)
+        case .saveRestorable:
+            // Journey 1 (SAVE-03): the ROM is cached (so readiness's
+            // asset/cache checks are `.ready`) and the save directory
+            // starts empty (never created here) -- the only thing that
+            // exists ahead of a normal launch is one `uploaded`,
+            // restorable revision on the content key Play itself
+            // resolves. A real, installed adapter is also seeded so the
+            // front door -- pressing Play -- reaches
+            // `LaunchSavePlanner`/`SavePlanExecutor` rather than
+            // stopping at the "adapter not installed" readiness check
+            // first, which would prove nothing about SAVE-03.
+            let entry = Self.entry(id: Self.saveRestorableAssetID, title: "Synthetic Save Restore", seed: 91)
+            try catalogueStore.upsert(entry)
+            try seedCachedObject(for: entry, bytes: 32, seed: 91)
+            let contentKey = try requiredDigest(of: entry)
+            let saveBytes = Data(repeating: 0x5A, count: Self.saveArtifactBytes)
+            let saveDigest = Self.digest(of: saveBytes)
+            try commitBlob(saveBytes, digest: saveDigest)
+            let line = try saveStore.resolveLine(
+                contentKey: contentKey, saveKind: "battery", slot: "0", placeholderID: "line-restorable"
+            )
+            try saveStore.insertRevision(SaveRevisionRow(
+                id: "rev-restorable-1",
+                saveLineID: line.id,
+                parentRevisionID: nil,
+                blobSHA256: saveDigest,
+                sizeBytes: saveBytes.count,
+                originDeviceID: "another-mac",
+                deviceCapturedAt: nil,
+                recordedAt: Self.timestampString,
+                captureMethod: "poller",
+                adapterID: nil,
+                adapterVersion: nil,
+                saveFormat: nil,
+                formatConfidence: nil,
+                playSessionID: nil,
+                durability: SaveDurability.uploaded.rawValue,
+                localPath: nil
+            ))
+            try installFakeAdapter()
+        case .saveOnlyCopy:
+            // Journey 2 (D-40): a cached, evictable game whose one
+            // committed revision is `localOnly` -- reclaiming it through
+            // the real Storage surface must raise the interruptive modal.
+            let entry = Self.entry(id: Self.saveOnlyCopyAssetID, title: "Synthetic Only Copy Game", seed: 92)
+            try catalogueStore.upsert(entry)
+            try seedCachedObject(for: entry, bytes: 32, seed: 92)
+            let contentKey = try requiredDigest(of: entry)
+            let saveBytes = Data(repeating: 0x5B, count: Self.saveArtifactBytes)
+            let saveDigest = Self.digest(of: saveBytes)
+            try commitBlob(saveBytes, digest: saveDigest)
+            let line = try saveStore.resolveLine(
+                contentKey: contentKey, saveKind: "battery", slot: "0", placeholderID: "line-only-copy"
+            )
+            try saveStore.insertRevision(SaveRevisionRow(
+                id: "rev-only-copy-1",
+                saveLineID: line.id,
+                parentRevisionID: nil,
+                blobSHA256: saveDigest,
+                sizeBytes: saveBytes.count,
+                originDeviceID: "this-mac",
+                deviceCapturedAt: nil,
+                recordedAt: Self.timestampString,
+                captureMethod: "poller",
+                adapterID: nil,
+                adapterVersion: nil,
+                saveFormat: nil,
+                formatConfidence: nil,
+                playSessionID: nil,
+                durability: SaveDurability.localOnly.rawValue,
+                localPath: nil
+            ))
+        case .saveDiverged:
+            // Journeys 3 and 4 (D-38/D-37): two undisposed heads on the
+            // same line -- a genuine, unacknowledged fork. Neither head
+            // is a parent of the other, so both remain current heads.
+            let entry = Self.entry(id: Self.saveDivergedAssetID, title: "Synthetic Diverged Game", seed: 93)
+            try catalogueStore.upsert(entry)
+            try seedCachedObject(for: entry, bytes: 32, seed: 93)
+            let contentKey = try requiredDigest(of: entry)
+            let line = try saveStore.resolveLine(
+                contentKey: contentKey, saveKind: "battery", slot: "0", placeholderID: "line-diverged"
+            )
+            for (suffix, seed, origin) in [("a", UInt8(0x5C), "this-mac"), ("b", UInt8(0x5D), "another-mac")] {
+                let bytes = Data(repeating: seed, count: Self.saveArtifactBytes)
+                let digest = Self.digest(of: bytes)
+                try commitBlob(bytes, digest: digest)
+                try saveStore.insertRevision(SaveRevisionRow(
+                    id: "rev-diverged-\(suffix)",
+                    saveLineID: line.id,
+                    parentRevisionID: nil,
+                    blobSHA256: digest,
+                    sizeBytes: bytes.count,
+                    originDeviceID: origin,
+                    deviceCapturedAt: nil,
+                    recordedAt: Self.timestampString,
+                    captureMethod: "poller",
+                    adapterID: nil,
+                    adapterVersion: nil,
+                    saveFormat: nil,
+                    formatConfidence: nil,
+                    playSessionID: nil,
+                    durability: SaveDurability.localOnly.rawValue,
+                    localPath: nil
+                ))
+            }
         }
+    }
+
+    /// The ROM's own sha256 -- the content key a save line is keyed by
+    /// (D-10), exactly matching `AppEnvironment.saveContentKey(for:)`.
+    private func requiredDigest(of entry: CatalogueEntry) throws -> String {
+        guard let digest = entry.members.first?.sha256 else {
+            throw DeterministicProfileError.stateMismatch("fixture entry is missing its digest")
+        }
+        return digest
+    }
+
+    /// D-50/the pinned adapter's `sram_32k` medium: the one proven save
+    /// size (`AdapterPin.json`'s `save_contract.proven_media`), so a
+    /// seeded revision satisfies `SaveCompatibilityGate` exactly like a
+    /// real GBA battery save would, rather than tripping the D-24
+    /// unbound-medium hard block with an arbitrary byte count.
+    private static let saveArtifactBytes = 32_768
+
+    private static func digest(of data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// Commits arbitrary bytes into CAS under their own digest, with no
+    /// `cache_objects` row -- unlike `seedCachedObject`, a save blob is
+    /// tracked by `save_revision.blob_sha256`, never the game-asset cache
+    /// index. `CASManager.contains(_:)` only ever checks the object file
+    /// itself.
+    private func commitBlob(_ data: Data, digest: String) throws {
+        let partial = try paths.partialURL(for: digest)
+        try data.write(to: partial, options: .atomic)
+        try CASManager(paths: paths).commit(partialAt: partial, sha256: digest)
+    }
+
+    /// Seeds a real, on-disk "installed adapter" so `ReadinessEngine`'s
+    /// emulator check reads `.ready` and `AdapterHost.launch` has a real
+    /// executable to spawn -- exactly the same on-disk shape
+    /// `AdapterInstaller.recordInstallation`/`selectExisting` produce
+    /// for a user-selected build, seeded directly rather than through a
+    /// real download because these fixtures run with no network. The
+    /// script's own bytes are what get hashed and recorded, so the
+    /// installation's digest baseline is trivially self-consistent.
+    private func installFakeAdapter() throws {
+        let pin = try AdapterPin.load()
+        let scriptURL = paths.emulators.appendingPathComponent(
+            "ui-test-fake-adapter", isDirectory: false
+        )
+        try FileManager.default.createDirectory(
+            at: paths.emulators, withIntermediateDirectories: true
+        )
+        let scriptBytes = Data("#!/bin/sh\nexit 0\n".utf8)
+        try scriptBytes.write(to: scriptURL, options: .atomic)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755], ofItemAtPath: scriptURL.path
+        )
+        let executableDigest = Self.digest(of: scriptBytes)
+        try localStore.connection.execute(
+            """
+            INSERT INTO adapter_installations
+                (id, emulator, version, executable_path, sha256, archive_sha256, provenance, verified, installed_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(emulator, version) DO UPDATE SET
+                executable_path = excluded.executable_path,
+                sha256 = excluded.sha256,
+                archive_sha256 = excluded.archive_sha256,
+                provenance = excluded.provenance,
+                verified = excluded.verified,
+                installed_at = excluded.installed_at;
+            """,
+            params: [
+                UUID().uuidString, pin.emulator, pin.version, scriptURL.path,
+                executableDigest, nil as String?, "userSelected", 1, Self.timestampString
+            ]
+        )
     }
 
     private func seedCachedObject(for entry: CatalogueEntry, bytes: Int, seed: UInt8) throws {
@@ -362,6 +588,9 @@ final class DeterministicProfileFixture {
     private static let quotaAssetID = "00000000-0000-7000-8000-000000000041"
     private static let quotaDownloadAssetID = "00000000-0000-7000-8000-000000000042"
     private static let storageAssetID = "00000000-0000-7000-8000-000000000073"
+    private static let saveRestorableAssetID = "00000000-0000-7000-8000-000000000091"
+    private static let saveOnlyCopyAssetID = "00000000-0000-7000-8000-000000000092"
+    private static let saveDivergedAssetID = "00000000-0000-7000-8000-000000000093"
     private static let timestampString = "2026-01-01T00:00:00Z"
 
     private static func catalogueEntries(count: Int) -> [CatalogueEntry] {

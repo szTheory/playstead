@@ -22,7 +22,10 @@ final class DeterministicProfileTests: XCTestCase {
                 "populated-curation-reorder",
                 "paused-active-queue",
                 "quota-block-reclaim",
-                "storage"
+                "storage",
+                "save-restorable",
+                "save-only-copy",
+                "save-diverged"
             ]
         )
     }
