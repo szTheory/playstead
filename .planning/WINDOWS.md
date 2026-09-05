@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 28
+open_count: 30
 waived_count: 1
 fixed_count: 5
-total_count: 34
-last_updated: 2026-09-04T20:20:49.696Z
+total_count: 36
+last_updated: 2026-09-05T01:12:59.615Z
 ---
 
 # Broken Windows Ledger
@@ -49,6 +49,8 @@ last_updated: 2026-09-04T20:20:49.696Z
 | 32 | 04 | deviation | playstead-mac/Playstead/Saves/ConflictComparisonSheet.swift |  | Comparison sheet is built and tested standalone but not yet wired into a live attention-inbox or game-detail navigation path on the Mac (server console entry point already shipped in 04-10); presentation wiring is left for a later plan | open |  | 2026-09-04T20:20:49.523Z |  |
 | 33 | 04 | deviation | playstead-mac/Playstead/Sync/JournalApplier.swift |  | Divergence detection does not yet trigger an eager 32KB prefetch of both sides' artifacts (CacheObjectsSaveBytesPrefetcher.onPrefetchNeeded is still the no-op tracked by WINDOWS #29); comparing/choosing works offline only once both blobs are already locally cached by some other path | open |  | 2026-09-04T20:20:49.612Z |  |
 | 34 | 04 | unrun-verify | playstead-mac/PlaysteadUITests/ConflictResolutionInteractionTests.swift |  | UI-layer keyboard-interaction verification requires the centrally orchestrated hosted macOS runner; local execution is disabled by the project's login-Keychain launch guard (mirrors WINDOWS #9/#10 precedent) | open |  | 2026-09-04T20:20:49.696Z |  |
+| 35 | 04 | deviation | playstead-mac/Playstead/Saves/OnlyCopyInterruptiveSheet.swift |  | Unpair, sign out, and delete game have no production entry point yet in this codebase; only remove-local-copy (ReclaimPromptView) and eviction (StorageView) are wired to the interruptive gate. The sheet and gate are built, tested, and reusable for whichever future plan adds those three call sites. | open |  | 2026-09-05T01:12:59.522Z |  |
+| 36 | 04 | unrun-verify | playstead-mac/PlaysteadUITests/OnlyCopyInterruptionTests.swift |  | UI-layer keyboard-interaction verification requires the centrally orchestrated hosted macOS runner; local execution is disabled by the project's login-Keychain launch guard (mirrors WINDOWS #9/#10/#34 precedent). | open |  | 2026-09-05T01:12:59.615Z |  |
 
 ````json
 [
@@ -458,6 +460,30 @@ last_updated: 2026-09-04T20:20:49.696Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-04T20:20:49.696Z",
+    "resolved_at": null
+  },
+  {
+    "id": 35,
+    "kind": "deviation",
+    "phase": "04",
+    "file": "playstead-mac/Playstead/Saves/OnlyCopyInterruptiveSheet.swift",
+    "line": null,
+    "description": "Unpair, sign out, and delete game have no production entry point yet in this codebase; only remove-local-copy (ReclaimPromptView) and eviction (StorageView) are wired to the interruptive gate. The sheet and gate are built, tested, and reusable for whichever future plan adds those three call sites.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-05T01:12:59.522Z",
+    "resolved_at": null
+  },
+  {
+    "id": 36,
+    "kind": "unrun-verify",
+    "phase": "04",
+    "file": "playstead-mac/PlaysteadUITests/OnlyCopyInterruptionTests.swift",
+    "line": null,
+    "description": "UI-layer keyboard-interaction verification requires the centrally orchestrated hosted macOS runner; local execution is disabled by the project's login-Keychain launch guard (mirrors WINDOWS #9/#10/#34 precedent).",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-05T01:12:59.615Z",
     "resolved_at": null
   }
 ]
