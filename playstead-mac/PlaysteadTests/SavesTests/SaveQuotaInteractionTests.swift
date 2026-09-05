@@ -23,7 +23,10 @@ final class SaveQuotaInteractionTests: XCTestCase {
         catalogueStore = CatalogueStore(localStore: localStore)
         pinStore = PinStore(localStore: localStore)
         cas = CASManager(paths: paths)
-        evictionPlanner = EvictionPlanner(localStore: localStore, catalogueStore: catalogueStore, pinStore: pinStore, cas: cas, paths: paths)
+        evictionPlanner = EvictionPlanner(
+            localStore: localStore, catalogueStore: catalogueStore, pinStore: pinStore, cas: cas, paths: paths,
+            saveStore: SaveStore(localStore: localStore)
+        )
     }
 
     override func tearDownWithError() throws {

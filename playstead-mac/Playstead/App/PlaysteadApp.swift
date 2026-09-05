@@ -494,7 +494,8 @@ final class AppEnvironment {
         // measured against — the objects directory, not the app bundle.
         self.quotaManager = QuotaManager(localStore: store, cacheRootURL: paths.objects)
         self.evictionPlanner = EvictionPlanner(
-            localStore: store, catalogueStore: catalogueStore, pinStore: pinStore, cas: cas, paths: paths
+            localStore: store, catalogueStore: catalogueStore, pinStore: pinStore, cas: cas, paths: paths,
+            saveStore: saveStore
         )
 
         do {

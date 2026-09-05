@@ -58,13 +58,27 @@ final class EvictionPlanner {
     private let pinStore: PinStore
     private let cas: CASManager
     private let paths: AppPaths
+    /// Read only to enumerate the digests that back save revisions, so
+    /// `unreferencedObjects()` can never offer a user's save bytes as
+    /// junk. Required rather than optional on purpose: a `nil` default
+    /// would fail open, and failing open here means presenting the only
+    /// copy of a save as reclaimable.
+    private let saveStore: SaveStore
 
-    init(localStore: LocalStore, catalogueStore: CatalogueStore, pinStore: PinStore, cas: CASManager, paths: AppPaths) {
+    init(
+        localStore: LocalStore,
+        catalogueStore: CatalogueStore,
+        pinStore: PinStore,
+        cas: CASManager,
+        paths: AppPaths,
+        saveStore: SaveStore
+    ) {
         self.localStore = localStore
         self.catalogueStore = catalogueStore
         self.pinStore = pinStore
         self.cas = cas
         self.paths = paths
+        self.saveStore = saveStore
     }
 
     /// Unpinned, fully verified games, ordered least-recently-used first.
@@ -144,13 +158,36 @@ final class EvictionPlanner {
     /// Cached objects with no corresponding required-member record
     /// anywhere in the local catalogue mirror — cannot be redownloaded,
     /// so never a reclaim candidate.
+    ///
+    /// A digest that backs a `save_revision` is excluded unconditionally.
+    /// Save blobs have no catalogue member record by construction, so
+    /// without this guard every save this Mac captured would appear here
+    /// as removable junk — and unlike a catalogue object, a local-only
+    /// save cannot be re-fetched from the server. Offering the user's
+    /// only copy of a save for deletion is a strictly worse failure than
+    /// leaving an orphan on disk, so this filter is deliberately
+    /// unconditional rather than a heuristic.
+    ///
+    /// `plan(for:)` and `candidates()` need no equivalent filter: both
+    /// only ever select SHAs drawn from `catalogue_members WHERE
+    /// required = 1`, and a save blob is never a catalogue member. Adding
+    /// a redundant filter there would imply the invariant is doubtful.
     func unreferencedObjects() -> [UnreferencedObject] {
         let refs = referenceCounts()
         let sizes = cachedObjectSizes()
+        let saveBlobs = saveBlobSHAs()
         return sizes.compactMap { sha, size in
-            guard refs[sha] == nil else { return nil }
+            guard refs[sha] == nil, !saveBlobs.contains(sha) else { return nil }
             return UnreferencedObject(sha256: sha, bytes: size)
         }.sorted { $0.sha256 < $1.sha256 }
+    }
+
+    /// Every digest referenced by a `save_revision` row, from every save
+    /// line — including revisions whose bytes are not (or not yet) in the
+    /// CAS, since the check is "is this sha a save blob", not "is it
+    /// currently cached".
+    private func saveBlobSHAs() -> Set<String> {
+        Set(saveStore.fetchAllRevisions().map(\.blobSHA256))
     }
 
     /// Every quarantined partial under `partials/quarantine/`, listed

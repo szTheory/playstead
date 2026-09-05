@@ -9,6 +9,7 @@ final class EvictionTests: XCTestCase {
     private var cas: CASManager!
     private var catalogueStore: CatalogueStore!
     private var pinStore: PinStore!
+    private var saveStore: SaveStore!
     private var planner: EvictionPlanner!
 
     override func setUpWithError() throws {
@@ -19,7 +20,11 @@ final class EvictionTests: XCTestCase {
         cas = CASManager(paths: paths)
         catalogueStore = CatalogueStore(localStore: localStore)
         pinStore = PinStore(localStore: localStore)
-        planner = EvictionPlanner(localStore: localStore, catalogueStore: catalogueStore, pinStore: pinStore, cas: cas, paths: paths)
+        saveStore = SaveStore(localStore: localStore)
+        planner = EvictionPlanner(
+            localStore: localStore, catalogueStore: catalogueStore, pinStore: pinStore, cas: cas, paths: paths,
+            saveStore: saveStore
+        )
     }
 
     override func tearDownWithError() throws {
@@ -49,6 +54,30 @@ final class EvictionTests: XCTestCase {
             params: [digest, bytes, lastUsedAt, lastUsedAt, bytes]
         )
         return digest
+    }
+
+    private func seedSaveRevision(blobSHA256: String, contentKey: String = "content-key-1") throws {
+        let line = try saveStore.resolveLine(
+            contentKey: contentKey, saveKind: "battery", slot: "0", placeholderID: "line-\(contentKey)"
+        )
+        try saveStore.insertRevision(SaveRevisionRow(
+            id: UUID().uuidString,
+            saveLineID: line.id,
+            parentRevisionID: nil,
+            blobSHA256: blobSHA256,
+            sizeBytes: 4096,
+            originDeviceID: nil,
+            deviceCapturedAt: nil,
+            recordedAt: nil,
+            captureMethod: "session",
+            adapterID: nil,
+            adapterVersion: nil,
+            saveFormat: nil,
+            formatConfidence: nil,
+            playSessionID: nil,
+            durability: SaveDurability.localOnly.rawValue,
+            localPath: nil
+        ))
     }
 
     private func seedGame(id: String, requiredSHAs: [String], displayTitle: String? = nil) throws {
@@ -116,6 +145,46 @@ final class EvictionTests: XCTestCase {
         XCTAssertTrue(planner.candidates().isEmpty, "an orphan object with no owning game produces no candidate")
         let unreferenced = planner.unreferencedObjects()
         XCTAssertTrue(unreferenced.contains { $0.sha256 == orphanSHA })
+    }
+
+    // MARK: - Save blobs are never reclaimable junk
+
+    /// A save blob has no catalogue member record by construction, so
+    /// before this guard existed every locally-captured save appeared in
+    /// StorageView as an unreferenced object the user could delete. A
+    /// local-only save is the one thing in the cache that cannot be
+    /// re-fetched, so this must hold unconditionally.
+    func testObjectBackingASaveRevisionIsNeverReportedAsUnreferenced() throws {
+        let saveSHA = try seedCachedObject(seed: "save-blob")
+        try seedSaveRevision(blobSHA256: saveSHA)
+
+        XCTAssertFalse(planner.unreferencedObjects().contains { $0.sha256 == saveSHA })
+    }
+
+    /// The guard must not swallow genuine orphans — the surface still has
+    /// to tell the user about cache objects nothing references.
+    func testGenuinelyOrphanedObjectIsStillReportedAsUnreferencedAlongsideASaveBlob() throws {
+        let saveSHA = try seedCachedObject(seed: "save-kept")
+        try seedSaveRevision(blobSHA256: saveSHA)
+        let orphanSHA = try seedCachedObject(seed: "true-orphan")
+
+        let unreferenced = planner.unreferencedObjects().map(\.sha256)
+        XCTAssertTrue(unreferenced.contains(orphanSHA))
+        XCTAssertFalse(unreferenced.contains(saveSHA))
+    }
+
+    /// `plan(for:)` only ever selects catalogue-required member SHAs, so
+    /// introducing the save-blob exclusion must leave its output
+    /// byte-for-byte identical for an existing fixture.
+    func testPlanOutputIsUnchangedWhenASaveRevisionExists() throws {
+        let sha = try seedCachedObject(seed: "solo")
+        try seedGame(id: "solo-game", requiredSHAs: [sha])
+        let before = planner.plan(for: ["solo-game"])
+
+        let saveSHA = try seedCachedObject(seed: "unrelated-save")
+        try seedSaveRevision(blobSHA256: saveSHA)
+
+        XCTAssertEqual(planner.plan(for: ["solo-game"]), before)
     }
 
     // MARK: - Execute semantics

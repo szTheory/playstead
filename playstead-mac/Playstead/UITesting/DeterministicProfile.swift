@@ -265,7 +265,8 @@ final class DeterministicProfileFixture {
                     catalogueStore: catalogueStore,
                     pinStore: pinStore,
                     cas: CASManager(paths: paths),
-                    paths: paths
+                    paths: paths,
+                    saveStore: saveStore
                   ).candidates().map(\.id) == [Self.quotaAssetID] else {
                 throw DeterministicProfileError.stateMismatch("quota profile did not compute used=32,pending=32,quota=16,shortfall=48 with one reclaim candidate")
             }
