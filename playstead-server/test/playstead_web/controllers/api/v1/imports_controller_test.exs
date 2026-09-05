@@ -131,15 +131,15 @@ defmodule PlaysteadWeb.Api.V1.ImportsControllerTest do
     } do
       {_scope, device, token} = paired()
 
-      :ok = Playstead.Import.UploadSlots.acquire(device.id, 2)
-      :ok = Playstead.Import.UploadSlots.acquire(device.id, 2)
+      :ok = Playstead.Import.UploadSlots.acquire(device.id, "held-1", 2)
+      :ok = Playstead.Import.UploadSlots.acquire(device.id, "held-2", 2)
 
       bytes = random_bytes(16)
       resp = upload_conn(conn, token, bytes)
       assert_problem(resp, 429, :too_many_uploads)
 
-      Playstead.Import.UploadSlots.release(device.id)
-      Playstead.Import.UploadSlots.release(device.id)
+      Playstead.Import.UploadSlots.release(device.id, "held-1")
+      Playstead.Import.UploadSlots.release(device.id, "held-2")
     end
 
     test "a replayed upload with the same Idempotency-Key returns the original receipt and creates no second source_file",

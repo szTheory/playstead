@@ -66,6 +66,20 @@ defmodule PlaysteadWeb.Router do
     plug PlaysteadWeb.Plugs.UploadConcurrency
   end
 
+  # D-33/CR-02: the save-upload route's own namespaced concurrency
+  # budget ("save:" <> device_id), separate from :upload_concurrency's
+  # bare-device-id budget so a save upload never contends with a
+  # concurrent game import for the same device. This route is
+  # deliberately off :idempotency (D-16 -- a stream cannot be
+  # fingerprinted), so it dedupes on `command_id` instead, which is
+  # stable across retries of the same upload -- see
+  # PlaysteadWeb.Plugs.UploadConcurrency's moduledoc.
+  pipeline :save_upload_concurrency do
+    plug PlaysteadWeb.Plugs.UploadConcurrency,
+      bucket_fn: &Playstead.Blobs.save_upload_slot_key/1,
+      dedupe_param: "command_id"
+  end
+
   # D-03: `/setup` renders only while no owner exists, and 404s
   # permanently — never a redirect — the moment one does.
   pipeline :setup_open do
@@ -262,8 +276,11 @@ defmodule PlaysteadWeb.Router do
   # canonicalizes a parsed body and cannot fingerprint a stream, so this
   # route stays off the :idempotency pipeline -- :repr_digest verifies the
   # declared digest/length exactly like the imports upload route.
+  # D-33/CR-02: :save_upload_concurrency gates this route through its
+  # own "save:"-namespaced budget, deduped on command_id since this
+  # route has no :idempotency to lean on for replay safety.
   scope "/api/v1", PlaysteadWeb.Api.V1 do
-    pipe_through [:api, :device_auth, :repr_digest]
+    pipe_through [:api, :device_auth, :repr_digest, :save_upload_concurrency]
 
     put "/saves/uploads/:command_id", SavesController, :create_upload
   end

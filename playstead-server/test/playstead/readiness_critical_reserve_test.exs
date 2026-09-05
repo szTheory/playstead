@@ -145,17 +145,17 @@ defmodule Playstead.ReadinessCriticalReserveTest do
       device_id = "device-#{System.unique_integer([:positive])}"
       save_key = Blobs.save_upload_slot_key(device_id)
 
-      assert :ok = UploadSlots.acquire(save_key, 2)
+      assert :ok = UploadSlots.acquire(save_key, "upload-save-1", 2)
 
       # The device's own (unnamespaced) import slot counter is untouched —
       # it can still acquire its full quota of import slots independently.
-      assert :ok = UploadSlots.acquire(device_id, 2)
-      assert :ok = UploadSlots.acquire(device_id, 2)
-      assert :error = UploadSlots.acquire(device_id, 2)
+      assert :ok = UploadSlots.acquire(device_id, "upload-import-1", 2)
+      assert :ok = UploadSlots.acquire(device_id, "upload-import-2", 2)
+      assert :error = UploadSlots.acquire(device_id, "upload-import-3", 2)
 
-      UploadSlots.release(save_key)
-      UploadSlots.release(device_id)
-      UploadSlots.release(device_id)
+      UploadSlots.release(save_key, "upload-save-1")
+      UploadSlots.release(device_id, "upload-import-1")
+      UploadSlots.release(device_id, "upload-import-2")
     end
 
     test "save_revision_rate_limit_per_hour/0 is 120" do

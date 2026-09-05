@@ -14,7 +14,7 @@ defmodule PlaysteadWeb.Api.V1.SavesController do
 
   use PlaysteadWeb, :controller
 
-  alias Playstead.{Blobs, CommandId, Idempotency, Saves}
+  alias Playstead.{Blobs, CommandId, Idempotency, RateLimiter, Saves}
 
   action_fallback PlaysteadWeb.Api.V1.FallbackController
 
@@ -100,14 +100,37 @@ defmodule PlaysteadWeb.Api.V1.SavesController do
     fingerprint = conn.assigns.idempotency_fingerprint
     id = params["id"] || Ecto.UUID.generate()
 
-    effect_fun = fn ->
-      case Saves.commit_revision(device.user_id, device, Map.put(params, "id", id)) do
-        {:ok, revision} -> {:ok, 201, revision_json(revision)}
-        {:error, reason} -> {:error, reason}
+    with :ok <- check_revision_rate_limit(device) do
+      effect_fun = fn ->
+        case Saves.commit_revision(device.user_id, device, Map.put(params, "id", id)) do
+          {:ok, revision} -> {:ok, 201, revision_json(revision)}
+          {:error, reason} -> {:error, reason}
+        end
       end
-    end
 
-    run_idempotent(conn, device, key, fingerprint, effect_fun)
+      run_idempotent(conn, device, key, fingerprint, effect_fun)
+    end
+  end
+
+  # D-33/CR-02: 120 save-revision commits/hour/device (`blobs.ex`
+  # defines the constants; this is the first production call site).
+  # Checked before `Idempotency.execute/4` so a device already over
+  # budget is refused without ever touching the idempotency-receipt
+  # table -- a replay of an ALREADY-recorded request still short-
+  # circuits inside `Idempotency` itself the next time it's tried,
+  # since that path never re-runs `effect_fun`.
+  defp check_revision_rate_limit(device) do
+    case RateLimiter.hit(
+           Blobs.save_revision_rate_limit_key(device.id),
+           :timer.hours(1),
+           Blobs.save_revision_rate_limit_per_hour()
+         ) do
+      {:allow, _count} ->
+        :ok
+
+      {:deny, _retry_after} ->
+        {:error, {:rate_limited, "Too many save revisions committed this hour."}}
+    end
   end
 
   @doc """
