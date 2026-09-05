@@ -183,6 +183,9 @@ struct GameRowView: View {
                 onCancel: {
                     showsReclaimPrompt = false
                     quotaBlock = nil
+                },
+                onExportOnlyCopy: { ids in
+                    Task { await environment.openConsoleSavesExport(forAssetSetIDs: ids) }
                 }
             )
             .frame(minWidth: 460, minHeight: 320)

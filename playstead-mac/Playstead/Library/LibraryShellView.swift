@@ -258,7 +258,11 @@ struct LibraryShellView: View {
                         unreferencedObjects: snapshot.unreferenced,
                         quarantinedPartials: snapshot.quarantined,
                         onReclaim: { environment.reclaim(gameIDs: $0); storageRevision += 1 },
-                        onRemoveQuarantined: { environment.removeQuarantinedPartial(atPath: $0); storageRevision += 1 }
+                        onRemoveQuarantined: { environment.removeQuarantinedPartial(atPath: $0); storageRevision += 1 },
+                        onlyOnThisMacCounts: snapshot.onlyOnThisMacCounts,
+                        onExportOnlyCopy: { ids in
+                            Task { await environment.openConsoleSavesExport(forAssetSetIDs: ids) }
+                        }
                     )
                 }
             }
@@ -365,7 +369,15 @@ struct LibraryShellView: View {
                                 title: $0.displayTitle,
                                 systemID: $0.system,
                                 isUnidentified: LibraryViewModel.isUnidentified($0),
-                                statuses: [.serverOnly]
+                                // MC-03: unions the D-38 divergence badge
+                                // into the card's existing rank-1 rung —
+                                // `highestPriority` still picks
+                                // `.needsAttention` over `.serverOnly`
+                                // whenever both are present, never the
+                                // reverse.
+                                statuses: [LibraryStatus?.some(.serverOnly), LibraryStatus.forSaveState(
+                                    conflicted: environment.hasUnacknowledgedSaveDivergence(assetSetID: $0.id)
+                                )].compactMap { $0 }
                             )
                         },
                         layout: .grid,

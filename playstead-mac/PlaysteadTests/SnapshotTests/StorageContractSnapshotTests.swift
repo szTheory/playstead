@@ -158,11 +158,12 @@ private struct StorageContractSheet: View {
                             shortfallBytes: 48 * 1024 * 1024,
                             canRaiseQuota: true,
                             candidates: candidates.map {
-                                ReclaimCandidateRow(id: $0.id, title: $0.title, bytes: $0.bytes)
+                                ReclaimCandidateRow(id: $0.id, title: $0.title, bytes: $0.bytes, onlyOnThisMacCount: 0)
                             },
                             onRaiseQuota: {},
                             onReclaim: { _ in },
-                            onCancel: {}
+                            onCancel: {},
+                            onExportOnlyCopy: { _ in }
                         )
                         .dynamicTypeSize(.large)
                     }
@@ -183,7 +184,9 @@ private struct StorageContractSheet: View {
                                 QuarantinedPartial(path: "/synthetic/quarantine/partial.bin", bytes: 8 * 1024 * 1024)
                             ],
                             onReclaim: { _ in },
-                            onRemoveQuarantined: { _ in }
+                            onRemoveQuarantined: { _ in },
+                            onlyOnThisMacCounts: [:],
+                            onExportOnlyCopy: { _ in }
                         )
                     }
                     contractPanel("Storage — honest empty") {
@@ -196,7 +199,9 @@ private struct StorageContractSheet: View {
                             unreferencedObjects: [],
                             quarantinedPartials: [],
                             onReclaim: { _ in },
-                            onRemoveQuarantined: { _ in }
+                            onRemoveQuarantined: { _ in },
+                            onlyOnThisMacCounts: [:],
+                            onExportOnlyCopy: { _ in }
                         )
                     }
                 }

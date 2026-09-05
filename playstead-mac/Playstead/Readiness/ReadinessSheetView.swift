@@ -31,7 +31,28 @@ struct ReadinessSheetView: View {
     @State private var showsBiosDropTarget = false
     @State private var showsInputSettings = false
     @State private var showsSaveHistory = false
+    /// MC-06: shown instead of `SaveHistorySheet` when "Review
+    /// versions…" is reached for a genuinely diverged line — history and
+    /// comparison are different questions ("what happened" vs. "which
+    /// one do I keep"), and D-50 through D-55's comparison sheet is the
+    /// one built to answer the second.
+    @State private var showsConflictComparison = false
     @FocusState private var doneHasFocus: Bool
+
+    /// MC-05: the escalated-tier panel for this game, or `nil` when
+    /// nothing genuinely unfixable applies right now — computed fresh
+    /// from `SaveStore`/`Reachability` on every render (D-21).
+    private var onlyCopyEscalation: OnlyCopyEscalationResult? {
+        let count = environment.onlyOnThisMacCount(forAssetSetID: entry.id)
+        guard count > 0 else { return nil }
+        return OnlyCopyEscalation.evaluate(
+            OnlyCopyEscalationInput(
+                onlyOnThisMacCount: count,
+                title: entry.displayTitle,
+                failureClassification: environment.saveUploadFailureClassification()
+            )
+        )
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
@@ -40,6 +61,17 @@ struct ReadinessSheetView: View {
                 .foregroundColor(DesignTokens.textPrimary)
 
             ReadinessReportView(report: report, onRemedy: apply, onPlay: onPlay)
+
+            if let onlyCopyEscalation {
+                OnlyCopyEscalationPanel(
+                    escalation: onlyCopyEscalation,
+                    onFix: { onRefresh() },
+                    onExport: {
+                        Task { await environment.openConsoleSavesExport(forAssetSetIDs: [entry.id]) }
+                    },
+                    onWhatsStoredWhere: { showsSaveHistory = true }
+                )
+            }
 
             HStack(spacing: DesignTokens.Spacing.sm) {
                 Button("BIOS settings") { showsBiosDropTarget = true }
@@ -74,6 +106,28 @@ struct ReadinessSheetView: View {
                     title: entry.displayTitle,
                     sessions: saveHistorySessions(),
                     onClose: { showsSaveHistory = false }
+                )
+            }
+            if showsConflictComparison {
+                Divider()
+                ConflictComparisonSheet(
+                    title: entry.displayTitle,
+                    sides: environment.conflictSides(forAssetSetID: entry.id),
+                    thisDeviceOrigin: Self.thisDeviceOrigin,
+                    onChoose: { chosenRevisionID in
+                        environment.resolveSaveDivergence(assetSetID: entry.id, chosenRevisionID: chosenRevisionID)
+                        showsConflictComparison = false
+                        onRefresh()
+                    },
+                    onExport: { _ in
+                        Task { await environment.openConsoleSavesExport(forAssetSetIDs: [entry.id]) }
+                    },
+                    onKeepBoth: {
+                        environment.acknowledgeSaveDivergence(assetSetID: entry.id, thisDeviceOrigin: Self.thisDeviceOrigin)
+                        showsConflictComparison = false
+                        onRefresh()
+                    },
+                    onClose: { showsConflictComparison = false }
                 )
             }
 
@@ -121,8 +175,24 @@ struct ReadinessSheetView: View {
             environment.repairSaveDirectory(for: entry)
             onRefresh()
         case .reviewSaveVersions:
-            showsSaveHistory = true
+            // MC-06: a genuine, undisposed fork opens the comparison
+            // sheet D-50 through D-55 built to resolve exactly this —
+            // never `SaveHistorySheet`, which answers a different
+            // question ("what happened", not "which one do I keep").
+            if environment.hasUnacknowledgedSaveDivergence(assetSetID: entry.id) {
+                showsConflictComparison = true
+            } else {
+                showsSaveHistory = true
+            }
             onReviewSaveVersions()
         }
     }
+
+    /// This device's display name for `ConflictComparisonSheet`'s
+    /// "Keep both" explainer and `SaveConflictResolver`'s resolution
+    /// result — no device-name registry exists on this client yet
+    /// (`LaunchSaveContextBuilder` falls back to the raw device id for
+    /// the same reason), so this mirrors the literal placeholder this
+    /// file family's own UI-testing harness already uses.
+    private static let thisDeviceOrigin = "This Mac"
 }

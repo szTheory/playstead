@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// App entry point. SwiftUI lifecycle, macOS 14.0 deployment target.
 ///
@@ -291,6 +292,18 @@ final class AppEnvironment {
     let outbox: Outbox
     let syncEngine: SyncEngine
     let outboxWorker: OutboxWorker
+    /// The single shared `SaveStore`/`SaveOutbox`/`SaveConflictResolver`
+    /// instances every save-safety surface below reads and writes —
+    /// before this (MC-01..MC-06), no surface but `SyncEngine`'s own
+    /// private journal-apply store and `GameRowView`'s ad hoc
+    /// launch-path instance existed, so `ReclaimPromptView`,
+    /// `StorageView`, `ReadinessEngine`'s save row, the card's
+    /// divergence badge, `OnlyCopyEscalationPanel` and
+    /// `ConflictComparisonSheet` had no committed local state to read at
+    /// all.
+    let saveStore: SaveStore
+    let saveOutbox: SaveOutbox
+    let saveConflictResolver: SaveConflictResolver
     /// The one place drains are started from — see `OutboxDrainTrigger`.
     let drainTrigger: OutboxDrainTrigger
     let playSessionRecorder: PlaySessionRecorder
@@ -394,6 +407,12 @@ final class AppEnvironment {
         self.syncEngine = syncEngine
         self.outboxWorker = worker
         self.playSessionRecorder = recorder
+
+        let saveStore = SaveStore(localStore: store)
+        let saveOutbox = SaveOutbox(localStore: store)
+        self.saveStore = saveStore
+        self.saveOutbox = saveOutbox
+        self.saveConflictResolver = SaveConflictResolver(saveStore: saveStore, saveOutbox: saveOutbox)
 
         self.libraryViewModel = LibraryViewModel(
             catalogueStore: catalogueStore, curationStore: curationStore, syncEngine: syncEngine
@@ -717,6 +736,9 @@ final class AppEnvironment {
         let biosRequired = adapterCatalog?.descriptor.biosRequired ?? false
         let hasBIOS = biosStore.hasManagedBIOS(forSystem: entry.system)
         let hasController = controllerHost.hasAnyController
+        // MC-04: read once, by value, for the same actor-hopping reason
+        // every other dependency above is captured by value.
+        let saveState = saveReadinessCase(for: entry)
 
         let engine = ReadinessEngine(
             cas: casManager,
@@ -725,7 +747,8 @@ final class AppEnvironment {
             biosRequired: biosRequired,
             hasManagedBIOS: { hasBIOS },
             hasController: { hasController },
-            saveDirectoryURL: saveDirectory
+            saveDirectoryURL: saveDirectory,
+            saveReadiness: { saveState }
         )
         return engine.evaluate(
             assetSetID: entry.id, requiredMembers: Self.requiredMembers(of: entry)
@@ -741,6 +764,179 @@ final class AppEnvironment {
             guard let sha256 = member.sha256, let size = member.size else { return nil }
             return RequiredMember(sha256: sha256, size: size)
         }
+    }
+
+    // MARK: - Save state (MC-01..MC-06): the single seam every save-safety
+    // surface below reads from `SaveStore`'s committed rows.
+
+    /// The content key a save line is keyed by for `entry` (D-10) — the
+    /// ROM's own sha256 when known, exactly matching `GameRowView`'s own
+    /// launch-path resolution (`members.first?.sha256 ?? entry.id`),
+    /// never `entry.id` alone when a real digest is available.
+    static func saveContentKey(for entry: CatalogueEntry) -> String {
+        Self.requiredMembers(of: entry).first?.sha256 ?? entry.id
+    }
+
+    private func saveLine(for entry: CatalogueEntry) -> SaveLineRow? {
+        saveStore.fetchLine(contentKey: Self.saveContentKey(for: entry), saveKind: "battery", slot: "0")
+    }
+
+    private func catalogueEntry(assetSetID: String) -> CatalogueEntry? {
+        catalogueStore.fetchAll().first { $0.id == assetSetID }
+    }
+
+    /// D-40's per-game only-copy input (MC-01): how many of this game's
+    /// save revisions are not yet durable anywhere but this Mac, read
+    /// from `SaveStore`'s committed `durability` column — never from a
+    /// download/upload lane's in-flight, optimistic state. A revision
+    /// with an upload queued but not yet confirmed `uploaded` still
+    /// counts: `OnlyCopyInterruptiveSheet`'s own doc comment requires
+    /// computing this from durable rows, never a pending upload's
+    /// assumed outcome, so an upload in flight for this line must not
+    /// zero out the count early.
+    func onlyOnThisMacCount(forAssetSetID assetSetID: String) -> Int {
+        guard let entry = catalogueEntry(assetSetID: assetSetID) else { return 0 }
+        return onlyOnThisMacCount(for: entry)
+    }
+
+    private func onlyOnThisMacCount(for entry: CatalogueEntry) -> Int {
+        guard let line = saveLine(for: entry) else { return 0 }
+        return saveStore.fetchRevisions(saveLineID: line.id)
+            .filter { $0.durability != SaveDurability.uploaded.rawValue }
+            .count
+    }
+
+    /// D-38/MC-03: whether `assetSetID`'s save line is a genuine,
+    /// undisposed fork right now — the boolean `LibraryStatus
+    /// .forSaveState(conflicted:)` unions into the card's rank-1 rung.
+    /// Reads `SaveStore` fresh on every call (D-21), never remembered
+    /// state.
+    func hasUnacknowledgedSaveDivergence(assetSetID: String) -> Bool {
+        guard let entry = catalogueEntry(assetSetID: assetSetID), let line = saveLine(for: entry) else { return false }
+        let heads = saveStore.fetchHeads(saveLineID: line.id).map(\.id)
+        let disposed = saveStore.fetchForkDisposition(saveLineID: line.id)?.headRevisionIDs
+        return SaveAttentionSource.hasUnacknowledgedDivergence(headRevisionIDs: heads, disposedHeadIDs: disposed)
+    }
+
+    /// D-37/MC-04: the real `SaveReadinessCase` for `entry`, computed
+    /// from `SaveStore`'s committed heads instead of the engine's
+    /// `.noSavesYet` placeholder default. `.serverHasNewer` is
+    /// deliberately not produced here — distinguishing it from
+    /// `.localOnlyReachable` needs per-device session context this
+    /// client doesn't track yet (documented limitation, not a silent
+    /// stub: every other real case, including the higher-priority
+    /// `.twoVersions` warning D-46 requires never blocks, is computed).
+    func saveReadinessCase(for entry: CatalogueEntry) -> SaveReadinessCase {
+        guard let line = saveLine(for: entry) else { return .noSavesYet }
+        let heads = saveStore.fetchHeads(saveLineID: line.id)
+        guard !heads.isEmpty else { return .noSavesYet }
+        if SaveStateModel.isConflicted(headRevisionIDs: heads.map(\.id)) {
+            return .twoVersions
+        }
+        guard let head = heads.first else { return .noSavesYet }
+        if head.durability == SaveDurability.uploaded.rawValue {
+            return .uploadedAndCurrent
+        }
+        return reachability.isOnline ? .localOnlyReachable : .localOnlyExpectedOffline
+    }
+
+    /// D-32/D-40/MC-05: the escalated-tier failure classification this
+    /// Mac can currently determine on its own. `.offlineQueue` when
+    /// unreachable (D-40: an offline queue must never escalate);
+    /// `.none` otherwise. The four genuinely unfixable reasons (revoked
+    /// auth, capability skew, server refusal, compatibility rejection)
+    /// need `SaveUploadLane`'s own failure classification, which has no
+    /// production output yet — a distinct, pre-existing gap (mac2
+    /// review WR-04) this function does not itself close. This is the
+    /// real call site a future plan plugs that signal into; wiring a
+    /// second one later would be the second-export-mechanism mistake
+    /// this plan was told to avoid, applied to escalation instead.
+    func saveUploadFailureClassification() -> SaveUploadFailureClassification {
+        reachability.isOnline ? .none : .offlineQueue
+    }
+
+    /// D-50 through D-55/MC-06: the real `ConflictSide` array for a
+    /// diverged game, read from `SaveStore`'s current heads.
+    /// Play-time-since-the-split has no client-side computation yet (no
+    /// per-device session/fork association exists in this schema), so
+    /// every side renders the "No recorded play here" fallback — the
+    /// same honest limitation plan 04-10's console comparison panel
+    /// documents for the identical reason, not a fabricated number.
+    func conflictSides(forAssetSetID assetSetID: String) -> [ConflictSide] {
+        guard let entry = catalogueEntry(assetSetID: assetSetID), let line = saveLine(for: entry) else { return [] }
+        let heads = saveStore.fetchHeads(saveLineID: line.id)
+        let disposition = saveStore.fetchForkDisposition(saveLineID: line.id)
+        return heads.map { row in
+            ConflictSide(
+                id: row.id,
+                origin: row.originDeviceID ?? "another device",
+                lastSaved: Self.relativeSaveDescription(for: row),
+                playTimeSinceSplit: SaveVocabulary.compareSideLine2NoSessions,
+                sinceSplitCount: 0,
+                hasClockCaveat: false,
+                isDownloaded: casManager.contains(row.blobSHA256),
+                isChosen: disposition?.action == .choose && disposition?.chosenRevisionID == row.id,
+                digest: row.blobSHA256
+            )
+        }
+    }
+
+    private static func relativeSaveDescription(for row: SaveRevisionRow) -> String {
+        guard let recordedAt = row.recordedAt, let date = ISO8601DateFormatter().date(from: recordedAt) else {
+            return "recently"
+        }
+        return RelativeDateTimeFormatter().localizedString(for: date, relativeTo: Date())
+    }
+
+    /// MC-06: "Continue from this one" — the exact `SaveConflictResolver
+    /// .chooseSide` call `ConflictComparisonSheet`'s production caller
+    /// makes; appends a disposition, never deletes a head (D-48/D-49).
+    @discardableResult
+    func resolveSaveDivergence(assetSetID: String, chosenRevisionID: String) -> SaveConflictResolution? {
+        guard let entry = catalogueEntry(assetSetID: assetSetID), let line = saveLine(for: entry) else { return nil }
+        let heads = saveStore.fetchHeads(saveLineID: line.id).map(\.id)
+        return try? saveConflictResolver.chooseSide(
+            saveLineID: line.id, chosenRevisionID: chosenRevisionID, headRevisionIDs: heads,
+            originName: { [saveStore] id in saveStore.fetchRevision(id: id)?.originDeviceID ?? "another device" }
+        )
+    }
+
+    /// MC-06: "Keep both" — the exact `SaveConflictResolver.keepBoth`
+    /// call; every head stays standing, and the fork is marked disposed
+    /// so it is never re-raised for this exact head set (D-52).
+    @discardableResult
+    func acknowledgeSaveDivergence(assetSetID: String, thisDeviceOrigin: String) -> SaveConflictResolution? {
+        guard let entry = catalogueEntry(assetSetID: assetSetID), let line = saveLine(for: entry) else { return nil }
+        let heads = saveStore.fetchHeads(saveLineID: line.id).map(\.id)
+        return try? saveConflictResolver.keepBoth(
+            saveLineID: line.id, headRevisionIDs: heads, thisDeviceOrigin: thisDeviceOrigin
+        )
+    }
+
+    /// MC-02's escape hatch: the console's saves-scope export surface
+    /// (plan 04-10's `/saves/:id` `SavesLive`) for the game's own save
+    /// line — pure, so a test can assert the exact destination with no
+    /// `NSWorkspace` side effect. `nil` when unpaired or no save line
+    /// has been committed for this game yet.
+    func consoleSavesExportURL(forAssetSetID assetSetID: String, baseURL: URL) -> URL? {
+        guard let entry = catalogueEntry(assetSetID: assetSetID), let line = saveLine(for: entry) else { return nil }
+        return baseURL.appendingPathComponent("saves").appendingPathComponent(line.id)
+    }
+
+    /// MC-02: opens the real escape hatch in the user's browser. Never a
+    /// second export mechanism — this reuses plan 04-10's `/saves/:id`
+    /// page exactly as `OnlyCopyEscalation`'s own "Export saves…"
+    /// control is meant to. Narrowed to the first affected game per
+    /// D-62 (no per-revision/bulk export target exists in the shipped
+    /// `Export.SavesPlan` pipeline yet — see 04-10-SUMMARY.md).
+    func openConsoleSavesExport(forAssetSetIDs assetSetIDs: Set<String>) async {
+        guard let firstID = assetSetIDs.sorted().first,
+              let apiClient, let credential = await apiClient.credential,
+              let url = consoleSavesExportURL(forAssetSetID: firstID, baseURL: credential.baseURL)
+        else { return }
+#if !UI_TESTING
+        NSWorkspace.shared.open(url)
+#endif
     }
 
     /// Recreates the save directory a `repairSaveDirectory` remedy points
@@ -865,6 +1061,11 @@ final class AppEnvironment {
         let pinnedGames: [PinnedGameRow]
         let unreferenced: [UnreferencedObject]
         let quarantined: [QuarantinedPartial]
+        /// D-40's interruptive-tier input (MC-01), keyed by candidate id
+        /// — real counts read from `SaveStore`, never the empty `[:]`
+        /// `StorageView` used to be handed. A candidate absent here (or
+        /// present with `0`) raises no interruptive modal when reclaimed.
+        let onlyOnThisMacCounts: [String: Int]
     }
 
     func storageSnapshot() -> StorageSnapshot {
@@ -872,21 +1073,32 @@ final class AppEnvironment {
         let pinned = pinStore.allPinned().sorted().map {
             PinnedGameRow(id: $0, title: titles[$0] ?? $0)
         }
+        let candidates = evictionPlanner.candidates()
+        let counts = Dictionary(uniqueKeysWithValues: candidates.compactMap { candidate -> (String, Int)? in
+            let count = onlyOnThisMacCount(forAssetSetID: candidate.id)
+            return count > 0 ? (candidate.id, count) : nil
+        })
         return StorageSnapshot(
             policy: quotaManager.policy(),
             usedBytes: quotaManager.usedBytes(),
-            candidates: evictionPlanner.candidates(),
+            candidates: candidates,
             pinnedGames: pinned,
             unreferenced: evictionPlanner.unreferencedObjects(),
-            quarantined: evictionPlanner.quarantinedPartials()
+            quarantined: evictionPlanner.quarantinedPartials(),
+            onlyOnThisMacCounts: counts
         )
     }
 
     /// The reclaim candidates in `ReclaimPromptView`'s own row shape —
     /// the prompt deliberately does not depend on `EvictionCandidate`.
+    /// MC-01: `onlyOnThisMacCount` is now the real count read from
+    /// `SaveStore`, never the zero default.
     func reclaimCandidateRows() -> [ReclaimCandidateRow] {
         evictionPlanner.candidates().map {
-            ReclaimCandidateRow(id: $0.id, title: $0.title, bytes: $0.bytes)
+            ReclaimCandidateRow(
+                id: $0.id, title: $0.title, bytes: $0.bytes,
+                onlyOnThisMacCount: onlyOnThisMacCount(forAssetSetID: $0.id)
+            )
         }
     }
 

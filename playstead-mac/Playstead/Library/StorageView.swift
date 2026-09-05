@@ -44,10 +44,21 @@ struct StorageView: View {
     /// of that game's save revisions exist only on this Mac, read from
     /// committed local state. A candidate with no entry (or a zero
     /// entry) raises no interruptive modal when reclaimed.
-    var onlyOnThisMacCounts: [String: Int] = [:]
+    ///
+    /// No default (MC-01): a defaulted `[:]` here is exactly how the one
+    /// production call site silently omitted it and the D-40 gate went
+    /// permanently dark. Every caller must now supply a real map or fail
+    /// to compile.
+    var onlyOnThisMacCounts: [String: Int]
+    /// MC-02: the real escape hatch — invoked with the affected
+    /// candidate ids when the user chooses "Export saves…" instead of
+    /// the destructive action. Required (no default), for the same
+    /// silent-omission reason as `onlyOnThisMacCounts` above.
+    let onExportOnlyCopy: (Set<String>) -> Void
 
     @State private var selected: Set<String> = []
     @State private var pendingSelection: Set<String>?
+    @State private var pendingExportCandidateIDs: Set<String> = []
     @State private var pendingOnlyOnThisMacCount = 0
     @State private var pendingOnlyOnThisMacTitle = ""
     @State private var showOnlyCopyInterruption = false
@@ -175,6 +186,7 @@ struct StorageView: View {
                     let onlyOnThisMacCount = affected.reduce(0) { $0 + (onlyOnThisMacCounts[$1.id] ?? 0) }
                     if OnlyCopyInterruptionGate.shouldPresent(onlyOnThisMacCount: onlyOnThisMacCount) {
                         pendingSelection = selection
+                        pendingExportCandidateIDs = Set(affected.map(\.id))
                         pendingOnlyOnThisMacCount = onlyOnThisMacCount
                         pendingOnlyOnThisMacTitle = affected.count == 1 ? affected[0].title : "\(affected.count) games"
                         showOnlyCopyInterruption = true
@@ -243,7 +255,13 @@ struct StorageView: View {
                 onlyOnThisMacCount: pendingOnlyOnThisMacCount,
                 title: pendingOnlyOnThisMacTitle,
                 onExport: {
+                    // MC-02: the default button must do the real export
+                    // and clear the deferred destructive selection —
+                    // see `ReclaimPromptView`'s identical fix.
                     showOnlyCopyInterruption = false
+                    onExportOnlyCopy(pendingExportCandidateIDs)
+                    pendingSelection = nil
+                    pendingExportCandidateIDs = []
                 },
                 onCancel: {
                     showOnlyCopyInterruption = false

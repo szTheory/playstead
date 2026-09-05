@@ -10,9 +10,14 @@ struct ReclaimCandidateRow: Identifiable, Equatable {
     let bytes: Int
     /// D-40's interruptive-tier input: how many of this game's save
     /// revisions exist only on this Mac, read from committed local
-    /// state. Zero (the default) means reclaiming this candidate raises
-    /// no interruptive modal at all.
-    var onlyOnThisMacCount: Int = 0
+    /// state. Zero means reclaiming this candidate raises no
+    /// interruptive modal at all.
+    ///
+    /// No default (MC-01): a defaulted zero here is precisely how three
+    /// separate production call sites each silently omitted it and the
+    /// D-40 gate went permanently dark. Every caller must now supply a
+    /// real value or fail to compile.
+    var onlyOnThisMacCount: Int
 }
 
 /// Shown when `DownloadCoordinator` reports a blocked `QuotaVerdict`.
@@ -29,9 +34,16 @@ struct ReclaimPromptView: View {
     let onRaiseQuota: () -> Void
     let onReclaim: (Set<String>) -> Void
     let onCancel: () -> Void
+    /// MC-02: the real escape hatch — invoked with the affected
+    /// candidate ids when the user chooses "Export saves…" instead of
+    /// the destructive action. Required (no default): a caller that
+    /// forgets to wire this is the same silent-omission failure mode
+    /// MC-02 was.
+    let onExportOnlyCopy: (Set<String>) -> Void
 
     @State private var selected: Set<String> = []
     @State private var pendingSelection: Set<String>?
+    @State private var pendingExportCandidateIDs: Set<String> = []
     @State private var pendingOnlyOnThisMacCount = 0
     @State private var pendingOnlyOnThisMacTitle = ""
     @State private var showOnlyCopyInterruption = false
@@ -127,6 +139,7 @@ struct ReclaimPromptView: View {
                     let onlyOnThisMacCount = affected.reduce(0) { $0 + $1.onlyOnThisMacCount }
                     if OnlyCopyInterruptionGate.shouldPresent(onlyOnThisMacCount: onlyOnThisMacCount) {
                         pendingSelection = selection
+                        pendingExportCandidateIDs = Set(affected.map(\.id))
                         pendingOnlyOnThisMacCount = onlyOnThisMacCount
                         pendingOnlyOnThisMacTitle = affected.count == 1 ? affected[0].title : "\(affected.count) games"
                         showOnlyCopyInterruption = true
@@ -155,7 +168,16 @@ struct ReclaimPromptView: View {
                 onlyOnThisMacCount: pendingOnlyOnThisMacCount,
                 title: pendingOnlyOnThisMacTitle,
                 onExport: {
+                    // MC-02: the default, safest-looking button must do
+                    // the real export, not just close the sheet — and
+                    // clearing `pendingSelection` here (not just in the
+                    // cancel/remove-anyway branches) is what stops the
+                    // deferred destructive action from ever firing after
+                    // the user chose the safe path instead.
                     showOnlyCopyInterruption = false
+                    onExportOnlyCopy(pendingExportCandidateIDs)
+                    pendingSelection = nil
+                    pendingExportCandidateIDs = []
                 },
                 onCancel: {
                     showOnlyCopyInterruption = false
