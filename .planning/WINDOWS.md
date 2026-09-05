@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 31
+open_count: 32
 waived_count: 1
-fixed_count: 5
-total_count: 37
-last_updated: 2026-09-05T01:50:48.874Z
+fixed_count: 6
+total_count: 39
+last_updated: 2026-09-05T02:28:02.935Z
 ---
 
 # Broken Windows Ledger
@@ -51,7 +51,9 @@ last_updated: 2026-09-05T01:50:48.874Z
 | 34 | 04 | unrun-verify | playstead-mac/PlaysteadUITests/ConflictResolutionInteractionTests.swift |  | UI-layer keyboard-interaction verification requires the centrally orchestrated hosted macOS runner; local execution is disabled by the project's login-Keychain launch guard (mirrors WINDOWS #9/#10 precedent) | open |  | 2026-09-04T20:20:49.696Z |  |
 | 35 | 04 | deviation | playstead-mac/Playstead/Saves/OnlyCopyInterruptiveSheet.swift |  | Unpair, sign out, and delete game have no production entry point yet in this codebase; only remove-local-copy (ReclaimPromptView) and eviction (StorageView) are wired to the interruptive gate. The sheet and gate are built, tested, and reusable for whichever future plan adds those three call sites. | open |  | 2026-09-05T01:12:59.522Z |  |
 | 36 | 04 | unrun-verify | playstead-mac/PlaysteadUITests/OnlyCopyInterruptionTests.swift |  | UI-layer keyboard-interaction verification requires the centrally orchestrated hosted macOS runner; local execution is disabled by the project's login-Keychain launch guard (mirrors WINDOWS #9/#10/#34 precedent). | open |  | 2026-09-05T01:12:59.615Z |  |
-| 37 | 04 | deviation | playstead-mac/Playstead/Library/GameRowView.swift |  | LaunchSavePlanner/SavePlanExecutor are still not wired into GameRowView.play() -- AdapterHost.launch's executeSavePlan closure exists (04-07) but no call site passes one; 04-07-SUMMARY.md named plan 04-13 as the downstream consumer, but 04-13's declared task scope (files_modified) is limited to the two new proof tests, the two xctestplans, and run-mac-verification.sh, so this wiring remains open | open |  | 2026-09-05T01:50:48.874Z |  |
+| 37 | 04 | deviation | playstead-mac/Playstead/Library/GameRowView.swift |  | LaunchSavePlanner/SavePlanExecutor are still not wired into GameRowView.play() -- AdapterHost.launch's executeSavePlan closure exists (04-07) but no call site passes one; 04-07-SUMMARY.md named plan 04-13 as the downstream consumer, but 04-13's declared task scope (files_modified) is limited to the two new proof tests, the two xctestplans, and run-mac-verification.sh, so this wiring remains open | fixed |  | 2026-09-05T01:50:48.874Z | 2026-09-05T02:27:54.263Z |
+| 38 | 04 | stub | playstead-mac/Playstead/Saves/LaunchSaveEnvironment.swift |  | captureExistingFile commits pre-existing save bytes into the CAS for durability but does not create a SaveStore revision row, so a pre-restore capture on the launch path is not yet visible in SaveHistorySheet (04-14) | open |  | 2026-09-05T02:28:02.845Z |  |
+| 39 | 04 | stub | playstead-mac/Playstead/Library/GameRowView.swift |  | SaveLaunchNotice from the launch-path save plan is held on GameRowView's saveLaunchNotice @State but not yet rendered -- no detail view with a Save section exists yet in this codebase to surface it inline into (04-14) | open |  | 2026-09-05T02:28:02.935Z |  |
 
 ````json
 [
@@ -494,9 +496,33 @@ last_updated: 2026-09-05T01:50:48.874Z
     "file": "playstead-mac/Playstead/Library/GameRowView.swift",
     "line": null,
     "description": "LaunchSavePlanner/SavePlanExecutor are still not wired into GameRowView.play() -- AdapterHost.launch's executeSavePlan closure exists (04-07) but no call site passes one; 04-07-SUMMARY.md named plan 04-13 as the downstream consumer, but 04-13's declared task scope (files_modified) is limited to the two new proof tests, the two xctestplans, and run-mac-verification.sh, so this wiring remains open",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-05T01:50:48.874Z",
+    "resolved_at": "2026-09-05T02:27:54.263Z"
+  },
+  {
+    "id": 38,
+    "kind": "stub",
+    "phase": "04",
+    "file": "playstead-mac/Playstead/Saves/LaunchSaveEnvironment.swift",
+    "line": null,
+    "description": "captureExistingFile commits pre-existing save bytes into the CAS for durability but does not create a SaveStore revision row, so a pre-restore capture on the launch path is not yet visible in SaveHistorySheet (04-14)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-05T02:28:02.845Z",
+    "resolved_at": null
+  },
+  {
+    "id": 39,
+    "kind": "stub",
+    "phase": "04",
+    "file": "playstead-mac/Playstead/Library/GameRowView.swift",
+    "line": null,
+    "description": "SaveLaunchNotice from the launch-path save plan is held on GameRowView's saveLaunchNotice @State but not yet rendered -- no detail view with a Save section exists yet in this codebase to surface it inline into (04-14)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-05T02:28:02.935Z",
     "resolved_at": null
   }
 ]
