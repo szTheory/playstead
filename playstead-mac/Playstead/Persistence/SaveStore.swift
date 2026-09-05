@@ -304,6 +304,14 @@ final class SaveStore {
         fetchRevisions(matching: "durability = ?", params: [durability.rawValue])
     }
 
+    /// Every revision recorded for one save line, in insertion order --
+    /// what `LaunchSaveContextBuilder` (plan 04-14) walks to derive
+    /// `ancestorDigests` for D-44's fast-forward safety check and
+    /// `knownDigests` for the "found and kept" launch-path notice.
+    func fetchRevisions(saveLineID: String) -> [SaveRevisionRow] {
+        fetchRevisions(matching: "save_line_id = ?", params: [saveLineID])
+    }
+
     func fetchAllRevisions() -> [SaveRevisionRow] {
         fetchRevisions(matching: "1 = 1", params: [])
     }
