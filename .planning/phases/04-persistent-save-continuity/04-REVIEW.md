@@ -46,6 +46,8 @@ recorded here — each claim below was re-derived from the code, not taken on re
 
 ### CR-01 — A parent revision is scoped to the user but not to the save line
 
+**Fixed:** plan 04-15, commit `0a716f6`.
+
 `playstead-server/lib/playstead/saves.ex:164-174`. `resolve_parent/2` resolves a
 client-submitted `parent_revision_id` with
 `Repo.get_by(Revision, id: parent_revision_id, user_id: user_id)` — it confirms the parent
@@ -62,6 +64,8 @@ ancestor-chain and "since the split" logic.
 database constraint so the invariant is enforced where it cannot be bypassed.
 
 ### CR-02 — D-33's save rate limit and upload concurrency are defined but never applied
+
+**Fixed:** plan 04-15, commit `2f2f2ac`.
 
 `playstead-server/lib/playstead/blobs.ex` defines `save_revision_rate_limit_per_hour/0`
 (120), `save_revision_rate_limit_key/1`, `save_upload_slot_key/1` and
