@@ -8,6 +8,11 @@ struct ReclaimCandidateRow: Identifiable, Equatable {
     let id: String
     let title: String
     let bytes: Int
+    /// D-40's interruptive-tier input: how many of this game's save
+    /// revisions exist only on this Mac, read from committed local
+    /// state. Zero (the default) means reclaiming this candidate raises
+    /// no interruptive modal at all.
+    var onlyOnThisMacCount: Int = 0
 }
 
 /// Shown when `DownloadCoordinator` reports a blocked `QuotaVerdict`.
@@ -26,6 +31,10 @@ struct ReclaimPromptView: View {
     let onCancel: () -> Void
 
     @State private var selected: Set<String> = []
+    @State private var pendingSelection: Set<String>?
+    @State private var pendingOnlyOnThisMacCount = 0
+    @State private var pendingOnlyOnThisMacTitle = ""
+    @State private var showOnlyCopyInterruption = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     static func formatBytes(_ bytes: Int) -> String {
@@ -114,8 +123,17 @@ struct ReclaimPromptView: View {
 
                 Button("Reclaim selected") {
                     let selection = selected
-                    selected.removeAll()
-                    onReclaim(selection)
+                    let affected = candidates.filter { selection.contains($0.id) && $0.onlyOnThisMacCount > 0 }
+                    let onlyOnThisMacCount = affected.reduce(0) { $0 + $1.onlyOnThisMacCount }
+                    if OnlyCopyInterruptionGate.shouldPresent(onlyOnThisMacCount: onlyOnThisMacCount) {
+                        pendingSelection = selection
+                        pendingOnlyOnThisMacCount = onlyOnThisMacCount
+                        pendingOnlyOnThisMacTitle = affected.count == 1 ? affected[0].title : "\(affected.count) games"
+                        showOnlyCopyInterruption = true
+                    } else {
+                        selected.removeAll()
+                        onReclaim(selection)
+                    }
                 }
                     .disabled(selected.isEmpty)
                     .playsteadFocusable(identifier: Automation.confirm)
@@ -132,5 +150,26 @@ struct ReclaimPromptView: View {
             .easeInOut(duration: StorageMotionContract.duration(for: .eviction, reduceMotion: reduceMotion)),
             value: candidates.count
         )
+        .sheet(isPresented: $showOnlyCopyInterruption) {
+            OnlyCopyInterruptiveSheet(
+                onlyOnThisMacCount: pendingOnlyOnThisMacCount,
+                title: pendingOnlyOnThisMacTitle,
+                onExport: {
+                    showOnlyCopyInterruption = false
+                },
+                onCancel: {
+                    showOnlyCopyInterruption = false
+                    pendingSelection = nil
+                },
+                onRemoveAnyway: {
+                    showOnlyCopyInterruption = false
+                    if let pendingSelection {
+                        selected.removeAll()
+                        onReclaim(pendingSelection)
+                    }
+                    self.pendingSelection = nil
+                }
+            )
+        }
     }
 }

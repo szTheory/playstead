@@ -19,6 +19,10 @@ struct PlaysteadApp: App {
                 UITestProfileRootView()
             } else if ProcessInfo.processInfo.environment["PLAYSTEAD_UI_TEST_CONFLICT_COMPARISON"] == "1" {
                 ConflictComparisonHarnessRootView()
+            } else if ProcessInfo.processInfo.environment["PLAYSTEAD_UI_TEST_ONLY_COPY_INTERRUPTION"] != nil {
+                OnlyCopyInterruptionHarnessRootView()
+            } else if ProcessInfo.processInfo.environment["PLAYSTEAD_UI_TEST_ONLY_COPY_NEUTRAL"] == "1" {
+                OnlyCopyInterruptionNeutralHarnessRootView()
             } else if ProcessInfo.processInfo.environment["PLAYSTEAD_WAVE_0_LAUNCH_CANARY"] == "1" {
                 HostedRunnerLaunchCanaryView()
             } else if ProcessInfo.processInfo.environment["PLAYSTEAD_WAVE_0_FOCUS_CANARY"] == "1" {

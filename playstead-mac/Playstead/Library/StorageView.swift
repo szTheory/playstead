@@ -40,8 +40,17 @@ struct StorageView: View {
     let quarantinedPartials: [QuarantinedPartial]
     let onReclaim: (Set<String>) -> Void
     let onRemoveQuarantined: (String) -> Void
+    /// D-40's interruptive-tier input, keyed by candidate id: how many
+    /// of that game's save revisions exist only on this Mac, read from
+    /// committed local state. A candidate with no entry (or a zero
+    /// entry) raises no interruptive modal when reclaimed.
+    var onlyOnThisMacCounts: [String: Int] = [:]
 
     @State private var selected: Set<String> = []
+    @State private var pendingSelection: Set<String>?
+    @State private var pendingOnlyOnThisMacCount = 0
+    @State private var pendingOnlyOnThisMacTitle = ""
+    @State private var showOnlyCopyInterruption = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     static func formatBytes(_ bytes: Int) -> String {
@@ -160,8 +169,19 @@ struct StorageView: View {
                     .accessibilityIdentifier(Automation.selection)
                 Button("Reclaim selected") {
                     let selection = selected
-                    selected.removeAll()
-                    onReclaim(selection)
+                    let affected = candidates.filter { candidate in
+                        selection.contains(candidate.id) && (onlyOnThisMacCounts[candidate.id] ?? 0) > 0
+                    }
+                    let onlyOnThisMacCount = affected.reduce(0) { $0 + (onlyOnThisMacCounts[$1.id] ?? 0) }
+                    if OnlyCopyInterruptionGate.shouldPresent(onlyOnThisMacCount: onlyOnThisMacCount) {
+                        pendingSelection = selection
+                        pendingOnlyOnThisMacCount = onlyOnThisMacCount
+                        pendingOnlyOnThisMacTitle = affected.count == 1 ? affected[0].title : "\(affected.count) games"
+                        showOnlyCopyInterruption = true
+                    } else {
+                        selected.removeAll()
+                        onReclaim(selection)
+                    }
                 }
                 .disabled(selected.isEmpty)
                 .playsteadFocusable(identifier: Automation.reclaim)
@@ -218,5 +238,26 @@ struct StorageView: View {
             .easeInOut(duration: StorageMotionContract.duration(for: .eviction, reduceMotion: reduceMotion)),
             value: totalUsedBytes
         )
+        .sheet(isPresented: $showOnlyCopyInterruption) {
+            OnlyCopyInterruptiveSheet(
+                onlyOnThisMacCount: pendingOnlyOnThisMacCount,
+                title: pendingOnlyOnThisMacTitle,
+                onExport: {
+                    showOnlyCopyInterruption = false
+                },
+                onCancel: {
+                    showOnlyCopyInterruption = false
+                    pendingSelection = nil
+                },
+                onRemoveAnyway: {
+                    showOnlyCopyInterruption = false
+                    if let pendingSelection {
+                        selected.removeAll()
+                        onReclaim(pendingSelection)
+                    }
+                    self.pendingSelection = nil
+                }
+            )
+        }
     }
 }
