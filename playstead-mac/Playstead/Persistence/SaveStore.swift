@@ -191,6 +191,19 @@ final class SaveStore {
 
     // MARK: - Save revision
 
+    // WR-01: `manifest_digest`, `session_id` and `artifact_set_json`
+    // are nullable local-only columns the server never populates
+    // (`JournalApplier.applySave`'s `SavePayload` carries none of
+    // them). `COALESCE(excluded.col, save_revision.col)` is a
+    // defense-in-depth backstop so a caller that omits a real value
+    // for one of them on an update never blanks a value already
+    // recorded -- the primary fix is `applySave` itself now carrying
+    // an existing row's values forward explicitly. `tier` and `origin`
+    // are NOT NULL columns with non-optional Swift defaults
+    // (`SaveRevisionRow.tier`/`.origin` are never actually `nil`), so
+    // `COALESCE` on `excluded.tier`/`excluded.origin` would never
+    // trigger -- their correctness depends entirely on the caller
+    // passing the right value, which `applySave` now does.
     func insertRevision(_ row: SaveRevisionRow) throws {
         try localStore.connection.execute(
             """
@@ -220,9 +233,9 @@ final class SaveStore {
                 local_path = excluded.local_path,
                 tier = excluded.tier,
                 origin = excluded.origin,
-                manifest_digest = excluded.manifest_digest,
-                session_id = excluded.session_id,
-                artifact_set_json = excluded.artifact_set_json;
+                manifest_digest = COALESCE(excluded.manifest_digest, save_revision.manifest_digest),
+                session_id = COALESCE(excluded.session_id, save_revision.session_id),
+                artifact_set_json = COALESCE(excluded.artifact_set_json, save_revision.artifact_set_json);
             """,
             params: [
                 row.id, row.saveLineID, row.parentRevisionID, row.blobSHA256, row.sizeBytes,

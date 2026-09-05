@@ -308,7 +308,19 @@ struct JournalApplier {
         // -- a no-op when they already match.
         try? saveStore.adoptCanonicalLineID(payload.saveLineID, forLocalID: line.id)
 
-        let existingLocalPath = saveStore.fetchRevision(id: payload.revisionID)?.localPath
+        // WR-01: `tier`, `origin`, `manifestDigest`, `sessionID` and
+        // `artifactSetJSON` are local capture facts the server never
+        // sees -- `SavePayload` carries none of them. When this echoes
+        // a revision this Mac already has a row for, carry its existing
+        // values forward rather than letting `SaveRevisionRow`'s
+        // defaults (`tier: .promoted`, `origin: .session`, the rest
+        // `nil`) clobber them via `insertRevision`'s
+        // `ON CONFLICT DO UPDATE`, which writes every column
+        // unconditionally. A revision this device has never seen is a
+        // genuinely new row, so it correctly falls back to the
+        // defaults -- there is nothing local to preserve.
+        let existingLocalRevision = saveStore.fetchRevision(id: payload.revisionID)
+        let existingLocalPath = existingLocalRevision?.localPath
 
         let row = SaveRevisionRow(
             id: payload.revisionID,
@@ -326,7 +338,12 @@ struct JournalApplier {
             formatConfidence: payload.formatConfidence,
             playSessionID: payload.playSessionID,
             durability: SaveDurability.uploaded.rawValue,
-            localPath: existingLocalPath
+            localPath: existingLocalPath,
+            tier: existingLocalRevision?.tier ?? SaveCaptureTier.promoted.rawValue,
+            origin: existingLocalRevision?.origin ?? SaveCaptureOrigin.session.rawValue,
+            manifestDigest: existingLocalRevision?.manifestDigest,
+            sessionID: existingLocalRevision?.sessionID,
+            artifactSetJSON: existingLocalRevision?.artifactSetJSON
         )
 
         guard (try? saveStore.insertRevision(row)) != nil else { return false }
