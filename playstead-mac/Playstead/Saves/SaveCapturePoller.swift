@@ -306,10 +306,18 @@ actor SaveCapturePoller {
         do {
             try data.write(to: tempURL, options: .atomic)
             try Self.fsync(fileAt: tempURL)
-            if FileManager.default.fileExists(atPath: finalURL.path) {
-                try FileManager.default.removeItem(at: finalURL)
-            }
-            try FileManager.default.moveItem(at: tempURL, to: finalURL)
+            // WR-02 fix: `rename(2)` atomically replaces an existing
+            // destination on APFS in a single step -- unlike
+            // `FileManager.moveItem`, which refuses an existing
+            // destination and previously forced a separate
+            // `removeItem` first. That remove-then-move pair opened a
+            // window, observable by a crash, in which `finalURL` was
+            // absent entirely: neither the old staged bytes nor the
+            // new ones. A single `rename` call never has that state --
+            // the target either still holds the old bytes or already
+            // holds the new ones. Mirrors
+            // `SavePlanExecutor.renameIntoPlaceDurably`.
+            try Self.renameIntoPlaceDurably(from: tempURL, to: finalURL)
             try Self.fsync(directoryAt: destinationDirectory)
         } catch {
             try? FileManager.default.removeItem(at: tempURL)
@@ -324,6 +332,15 @@ actor SaveCapturePoller {
 
     private static func digest(of data: Data) -> String {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// `rename(2)` directly -- atomically replaces `to` if it already
+    /// exists, or creates it if not, in one syscall with no window in
+    /// which neither the old nor new file is present (WR-02).
+    private static func renameIntoPlaceDurably(from: URL, to: URL) throws {
+        guard rename(from.path, to.path) == 0 else {
+            throw SaveCaptureError.writeFailed
+        }
     }
 
     private static func fsync(fileAt url: URL) throws {
