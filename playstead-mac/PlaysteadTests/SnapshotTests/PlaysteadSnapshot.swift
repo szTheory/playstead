@@ -233,7 +233,8 @@ enum PlaysteadSnapshot {
         "LibraryContractSnapshotTests",
         "StorageContractSnapshotTests",
         "SaveHistoryContractSnapshotTests",
-        "ConflictComparisonContractSnapshotTests"
+        "ConflictComparisonContractSnapshotTests",
+        "OnlyCopyContractSnapshotTests"
     ])
 
     private static func referenceDirectory(suite: String) -> URL {

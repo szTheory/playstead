@@ -42,6 +42,7 @@
         "DeterministicProfileTests",
         "IdentityAndFocusPrimitiveTests",
         "LibraryContractSnapshotTests",
+        "OnlyCopyContractSnapshotTests",
         "ReleaseHookAbsenceTests",
         "SaveHistoryContractSnapshotTests",
         "SnapshotHarnessCanaryTests/testIntentionalMismatchProducesReviewableTriplet()",
