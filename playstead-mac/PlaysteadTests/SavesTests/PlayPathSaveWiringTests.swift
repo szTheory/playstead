@@ -89,6 +89,75 @@ final class PlayPathSaveWiringTests: XCTestCase {
         XCTAssertFalse(callSite.contains("executeSavePlan: nil"), "the production call site must never pass a literal nil")
     }
 
+    /// The 04-19 counterpart, and the falsification lever for this
+    /// plan: delete the `begin(...)` call from `play()` and this test
+    /// must go red. A capture lifecycle that exists and is never
+    /// started is exactly the WINDOWS #45 defect -- the component
+    /// passes its own unit tests either way, so only an assertion
+    /// against the call site itself can catch its removal.
+    func testProductionPlayPathBeginsAndEndsACaptureSession() throws {
+        let source = try gameRowViewSource()
+
+        guard let playRange = source.range(of: "private func play() async {") else {
+            return XCTFail("expected to find the production play() method")
+        }
+        let play = String(source[playRange.lowerBound...])
+
+        guard let beginRange = play.range(of: "?.begin()") else {
+            return XCTFail("play() must open a capture session -- SaveCapturePoller is otherwise never started in production")
+        }
+        guard let launchRange = play.range(of: "try await adapterHost.launch(") else {
+            return XCTFail("expected to find the production adapterHost.launch(...) call site")
+        }
+        XCTAssertTrue(
+            beginRange.lowerBound < launchRange.lowerBound,
+            "begin() must run before the emulator spawns, so D-04's session-start baseline sees the artifact as the user left it"
+        )
+
+        guard let endRange = play.range(of: "?.end()", range: launchRange.upperBound..<play.endIndex) else {
+            return XCTFail("the onExit closure must close the capture session -- nothing else promotes the session's revision")
+        }
+        guard let recorderRange = play.range(of: "environment.playSessionRecorder.ended(sessionID)") else {
+            return XCTFail("expected the onExit closure's existing session-recording call")
+        }
+        XCTAssertTrue(
+            endRange.lowerBound < recorderRange.lowerBound,
+            "end() must run before the session is recorded as ended"
+        )
+
+        XCTAssertTrue(
+            play.contains("buildSaveCaptureCoordinator"),
+            "play() must build the coordinator through the tested static seam, never inline the lifecycle"
+        )
+    }
+
+    /// The launch-time crash-recovery half (WINDOWS #46): the shipped
+    /// app must construct `SaveSessionRecovery` somewhere, and the only
+    /// legitimate somewhere is app launch.
+    func testProductionAppLaunchRunsSaveSessionRecovery() throws {
+        let sourceURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Playstead/App/PlaysteadApp.swift")
+        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+
+        XCTAssertTrue(source.contains("SaveSessionRecovery(saveStore:"), "SaveSessionRecovery must be constructed in production")
+        XCTAssertTrue(
+            source.contains(".task { await appEnvironment.recoverAbandonedSaveSessionsAtLaunch() }"),
+            "the production root view must actually run the replay pass at launch"
+        )
+    }
+
+    private func gameRowViewSource() throws -> String {
+        let sourceURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Playstead/Library/GameRowView.swift")
+        return try String(contentsOf: sourceURL, encoding: .utf8)
+    }
+
     func testGameRowViewSourceNeverReferencesASecondLaunchMutex() throws {
         let sourceURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -157,16 +226,165 @@ final class PlayPathSaveWiringTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: saveLaunch.targetURL.path))
     }
 
-    // MARK: - A throwing plan prevents the emulator from spawning
+    // MARK: - buildSaveCaptureCoordinator: the capture half is wired
 
-    struct FakeSavePlanFailure: Error {}
+    /// The binding that matters: the coordinator captures from the
+    /// exact same artifact path the save plan restores into. Two
+    /// independently-derived paths would mean the app restores one file
+    /// and captures another -- silently, and only in production.
+    func testTheCaptureCoordinatorIsBoundToTheSamePathTheSavePlanWrites() throws {
+        let romSHA256 = String(repeating: "c", count: 64)
+        let saveDir = tempRoot.appendingPathComponent("saves/asset-3", isDirectory: true)
+        try FileManager.default.createDirectory(at: saveDir, withIntermediateDirectories: true)
+        let romURL = tempRoot.appendingPathComponent("launch/asset-3/game.gba")
+        let testEntry = entry(id: "asset-3", romSHA256: romSHA256)
+        let members = [(sha256: romSHA256, declaredName: "game.gba")]
 
-    /// Drives the exact `AdapterHost.launch(executeSavePlan:onExit:)`
-    /// contract `buildSaveLaunchPlan`'s result feeds — proving a throw
-    /// aborts the launch before the emulator process is ever spawned
-    /// (D-44), and releases the per-assetSetID mutex so a subsequent
-    /// launch is not left permanently blocked by the failure.
-    func testAThrowingExecuteSavePlanAbortsBeforeTheEmulatorSpawns() async throws {
+        let saveLaunch = GameRowView.buildSaveLaunchPlan(
+            environment: environment, entry: testEntry, members: members, romURL: romURL, saveDir: saveDir
+        )
+        let capture = try XCTUnwrap(GameRowView.buildSaveCaptureCoordinator(
+            environment: environment, entry: testEntry, members: members, targetURL: saveLaunch.targetURL
+        ))
+
+        XCTAssertEqual(capture.targetURL, saveLaunch.targetURL)
+        XCTAssertEqual(capture.artifactRelativePath, "game.sav")
+
+        // Bound to the line keyed by the ROM's own sha256 (D-10), which
+        // this call also created -- a first-ever play session must have
+        // somewhere to record its promotion.
+        let line = try XCTUnwrap(environment.saveStore.fetchLine(contentKey: romSHA256, saveKind: "battery", slot: "0"))
+        XCTAssertEqual(capture.saveLineID, line.id)
+
+        // Captures must never land inside the adapter's own declared
+        // artifact directory.
+        XCTAssertNotEqual(capture.destinationDirectory, saveDir)
+        XCTAssertFalse(capture.destinationDirectory.path.hasPrefix(saveDir.path))
+    }
+
+    /// SAVE-01, at the seam the shipped Play path actually uses: a
+    /// session that writes save bytes leaves a promoted, local-only
+    /// revision in the app's own `SaveStore`.
+    func testAFullSessionThroughTheProductionSeamPromotesARevisionIntoTheAppsSaveStore() async throws {
+        let romSHA256 = String(repeating: "e", count: 64)
+        let saveDir = tempRoot.appendingPathComponent("saves/asset-5", isDirectory: true)
+        try FileManager.default.createDirectory(at: saveDir, withIntermediateDirectories: true)
+        let romURL = tempRoot.appendingPathComponent("launch/asset-5/game.gba")
+        let testEntry = entry(id: "asset-5", romSHA256: romSHA256)
+        let members = [(sha256: romSHA256, declaredName: "game.gba")]
+
+        let saveLaunch = GameRowView.buildSaveLaunchPlan(
+            environment: environment, entry: testEntry, members: members, romURL: romURL, saveDir: saveDir
+        )
+        let capture = try XCTUnwrap(GameRowView.buildSaveCaptureCoordinator(
+            environment: environment, entry: testEntry, members: members, targetURL: saveLaunch.targetURL
+        ))
+
+        await capture.begin()
+        let played = Data(repeating: 0x7E, count: 512)
+        try played.write(to: capture.targetURL)
+        await capture.end()
+
+        let promoted = environment.saveStore.fetchRevisions(saveLineID: capture.saveLineID)
+            .filter { $0.tier == SaveCaptureTier.promoted.rawValue }
+        XCTAssertEqual(promoted.count, 1, "exactly one promoted revision per session (D-04)")
+        XCTAssertEqual(promoted.first?.blobSHA256, hex(of: played))
+        XCTAssertEqual(promoted.first?.durability, SaveDurability.localOnly.rawValue)
+        XCTAssertEqual(environment.onlyOnThisMacCount(forAssetSetID: "asset-5"), 0, "no catalogue entry yet, so no rollup")
+    }
+
+    /// A capture that cannot be written must not stop the game
+    /// launching: `begin()` on an unwritable capture directory still
+    /// lets `AdapterHost.launch` spawn the emulator (D-31 -- the
+    /// emulator keeps running; only the durable local capture path is
+    /// affected).
+    func testACaptureFailureDoesNotPreventTheEmulatorSpawning() async throws {
+        let line = try environment.saveStore.resolveLine(
+            contentKey: String(repeating: "f", count: 64), saveKind: "battery", slot: "0", placeholderID: "line-blocked"
+        )
+        let coordinator = environment.makeSaveSessionCoordinator()
+        let capture = SaveCaptureWiring(
+            coordinator: coordinator,
+            saveLineID: line.id,
+            targetURL: tempRoot.appendingPathComponent("saves/asset-6/game.sav"),
+            // `/dev/null` is a character device, so no capture directory
+            // can be created beneath it -- every durable write fails.
+            destinationDirectory: URL(fileURLWithPath: "/dev/null/save-captures"),
+            artifactRelativePath: "game.sav"
+        )
+
+        try FileManager.default.createDirectory(
+            at: tempRoot.appendingPathComponent("saves/asset-6"), withIntermediateDirectories: true
+        )
+        try Data(repeating: 0x01, count: 64).write(to: capture.targetURL)
+
+        await capture.begin()
+
+        let host = try makeAdapterHost()
+        let proc = try await host.launch(assetSetID: "blocked-capture", romPath: "/tmp/rom.gba", saveDir: "/tmp/saves") { _ in }
+        XCTAssertNotNil(proc, "a blocked capture must never refuse the launch")
+        proc.terminate()
+
+        await capture.end()
+        XCTAssertTrue(
+            environment.saveStore.fetchRevisions(saveLineID: line.id).isEmpty,
+            "a capture that could not be written must never record a revision claiming it was"
+        )
+    }
+
+    // MARK: - D-07 crash recovery at app launch
+
+    /// WINDOWS #46: a session Playstead died in the middle of leaves a
+    /// `staged` row with no `promoted` row. App launch must replay it.
+    func testAppLaunchReplaysAnAbandonedSessionAndPromotesIt() async throws {
+        let romSHA256 = String(repeating: "1", count: 64)
+        let testEntry = entry(id: "asset-7", romSHA256: romSHA256)
+        try environment.catalogueStore.upsert(testEntry)
+
+        let saveDir = try environment.saveDirectoryURL(forAssetSetID: "asset-7")
+        try FileManager.default.createDirectory(at: saveDir, withIntermediateDirectories: true)
+        let targetURL = SaveCapturePaths.targetURL(saveDirectory: saveDir, romFileName: "game.gba")
+        let bytes = Data(repeating: 0x3C, count: 256)
+        try bytes.write(to: targetURL)
+
+        let line = try environment.saveStore.resolveLine(
+            contentKey: romSHA256, saveKind: "battery", slot: "0", placeholderID: "line-7"
+        )
+        try environment.saveStore.insertRevision(SaveRevisionRow(
+            id: "staged-7", saveLineID: line.id, parentRevisionID: nil, blobSHA256: hex(of: bytes),
+            sizeBytes: 256, originDeviceID: nil, deviceCapturedAt: nil, recordedAt: nil,
+            captureMethod: "session", adapterID: nil, adapterVersion: nil, saveFormat: nil,
+            formatConfidence: nil, playSessionID: "crashed-session",
+            durability: SaveDurability.localOnly.rawValue, localPath: nil,
+            tier: SaveCaptureTier.staged.rawValue, origin: SaveCaptureOrigin.session.rawValue,
+            manifestDigest: nil, sessionID: "crashed-session"
+        ))
+
+        await environment.recoverAbandonedSaveSessionsAtLaunch()
+
+        let promoted = environment.saveStore.fetchRevisions(saveLineID: line.id)
+            .filter { $0.tier == SaveCaptureTier.promoted.rawValue }
+        XCTAssertEqual(promoted.count, 1, "the abandoned session must be replayed and promoted exactly once")
+        XCTAssertEqual(promoted.first?.blobSHA256, hex(of: bytes))
+        XCTAssertEqual(promoted.first?.captureMethod, "recovery")
+        XCTAssertEqual(promoted.first?.sessionID, "crashed-session")
+    }
+
+    /// Replay is idempotent by digest (D-07), so the guarded second
+    /// pass -- and an unguarded one -- must both add nothing.
+    func testASecondRecoveryPassPromotesNothingNew() async throws {
+        try await testAppLaunchReplaysAnAbandonedSessionAndPromotesIt()
+        await environment.recoverAbandonedSaveSessionsAtLaunch()
+
+        let promoted = environment.saveStore.fetchRevisions(saveLineID: "line-7")
+            .filter { $0.tier == SaveCaptureTier.promoted.rawValue }
+        XCTAssertEqual(promoted.count, 1)
+    }
+
+    /// The signed-stand-in `AdapterHost` both launch tests drive: a real
+    /// pin whose executable is `/usr/bin/true`, with the
+    /// `.install-verify.json` sidecar launch re-hashes against.
+    private func makeAdapterHost() throws -> AdapterHost {
         let pinJSON = """
         {
           "system": "gba", "emulator": "mgba", "version": "0.10.5",
@@ -190,7 +408,20 @@ final class PlayPathSaveWiringTests: XCTestCase {
             archiveSHA256: pin.sha256, executableSHA256: trueDigest, executablePath: emulatorDir.appendingPathComponent("true").path
         )).write(to: emulatorDir.appendingPathComponent(".install-verify.json"))
 
-        let host = AdapterHost(pin: pin, emulatorsRoot: emulatorsRoot)
+        return AdapterHost(pin: pin, emulatorsRoot: emulatorsRoot)
+    }
+
+    // MARK: - A throwing plan prevents the emulator from spawning
+
+    struct FakeSavePlanFailure: Error {}
+
+    /// Drives the exact `AdapterHost.launch(executeSavePlan:onExit:)`
+    /// contract `buildSaveLaunchPlan`'s result feeds — proving a throw
+    /// aborts the launch before the emulator process is ever spawned
+    /// (D-44), and releases the per-assetSetID mutex so a subsequent
+    /// launch is not left permanently blocked by the failure.
+    func testAThrowingExecuteSavePlanAbortsBeforeTheEmulatorSpawns() async throws {
+        let host = try makeAdapterHost()
         let exitCalled = expectation(description: "onExit must never fire -- the process never spawned")
         exitCalled.isInverted = true
 

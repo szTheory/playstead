@@ -345,6 +345,10 @@ struct GameRowView: View {
             return
         }
 
+        // Declared outside the `do` so the `catch` can close a capture
+        // session `begin()` already opened.
+        var saveCapture: SaveCaptureWiring?
+
         do {
             let materialized = try environment.launchMaterializer.materialize(assetSetID: entry.id, members: members)
             guard let romURL = materialized.files.first else {
@@ -384,17 +388,41 @@ struct GameRowView: View {
             )
             saveLaunchNotice = saveLaunch.notice
 
+            // WINDOWS #45/#44: the symmetric half of the same gap. The
+            // restore side above was wired in 04-14; nothing in the
+            // shipped app had ever captured a save during play, because
+            // `SaveCapturePoller` had no production construction site.
+            // `begin()` runs before `adapterHost.launch` so D-04's
+            // session-start baseline check reads the artifact as the
+            // user left it -- before the save plan restores over it.
+            saveCapture = GameRowView.buildSaveCaptureCoordinator(
+                environment: environment, entry: entry, members: members, targetURL: saveLaunch.targetURL
+            )
+            await saveCapture?.begin()
+
+            // `onExit` is `@Sendable`, and a mutable local cannot cross
+            // into it -- the wiring is snapshotted into a `let` first.
+            let capturedSession = saveCapture
             try await adapterHost.launch(
                 assetSetID: entry.id, romPath: romURL.path, saveDir: saveDir.path, biosPath: biosPath,
                 executeSavePlan: saveLaunch.executeSavePlan
             ) { exit in
                 Task { @MainActor in
+                    // D-05's settle-then-promote pass, before the
+                    // session is recorded as ended. `end()` never
+                    // throws, so a capture problem can never turn a
+                    // finished play session into a visible failure.
+                    await capturedSession?.end()
                     lastExit = exit
                     environment.playSessionRecorder.ended(sessionID)
                     environment.refreshCurationViewModels()
                 }
             }
         } catch {
+            // The emulator never spawned (or never started), so no
+            // `onExit` will ever fire -- close the capture session here
+            // or its poll loop would run for the rest of the app's life.
+            await saveCapture?.end()
             status = .error("Launch failed: \(error)")
         }
     }
@@ -421,8 +449,12 @@ struct GameRowView: View {
         // (SavePlanExecutor's own doc comment) -- `romBaseName` is the
         // materialized ROM's own filename, extension stripped, since no
         // production caller has defined this convention before now.
-        let targetURL = saveDir.appendingPathComponent(
-            "\(romURL.deletingPathExtension().lastPathComponent).sav"
+        // Stated once in `SaveCapturePaths` so the restore half here,
+        // the capture half (`buildSaveCaptureCoordinator`) and the
+        // crash-recovery half (`recoverAbandonedSaveSessionsAtLaunch`)
+        // can never derive different paths for the same artifact.
+        let targetURL = SaveCapturePaths.targetURL(
+            saveDirectory: saveDir, romFileName: romURL.lastPathComponent
         )
         // `content_key` is the ROM's own sha256 (D-10), never
         // `assetSetID` -- the first required member is the ROM for
@@ -442,6 +474,53 @@ struct GameRowView: View {
         let executor = SavePlanExecutor(environment: LaunchSaveEnvironment(casManager: environment.casManager))
 
         return (plan, targetURL, Self.notice(for: plan), { try executor.execute(plan, targetURL: targetURL) })
+    }
+
+    /// One launch's capture wiring: a fresh `SaveSessionCoordinator`
+    /// bound to this launch's save line, the exact artifact path the
+    /// save plan resolved, and the capture directory its durable blobs
+    /// land in.
+    ///
+    /// Extracted from `play()` for the same reason `buildSaveLaunchPlan`
+    /// was (04-14): `play()` is a private `@MainActor` SwiftUI method a
+    /// test cannot drive, so wiring written inline there is wiring
+    /// nothing can assert -- which is exactly how WINDOWS #45 happened.
+    /// `PlayPathSaveWiringTests` asserts against this function and
+    /// against `play()`'s source for the call itself.
+    ///
+    /// Returns `nil` only when the save line or the capture directory
+    /// cannot be resolved at all; a launch then proceeds with no capture
+    /// rather than being refused, because a bookkeeping problem must
+    /// never stop the user playing.
+    static func buildSaveCaptureCoordinator(
+        environment: AppEnvironment,
+        entry: CatalogueEntry,
+        members: [(sha256: String, declaredName: String)],
+        targetURL: URL
+    ) -> SaveCaptureWiring? {
+        // Same `content_key` resolution as `buildSaveLaunchPlan` (D-10):
+        // the ROM's own sha256, never `assetSetID`. The capture half and
+        // the restore half must key the same line or a captured save
+        // would never be found again at launch.
+        let contentKey = members.first?.sha256 ?? entry.id
+        guard
+            // The launch path may be this line's first-ever sighting, so
+            // the line is resolved (created if absent) rather than only
+            // fetched -- a first play session with nowhere to record its
+            // promotion would capture bytes and drop the row.
+            let line = try? environment.saveStore.resolveLine(
+                contentKey: contentKey, saveKind: "battery", slot: "0", placeholderID: UUIDv7.generate()
+            ),
+            let captureDirectory = try? environment.saveCaptureDirectoryURL(forAssetSetID: entry.id)
+        else { return nil }
+
+        return SaveCaptureWiring(
+            coordinator: environment.makeSaveSessionCoordinator(),
+            saveLineID: line.id,
+            targetURL: targetURL,
+            destinationDirectory: captureDirectory,
+            artifactRelativePath: targetURL.lastPathComponent
+        )
     }
 
     private static func notice(for plan: SavePlan) -> SaveLaunchNotice? {

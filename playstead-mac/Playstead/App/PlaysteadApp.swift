@@ -85,6 +85,14 @@ private struct ProductionRootView: View {
         LibraryShellView()
             .environment(appEnvironment)
             .frame(minWidth: 960, minHeight: 560)
+            // D-07 crash recovery, once per launch: a session Playstead
+            // died in the middle of (emulator exited, promotion never
+            // ran) is replayed through the same settle-then-promote
+            // pass a live session runs. Before this call site existed,
+            // `SaveSessionRecovery` was never constructed in production
+            // at all (WINDOWS #46) — its own doc comment described the
+            // caller this is.
+            .task { await appEnvironment.recoverAbandonedSaveSessionsAtLaunch() }
         // Becoming active is one of `OutboxWorker`'s three drain triggers
         // (the other two — after every enqueue, and on reachability being
         // regained — are wired inside `AppEnvironment.init`). Without this
@@ -313,6 +321,16 @@ final class AppEnvironment {
     let saveStore: SaveStore
     let saveOutbox: SaveOutbox
     let saveConflictResolver: SaveConflictResolver
+    /// D-31's durable blocked-capture state, shared by every capture
+    /// session so a blockage raised by one play session is still open
+    /// (and still un-re-alerted) for the next one.
+    let saveCaptureBlockedState: SaveCaptureBlockedState
+    /// D-07's crash-recovery replay, run once per launch by
+    /// `recoverAbandonedSaveSessionsAtLaunch()`. Before 04-19 this type
+    /// had no production construction site at all (WINDOWS #46), so a
+    /// session interrupted between emulator exit and promotion was
+    /// never replayed by the shipped app.
+    let saveSessionRecovery: SaveSessionRecovery
     /// The one place drains are started from — see `OutboxDrainTrigger`.
     let drainTrigger: OutboxDrainTrigger
     let playSessionRecorder: PlaySessionRecorder
@@ -331,6 +349,12 @@ final class AppEnvironment {
     /// `nonisolated let` so `deinit` (which is not main-actor isolated)
     /// can actually read it.
     private nonisolated let reachabilityToken: UUID
+
+    /// Guards `recoverAbandonedSaveSessionsAtLaunch()` so a scene that
+    /// re-runs its `.task` never starts a second replay pass. (Replay is
+    /// idempotent by digest, so this is an efficiency guard, not a
+    /// correctness one.)
+    private var hasRecoveredAbandonedSaveSessions = false
 
     /// `paths`, `apiClient`, and `reachability` are injectable purely so a
     /// test can assemble the *real* composition root against a temporary
@@ -433,6 +457,8 @@ final class AppEnvironment {
         self.saveStore = saveStore
         self.saveOutbox = saveOutbox
         self.saveConflictResolver = SaveConflictResolver(saveStore: saveStore, saveOutbox: saveOutbox)
+        self.saveCaptureBlockedState = SaveCaptureBlockedState(localStore: store)
+        self.saveSessionRecovery = SaveSessionRecovery(saveStore: saveStore)
 
         self.libraryViewModel = LibraryViewModel(
             catalogueStore: catalogueStore, curationStore: curationStore, syncEngine: syncEngine
@@ -728,6 +754,78 @@ final class AppEnvironment {
         return appPaths.root
             .appendingPathComponent("saves", isDirectory: true)
             .appendingPathComponent(safe, isDirectory: true)
+    }
+
+    /// Where one asset set's durable save captures land — deliberately
+    /// not the save directory itself, which the adapter's
+    /// `artifact_glob` owns. Same server-supplied-id validation rule as
+    /// `saveDirectoryURL(forAssetSetID:)` (CR-01/CR-02).
+    func saveCaptureDirectoryURL(forAssetSetID assetSetID: String) throws -> URL {
+        try SaveCapturePaths.captureDirectory(root: appPaths.root, assetSetID: assetSetID)
+    }
+
+    /// A fresh coordinator for one play session (D-04's "exactly one
+    /// promoted revision per session" is per-session state, so this is
+    /// never a shared singleton). Constructed here rather than in the
+    /// view so the shipped Play path and the tested path build the same
+    /// object, and so the promotion hook that starts an upload drain is
+    /// attached in exactly one place.
+    func makeSaveSessionCoordinator() -> SaveSessionCoordinator {
+        SaveSessionCoordinator(
+            saveStore: saveStore,
+            blockedState: saveCaptureBlockedState
+        )
+    }
+
+    /// D-07's crash recovery, run once per app launch: for every save
+    /// line this Mac knows about, replay any session left open (a
+    /// `staged` row with no `promoted` row) through the identical
+    /// settle-then-promote pass a live session runs at its own end.
+    ///
+    /// Never fatal and never blocking: a line whose catalogue entry or
+    /// save directory cannot be resolved is skipped, and a replay that
+    /// throws is skipped. `SaveSessionRecovery.replay` is idempotent by
+    /// digest, so running this again (a relaunch, a second call) is
+    /// safe and produces nothing new.
+    func recoverAbandonedSaveSessionsAtLaunch() async {
+        guard !hasRecoveredAbandonedSaveSessions else { return }
+        hasRecoveredAbandonedSaveSessions = true
+
+        let entries = catalogueStore.fetchAll()
+        var replayedCount = 0
+
+        for lineID in Set(saveStore.fetchAllRevisions().map(\.saveLineID)).sorted() {
+            guard
+                let line = saveStore.fetchLine(id: lineID),
+                let entry = entries.first(where: { Self.saveContentKey(for: $0) == line.contentKey }),
+                // The launch path resolves the artifact name from the
+                // materialized ROM's own filename; the same declared
+                // member name is what materialization produced.
+                let romFileName = entry.members.first(where: { $0.sha256 != nil && $0.name != nil })?.name,
+                let saveDirectory = try? saveDirectoryURL(forAssetSetID: entry.id),
+                let captureDirectory = try? saveCaptureDirectoryURL(forAssetSetID: entry.id)
+            else { continue }
+
+            let targetURL = SaveCapturePaths.targetURL(saveDirectory: saveDirectory, romFileName: romFileName)
+            do {
+                let rows = try await saveSessionRecovery.replayAll(
+                    saveLineID: lineID,
+                    artifactSource: FileSaveArtifactSource(url: targetURL),
+                    destinationDirectory: captureDirectory,
+                    artifactRelativePath: targetURL.lastPathComponent
+                )
+                replayedCount += rows.count
+            } catch {
+                // Recovery is best-effort by construction: a line that
+                // cannot be replayed must never stop the app launching,
+                // and the next launch will try again.
+                continue
+            }
+        }
+
+        if replayedCount > 0 {
+            refreshCurationViewModels()
+        }
     }
 
     /// Runs the six real readiness checks for one catalogue entry. This
