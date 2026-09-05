@@ -1,0 +1,57 @@
+# Reachability sweep allowlist (scripts/ci/reachability-sweep.sh).
+#
+# Every entry below carries a mandatory inline reason (enforced by this
+# repo's plan verification, not by the sweep script itself) because an
+# entry without one is exactly how a real defect gets silently permitted
+# later. Two categories exist here, and the reason says which:
+#
+#   (a) Genuinely reflective/dispatched call paths -- @main entry points,
+#       GenServer callbacks, Elixir __using__ macros -- where the grep
+#       heuristic structurally cannot see the caller. These are NOT gaps.
+#
+#   (b) Genuinely unreachable production code, disclosed here rather than
+#       silently permitted. Baselining this sweep for 04-18 (playstead
+#       .planning/phases/04-persistent-save-continuity/04-18-PLAN.md)
+#       surfaced real, previously-undocumented wiring gaps -- most
+#       significantly, the entire save-capture-and-upload pipeline
+#       (SaveCapturePoller/SaveUploadLane) has no production trigger at
+#       all. Fixing these is out of this gap-closure plan's declared
+#       scope (front-door journeys + promoting this sweep to a gate); each
+#       is written up in 04-18-SUMMARY.md and recorded in
+#       .planning/WINDOWS.md so it stays visible instead of disappearing
+#       into a clean-looking allowlist. A future plan should shrink this
+#       file by fixing the wiring, not by deleting these lines.
+
+# --- (a) Genuinely reflective / dispatched -----------------------------
+PlaysteadApp # @main App entry point (SwiftUI attribute), invoked by the runtime, never called by name in source.
+
+# --- (b) Genuinely unreachable -- the save-capture-and-upload pipeline --
+# (see 04-18-SUMMARY.md "Genuinely Unreachable Symbols Found" and WINDOWS.md)
+SaveCapturePoller # Constructed in production ONLY inside SaveSessionRecovery.replay, which itself has no production caller (see SaveSessionRecovery below) -- there is no live, in-play capture trigger anywhere. Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
+FileSaveArtifactSource # The one concrete production SaveArtifactSource; constructed only by test code because its sole would-be caller, SaveSessionRecovery.replayAll, is itself unreached. Same root cause as SaveCapturePoller above.
+SaveSessionRecovery # Crash-recovery replay actor (D-05/D-07); its own doc comment says "the shape app launch calls once per known save line", but no production file ever constructs it. Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
+SaveCaptureBlockedState # Capture-blocked alert actor; constructed only in tests. Downstream of the same unwired capture pipeline as SaveCapturePoller. Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
+SaveUploadLane # THE dedicated actor that drains locally-captured save revisions to the server (D-16/D-32) -- never constructed anywhere in production. A more severe, previously-undisclosed superset of the already-tracked WINDOWS #40 (which only covered its missing failure-classification output). Disclosed prominently in 04-18-SUMMARY.md, WINDOWS.md.
+SaveRollup # D-36's game-level save rollup computation; SaveRollup.rollup(for:) has zero production callers -- the rollup string this type computes is not reachable from any shipped UI. Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
+DownloadQueueError # itemNotFound is declared but never thrown from any DownloadQueue method -- defensive scaffolding that was never wired to an actual failure path. Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
+
+# --- (b) Genuinely unreachable -- built UI never given a call site ------
+ControllerRecoveryBanner # Referenced only in ControllerHost's own doc comment ("`ControllerRecoveryBanner`'s visibility") -- never instantiated by any view. Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
+ControllerTestView # Referenced only in doc comments across Controller/ files -- never instantiated. Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
+FirstRunBanner # LibraryViewModel.dismissFirstRunBanner() exists and is presumably meant to dismiss this exact banner, but no view ever renders FirstRunBanner itself. Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
+ShowAllSystemsControl # LIBR-04's "show all systems" control; referenced only in LibraryViewModel's own doc comment, never instantiated by SidebarView or any other view. Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
+GameListView # Superseded: LibraryShellView.catalogueList builds its own inline List/GameRowView composition directly and never constructs GameListView. Left in place (not deleted by this plan) because AccessibilityAuditTests still exercises this file's GameListRow accessible-name contract; a future plan should either wire GameListView in or delete the whole file plus that test. Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
+NoMatchesView # Same file/finding as GameListView above. Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
+SnapshotClient # struct SnapshotClient is never constructed in production; SyncEngine's own doc comment explicitly distinguishes itself from "the plan 03-03 tracer's SnapshotClient", implying this type is superseded tracer-era code. Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
+
+# --- Elixir: genuinely reflective / dispatched --------------------------
+handle_continue # GenServer handle_continue/2 callback, dispatched by the OTP runtime via {:continue, :sweep}, never called by name in source.
+live_component # Phoenix component macro entry point, invoked via `use PlaysteadWeb, :live_component`, never called by name in source.
+
+# --- Elixir: genuinely unreachable changesets ---------------------------
+blob_changeset # Ecto changeset with zero callers anywhere in lib/ (including web/). Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
+disconnect_sessions # Zero callers anywhere in lib/. Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
+email_changeset # Ecto changeset with zero callers anywhere in lib/ (including web/). Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
+progress_changeset # Ecto changeset with zero callers anywhere in lib/ (including web/). Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
+resolve_changeset # Ecto changeset with zero callers anywhere in lib/ (including web/). Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
+reverified_ok_changeset # Ecto changeset with zero callers anywhere in lib/ (including web/). Disclosed in 04-18-SUMMARY.md, WINDOWS.md.

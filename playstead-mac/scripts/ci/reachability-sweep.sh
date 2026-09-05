@@ -47,7 +47,20 @@ tmp_report="$(mktemp "${TMPDIR:-/tmp}/reachability-XXXXXX")"
 
 is_allowlisted() {
   [ -f "$ALLOWLIST" ] || return 1
-  grep -qxF "$1" "$ALLOWLIST" 2>/dev/null
+  local want="$1" line entry
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      ''|'#'*) continue ;;
+    esac
+    # Each entry is "SYMBOL # reason" -- the reason is mandatory (enforced
+    # by the plan's own verify step, not by this script) so a permitted
+    # symbol always carries a stated, reviewable justification. Compare
+    # only the symbol part, trimmed of trailing whitespace before the '#'.
+    entry="${line%%#*}"
+    entry="${entry%"${entry##*[![:space:]]}"}"
+    [ "$entry" = "$want" ] && return 0
+  done < "$ALLOWLIST"
+  return 1
 }
 
 # --- Swift ------------------------------------------------------------------
@@ -64,12 +77,29 @@ sweep_swift() {
     while IFS= read -r symbol; do
       [ -n "$symbol" ] || continue
       is_allowlisted "$symbol" && continue
-      # Count references anywhere in production Swift EXCEPT the declaring file.
-      refs=$(grep -rlw "$symbol" "$SWIFT_SRC" 2>/dev/null \
-             | grep -v "^${file}$" \
-             | grep -v "/UITesting/" \
-             | wc -l | tr -d ' ')
-      if [ "$refs" = "0" ]; then
+      # Count every occurrence of the symbol anywhere in production Swift,
+      # INCLUDING the declaring file, minus the declaration line itself. A
+      # type used only inside its own declaring file (a private @State enum,
+      # a small SwiftUI helper View instantiated once in the same file, a
+      # payload type only ever reached through `case .foo(let x)` pattern
+      # matching) is still genuinely wired into the app the moment its own
+      # file's own body calls it -- that is self-contained reachability, not
+      # the cross-file wiring gap this sweep exists to catch. Requiring a
+      # reference from a SEPARATE file (the original heuristic) flagged
+      # exactly this shape as a false positive far more often than it caught
+      # a real gap, and was the dominant source of the allowlist blowing
+      # past a size a human can review by eye.
+      # A doc-comment line that merely NAMES the symbol (very common right
+      # above its own declaration, e.g. "/// `Foo` does X") must not count
+      # as a use -- otherwise a fully unwired type that only mentions
+      # itself in its own header comment reads as "referenced" and the
+      # sweep goes blind to precisely the shape of gap it exists to catch.
+      total=$(grep -rnw "$symbol" "$SWIFT_SRC" 2>/dev/null \
+              | grep -v "/UITesting/" \
+              | sed -E 's/^[^:]*:[0-9]+://' \
+              | grep -vE '^[[:space:]]*//' \
+              | wc -l | tr -d ' ')
+      if [ "$total" -le 1 ]; then
         printf '  %-44s %s\n' "$symbol" "${file#$REPO_ROOT/}" >> "$tmp_report"
         findings=$((findings + 1))
       fi
@@ -90,8 +120,16 @@ sweep_elixir() {
     while IFS= read -r symbol; do
       [ -n "$symbol" ] || continue
       is_allowlisted "$symbol" && continue
-      refs=$(grep -rlw "$symbol" "$ELIXIR_SRC" 2>/dev/null | grep -v "^${file}$" | wc -l | tr -d ' ')
-      if [ "$refs" = "0" ]; then
+      # Same fix as the Swift sweep: count every occurrence anywhere in
+      # production Elixir, including the declaring file, minus the
+      # declaration line itself. A context function called only by a
+      # sibling function in the same module (a common Phoenix context
+      # shape) is genuinely wired in, not a cross-file gap.
+      total=$(grep -rnw "$symbol" "$ELIXIR_SRC" 2>/dev/null \
+              | sed -E 's/^[^:]*:[0-9]+://' \
+              | grep -vE '^[[:space:]]*#' \
+              | wc -l | tr -d ' ')
+      if [ "$total" -le 1 ]; then
         printf '  %-44s %s\n' "$symbol" "${file#$REPO_ROOT/}" >> "$tmp_report"
         findings=$((findings + 1))
       fi

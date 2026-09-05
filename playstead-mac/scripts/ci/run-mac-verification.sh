@@ -1026,6 +1026,39 @@ assert_local_app_launch_authorized() {
   die "local UI/LiveServer verification is disabled because launching Playstead may request login-Keychain authorization; a human may explicitly set PLAYSTEAD_HUMAN_APPROVED_LOCAL_APP_LAUNCH=1, but automated GSD runs must not set it"
 }
 
+# 04-18: the static reachability sweep promoted from an advisory script to a
+# real gate (playstead-mac/scripts/ci/reachability-sweep.sh --strict). It
+# writes a small JSON summary in the same "$FOUR_LAYER_EVIDENCE" directory
+# as the xctest layers so the same layers.json aggregate carries it, but it
+# is not itself an xctest layer -- there is no xcresult bundle to parse, so
+# this does not go through run_test_layer/verify_layer_result.
+run_reachability_sweep_layer() {
+  local log="${FOUR_LAYER_RAW}/reachability.log"
+  local summary="${FOUR_LAYER_EVIDENCE}/reachability-tests.json"
+  local status=0
+  "${SCRIPT_DIR}/reachability-sweep.sh" --strict >"$log" 2>&1 || status=$?
+
+  python3 - "$summary" "$status" <<'PY'
+import json, pathlib, sys
+path, status = sys.argv[1:]
+pathlib.Path(path).write_text(json.dumps({
+    "layer": "reachability",
+    "kind": "static-sweep",
+    "outcome": "passed" if status == "0" else "failed",
+    "exit_status": int(status),
+}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
+
+  LAYER_STATUS=0
+  if [ "$status" -ne 0 ]; then
+    LAYER_STATUS=1
+    printf '%s\n' "reachability: FAILED (exit=$status)" >&2
+    sed -n '1,120p' "$log" >&2 || true
+  else
+    printf '%s\n' "reachability: PASSED"
+  fi
+}
+
 run_test_layer() {
   local slug="$1"
   local plan="$2"
@@ -1170,6 +1203,9 @@ PY
     return 1
   fi
 
+  run_reachability_sweep_layer
+  [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
+
   run_test_layer unit Unit 900 \
     --required-test PlaysteadTests.KeychainScopingTests/testScopedMatchQueryRestrictsSearchWithoutSelectingAnAddDestination \
     --required-test PlaysteadTests.KeychainScopingTests/testScopedAddQuerySelectsDestinationWithoutChangingSearchList \
@@ -1271,7 +1307,7 @@ import json, pathlib, sys
 path, aggregate = sys.argv[1:]
 root = pathlib.Path(path).parent
 layers = []
-for name in ("unit", "rendering", "ui", "live-server"):
+for name in ("reachability", "unit", "rendering", "ui", "live-server"):
     candidate = root / f"{name}-tests.json"
     layers.append(json.loads(candidate.read_text()) if candidate.exists() else {"layer": name, "missing": True})
 pathlib.Path(path).write_text(json.dumps({
