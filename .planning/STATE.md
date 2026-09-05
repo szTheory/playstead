@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 04
 current_phase_name: Persistent Save Continuity
 status: verifying
-stopped_at: Completed 04-19-PLAN.md
-last_updated: "2026-09-05T22:22:01.052Z"
+stopped_at: Completed 04-20-PLAN.md
+last_updated: "2026-09-05T22:37:15.673Z"
 last_activity: 2026-09-03
 last_activity_desc: Phase 04 execution started
-state_head: 408c24504638239f69d1532d13e7701fee8bff42
+state_head: 0fe5c83040908c5a807fc0a55b9142aaf7bebe17
 progress:
   total_phases: 6
   completed_phases: 3
-  total_plans: 57
-  completed_plans: 56
+  total_plans: 58
+  completed_plans: 58
 milestone_name: milestone
 ---
 
@@ -109,6 +109,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 | Phase 04-persistent-save-continuity P17 | 20min | 3 tasks | 8 files |
 | Phase 04-persistent-save-continuity P18 | 70min | 2 tasks | 13 files |
 | Phase 04 P19 | 75min | 4 tasks | 9 files |
+| Phase 04 P20 | 35m | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -227,6 +228,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 - [Phase 04]: 04-19: SaveUploadLane constructed eagerly with the non-optional client (SyncEngine/OutboxWorker pattern), not lazily -- an unpaired client throws .notPaired before opening a connection, leaving the revision queued and retryable per D-32
 - [Phase 04]: 04-19: capture blobs live in save-captures/<assetSetID>/, never the adapter-owned saves/<assetSetID>/ artifact directory
 - [Phase 04]: 04-19: SaveUploadLane.classify escalates only genuinely unfixable server outcomes (D-22 machine codes); transport loss, 5xx, 408/429 and notPaired stay .none because escalating a self-healing condition is what D-40 forbids
+- [Phase 04]: CAS commit failure surfaces as a D-31 blockage but still records the revision row — its localPath bytes are durable and uploadable, so dropping the row would turn a durability improvement into save loss (04-20)
 
 ### Pending Todos
 
@@ -260,6 +262,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-05T22:21:43.988Z
-Stopped at: Completed 04-19-PLAN.md
+Last session: 2026-09-05T22:37:09.596Z
+Stopped at: Completed 04-20-PLAN.md
 Resume file: None
