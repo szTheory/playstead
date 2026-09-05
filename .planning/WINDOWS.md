@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 30
+open_count: 31
 waived_count: 1
 fixed_count: 5
-total_count: 36
-last_updated: 2026-09-05T01:12:59.615Z
+total_count: 37
+last_updated: 2026-09-05T01:50:48.874Z
 ---
 
 # Broken Windows Ledger
@@ -51,6 +51,7 @@ last_updated: 2026-09-05T01:12:59.615Z
 | 34 | 04 | unrun-verify | playstead-mac/PlaysteadUITests/ConflictResolutionInteractionTests.swift |  | UI-layer keyboard-interaction verification requires the centrally orchestrated hosted macOS runner; local execution is disabled by the project's login-Keychain launch guard (mirrors WINDOWS #9/#10 precedent) | open |  | 2026-09-04T20:20:49.696Z |  |
 | 35 | 04 | deviation | playstead-mac/Playstead/Saves/OnlyCopyInterruptiveSheet.swift |  | Unpair, sign out, and delete game have no production entry point yet in this codebase; only remove-local-copy (ReclaimPromptView) and eviction (StorageView) are wired to the interruptive gate. The sheet and gate are built, tested, and reusable for whichever future plan adds those three call sites. | open |  | 2026-09-05T01:12:59.522Z |  |
 | 36 | 04 | unrun-verify | playstead-mac/PlaysteadUITests/OnlyCopyInterruptionTests.swift |  | UI-layer keyboard-interaction verification requires the centrally orchestrated hosted macOS runner; local execution is disabled by the project's login-Keychain launch guard (mirrors WINDOWS #9/#10/#34 precedent). | open |  | 2026-09-05T01:12:59.615Z |  |
+| 37 | 04 | deviation | playstead-mac/Playstead/Library/GameRowView.swift |  | LaunchSavePlanner/SavePlanExecutor are still not wired into GameRowView.play() -- AdapterHost.launch's executeSavePlan closure exists (04-07) but no call site passes one; 04-07-SUMMARY.md named plan 04-13 as the downstream consumer, but 04-13's declared task scope (files_modified) is limited to the two new proof tests, the two xctestplans, and run-mac-verification.sh, so this wiring remains open | open |  | 2026-09-05T01:50:48.874Z |  |
 
 ````json
 [
@@ -484,6 +485,18 @@ last_updated: 2026-09-05T01:12:59.615Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-05T01:12:59.615Z",
+    "resolved_at": null
+  },
+  {
+    "id": 37,
+    "kind": "deviation",
+    "phase": "04",
+    "file": "playstead-mac/Playstead/Library/GameRowView.swift",
+    "line": null,
+    "description": "LaunchSavePlanner/SavePlanExecutor are still not wired into GameRowView.play() -- AdapterHost.launch's executeSavePlan closure exists (04-07) but no call site passes one; 04-07-SUMMARY.md named plan 04-13 as the downstream consumer, but 04-13's declared task scope (files_modified) is limited to the two new proof tests, the two xctestplans, and run-mac-verification.sh, so this wiring remains open",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-05T01:50:48.874Z",
     "resolved_at": null
   }
 ]
