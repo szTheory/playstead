@@ -254,7 +254,7 @@ Plans:
 
 - [x] 04-15-PLAN.md
 - [x] 04-16-PLAN.md
-- [ ] 04-17-PLAN.md
+- [x] 04-17-PLAN.md
 - [ ] 04-18-PLAN.md
 
 - [x] 04-14-PLAN.md

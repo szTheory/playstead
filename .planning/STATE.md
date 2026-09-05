@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 04
 current_phase_name: Persistent Save Continuity
 status: verifying
-stopped_at: "Completed 04-16-PLAN.md (gap closure: MC-01..MC-06)"
-last_updated: "2026-09-05T14:20:00.000Z"
+stopped_at: Completed 04-17-PLAN.md
+last_updated: "2026-09-05T14:57:32.503Z"
 last_activity: 2026-09-03
 last_activity_desc: Phase 04 execution started
-state_head: 02322b2d468882a5a59fe1210da3fc630a972c3e
+state_head: 5651e81bdb5a523f29bb6150c01d674d4bd614f2
 progress:
   total_phases: 6
   completed_phases: 3
-  total_plans: 55
-  completed_plans: 53
+  total_plans: 56
+  completed_plans: 54
 milestone_name: milestone
 ---
 
@@ -106,6 +106,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 | Phase 04 P14 | 50min | 2 tasks | 7 files |
 | Phase 04-persistent-save-continuity P15 | 55min | 2 tasks | 11 files |
 | Phase 04-persistent-save-continuity P16 | 95min | 3 tasks | 9 files |
+| Phase 04-persistent-save-continuity P17 | 20min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -217,6 +218,9 @@ Progress: [█████████░] 90% (Phase 03.5)
 - [Phase 04]: CR-02 fix: D-33's save-revision rate limit and namespaced upload-concurrency slot are now invoked; UploadSlots reworked to a (bucket, unique_key) dedup model so the save route's replay (off :idempotency, D-16) dedupes on command_id instead of consuming a second slot. — Constants existed but were never called (WINDOWS #37 shape); the plan's own design point required a deliberate replay-safety decision, recorded rather than papered over.
 - [Phase 04]: MC-01..MC-06 fix (plan 04-16): AppEnvironment now constructs a single shared SaveStore/SaveOutbox/SaveConflictResolver, feeding real only-copy counts into ReclaimPromptView/StorageView, a working console export deep link, the card's divergence badge, a real saveReadiness: closure on ReadinessEngine, and real ConflictComparisonSheet/OnlyCopyEscalationPanel call sites in ReadinessSheetView. — All six defects shared one root cause: tests constructed the leaf component directly and never asserted a user action reaches it; the fix is wiring at AppEnvironment's composition-root seam, backstopped by 18 new tests that drive that exact seam.
 - [Phase 04]: MC-05/WR-04 scope boundary: the escalated panel's four unfixable reasons (revoked auth, capability skew, server refusal, compatibility rejection) still cannot fire because SaveUploadLane has no wired failure-classification output — a distinct, pre-existing gap recorded in WINDOWS.md, not rebuilt inside the 04-16 wiring pass.
+- [Phase 04]: WR-02 fixed with rename(2) directly (matching SavePlanExecutor.renameIntoPlaceDurably), not FileManager.replaceItemAt — Consistent with existing durable-write primitive in the codebase; no new abstraction
+- [Phase 04]: WR-01 fixed at the JournalApplier.applySave call site (carry forward existing local-only columns) rather than SQL COALESCE alone — tier/origin are NOT NULL with non-optional Swift defaults, so excluded.col is never actually NULL from a caller that doesn't know the true value -- COALESCE alone can't detect that case
+- [Phase 04]: WS-01 fixed by exempting fork_acknowledged journal entries from Compaction.run/0 by payload shape, and updating oldest_surviving_seq/0 in lockstep — Acknowledgment markers share entity_kind with ordinary save entries; the 410 boundary must not be pulled backward by an entry exempted from deletion
 
 ### Pending Todos
 
@@ -250,6 +254,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-05T14:20:00.000Z
-Stopped at: Completed 04-16-PLAN.md (gap closure: MC-01..MC-06)
+Last session: 2026-09-05T14:57:32.352Z
+Stopped at: Completed 04-17-PLAN.md
 Resume file: None
