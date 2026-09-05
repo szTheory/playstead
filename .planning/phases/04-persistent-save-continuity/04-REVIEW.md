@@ -176,17 +176,17 @@ documented; nothing checks that production ever supplies a real number.
 
 Full list in the two source documents; these are the ones that touch save data.
 
-- **WR-01 (Mac)** `JournalApplier.applySave` silently resets a self-authored revision's
+- **WR-01 (Mac)** — **FIXED** (plan 04-17, commit `0386b81`) `JournalApplier.applySave` silently resets a self-authored revision's
   `tier`, `origin`, `manifestDigest`, `sessionID` and `artifactSetJSON` to defaults when the
   journal echoes it back, because `insertRevision`'s `ON CONFLICT DO UPDATE` writes every
   column and the applier does not preserve existing values. Can desync
   `SaveSessionRecovery`'s staged/promoted pairing — i.e. degrade crash recovery.
-- **WR-02 (Mac)** `SaveCapturePoller.write()` uses remove-then-move rather than atomic
+- **WR-02 (Mac)** — **FIXED** (plan 04-17, commit `b66dfdf`) `SaveCapturePoller.write()` uses remove-then-move rather than atomic
   `rename(2)` for the rolling `staged` file, reintroducing the exact non-atomic-overwrite
   hazard D-06/D-47 exist to prevent, and which plan 04-01's APFS probe was built to
   characterize. Mitigated by other recovery paths; still a regression against the file's own
   stated discipline.
-- **WS-01 (server)** D-52's "keep both, never re-raised" guarantee is derived from the change
+- **WS-01 (server)** — **FIXED** (plan 04-17, commit `9d2f26a`) D-52's "keep both, never re-raised" guarantee is derived from the change
   journal via `Saves.fork_acknowledged?/3`, but `Playstead.Sync.Compaction.run/0`
   unconditionally deletes journal entries after 90 days regardless of entity kind. This is
   the event-horizon mistake D-17 explicitly solved for revision lineage, reintroduced for

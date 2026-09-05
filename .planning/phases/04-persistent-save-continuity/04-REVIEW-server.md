@@ -66,7 +66,7 @@ This does not delete or overwrite bytes, so it is not literal data loss, but it 
 
 ## Warnings
 
-### WR-01: "Keep both" acknowledgment is derived from the change journal, which is compacted at 90 days — D-52's "never re-raised" promise silently breaks after that horizon
+### WR-01: "Keep both" acknowledgment is derived from the change journal, which is compacted at 90 days — D-52's "never re-raised" promise silently breaks after that horizon — **FIXED** (referenced as WS-01 in 04-REVIEW.md; plan 04-17, commit `9d2f26a`)
 
 **Files:** `playstead-server/lib/playstead/saves.ex:587-603` (`fork_acknowledged?/3`), `playstead-server/lib/playstead/sync/compaction.ex:38-46` (`Compaction.run/0`).
 

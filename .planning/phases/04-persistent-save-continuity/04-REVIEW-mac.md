@@ -23,7 +23,7 @@ None confirmed in the files read. (See Warnings — one item, WR-04, could turn 
 
 ## Warnings
 
-### WR-01: Journal-applied `save` entries silently discard locally-captured provenance (tier/origin/manifestDigest/sessionID/artifactSetJSON)
+### WR-01: Journal-applied `save` entries silently discard locally-captured provenance (tier/origin/manifestDigest/sessionID/artifactSetJSON) — **FIXED** (plan 04-17, commit `0386b81`)
 
 **File:** `playstead-mac/Playstead/Sync/JournalApplier.swift:311-332`
 **Issue:** `applySave` builds the `SaveRevisionRow` to upsert using `SaveRevisionRow`'s memberwise initializer without passing `tier`, `origin`, `manifestDigest`, `sessionID`, or `artifactSetJSON` — so all five take their defaults (`tier: "promoted"`, `origin: "session"`, the rest `nil`). `SaveStore.insertRevision` (`Persistence/SaveStore.swift:194-235`) does `ON CONFLICT(id) DO UPDATE SET` across *every* column, including these five. When the journal later echoes back a revision this same device originally captured and uploaded — a normal case in a poll/sync loop, not an edge case — this upsert overwrites whatever tier/origin/manifestDigest/sessionID that local row actually had.
@@ -33,7 +33,7 @@ Concretely: a `baseline`/`external` capture (D-04's "changed outside a session" 
 **Why it matters:** The recovery re-attempt is idempotent-by-digest so it doesn't insert a duplicate row — but this is happening by luck (a second safety net), not by design; the actual bug is that the sync spine is quietly destroying local provenance metadata for a device's own revisions the moment they round-trip through the journal, which undermines D-39's session-grouped save history (a revision's `session_id` disappearing breaks the grouping key `SaveHistorySheet` presumably relies on — not reviewed in this pass) and generally violates D-17's "provenance carried from day one" commitment.
 **Fix:** Preserve the existing local row's tier/origin/manifestDigest/sessionID/artifactSetJSON when they are already known, rather than letting the journal-applied defaults clobber them — e.g. fetch the existing row (already done for `localPath` via `existingLocalPath`) and carry its tier/origin/manifestDigest/sessionID/artifactSetJSON forward when present, falling back to the journal payload's own values only when the row is new.
 
-### WR-02: `SaveCapturePoller.write()` uses remove-then-move, not an atomic rename, for the rolling `staged` file
+### WR-02: `SaveCapturePoller.write()` uses remove-then-move, not an atomic rename, for the rolling `staged` file — **FIXED** (plan 04-17, commit `b66dfdf`)
 
 **File:** `playstead-mac/Playstead/Saves/SaveCapturePoller.swift:298-323`
 **Issue:** For every capture (`staged`, `promoted`, and `baseline`), `write()` does: write temp file, fsync, then `if fileExists(finalURL) { removeItem(finalURL) }`, then `moveItem(tempURL, finalURL)`, then fsync the directory. For the **content-addressed** `promoted`/`baseline` case this is harmless (the finalURL name is the content's own digest, so removing and rewriting identical bytes is a no-op crash-wise). For the **staged** case, `finalURL` is the fixed rolling name `session-<id>.staged.sav`, and the new bytes are, by construction, *different* from what's currently there (a staged write only happens when the digest differs from the last-staged digest). A crash between `removeItem` and `moveItem` leaves that session's staged file completely absent rather than holding either the old or the new bytes.
