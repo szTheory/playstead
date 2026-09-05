@@ -13,6 +13,7 @@ final class SaveSessionCoordinatorTests: XCTestCase {
     private var tempRoot: URL!
     private var localStore: LocalStore!
     private var saveStore: SaveStore!
+    private var casManager: CASManager!
     private var captureDir: URL!
     private var saveDir: URL!
 
@@ -22,6 +23,7 @@ final class SaveSessionCoordinatorTests: XCTestCase {
         let paths = AppPaths(root: tempRoot)
         localStore = try LocalStore(paths: paths)
         saveStore = SaveStore(localStore: localStore)
+        casManager = CASManager(paths: paths)
         captureDir = tempRoot.appendingPathComponent("save-captures/asset-1", isDirectory: true)
         saveDir = tempRoot.appendingPathComponent("saves/asset-1", isDirectory: true)
         try FileManager.default.createDirectory(at: saveDir, withIntermediateDirectories: true)
@@ -72,7 +74,8 @@ final class SaveSessionCoordinatorTests: XCTestCase {
         onPromoted: (@Sendable () -> Void)? = nil
     ) -> SaveSessionCoordinator {
         SaveSessionCoordinator(
-            saveStore: saveStore, blockedState: blockedState, pollInterval: 3600, onPromoted: onPromoted
+            saveStore: saveStore, casManager: casManager, blockedState: blockedState,
+            pollInterval: 3600, onPromoted: onPromoted
         )
     }
 
@@ -253,6 +256,124 @@ final class SaveSessionCoordinatorTests: XCTestCase {
 
     // MARK: - D-31: a capture failure never becomes a launch failure
 
+    // MARK: - WINDOWS #49: capture bytes reach the CAS
+
+    /// The hole this closes: before it, a session promoted a revision
+    /// whose bytes existed only under `save-captures/`, so
+    /// `CASManager.contains` -- the single fact `LaunchSaveContextBuilder`
+    /// derives `bytesLocal` from -- was false for every save this Mac
+    /// captured itself.
+    func testAPromotedCapturesBytesAreCommittedToTheCAS() async throws {
+        let lineID = try makeLine()
+        let coordinator = makeCoordinator()
+        await begin(coordinator, lineID: lineID)
+
+        let bytes = Data(repeating: 0xA1, count: 64)
+        try write(bytes)
+        await coordinator.end()
+
+        let promoted = saveStore.fetchRevisions(saveLineID: lineID)
+            .first { $0.tier == SaveCaptureTier.promoted.rawValue }
+        XCTAssertEqual(promoted?.blobSHA256, digest(bytes))
+        XCTAssertTrue(
+            casManager.contains(digest(bytes)),
+            "a promoted capture's bytes must be in the CAS, or restore-from-history needs a server round-trip"
+        )
+    }
+
+    /// A session-start baseline is a revision like any other: its bytes
+    /// have to be local too, or an out-of-band change is recorded as
+    /// history the user cannot restore from.
+    func testASessionStartBaselinesBytesAreCommittedToTheCAS() async throws {
+        let lineID = try makeLine()
+        try recordHead(lineID: lineID, digest: digest(Data(repeating: 0x11, count: 64)), sizeBytes: 64)
+        let outOfBand = Data(repeating: 0x22, count: 64)
+        try write(outOfBand)
+
+        let coordinator = makeCoordinator()
+        await begin(coordinator, lineID: lineID)
+        await coordinator.end()
+
+        XCTAssertTrue(casManager.contains(digest(outOfBand)))
+    }
+
+    /// The capture artifact under `save-captures/` is what
+    /// `SaveUploadLane` reads bytes from, so the CAS commit must copy it
+    /// rather than consume it. `CASManager.commit` *moves* its source --
+    /// handing it the capture directly would upload-break every save.
+    func testCommittingToTheCASDoesNotConsumeTheDurableCaptureArtifact() async throws {
+        let lineID = try makeLine()
+        let coordinator = makeCoordinator()
+        await begin(coordinator, lineID: lineID)
+        try write(Data(repeating: 0xA2, count: 64))
+        await coordinator.end()
+
+        let promoted = saveStore.fetchRevisions(saveLineID: lineID)
+            .first { $0.tier == SaveCaptureTier.promoted.rawValue }
+        let localPath = try XCTUnwrap(promoted?.localPath)
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: localPath),
+            "the revision's own localPath bytes must survive the CAS commit -- SaveUploadLane reads them"
+        )
+    }
+
+    /// The same digest can legitimately arrive twice (a replayed
+    /// session, a byte-identical capture). An already-present object is
+    /// a no-op, never an error and never a blockage.
+    func testAnAlreadyCommittedDigestIsANoOpRatherThanAFailure() async throws {
+        let lineID = try makeLine()
+        let bytes = Data(repeating: 0xA3, count: 64)
+        let sha = digest(bytes)
+
+        // Pre-commit the exact bytes, as a prior session would have.
+        try FileManager.default.createDirectory(at: tempRoot.appendingPathComponent("partials"), withIntermediateDirectories: true)
+        let partial = tempRoot.appendingPathComponent("partials/\(sha)")
+        try bytes.write(to: partial)
+        try casManager.commit(partialAt: partial, sha256: sha)
+
+        let blocked = SaveCaptureBlockedState(localStore: localStore)
+        let coordinator = makeCoordinator(blockedState: blocked)
+        await begin(coordinator, lineID: lineID)
+        try write(bytes)
+        await coordinator.end()
+
+        XCTAssertTrue(casManager.contains(sha))
+        let blockage = await blocked.openBlockage(saveLineID: lineID)
+        XCTAssertNil(blockage, "re-committing identical bytes is a no-op, not a blockage")
+    }
+
+    /// A CAS commit that cannot complete must not fail the launch and
+    /// must not silently vanish. The revision itself is still recorded:
+    /// its `localPath` bytes are durable, so abandoning the row would
+    /// turn a durability improvement into save loss. The degradation is
+    /// surfaced as a D-31 blockage instead.
+    func testACASCommitFailureLeavesTheLaunchUnaffectedAndIsRecordedAsBlocked() async throws {
+        let lineID = try makeLine()
+        let blocked = SaveCaptureBlockedState(localStore: localStore)
+
+        // `objects/` as a regular file: no digest subdirectory can be
+        // created beneath it, so every CAS commit fails while the
+        // poller's own writes under `save-captures/` still succeed.
+        let objects = tempRoot.appendingPathComponent("objects", isDirectory: true)
+        try? FileManager.default.removeItem(at: objects)
+        try Data("not a directory".utf8).write(to: objects)
+
+        let coordinator = makeCoordinator(blockedState: blocked)
+        await begin(coordinator, lineID: lineID)
+        let bytes = Data(repeating: 0xA4, count: 64)
+        try write(bytes)
+        await coordinator.end()
+
+        let promoted = saveStore.fetchRevisions(saveLineID: lineID)
+            .first { $0.tier == SaveCaptureTier.promoted.rawValue }
+        XCTAssertEqual(
+            promoted?.blobSHA256, digest(bytes),
+            "the capture is still recorded -- its localPath bytes are durable and uploadable"
+        )
+        let blockage = await blocked.openBlockage(saveLineID: lineID)
+        XCTAssertNotNil(blockage, "a CAS commit failure must be visible (D-31), never silent")
+    }
+
     /// A capture that cannot be written must not throw out to `play()`,
     /// which would surface a save-bookkeeping problem to the user as
     /// "Launch failed". It is recorded as a durable blockage instead.
@@ -265,7 +386,7 @@ final class SaveSessionCoordinatorTests: XCTestCase {
         let unwritable = URL(fileURLWithPath: "/dev/null/save-captures")
 
         let coordinator = SaveSessionCoordinator(
-            saveStore: saveStore, blockedState: blocked, pollInterval: 3600
+            saveStore: saveStore, casManager: casManager, blockedState: blocked, pollInterval: 3600
         )
         await coordinator.begin(
             saveLineID: lineID, targetURL: targetURL, destinationDirectory: unwritable,

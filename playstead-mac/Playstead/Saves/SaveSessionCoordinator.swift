@@ -58,6 +58,14 @@ enum SaveCapturePaths {
 /// instead of letting it surface as "Launch failed".
 actor SaveSessionCoordinator {
     private let saveStore: SaveStore
+    /// Where a capture's bytes go so they are actually local.
+    /// `LaunchSaveContextBuilder` derives `bytesLocal` from
+    /// `CASManager.contains(_:)` and nothing else -- this is deliberately
+    /// the same single source of truth rather than a second, parallel
+    /// bytes-local mechanism. Required, never optional: a `nil` default
+    /// would silently reproduce exactly the hole this closes (WINDOWS
+    /// #49).
+    private let casManager: CASManager
     private let blockedState: SaveCaptureBlockedState?
     private let pollInterval: TimeInterval
     /// Fired after a promoted revision is durably recorded, so the
@@ -76,11 +84,13 @@ actor SaveSessionCoordinator {
 
     init(
         saveStore: SaveStore,
+        casManager: CASManager,
         blockedState: SaveCaptureBlockedState? = nil,
         pollInterval: TimeInterval = 1.0,
         onPromoted: (@Sendable () -> Void)? = nil
     ) {
         self.saveStore = saveStore
+        self.casManager = casManager
         self.blockedState = blockedState
         self.pollInterval = pollInterval
         self.onPromoted = onPromoted
@@ -129,6 +139,10 @@ actor SaveSessionCoordinator {
 
         do {
             if let baseline = try await poller.startSession() {
+                // Bytes into the CAS BEFORE the row that names them, so
+                // the ordinary path never leaves a revision claiming a
+                // digest the CAS does not hold.
+                let casFailure = commitCaptureBytes(baseline)
                 let row = try persist(
                     baseline, saveLineID: saveLineID, parentRevisionID: head?.id, captureMethod: "baseline"
                 )
@@ -136,7 +150,14 @@ actor SaveSessionCoordinator {
                 // session's own promotion parents onto it rather than
                 // onto the pre-baseline head it superseded.
                 self.parentRevisionID = row.id
-                await clearBlockage(saveLineID: saveLineID)
+                if let casFailure {
+                    await recordBlockage(
+                        saveLineID: saveLineID, sessionID: poller.sessionID,
+                        digest: baseline.sha256, error: casFailure
+                    )
+                } else {
+                    await clearBlockage(saveLineID: saveLineID)
+                }
             }
         } catch {
             await recordBlockage(
@@ -174,16 +195,77 @@ actor SaveSessionCoordinator {
         do {
             _ = try await poller.settle()
             if let promoted = try await poller.promote() {
+                // Same ordering as `begin()`'s baseline: CAS first, then
+                // the row that names the digest.
+                let casFailure = commitCaptureBytes(promoted)
                 _ = try persist(
                     promoted, saveLineID: saveLineID, parentRevisionID: parent, captureMethod: "session"
                 )
                 onPromoted?()
+                if let casFailure {
+                    await recordBlockage(
+                        saveLineID: saveLineID, sessionID: poller.sessionID,
+                        digest: promoted.sha256, error: casFailure
+                    )
+                    return
+                }
             }
             await clearBlockage(saveLineID: saveLineID)
         } catch {
             await recordBlockage(
                 saveLineID: saveLineID, sessionID: poller.sessionID, digest: nil, error: error
             )
+        }
+    }
+
+    // MARK: - CAS
+
+    /// Puts a capture's bytes into the CAS under the digest the poller
+    /// already computed over the exact bytes it wrote -- never
+    /// recomputed here, so this can never disagree with the digest the
+    /// `save_revision` row records.
+    ///
+    /// Returns the failure rather than throwing it. A capture whose
+    /// bytes are durably on disk but not in the CAS is a degraded
+    /// history/restore state, not lost data: the revision row still
+    /// carries `localPath`, which is where `SaveUploadLane` reads bytes
+    /// from. Aborting the row insert on a CAS failure would therefore
+    /// turn a durability *improvement* into save loss, so the caller
+    /// records the row and surfaces the failure as a D-31 blockage
+    /// instead. It never reaches the Play path and is never fatal to the
+    /// launch.
+    private func commitCaptureBytes(_ capture: CapturedSave) -> Error? {
+        // A digest already in the CAS is a no-op, not an error -- the
+        // same bytes legitimately arrive twice (a replayed session, a
+        // byte-identical capture). Content-addressing makes the two
+        // copies identical by construction.
+        guard !casManager.contains(capture.sha256) else { return nil }
+
+        do {
+            // `CASManager.commit` *moves* its source into `objects/`,
+            // and `capture.localPath` is the permanent capture artifact
+            // the revision row points at. So a copy is staged under
+            // `partials/` and that copy is what gets moved -- the
+            // capture itself is never consumed.
+            let source = URL(fileURLWithPath: capture.localPath)
+            let staged = try casManager.paths
+                .partialURL(for: capture.sha256)
+                .appendingPathExtension("save-stage")
+            let fm = FileManager.default
+            try fm.createDirectory(at: staged.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? fm.removeItem(at: staged)
+            try fm.copyItem(at: source, to: staged)
+            do {
+                try casManager.commit(partialAt: staged, sha256: capture.sha256)
+            } catch {
+                // A failed commit must not leave the staging copy behind
+                // as a permanent orphan under `partials/`.
+                try? fm.removeItem(at: staged)
+                throw error
+            }
+            return nil
+        } catch {
+            return error
         }
     }
 

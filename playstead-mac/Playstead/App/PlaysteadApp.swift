@@ -800,6 +800,10 @@ final class AppEnvironment {
     func makeSaveSessionCoordinator() -> SaveSessionCoordinator {
         SaveSessionCoordinator(
             saveStore: saveStore,
+            // The bytes a session captures must land in the CAS, or
+            // `LaunchSaveContextBuilder` reports `bytesLocal: false` for
+            // a save this very Mac made (WINDOWS #49).
+            casManager: casManager,
             blockedState: saveCaptureBlockedState,
             // Drain trigger: a session's promotion is the moment a new
             // local-only revision exists, and a revision that exists on
