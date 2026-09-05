@@ -3,17 +3,17 @@ gsd_state_version: 1.0
 milestone: v1.0
 current_phase: 04
 current_phase_name: Persistent Save Continuity
-status: executing
-stopped_at: Completed 04-12-PLAN.md
-last_updated: "2026-09-05T01:16:58.627Z"
+status: verifying
+stopped_at: Completed 04-14-PLAN.md
+last_updated: "2026-09-05T02:29:46.591Z"
 last_activity: 2026-09-03
 last_activity_desc: Phase 04 execution started
-state_head: 6832526b57d5e6d1059b3a80ad840f13ee029e35
+state_head: 99fc5cdca29c071cb33632432f32f63d3c7b6a8a
 progress:
   total_phases: 6
   completed_phases: 3
-  total_plans: 51
-  completed_plans: 50
+  total_plans: 52
+  completed_plans: 51
 milestone_name: milestone
 ---
 
@@ -30,7 +30,7 @@ See: `.planning/PROJECT.md` (updated 2026-08-30)
 
 Phase: 04 (Persistent Save Continuity) — EXECUTING
 Plan: 13 of 13
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-09-03 — Phase 04 execution started
 
 **Read `.planning/phases/03.5-mac-verification-automation/.continue-here.md` before resuming 03.5-09.**
@@ -103,6 +103,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 | Phase 04 P10 | 130min | 3 tasks | 14 files |
 | Phase 04-persistent-save-continuity P11 | 45min | 3 tasks | 15 files |
 | Phase 04-persistent-save-continuity P12 | 50min | 2 tasks | 11 files |
+| Phase 04 P14 | 50min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -209,6 +210,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 - [Phase 04-persistent-save-continuity]: SaveOutbox is a sibling durable outbox inside Outbox.swift with its own table/kind vocabulary rather than widening CurationIntentKind — CurationIntent's wire shape has no natural home for a two-case save-resolution intent, and widening it would blur two distinct bounded contexts
 - [Phase 04]: [Phase 04] OnlyCopyEscalationInput carries no date/elapsed-time field at all, so the escalated tier is structurally unable to escalate on duration or count (D-40)
 - [Phase 04]: [Phase 04] Unpair, sign out, and delete game have no production entry point yet; only remove-local-copy and eviction are wired to OnlyCopyInterruptionGate (WINDOWS #35)
+- [Phase 04]: content_key for save lines is the ROM's own sha256 (never assetSetID), matching the server's Playstead.Saves.Save schema verbatim
 
 ### Pending Todos
 
@@ -242,6 +244,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-05T01:16:58.467Z
-Stopped at: Completed 04-12-PLAN.md
+Last session: 2026-09-05T02:29:46.363Z
+Stopped at: Completed 04-14-PLAN.md
 Resume file: None
