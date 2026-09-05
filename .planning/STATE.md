@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 04
 current_phase_name: Persistent Save Continuity
 status: verifying
-stopped_at: Completed 04-14-PLAN.md
-last_updated: "2026-09-05T02:29:46.591Z"
+stopped_at: "Completed 04-15-PLAN.md (gap closure: CR-01, CR-02)"
+last_updated: "2026-09-05T03:42:58.681Z"
 last_activity: 2026-09-03
 last_activity_desc: Phase 04 execution started
-state_head: 99fc5cdca29c071cb33632432f32f63d3c7b6a8a
+state_head: bfa721f4a899e0bebbdde9e4fa9195ce32a91114
 progress:
   total_phases: 6
   completed_phases: 3
-  total_plans: 52
-  completed_plans: 51
+  total_plans: 54
+  completed_plans: 52
 milestone_name: milestone
 ---
 
@@ -104,6 +104,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 | Phase 04-persistent-save-continuity P11 | 45min | 3 tasks | 15 files |
 | Phase 04-persistent-save-continuity P12 | 50min | 2 tasks | 11 files |
 | Phase 04 P14 | 50min | 2 tasks | 7 files |
+| Phase 04-persistent-save-continuity P15 | 55min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -211,6 +212,8 @@ Progress: [█████████░] 90% (Phase 03.5)
 - [Phase 04]: [Phase 04] OnlyCopyEscalationInput carries no date/elapsed-time field at all, so the escalated tier is structurally unable to escalate on duration or count (D-40)
 - [Phase 04]: [Phase 04] Unpair, sign out, and delete game have no production entry point yet; only remove-local-copy and eviction are wired to OnlyCopyInterruptionGate (WINDOWS #35)
 - [Phase 04]: content_key for save lines is the ROM's own sha256 (never assetSetID), matching the server's Playstead.Saves.Save schema verbatim
+- [Phase 04]: CR-01 fix: resolve_parent/2 scoped to save_line_id (threaded from commit_revision's Multi), backstopped by a composite (parent_revision_id, save_line_id) DB FK; refusal reuses save_parent_unknown (409). — History is append-only so a cross-line parent link is unrecoverable once committed; app-only scoping is a single point of failure.
+- [Phase 04]: CR-02 fix: D-33's save-revision rate limit and namespaced upload-concurrency slot are now invoked; UploadSlots reworked to a (bucket, unique_key) dedup model so the save route's replay (off :idempotency, D-16) dedupes on command_id instead of consuming a second slot. — Constants existed but were never called (WINDOWS #37 shape); the plan's own design point required a deliberate replay-safety decision, recorded rather than papered over.
 
 ### Pending Todos
 
@@ -244,6 +247,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-05T02:29:46.363Z
-Stopped at: Completed 04-14-PLAN.md
+Last session: 2026-09-05T03:42:58.547Z
+Stopped at: Completed 04-15-PLAN.md (gap closure: CR-01, CR-02)
 Resume file: None
