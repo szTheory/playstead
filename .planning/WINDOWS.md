@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 40
+open_count: 39
 waived_count: 1
-fixed_count: 10
+fixed_count: 11
 total_count: 51
-last_updated: 2026-09-05T22:19:41.957Z
+last_updated: 2026-09-05T23:05:00.000Z
 ---
 
 # Broken Windows Ledger
@@ -63,7 +63,7 @@ last_updated: 2026-09-05T22:19:41.957Z
 | 46 | 04 | unmet-truth | playstead-mac/Playstead/Saves/SaveSessionRecovery.swift |  | SaveSessionRecovery (crash-recovery replay actor, D-05/D-07) is never constructed in production despite its own doc comment saying app launch should call it once per known save line. Discovered baselining 04-18's reachability sweep. See 04-18-SUMMARY.md. FIXED by plan 04-19 (3691ec3). | fixed |  | 2026-09-05T21:54:18.681Z | 2026-09-05T22:18:48.732Z |
 | 47 | 04 | unmet-truth | playstead-mac/Playstead/Saves/SaveRollup.swift |  | SaveRollup.rollup(for:) (D-36's game-level save rollup string) has zero production callers -- not reachable from any shipped UI. Discovered baselining 04-18's reachability sweep. See 04-18-SUMMARY.md. | open |  | 2026-09-05T21:54:18.760Z |  |
 | 48 | 04 | unmet-truth | playstead-mac/Playstead/Controller/ControllerRecoveryBanner.swift |  | ControllerRecoveryBanner and ControllerTestView (Controller/) and FirstRunBanner and ShowAllSystemsControl (Library/) are fully built views with zero production call sites -- discovered baselining 04-18's reachability sweep. See 04-18-SUMMARY.md and scripts/ci/reachability-allowlist.txt for the full list and per-symbol detail. | open |  | 2026-09-05T21:54:18.835Z |  |
-| 49 | 04 | stub | playstead-mac/Playstead/Saves/SaveSessionCoordinator.swift |  | A promoted capture's bytes are written to the save-captures directory and recorded as a SaveStore revision, but are NOT committed into the CAS. LaunchSaveContextBuilder derives head candidates' bytesLocal from casManager.contains(blobSHA256), so a locally-captured revision reads as bytes-not-local at the next launch and cannot be restored from history until it has round-tripped through the server. Same-device continuity still works (the live .sav artifact persists), so this is the mirror image of WINDOWS #38 rather than a break in SAVE-01's main path. Out of 04-19's declared scope (capture -> SaveStore -> upload). | open |  | 2026-09-05T22:19:41.797Z |  |
+| 49 | 04 | stub | playstead-mac/Playstead/Saves/SaveSessionCoordinator.swift |  | A promoted capture's bytes are written to the save-captures directory and recorded as a SaveStore revision, but are NOT committed into the CAS. LaunchSaveContextBuilder derives head candidates' bytesLocal from casManager.contains(blobSHA256), so a locally-captured revision reads as bytes-not-local at the next launch and cannot be restored from history until it has round-tripped through the server. Same-device continuity still works (the live .sav artifact persists), so this is the mirror image of WINDOWS #38 rather than a break in SAVE-01's main path. Out of 04-19's declared scope (capture -> SaveStore -> upload). FIXED by plan 04-20 (10783c4 excludes save blobs from the reclaim menu; de3aec1 commits capture bytes into the CAS). | fixed |  | 2026-09-05T22:19:41.797Z | 2026-09-05T23:05:00.000Z |
 | 50 | 04 | stub | playstead-mac/Playstead/Saves/SaveCaptureBlockedState.swift |  | AppEnvironment constructs SaveCaptureBlockedState with no SaveCaptureAlertSink and no SaveDirectUploadTransport, so a blocked capture (D-31) is recorded durably and is queryable, but raises no user-visible alert and has no direct-upload escape hatch in the shipped app. The seams exist and are injected; no attention surface consumes them yet. | open |  | 2026-09-05T22:19:41.878Z |  |
 | 51 | 04 | deviation | playstead-mac/Playstead/Saves/SaveCapturePoller.swift |  | The save-captures directory (<root>/save-captures/<assetSetID>/) has no reclamation path: each session leaves one session-<id>.staged.sav plus one <digest>.sav promoted blob, and QuotaManager measures paths.objects only, so capture blobs count against neither the quota nor the free-space floor and are never evicted. Save artifacts are small (tens of KB), so this is slow growth rather than an immediate hazard, but nothing bounds it. | open |  | 2026-09-05T22:19:41.957Z |  |
 
@@ -651,11 +651,11 @@ last_updated: 2026-09-05T22:19:41.957Z
     "phase": "04",
     "file": "playstead-mac/Playstead/Saves/SaveSessionCoordinator.swift",
     "line": null,
-    "description": "A promoted capture's bytes are written to the save-captures directory and recorded as a SaveStore revision, but are NOT committed into the CAS. LaunchSaveContextBuilder derives head candidates' bytesLocal from casManager.contains(blobSHA256), so a locally-captured revision reads as bytes-not-local at the next launch and cannot be restored from history until it has round-tripped through the server. Same-device continuity still works (the live .sav artifact persists), so this is the mirror image of WINDOWS #38 rather than a break in SAVE-01's main path. Out of 04-19's declared scope (capture -> SaveStore -> upload).",
-    "status": "open",
+    "description": "A promoted capture's bytes are written to the save-captures directory and recorded as a SaveStore revision, but are NOT committed into the CAS. LaunchSaveContextBuilder derives head candidates' bytesLocal from casManager.contains(blobSHA256), so a locally-captured revision reads as bytes-not-local at the next launch and cannot be restored from history until it has round-tripped through the server. Same-device continuity still works (the live .sav artifact persists), so this is the mirror image of WINDOWS #38 rather than a break in SAVE-01's main path. Out of 04-19's declared scope (capture -> SaveStore -> upload). FIXED by plan 04-20 (10783c4 excludes save blobs from the reclaim menu; de3aec1 commits capture bytes into the CAS).",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-05T22:19:41.797Z",
-    "resolved_at": null
+    "resolved_at": "2026-09-05T23:05:00.000Z"
   },
   {
     "id": 50,

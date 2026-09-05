@@ -86,6 +86,54 @@ final class LaunchSaveContextBuilderTests: XCTestCase {
         XCTAssertNoThrow(try SavePlanExecutor(environment: NeverCalledEnvironment()).execute(plan, targetURL: target))
     }
 
+    // MARK: - WINDOWS #49: a save this Mac captured is really local
+
+    /// The assertion the whole gap-closure exists for, made at the
+    /// surface that actually had the defect.
+    ///
+    /// Nothing here inserts a revision by hand or pre-seeds the CAS: a
+    /// real `SaveSessionCoordinator` session captures bytes off disk,
+    /// and then the real `LaunchSaveContextBuilder` is asked what it
+    /// makes of the result. Before the coordinator committed capture
+    /// bytes into the CAS, this reported `bytesLocal: false` for a save
+    /// the user had just made on this very machine -- restorable only
+    /// after a server round-trip. No network is involved on either half.
+    func testASaveCapturedOnThisMacIsReportedAsBytesLocalWithNoServerInvolvement() async throws {
+        let contentKey = "rom-captured-here"
+        let line = try saveStore.resolveLine(
+            contentKey: contentKey, saveKind: "battery", slot: "0", placeholderID: "line-captured-here"
+        )
+
+        let target = tempRoot.appendingPathComponent("saves/asset-1/game.sav")
+        try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+
+        let coordinator = SaveSessionCoordinator(
+            saveStore: saveStore,
+            casManager: cas,
+            pollInterval: 3600 // the 1 Hz loop never fires inside this test
+        )
+        await coordinator.begin(
+            saveLineID: line.id,
+            targetURL: target,
+            destinationDirectory: tempRoot.appendingPathComponent("save-captures/asset-1", isDirectory: true),
+            artifactRelativePath: "game.sav"
+        )
+
+        let saveBytes = Data(repeating: 0x7E, count: 32_768)
+        try saveBytes.write(to: target)
+        await coordinator.end()
+
+        let context = builder().buildContext(contentKey: contentKey, targetURL: target)
+        let head = try XCTUnwrap(
+            context.heads.first { $0.digest == hex(of: saveBytes) },
+            "the session's promoted capture must be a head on this line"
+        )
+        XCTAssertTrue(
+            head.bytesLocal,
+            "a save captured on this Mac must be restorable from history without a server round-trip"
+        )
+    }
+
     // MARK: - bytesLocal
 
     func testHeadAbsentFromCASIsReportedAsNotLocalRatherThanOmitted() throws {
