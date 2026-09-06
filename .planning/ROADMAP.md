@@ -248,7 +248,7 @@ Plans:
   5. When two devices save from the same base revision, both revisions remain available with device, time, and play context; the user can inspect, choose, export, and resolve either side without silent last-write-wins.
 
 **Research / spike flags**: Required compatibility gate: test the selected adapter's persistent-save type, safe-flush/debounce, crash behavior, and two-device divergent offline revisions. Save states remain local-only and outside the v1 portability contract.
-**Plans**: 24/25 plans executed (23 executed; 2 gap-closure plans pending from the 4/5 re-verification)
+**Plans**: 25/25 plans executed (23 executed; 2 gap-closure plans pending from the 4/5 re-verification)
 
 Plans:
 
@@ -261,7 +261,7 @@ Plans:
 **Gap closure, round 2** *(from the 04-VERIFICATION.md re-verification, 4/5 must-haves verified)*
 
 - [x] 04-24-PLAN.md — Total order on revision queries so export `seq`/filenames are deterministic under a `recorded_at` tie (criterion 4 / PORT-01)
-- [ ] 04-25-PLAN.md — Fix `SaveOutboxDrainTrigger.fire()`'s TOCTOU so the single-lane drain guarantee is real (criterion 5 / SAVE-04)
+- [x] 04-25-PLAN.md — Fix `SaveOutboxDrainTrigger.fire()`'s TOCTOU so the single-lane drain guarantee is real (criterion 5 / SAVE-04)
 
 - [x] 04-20-PLAN.md
 
@@ -332,5 +332,5 @@ Plans:
 | 1. Private Custody and Durable Protocol | 8/8 | Complete    | 2026-08-28 |
 | 2. Explainable Import and Exact Export | 10/10 | Complete    | 2026-08-30 |
 | 3. Mac Offline Play Vertical Slice | 10/10 | In Progress|  |
-| 4. Persistent Save Continuity | 24/25 | In Progress|  |
+| 4. Persistent Save Continuity | 25/25 | In Progress|  |
 | 5. Recovery and Release Proof | 0/TBD | Not started | - |
