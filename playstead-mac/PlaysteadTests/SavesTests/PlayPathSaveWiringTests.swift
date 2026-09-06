@@ -206,6 +206,74 @@ final class PlayPathSaveWiringTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: saveLaunch.targetURL), bytes)
     }
 
+    /// Plan 04-22 task 1: a `.restore` plan's `executeSavePlan` must mark
+    /// the matching revision's `restoredHereAt` non-nil, and only AFTER
+    /// the executor has actually written the bytes.
+    func testARestorePlanMarksTheMatchingRevisionRestoredHereAfterExecuting() throws {
+        let romSHA256 = String(repeating: "d", count: 64)
+        let bytes = Data(repeating: 0x5A, count: 32_768)
+        let digest = try commitIntoCAS(bytes)
+
+        let saveStore = SaveStore(localStore: environment.localStore)
+        try saveStore.resolveLine(contentKey: romSHA256, saveKind: "battery", slot: "0", placeholderID: "line-restore")
+        try saveStore.insertRevision(SaveRevisionRow(
+            id: "r-restore", saveLineID: "line-restore", parentRevisionID: nil, blobSHA256: digest, sizeBytes: 32_768,
+            originDeviceID: "another-mac", deviceCapturedAt: nil, recordedAt: "2026-01-01T00:00:00Z",
+            captureMethod: nil, adapterID: nil, adapterVersion: nil, saveFormat: nil, formatConfidence: nil,
+            playSessionID: nil, durability: SaveDurability.uploaded.rawValue, localPath: nil
+        ))
+
+        let saveDir = tempRoot.appendingPathComponent("saves/asset-restore", isDirectory: true)
+        try FileManager.default.createDirectory(at: saveDir, withIntermediateDirectories: true)
+        let romURL = tempRoot.appendingPathComponent("launch/asset-restore/game.gba")
+        let testEntry = entry(id: "asset-restore", romSHA256: romSHA256)
+        let members = [(sha256: romSHA256, declaredName: "game.gba")]
+
+        let saveLaunch = GameRowView.buildSaveLaunchPlan(
+            environment: environment, entry: testEntry, members: members, romURL: romURL, saveDir: saveDir
+        )
+        guard case .restore = saveLaunch.plan else {
+            return XCTFail("expected .restore, got \(saveLaunch.plan)")
+        }
+
+        XCTAssertNil(saveStore.fetchRevision(id: "r-restore")?.restoredHereAt, "must not be marked before executing")
+        try saveLaunch.executeSavePlan()
+        XCTAssertNotNil(
+            saveStore.fetchRevision(id: "r-restore")?.restoredHereAt,
+            "a restored revision must carry a durable restored-here timestamp after the plan executes"
+        )
+    }
+
+    /// A `.keep` plan (nothing to restore) must mark nothing.
+    func testAKeepPlanMarksNoRevisionRestoredHere() throws {
+        let romSHA256 = String(repeating: "g", count: 64)
+        let saveDir = tempRoot.appendingPathComponent("saves/asset-keep", isDirectory: true)
+        try FileManager.default.createDirectory(at: saveDir, withIntermediateDirectories: true)
+        let romURL = tempRoot.appendingPathComponent("launch/asset-keep/game.gba")
+        let testEntry = entry(id: "asset-keep", romSHA256: romSHA256)
+        let members = [(sha256: romSHA256, declaredName: "game.gba")]
+
+        // Bytes already on disk and no recorded head -> `.keep` (LaunchSavePlanner never
+        // writes over existing bytes when there is no head to compare against).
+        let targetURL = SaveCapturePaths.targetURL(saveDirectory: saveDir, romFileName: "game.gba")
+        try Data(repeating: 0x11, count: 128).write(to: targetURL)
+
+        let saveLaunch = GameRowView.buildSaveLaunchPlan(
+            environment: environment, entry: testEntry, members: members, romURL: romURL, saveDir: saveDir
+        )
+        guard case .keep = saveLaunch.plan else {
+            return XCTFail("expected .keep, got \(saveLaunch.plan)")
+        }
+
+        try saveLaunch.executeSavePlan()
+
+        let saveStore = SaveStore(localStore: environment.localStore)
+        XCTAssertTrue(
+            saveStore.fetchAllRevisions().allSatisfy { $0.restoredHereAt == nil },
+            "a .keep plan must mark nothing restored"
+        )
+    }
+
     func testANoOpPlanForAFirstEverLaunchWritesNothing() throws {
         let romSHA256 = String(repeating: "b", count: 64)
         let saveDir = tempRoot.appendingPathComponent("saves/asset-2", isDirectory: true)

@@ -472,8 +472,30 @@ struct GameRowView: View {
         let context = contextBuilder.buildContext(contentKey: contentKey, targetURL: targetURL)
         let plan = LaunchSavePlanner.plan(context: context)
         let executor = SavePlanExecutor(environment: LaunchSaveEnvironment(casManager: environment.casManager))
+        let saveStore = contextBuilder.saveStore
 
-        return (plan, targetURL, Self.notice(for: plan), { try executor.execute(plan, targetURL: targetURL) })
+        let executeSavePlan: () throws -> Void = {
+            try executor.execute(plan, targetURL: targetURL)
+            // Plan 04-22 task 1: only AFTER a successful execute --
+            // `.restore` and `.fastForward` are the two plans that place
+            // another revision's bytes at the live artifact path; `.fresh`
+            // and `.keep` mark nothing. Marking errors are swallowed
+            // (`try?`) so provenance bookkeeping can never turn a
+            // successful restore into a failed launch.
+            let restoredDigest: String?
+            switch plan {
+            case let .restore(digest, _): restoredDigest = digest
+            case let .fastForward(digest): restoredDigest = digest
+            case .fresh, .keep: restoredDigest = nil
+            }
+            guard let restoredDigest,
+                  let line = saveStore.fetchLine(contentKey: contentKey, saveKind: "battery", slot: "0"),
+                  let revision = saveStore.fetchRevisions(saveLineID: line.id).first(where: { $0.blobSHA256 == restoredDigest })
+            else { return }
+            try? saveStore.markRestoredHere(revisionID: revision.id, at: ISO8601DateFormatter().string(from: Date()))
+        }
+
+        return (plan, targetURL, Self.notice(for: plan), executeSavePlan)
     }
 
     /// One launch's capture wiring: a fresh `SaveSessionCoordinator`

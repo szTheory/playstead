@@ -62,11 +62,18 @@ struct SaveRevisionRow: Equatable {
     /// The JSON-encoded `SaveArtifactSet` this revision was captured
     /// from (D-08).
     let artifactSetJSON: String?
+    /// D-35's provenance axis (plan 04-22): non-nil once the launch
+    /// path has placed this revision's bytes at the live save path via
+    /// a `.restore` or `.fastForward` plan. Immutable once set --
+    /// `SaveStore.markRestoredHere`'s guarded UPDATE is what makes a
+    /// second call a no-op. `nil` for every revision never restored on
+    /// this Mac, including every row from before this column existed.
+    let restoredHereAt: String?
 
     /// Explicit memberwise init (defining any initializer suppresses
-    /// Swift's synthesized one) with defaults for the five fields plan
-    /// 04-06 added, so every pre-04-06 call site that only names the
-    /// original fields keeps compiling unchanged.
+    /// Swift's synthesized one) with defaults for the six fields plans
+    /// 04-06/04-22 added, so every earlier call site that only names
+    /// the original fields keeps compiling unchanged.
     init(
         id: String,
         saveLineID: String,
@@ -88,7 +95,8 @@ struct SaveRevisionRow: Equatable {
         origin: String = SaveCaptureOrigin.session.rawValue,
         manifestDigest: String? = nil,
         sessionID: String? = nil,
-        artifactSetJSON: String? = nil
+        artifactSetJSON: String? = nil,
+        restoredHereAt: String? = nil
     ) {
         self.id = id
         self.saveLineID = saveLineID
@@ -111,6 +119,7 @@ struct SaveRevisionRow: Equatable {
         self.manifestDigest = manifestDigest
         self.sessionID = sessionID
         self.artifactSetJSON = artifactSetJSON
+        self.restoredHereAt = restoredHereAt
     }
 }
 
@@ -212,9 +221,9 @@ final class SaveStore {
                 origin_device_id, device_captured_at, recorded_at, capture_method,
                 adapter_id, adapter_version, save_format, format_confidence,
                 play_session_id, durability, local_path, tier, origin, manifest_digest,
-                session_id, artifact_set_json
+                session_id, artifact_set_json, restored_here_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 save_line_id = excluded.save_line_id,
                 parent_revision_id = excluded.parent_revision_id,
@@ -235,14 +244,15 @@ final class SaveStore {
                 origin = excluded.origin,
                 manifest_digest = COALESCE(excluded.manifest_digest, save_revision.manifest_digest),
                 session_id = COALESCE(excluded.session_id, save_revision.session_id),
-                artifact_set_json = COALESCE(excluded.artifact_set_json, save_revision.artifact_set_json);
+                artifact_set_json = COALESCE(excluded.artifact_set_json, save_revision.artifact_set_json),
+                restored_here_at = COALESCE(save_revision.restored_here_at, excluded.restored_here_at);
             """,
             params: [
                 row.id, row.saveLineID, row.parentRevisionID, row.blobSHA256, row.sizeBytes,
                 row.originDeviceID, row.deviceCapturedAt, row.recordedAt, row.captureMethod,
                 row.adapterID, row.adapterVersion, row.saveFormat, row.formatConfidence,
                 row.playSessionID, row.durability, row.localPath, row.tier, row.origin, row.manifestDigest,
-                row.sessionID, row.artifactSetJSON
+                row.sessionID, row.artifactSetJSON, row.restoredHereAt
             ]
         )
     }
@@ -250,6 +260,20 @@ final class SaveStore {
     func updateDurability(id: String, durability: SaveDurability) throws {
         try localStore.connection.execute(
             "UPDATE save_revision SET durability = ? WHERE id = ?;", params: [durability.rawValue, id]
+        )
+    }
+
+    /// D-35's provenance marker (plan 04-22): records the FIRST time
+    /// this Mac places another revision's bytes at the live save path
+    /// via a `.restore` or `.fastForward` plan. The `AND restored_here_at
+    /// IS NULL` guard is what makes provenance immutable in storage --
+    /// a second call for the same revision is a no-op, never
+    /// overwriting the original timestamp, matching
+    /// `SaveStateModel.isValidRestoredTransition`'s contract.
+    func markRestoredHere(revisionID: String, at timestamp: String) throws {
+        try localStore.connection.execute(
+            "UPDATE save_revision SET restored_here_at = ? WHERE id = ? AND restored_here_at IS NULL;",
+            params: [timestamp, revisionID]
         )
     }
 
@@ -278,7 +302,7 @@ final class SaveStore {
                    r.origin_device_id, r.device_captured_at, r.recorded_at, r.capture_method,
                    r.adapter_id, r.adapter_version, r.save_format, r.format_confidence,
                    r.play_session_id, r.durability, r.local_path, r.tier, r.origin, r.manifest_digest,
-                   r.session_id, r.artifact_set_json
+                   r.session_id, r.artifact_set_json, r.restored_here_at
             FROM save_revision r
             WHERE r.save_line_id = ?
               AND r.tier != 'staged'
@@ -302,7 +326,7 @@ final class SaveStore {
                    r.origin_device_id, r.device_captured_at, r.recorded_at, r.capture_method,
                    r.adapter_id, r.adapter_version, r.save_format, r.format_confidence,
                    r.play_session_id, r.durability, r.local_path, r.tier, r.origin, r.manifest_digest,
-                   r.session_id, r.artifact_set_json
+                   r.session_id, r.artifact_set_json, r.restored_here_at
             FROM save_revision r
             WHERE r.save_line_id = ?
               AND r.tier != 'staged'
@@ -343,7 +367,7 @@ final class SaveStore {
                    origin_device_id, device_captured_at, recorded_at, capture_method,
                    adapter_id, adapter_version, save_format, format_confidence,
                    play_session_id, durability, local_path, tier, origin, manifest_digest,
-                   session_id, artifact_set_json
+                   session_id, artifact_set_json, restored_here_at
             FROM save_revision WHERE \(whereClause) ORDER BY rowid ASC;
             """,
             params: params
@@ -372,7 +396,8 @@ final class SaveStore {
             origin: row.string(17) ?? SaveCaptureOrigin.session.rawValue,
             manifestDigest: row.string(18),
             sessionID: row.string(19),
-            artifactSetJSON: row.string(20)
+            artifactSetJSON: row.string(20),
+            restoredHereAt: row.string(21)
         )
     }
 

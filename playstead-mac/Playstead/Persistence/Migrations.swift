@@ -397,6 +397,15 @@ enum Migrations {
         try? connection.execute("ALTER TABLE save_revision ADD COLUMN tier TEXT NOT NULL DEFAULT 'promoted';")
         try? connection.execute("ALTER TABLE save_revision ADD COLUMN origin TEXT NOT NULL DEFAULT 'session';")
         try? connection.execute("ALTER TABLE save_revision ADD COLUMN manifest_digest TEXT;")
+        // Plan 04-22 task 1: D-35's restored-here provenance column --
+        // NULL means "never restored on this Mac"; once set it is never
+        // cleared or overwritten (SaveStore.markRestoredHere's own
+        // `WHERE restored_here_at IS NULL` guard is what makes that
+        // true in storage, not just in SaveStateModel's helper).
+        // Additive ALTER, same no-op-on-duplicate-column shape as the
+        // columns above, so an existing install upgrades without a
+        // table rebuild.
+        try? connection.execute("ALTER TABLE save_revision ADD COLUMN restored_here_at TEXT;")
         try? connection.execute("ALTER TABLE save_revision ADD COLUMN session_id TEXT;")
         try? connection.execute("ALTER TABLE save_revision ADD COLUMN artifact_set_json TEXT;")
         try connection.execute("CREATE INDEX IF NOT EXISTS idx_save_revision_line ON save_revision(save_line_id, parent_revision_id);")
