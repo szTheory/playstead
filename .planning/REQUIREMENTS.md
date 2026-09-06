@@ -56,14 +56,14 @@ Requirements for the first complete Mac-to-server custody and continuity release
 
 ### Persistent Save Continuity
 
-- [x] **SAVE-01**: After a proven safe flush, the Mac client can capture the adapter-declared persistent-save artifact and queue it locally when the server is unavailable.
-- [x] **SAVE-02**: A user can see whether a save revision is local-only, queued, uploaded, current, restored, or in conflict without a generic “synced” label hiding the distinction.
-- [x] **SAVE-03**: A user can restore a compatible checksummed persistent-save revision and continue the game on a clean paired Mac installation.
-- [x] **SAVE-04**: When two devices create revisions from the same base, the system retains both and lets the user inspect device/time/play context, choose or export either side, and resolve the conflict without silent last-write-wins.
+- [ ] **SAVE-01**: After a proven safe flush, the Mac client can capture the adapter-declared persistent-save artifact and queue it locally when the server is unavailable.
+- [ ] **SAVE-02**: A user can see whether a save revision is local-only, queued, uploaded, current, restored, or in conflict without a generic “synced” label hiding the distinction.
+- [ ] **SAVE-03**: A user can restore a compatible checksummed persistent-save revision and continue the game on a clean paired Mac installation.
+- [ ] **SAVE-04**: When two devices create revisions from the same base, the system retains both and lets the user inspect device/time/play context, choose or export either side, and resolve the conflict without silent last-write-wins.
 
 ### Portability and Recovery
 
-- [x] **PORT-01**: A user can export exact original game bytes, persistent-save revisions, and a readable manifest with hashes into deterministic ordinary folders.
+- [ ] **PORT-01**: A user can export exact original game bytes, persistent-save revisions, and a readable manifest with hashes into deterministic ordinary folders.
 - [x] **PORT-02**: A user can verify an export and reimport it without byte changes, lost asset relationships, or duplicate logical records.
 - [ ] **PORT-03**: A self-hoster can create full and incremental backups to an independent user-controlled destination and see exactly what each backup covers and when it was last verified.
 - [ ] **PORT-04**: A self-hoster can restore the server into a clean environment and verify database records, exact blobs, manifests, saves, and the known-playable Mac path.
@@ -144,11 +144,11 @@ Which phases cover which requirements. This table is populated by roadmap creati
 | PLAY-03 | Phase 3 | Complete |
 | PLAY-04 | Phase 3 | Pending |
 | PLAY-05 | Phase 3 | Pending |
-| SAVE-01 | Phase 4 | Complete |
-| SAVE-02 | Phase 4 | Complete |
-| SAVE-03 | Phase 4 | Complete |
-| SAVE-04 | Phase 4 | Complete |
-| PORT-01 | Phase 4 | Complete |
+| SAVE-01 | Phase 4 | Gaps Found |
+| SAVE-02 | Phase 4 | Gaps Found |
+| SAVE-03 | Phase 4 | Gaps Found |
+| SAVE-04 | Phase 4 | Gaps Found |
+| PORT-01 | Phase 4 | Gaps Found |
 | PORT-02 | Phase 2 | Complete |
 | PORT-03 | Phase 5 | Pending |
 | PORT-04 | Phase 5 | Pending |
