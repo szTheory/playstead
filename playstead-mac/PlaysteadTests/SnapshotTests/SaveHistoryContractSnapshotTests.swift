@@ -69,6 +69,24 @@ final class SaveHistoryContractSnapshotTests: XCTestCase {
         )
     }
 
+    /// Plan 04-22 task 3: the one new fixture supplying `summary` --
+    /// every other fixture in this file leaves it at its default `nil`
+    /// and must keep rendering byte-identically.
+    func testPopulatedHistoryWithSummaryVisualContract() throws {
+        try PlaysteadSnapshot.assertContactSheet(
+            SaveHistorySheet(
+                title: "Metroid Fusion",
+                sessions: populatedSessions,
+                summary: SaveRollup.rollup(for: SaveRollupInput(
+                    newestDurability: .localOnly, hasDivergentHeads: false, earlierLocalOnlyCount: 1, title: "Metroid Fusion"
+                ))
+            ),
+            named: "save-history-populated-with-summary",
+            pointSize: CGSize(width: 640, height: 480),
+            suite: "SaveHistoryContractSnapshotTests"
+        )
+    }
+
     /// This view has no motion-dependent branch at all -- no
     /// `.animation` modifier and no reduced-motion-conditioned duration
     /// -- so under reduced motion it substitutes to the exact same

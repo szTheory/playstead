@@ -1060,6 +1060,34 @@ final class AppEnvironment {
         return SaveHistorySessionBuilder.build(revisions: revisions, headIDs: headIDs, thisDeviceName: SaveOriginNames.thisDevice)
     }
 
+    /// D-36's game-level rollup (plan 04-22, WINDOWS #47): resolves
+    /// entry/line the same way `saveHistorySessions` does, returns nil
+    /// when there is no line, and otherwise builds a `SaveRollupInput`
+    /// from committed `SaveStore` rows for `SaveRollup.rollup(for:)` --
+    /// the first production caller for that D-36 string builder.
+    func saveRollupSummary(forAssetSetID assetSetID: String) -> SaveRollupResult? {
+        guard let entry = catalogueEntry(assetSetID: assetSetID), let line = saveLine(for: entry) else { return nil }
+        let revisions = saveStore.fetchRevisions(saveLineID: line.id)
+        guard let newest = revisions.max(by: { ($0.recordedAt ?? "") < ($1.recordedAt ?? "") }) else {
+            return SaveRollup.rollup(for: SaveRollupInput(
+                newestDurability: nil, hasDivergentHeads: false, earlierLocalOnlyCount: 0, title: entry.displayTitle
+            ))
+        }
+        let headIDs = saveStore.fetchHeads(saveLineID: line.id).map(\.id)
+        let hasDivergentHeads = SaveStateModel.isConflicted(headRevisionIDs: headIDs)
+        let newestRecordedAt = newest.recordedAt ?? ""
+        let earlierLocalOnlyCount = revisions.filter { row in
+            (row.recordedAt ?? "") < newestRecordedAt && row.durability == SaveDurability.localOnly.rawValue
+        }.count
+
+        return SaveRollup.rollup(for: SaveRollupInput(
+            newestDurability: SaveDurability(rawValue: newest.durability) ?? .localOnly,
+            hasDivergentHeads: hasDivergentHeads,
+            earlierLocalOnlyCount: earlierLocalOnlyCount,
+            title: entry.displayTitle
+        ))
+    }
+
     /// MC-06: "Continue from this one" — the exact `SaveConflictResolver
     /// .chooseSide` call `ConflictComparisonSheet`'s production caller
     /// makes; appends a disposition, never deletes a head (D-48/D-49).

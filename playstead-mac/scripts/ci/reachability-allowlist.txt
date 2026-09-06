@@ -34,7 +34,6 @@ PlaysteadApp # @main App entry point (SwiftUI attribute), invoked by the runtime
 
 # --- (b) Genuinely unreachable -- residual save-pipeline symbols --------
 # (see 04-18-SUMMARY.md "Genuinely Unreachable Symbols Found" and WINDOWS.md)
-SaveRollup # D-36's game-level save rollup computation; SaveRollup.rollup(for:) has zero production callers -- the rollup string this type computes is not reachable from any shipped UI. Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
 DownloadQueueError # itemNotFound is declared but never thrown from any DownloadQueue method -- defensive scaffolding that was never wired to an actual failure path. Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
 
 # --- (b) Genuinely unreachable -- built UI never given a call site ------

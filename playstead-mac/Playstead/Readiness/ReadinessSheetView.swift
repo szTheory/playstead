@@ -25,6 +25,11 @@ struct ReadinessSheetView: View {
     /// so this view stays fully testable without a live `SaveStore`
     /// dependency; defaults to empty (the "No saves yet." empty state).
     var saveHistorySessions: () -> [SaveHistorySession] = { [] }
+    /// D-36's game-level rollup (plan 04-22, WINDOWS #47) rendered above
+    /// `SaveHistorySheet`'s session list -- a closure for the same
+    /// testability reason as `saveHistorySessions`; defaults to nil,
+    /// which renders no summary line at all.
+    var saveRollupSummary: () -> SaveRollupResult? = { nil }
 
     @Environment(AppEnvironment.self) private var environment
     @State private var showsAdapterSetup = false
@@ -105,6 +110,7 @@ struct ReadinessSheetView: View {
                 SaveHistorySheet(
                     title: entry.displayTitle,
                     sessions: saveHistorySessions(),
+                    summary: saveRollupSummary(),
                     onClose: { showsSaveHistory = false }
                 )
             }

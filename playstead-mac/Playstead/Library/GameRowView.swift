@@ -143,7 +143,8 @@ struct GameRowView: View {
                     showsReadinessSheet = false
                     refreshStatus()
                 },
-                saveHistorySessions: { environment.saveHistorySessions(forAssetSetID: entry.id) }
+                saveHistorySessions: { environment.saveHistorySessions(forAssetSetID: entry.id) },
+                saveRollupSummary: { environment.saveRollupSummary(forAssetSetID: entry.id) }
             )
             .environment(environment)
         }

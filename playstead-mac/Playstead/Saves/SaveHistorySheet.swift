@@ -47,6 +47,13 @@ struct SaveHistorySession: Identifiable, Equatable {
 struct SaveHistorySheet: View {
     let title: String
     let sessions: [SaveHistorySession]
+    /// D-36's game-level rollup (plan 04-22), rendered above the session
+    /// list when present. Optional and defaulting to `nil` so every
+    /// pre-existing fixture that constructs this view without naming
+    /// this parameter renders byte-identically -- adding a caller here
+    /// gives `SaveRollup.rollup(for:)` its first production caller
+    /// without forcing a snapshot rebaseline.
+    var summary: SaveRollupResult? = nil
     var onClose: () -> Void = {}
 
     @FocusState private var doneHasFocus: Bool
@@ -81,6 +88,10 @@ struct SaveHistorySheet: View {
                 .font(.psHeading)
                 .foregroundStyle(DesignTokens.textPrimary)
 
+            if let summary {
+                summaryView(summary)
+            }
+
             if sessions.isEmpty {
                 emptyState
             } else {
@@ -110,6 +121,33 @@ struct SaveHistorySheet: View {
         .focusSection()
         .defaultFocus($doneHasFocus, true)
         .onExitCommand(perform: onClose)
+    }
+
+    /// D-36's game-level header, muted second line and footnote --
+    /// rendered above the session list using the sheet's own existing
+    /// fonts and tokens, no new colour literal and no new glyph.
+    private func summaryView(_ summary: SaveRollupResult) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(summary.header)
+                .font(.psLabelEmphasized)
+                .foregroundStyle(DesignTokens.textPrimary)
+            if let bodyLine = summary.bodyLine {
+                Text(bodyLine)
+                    .font(.psLabel)
+                    .foregroundStyle(DesignTokens.textMuted)
+            }
+            if let mutedSecondLine = summary.mutedSecondLine {
+                Text(mutedSecondLine)
+                    .font(.psLabel)
+                    .foregroundStyle(DesignTokens.textMuted)
+            }
+            if let footnote = summary.footnote {
+                Text(footnote)
+                    .font(.psLabel)
+                    .foregroundStyle(DesignTokens.textMuted)
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 
     private var emptyState: some View {

@@ -200,4 +200,72 @@ final class SaveHistorySessionBuilderTests: XCTestCase {
 
         XCTAssertTrue(environment.saveHistorySessions(forAssetSetID: "no-such-game").isEmpty)
     }
+
+    @MainActor
+    private func makeEnvironment(tempRoot: URL) -> AppEnvironment {
+        let paths = AppPaths(root: tempRoot)
+        let credential = PairingCredential(deviceID: "device-1", baseURL: URL(string: "https://sync.test")!, token: "test-token")
+        let apiClient = APIClient(keychain: KeychainStore(), session: StubURLProtocol.makeSession(), credential: credential)
+        return AppEnvironment(
+            paths: paths, apiClient: apiClient, reachability: Reachability(startOnline: true, monitorAutomatically: false)
+        )
+    }
+
+    /// Task 3 acceptance criterion: `saveRollupSummary(forAssetSetID:)`
+    /// returns the two-versions header for a diverged line, and the
+    /// on-server header for a line whose newest revision is uploaded.
+    @MainActor
+    func testSaveRollupSummaryReturnsTheTwoVersionsHeaderForADivergedLineAndOnServerForAnUploadedNewest() throws {
+        let tempRoot = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+        let environment = makeEnvironment(tempRoot: tempRoot)
+
+        // Diverged line: two heads with no parent-child relationship.
+        let divergedSHA = String(repeating: "a", count: 64)
+        let divergedEntry = CatalogueEntry(
+            id: "asset-diverged", system: "gba", displayTitle: "Diverged Game", tags: [:],
+            members: [AssetMember(ordinal: 0, role: "rom", required: true, sha256: divergedSHA, size: 32_768, name: "game.gba")]
+        )
+        try environment.catalogueStore.upsert(divergedEntry)
+        let divergedLine = try environment.saveStore.resolveLine(
+            contentKey: divergedSHA, saveKind: "battery", slot: "0", placeholderID: "line-diverged"
+        )
+        try environment.saveStore.insertRevision(SaveRevisionRow(
+            id: "h1", saveLineID: divergedLine.id, parentRevisionID: nil, blobSHA256: "d1", sizeBytes: 32_768,
+            originDeviceID: nil, deviceCapturedAt: nil, recordedAt: "2026-01-01T00:00:00Z",
+            captureMethod: nil, adapterID: nil, adapterVersion: nil, saveFormat: nil, formatConfidence: nil,
+            playSessionID: nil, durability: SaveDurability.localOnly.rawValue, localPath: nil
+        ))
+        try environment.saveStore.insertRevision(SaveRevisionRow(
+            id: "h2", saveLineID: divergedLine.id, parentRevisionID: nil, blobSHA256: "d2", sizeBytes: 32_768,
+            originDeviceID: "other-mac", deviceCapturedAt: nil, recordedAt: "2026-01-02T00:00:00Z",
+            captureMethod: nil, adapterID: nil, adapterVersion: nil, saveFormat: nil, formatConfidence: nil,
+            playSessionID: nil, durability: SaveDurability.localOnly.rawValue, localPath: nil
+        ))
+
+        let divergedSummary = try XCTUnwrap(environment.saveRollupSummary(forAssetSetID: "asset-diverged"))
+        XCTAssertEqual(divergedSummary.header, SaveVocabulary.rollupHeaderTwoVersions)
+
+        // Non-diverged line whose newest revision is uploaded.
+        let uploadedSHA = String(repeating: "b", count: 64)
+        let uploadedEntry = CatalogueEntry(
+            id: "asset-uploaded", system: "gba", displayTitle: "Uploaded Game", tags: [:],
+            members: [AssetMember(ordinal: 0, role: "rom", required: true, sha256: uploadedSHA, size: 32_768, name: "game.gba")]
+        )
+        try environment.catalogueStore.upsert(uploadedEntry)
+        let uploadedLine = try environment.saveStore.resolveLine(
+            contentKey: uploadedSHA, saveKind: "battery", slot: "0", placeholderID: "line-uploaded"
+        )
+        try environment.saveStore.insertRevision(SaveRevisionRow(
+            id: "u1", saveLineID: uploadedLine.id, parentRevisionID: nil, blobSHA256: "u1", sizeBytes: 32_768,
+            originDeviceID: nil, deviceCapturedAt: nil, recordedAt: "2026-01-01T00:00:00Z",
+            captureMethod: nil, adapterID: nil, adapterVersion: nil, saveFormat: nil, formatConfidence: nil,
+            playSessionID: nil, durability: SaveDurability.uploaded.rawValue, localPath: nil
+        ))
+
+        let uploadedSummary = try XCTUnwrap(environment.saveRollupSummary(forAssetSetID: "asset-uploaded"))
+        XCTAssertEqual(uploadedSummary.header, SaveVocabulary.rollupHeaderOnServer)
+
+        XCTAssertNil(environment.saveRollupSummary(forAssetSetID: "no-such-game"))
+    }
 }
