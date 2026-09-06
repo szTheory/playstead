@@ -7,15 +7,18 @@ import CryptoKit
 /// (`SaveCaptureBlockedState`).
 final class SaveSessionRecoveryTests: XCTestCase {
     private var tempRoot: URL!
+    private var paths: AppPaths!
     private var localStore: LocalStore!
     private var saveStore: SaveStore!
+    private var casManager: CASManager!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
         tempRoot = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-        let paths = AppPaths(root: tempRoot)
+        paths = AppPaths(root: tempRoot)
         localStore = try LocalStore(paths: paths)
         saveStore = SaveStore(localStore: localStore)
+        casManager = CASManager(paths: paths)
     }
 
     override func tearDownWithError() throws {
@@ -83,7 +86,7 @@ final class SaveSessionRecoveryTests: XCTestCase {
         try markSessionAbandoned(lineID: lineID, sessionID: sessionID, digest: onDiskDigest)
         let artifactURL = try writeArtifact(bytes)
 
-        let recovery = SaveSessionRecovery(saveStore: saveStore)
+        let recovery = SaveSessionRecovery(saveStore: saveStore, casManager: casManager)
         let session = AbandonedSaveSession(
             saveLineID: lineID, sessionID: sessionID, artifactSource: FileSaveArtifactSource(url: artifactURL),
             destinationDirectory: tempRoot.appendingPathComponent("dest-\(sessionID)"), artifactRelativePath: "save"
@@ -107,7 +110,7 @@ final class SaveSessionRecoveryTests: XCTestCase {
         let sessionID = UUID().uuidString
         let artifactURL = try writeArtifact(bytes) // identical to the already-recorded head
 
-        let recovery = SaveSessionRecovery(saveStore: saveStore)
+        let recovery = SaveSessionRecovery(saveStore: saveStore, casManager: casManager)
         let session = AbandonedSaveSession(
             saveLineID: lineID, sessionID: sessionID, artifactSource: FileSaveArtifactSource(url: artifactURL),
             destinationDirectory: tempRoot.appendingPathComponent("dest-\(sessionID)"), artifactRelativePath: "save"
@@ -127,7 +130,7 @@ final class SaveSessionRecoveryTests: XCTestCase {
         try markSessionAbandoned(lineID: lineID, sessionID: sessionID, digest: digest(bytes))
         let artifactURL = try writeArtifact(bytes)
 
-        let recovery = SaveSessionRecovery(saveStore: saveStore)
+        let recovery = SaveSessionRecovery(saveStore: saveStore, casManager: casManager)
         let session = AbandonedSaveSession(
             saveLineID: lineID, sessionID: sessionID, artifactSource: FileSaveArtifactSource(url: artifactURL),
             destinationDirectory: tempRoot.appendingPathComponent("dest-\(sessionID)"), artifactRelativePath: "save"
@@ -156,7 +159,7 @@ final class SaveSessionRecoveryTests: XCTestCase {
         // recorded and promote nothing itself.
         try recordPromotedRow(lineID: lineID, sessionID: sessionID, digest: sharedDigest)
 
-        let recovery = SaveSessionRecovery(saveStore: saveStore)
+        let recovery = SaveSessionRecovery(saveStore: saveStore, casManager: casManager)
         let session = AbandonedSaveSession(
             saveLineID: lineID, sessionID: sessionID, artifactSource: FileSaveArtifactSource(url: artifactURL),
             destinationDirectory: tempRoot.appendingPathComponent("dest-\(sessionID)"), artifactRelativePath: "save"
@@ -179,7 +182,7 @@ final class SaveSessionRecoveryTests: XCTestCase {
             try markSessionAbandoned(lineID: lineID, sessionID: sessionID, digest: digest(bytes))
             let artifactURL = try writeArtifact(bytes)
 
-            let recovery = SaveSessionRecovery(saveStore: saveStore)
+            let recovery = SaveSessionRecovery(saveStore: saveStore, casManager: casManager)
             let session = AbandonedSaveSession(
                 saveLineID: lineID, sessionID: sessionID, artifactSource: FileSaveArtifactSource(url: artifactURL),
                 destinationDirectory: tempRoot.appendingPathComponent("dest-\(sessionID)"), artifactRelativePath: "save"
@@ -271,5 +274,163 @@ final class SaveSessionRecoveryTests: XCTestCase {
         try await state.clearBlockage(saveLineID: lineID)
         let cleared = await state.openBlockage(saveLineID: lineID)
         XCTAssertNil(cleared, "clearing a blockage must remove it from the open set without deleting its history")
+    }
+
+    // MARK: - 10. A replayed abandoned session's promoted bytes are present in the CAS after replay returns (WINDOWS #52).
+
+    func test_replay_commitsThePromotedRevisionsBytesToTheCAS() async throws {
+        let lineID = try makeLine()
+        let sessionID = UUID().uuidString
+        let bytes = Data(repeating: 0xA1, count: 64)
+        let onDiskDigest = digest(bytes)
+        try markSessionAbandoned(lineID: lineID, sessionID: sessionID, digest: onDiskDigest)
+        let artifactURL = try writeArtifact(bytes)
+
+        let recovery = SaveSessionRecovery(saveStore: saveStore, casManager: casManager)
+        let session = AbandonedSaveSession(
+            saveLineID: lineID, sessionID: sessionID, artifactSource: FileSaveArtifactSource(url: artifactURL),
+            destinationDirectory: tempRoot.appendingPathComponent("dest-\(sessionID)"), artifactRelativePath: "save"
+        )
+
+        XCTAssertFalse(casManager.contains(onDiskDigest), "precondition: the digest is not yet in the CAS")
+        let result = try await recovery.replay(session, parentRevisionID: nil)
+        XCTAssertNotNil(result)
+        XCTAssertTrue(casManager.contains(onDiskDigest), "a crash-recovered promotion's bytes must reach the CAS")
+    }
+
+    // MARK: - 11. LaunchSaveContextBuilder reports bytesLocal: true for a crash-recovered revision, with no server involvement.
+
+    func test_launchSaveContextBuilder_reportsBytesLocalTrue_forACrashRecoveredRevision() async throws {
+        let contentKey = "content-key-recovered"
+        let lineID = try makeLine(contentKey)
+        let sessionID = UUID().uuidString
+        let bytes = Data(repeating: 0xA2, count: 64)
+        let onDiskDigest = digest(bytes)
+        try markSessionAbandoned(lineID: lineID, sessionID: sessionID, digest: onDiskDigest)
+        let artifactURL = try writeArtifact(bytes)
+
+        let recovery = SaveSessionRecovery(saveStore: saveStore, casManager: casManager)
+        let session = AbandonedSaveSession(
+            saveLineID: lineID, sessionID: sessionID, artifactSource: FileSaveArtifactSource(url: artifactURL),
+            destinationDirectory: tempRoot.appendingPathComponent("dest-\(sessionID)"), artifactRelativePath: "save"
+        )
+        _ = try await recovery.replay(session, parentRevisionID: nil)
+
+        let builder = LaunchSaveContextBuilder(saveStore: saveStore, casManager: casManager, saveContract: nil, systemID: "gba")
+        let context = builder.buildContext(contentKey: contentKey, targetURL: tempRoot.appendingPathComponent("nonexistent.sav"))
+
+        XCTAssertEqual(context.heads.count, 1)
+        XCTAssertTrue(
+            context.heads.first?.bytesLocal ?? false,
+            "a crash-recovered revision's bytes must be reported local -- this is the assertion that would have failed before this task"
+        )
+    }
+
+    /// Falsification: deleting the commit call (simulated here by
+    /// constructing the builder against a CASManager pointed at a
+    /// different, empty root) makes the assertion above go red -- proving
+    /// the previous test actually reads the commit's effect rather than
+    /// an unconditional default.
+    func test_falsification_bytesLocalIsFalseWhenTheCASWasNeverCommittedTo() async throws {
+        let contentKey = "content-key-falsification"
+        let lineID = try makeLine(contentKey)
+        let sessionID = UUID().uuidString
+        let bytes = Data(repeating: 0xA3, count: 64)
+        let onDiskDigest = digest(bytes)
+        try markSessionAbandoned(lineID: lineID, sessionID: sessionID, digest: onDiskDigest)
+        let artifactURL = try writeArtifact(bytes)
+
+        // A recovery instance whose CAS commit can never succeed --
+        // `objects/` replaced by a plain file, exactly the technique
+        // `SaveSessionCoordinatorTests` uses to force a CAS failure.
+        let unwritableRoot = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        // `AppPaths.init` eagerly creates its standard subdirectories
+        // (including `objects/`), so the real directory must be removed
+        // before a plain file can take its place.
+        let unwritablePaths = AppPaths(root: unwritableRoot)
+        let brokenObjects = unwritableRoot.appendingPathComponent("objects", isDirectory: true)
+        try? FileManager.default.removeItem(at: brokenObjects)
+        try Data("not a directory".utf8).write(to: brokenObjects)
+        let brokenCAS = CASManager(paths: unwritablePaths)
+        defer { try? FileManager.default.removeItem(at: unwritableRoot) }
+
+        let recovery = SaveSessionRecovery(saveStore: saveStore, casManager: brokenCAS)
+        let session = AbandonedSaveSession(
+            saveLineID: lineID, sessionID: sessionID, artifactSource: FileSaveArtifactSource(url: artifactURL),
+            destinationDirectory: tempRoot.appendingPathComponent("dest-\(sessionID)"), artifactRelativePath: "save"
+        )
+        _ = try await recovery.replay(session, parentRevisionID: nil)
+
+        let builder = LaunchSaveContextBuilder(saveStore: saveStore, casManager: brokenCAS, saveContract: nil, systemID: "gba")
+        let context = builder.buildContext(contentKey: contentKey, targetURL: tempRoot.appendingPathComponent("nonexistent.sav"))
+        XCTAssertFalse(context.heads.first?.bytesLocal ?? true, "with no successful CAS commit, bytesLocal must read false")
+    }
+
+    // MARK: - 12. A CAS commit that throws still inserts the revision row, records a blockage, and does not propagate.
+
+    func test_aThrowingCASCommit_stillInsertsTheRow_recordsABlockage_andReplayReturnsNormally() async throws {
+        let lineID = try makeLine()
+        let sessionID = UUID().uuidString
+        let bytes = Data(repeating: 0xA4, count: 64)
+        try markSessionAbandoned(lineID: lineID, sessionID: sessionID, digest: digest(bytes))
+        let artifactURL = try writeArtifact(bytes)
+
+        // `objects/` as a regular file: no digest subdirectory can be
+        // created beneath it, so every CAS commit fails while the
+        // recovery poller's own writes under `dest-<id>/` still succeed
+        // -- the exact technique `SaveSessionCoordinatorTests` uses.
+        let objects = tempRoot.appendingPathComponent("objects", isDirectory: true)
+        try? FileManager.default.removeItem(at: objects)
+        try Data("not a directory".utf8).write(to: objects)
+
+        let blocked = SaveCaptureBlockedState(localStore: localStore)
+        let recovery = SaveSessionRecovery(saveStore: saveStore, casManager: casManager, blockedState: blocked)
+        let session = AbandonedSaveSession(
+            saveLineID: lineID, sessionID: sessionID, artifactSource: FileSaveArtifactSource(url: artifactURL),
+            destinationDirectory: tempRoot.appendingPathComponent("dest-\(sessionID)"), artifactRelativePath: "save"
+        )
+
+        let result = try await recovery.replay(session, parentRevisionID: nil)
+        XCTAssertNotNil(result, "replay must return normally -- a CAS failure must not propagate out of replay")
+        XCTAssertEqual(promotedRows(lineID: lineID).count, 1, "the row must still be inserted despite the CAS failure")
+
+        let blockage = await blocked.openBlockage(saveLineID: lineID)
+        XCTAssertNotNil(blockage, "a CAS commit failure on the recovery path must be visible (D-31), never silent")
+    }
+
+    // MARK: - 13. Running replayAll twice inserts no second row and commits no second copy.
+
+    func test_replayAllRunTwice_insertsNoSecondRow_commitsNoSecondCopy() async throws {
+        let lineID = try makeLine()
+        let sessionID = UUID().uuidString
+        let bytes = Data(repeating: 0xA5, count: 64)
+        let onDiskDigest = digest(bytes)
+        try markSessionAbandoned(lineID: lineID, sessionID: sessionID, digest: onDiskDigest)
+        let artifactURL = try writeArtifact(bytes)
+        let destination = tempRoot.appendingPathComponent("dest-\(sessionID)")
+
+        let recovery = SaveSessionRecovery(saveStore: saveStore, casManager: casManager)
+
+        let first = try await recovery.replayAll(
+            saveLineID: lineID, artifactSource: FileSaveArtifactSource(url: artifactURL),
+            destinationDirectory: destination, artifactRelativePath: "save"
+        )
+        XCTAssertEqual(first.count, 1)
+        XCTAssertTrue(casManager.contains(onDiskDigest))
+        let objectURL = try casManager.objectURL(for: onDiskDigest)
+        let firstAttrs = try FileManager.default.attributesOfItem(atPath: objectURL.path)
+
+        let second = try await recovery.replayAll(
+            saveLineID: lineID, artifactSource: FileSaveArtifactSource(url: artifactURL),
+            destinationDirectory: destination, artifactRelativePath: "save"
+        )
+        XCTAssertEqual(second.count, 0, "a second replayAll pass must insert no second row")
+        XCTAssertEqual(promotedRows(lineID: lineID).count, 1)
+
+        let secondAttrs = try FileManager.default.attributesOfItem(atPath: objectURL.path)
+        XCTAssertEqual(
+            firstAttrs[.systemFileNumber] as? UInt64, secondAttrs[.systemFileNumber] as? UInt64,
+            "the CAS object must not have been replaced by a second commit"
+        )
     }
 }

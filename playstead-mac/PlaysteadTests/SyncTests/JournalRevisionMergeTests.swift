@@ -210,7 +210,7 @@ final class JournalRevisionMergeTests: XCTestCase {
             manifestDigest: nil, sessionID: sessionID, artifactSetJSON: nil
         ))
 
-        let recovery = SaveSessionRecovery(saveStore: saveStore)
+        let recovery = SaveSessionRecovery(saveStore: saveStore, casManager: CASManager(paths: AppPaths(root: tempRoot)))
         let before = await recovery.abandonedSessionIDs(saveLineID: lineID)
         XCTAssertFalse(before.contains(sessionID), "precondition: the session is already paired before any journal echo")
 

@@ -39,9 +39,20 @@ struct AbandonedSaveSession {
 /// one as input.
 actor SaveSessionRecovery {
     private let saveStore: SaveStore
+    /// Commits a replayed promotion's bytes into the CAS before its row
+    /// is inserted -- the same ordering `SaveSessionCoordinator`
+    /// establishes for the live path, now shared rather than absent
+    /// here (WINDOWS #52). Before this, a session recovered from a
+    /// crash left `LaunchSaveContextBuilder.bytesLocal` reporting
+    /// `false` for it -- a crash-recovered capture was never as durable
+    /// as a live one.
+    private let bytesCommitter: SaveCaptureBytesCommitter
+    private let blockedState: SaveCaptureBlockedState?
 
-    init(saveStore: SaveStore) {
+    init(saveStore: SaveStore, casManager: CASManager, blockedState: SaveCaptureBlockedState? = nil) {
         self.saveStore = saveStore
+        self.bytesCommitter = SaveCaptureBytesCommitter(casManager: casManager)
+        self.blockedState = blockedState
     }
 
     /// Every `sessionID` for `saveLineID` that has at least one `staged`
@@ -81,6 +92,15 @@ actor SaveSessionRecovery {
         }
         guard !alreadyRecorded else { return nil }
 
+        // CAS first, then the row that names the digest -- the same
+        // ordering the live path establishes, so a reader never observes
+        // a recovered revision row pointing at bytes the CAS does not
+        // have. A commit failure is recorded as a D-31 blockage and does
+        // NOT abort the insert: the row's `localPath` is still where
+        // `SaveUploadLane` reads bytes from, so dropping the row would
+        // turn a durability improvement into save loss.
+        let casFailure = bytesCommitter.commit(promoted)
+
         let row = SaveRevisionRow(
             id: UUID().uuidString,
             saveLineID: session.saveLineID,
@@ -105,7 +125,21 @@ actor SaveSessionRecovery {
             artifactSetJSON: nil
         )
         try saveStore.insertRevision(row)
+        if let casFailure {
+            await recordBlockage(
+                saveLineID: session.saveLineID, sessionID: session.sessionID, digest: promoted.sha256, error: casFailure
+            )
+        }
         return row
+    }
+
+    // MARK: - Blockage (D-31)
+
+    private func recordBlockage(saveLineID: String, sessionID: String, digest: String?, error: Error) async {
+        guard let blockedState else { return }
+        _ = try? await blockedState.recordFailure(
+            saveLineID: saveLineID, sessionID: sessionID, digest: digest, reason: "\(error)"
+        )
     }
 
     /// Replays every abandoned session for `saveLineID` in one pass --
