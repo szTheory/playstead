@@ -194,5 +194,5 @@ struct ReadinessSheetView: View {
     /// (`LaunchSaveContextBuilder` falls back to the raw device id for
     /// the same reason), so this mirrors the literal placeholder this
     /// file family's own UI-testing harness already uses.
-    private static let thisDeviceOrigin = "This Mac"
+    private static let thisDeviceOrigin = SaveOriginNames.thisDevice
 }

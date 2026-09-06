@@ -142,7 +142,8 @@ struct GameRowView: View {
                 onClose: {
                     showsReadinessSheet = false
                     refreshStatus()
-                }
+                },
+                saveHistorySessions: { environment.saveHistorySessions(forAssetSetID: entry.id) }
             )
             .environment(environment)
         }

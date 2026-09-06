@@ -1043,10 +1043,21 @@ final class AppEnvironment {
     }
 
     private static func relativeSaveDescription(for row: SaveRevisionRow) -> String {
-        guard let recordedAt = row.recordedAt, let date = ISO8601DateFormatter().date(from: recordedAt) else {
-            return "recently"
-        }
-        return RelativeDateTimeFormatter().localizedString(for: date, relativeTo: Date())
+        SaveHistorySessionBuilder.relativeTime(for: row.recordedAt)
+    }
+
+    /// D-37/D-39 (plan 04-22): the real per-revision history for
+    /// `SaveHistorySheet`, read from `SaveStore`'s committed rows and
+    /// grouped by `SaveHistorySessionBuilder` -- resolving entry and
+    /// line exactly as `conflictSides(forAssetSetID:)` does. Returns
+    /// `[]` when either is nil, which is what makes the sheet's "No
+    /// saves yet." empty state appear for a real user with no history,
+    /// never for one with unwired data (WINDOWS #43).
+    func saveHistorySessions(forAssetSetID assetSetID: String) -> [SaveHistorySession] {
+        guard let entry = catalogueEntry(assetSetID: assetSetID), let line = saveLine(for: entry) else { return [] }
+        let revisions = saveStore.fetchRevisions(saveLineID: line.id)
+        let headIDs = saveStore.fetchHeads(saveLineID: line.id).map(\.id)
+        return SaveHistorySessionBuilder.build(revisions: revisions, headIDs: headIDs, thisDeviceName: SaveOriginNames.thisDevice)
     }
 
     /// MC-06: "Continue from this one" — the exact `SaveConflictResolver

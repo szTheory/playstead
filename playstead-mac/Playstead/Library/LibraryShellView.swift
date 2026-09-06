@@ -153,7 +153,8 @@ struct LibraryShellView: View {
                 onRefresh: {},
                 onDownload: { presentedReadinessEntry = nil },
                 onPlay: { presentedReadinessEntry = nil },
-                onClose: { presentedReadinessEntry = nil }
+                onClose: { presentedReadinessEntry = nil },
+                saveHistorySessions: { environment.saveHistorySessions(forAssetSetID: entry.id) }
             )
             .environment(environment)
             .onExitCommand { presentedReadinessEntry = nil }

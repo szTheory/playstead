@@ -216,3 +216,76 @@ private struct SaveHistoryRowView: View {
         .accessibilityIdentifier(SaveHistorySheet.Automation.row(sessionSlot, rowSlot))
     }
 }
+
+/// D-35/D-37 (plan 04-22): builds `SaveHistorySession` values straight
+/// from committed `SaveStore` rows. Pure -- an `enum` with static
+/// functions, no stored state, no `SaveStore` dependency -- so every
+/// behavior this task requires is testable without SQLite.
+enum SaveHistorySessionBuilder {
+    static func build(
+        revisions: [SaveRevisionRow], headIDs: [String], thisDeviceName: String
+    ) -> [SaveHistorySession] {
+        guard !revisions.isEmpty else { return [] }
+
+        // Exactly one row is `isCurrent`: the newest by `recordedAt`
+        // among revisions this Mac either captured locally
+        // (`originDeviceID == nil`) or restored here
+        // (`restoredHereAt != nil`) -- the last revision whose bytes
+        // this Mac actually placed at, or read from, the live save
+        // path. Zero such revisions means no current row, the truthful
+        // reading for a line whose history all came from elsewhere.
+        let currentCandidates = revisions.filter { $0.originDeviceID == nil || $0.restoredHereAt != nil }
+        let currentID = currentCandidates.max { ($0.recordedAt ?? "") < ($1.recordedAt ?? "") }?.id
+
+        let isSeparateVersion = SaveStateModel.isConflicted(headRevisionIDs: headIDs)
+
+        // Group by sessionID; a nil sessionID forms a singleton group
+        // keyed on the revision's own id, never merged with other
+        // nil-session revisions.
+        var groupOrder: [String] = []
+        var groups: [String: [SaveRevisionRow]] = [:]
+        for revision in revisions {
+            let key = revision.sessionID ?? revision.id
+            if groups[key] == nil {
+                groupOrder.append(key)
+                groups[key] = []
+            }
+            groups[key]?.append(revision)
+        }
+
+        // Order rows within a group by `recordedAt` ascending, and
+        // order groups by their earliest `recordedAt` descending, so
+        // the most recent session is first.
+        let sortedGroups: [(key: String, rows: [SaveRevisionRow])] = groupOrder.map { key in
+            (key, (groups[key] ?? []).sorted { ($0.recordedAt ?? "") < ($1.recordedAt ?? "") })
+        }.sorted { lhs, rhs in
+            (lhs.rows.first?.recordedAt ?? "") > (rhs.rows.first?.recordedAt ?? "")
+        }
+
+        return sortedGroups.map { key, groupRevisions in
+            let deviceName = groupRevisions.first?.originDeviceID ?? thisDeviceName
+            let rows = groupRevisions.map { revision in
+                SaveHistoryRevisionRow(
+                    id: revision.id,
+                    durability: SaveDurability(rawValue: revision.durability) ?? .localOnly,
+                    isCurrent: revision.id == currentID,
+                    isRestoredHere: revision.restoredHereAt != nil,
+                    isSeparateVersion: isSeparateVersion && headIDs.contains(revision.id),
+                    relativeTime: relativeTime(for: revision.recordedAt)
+                )
+            }
+            return SaveHistorySession(id: key, deviceName: deviceName, revisions: rows)
+        }
+    }
+
+    /// The single formatter pair every save-history relative-time
+    /// reading uses. `AppEnvironment.relativeSaveDescription(for:)`
+    /// calls this exact function rather than keeping a second
+    /// formatter, so the two surfaces can never drift.
+    static func relativeTime(for recordedAt: String?) -> String {
+        guard let recordedAt, let date = ISO8601DateFormatter().date(from: recordedAt) else {
+            return "recently"
+        }
+        return RelativeDateTimeFormatter().localizedString(for: date, relativeTo: Date())
+    }
+}
