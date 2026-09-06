@@ -343,6 +343,11 @@ final class AppEnvironment {
     let saveUploadLane: SaveUploadLane
     /// The one place drains are started from — see `OutboxDrainTrigger`.
     let drainTrigger: OutboxDrainTrigger
+    /// `SaveOutbox`'s equivalent of `drainTrigger`. Before this plan,
+    /// `saveOutbox` was constructed here and never drained by anything —
+    /// a resolved divergence recorded its intent durably and locally but
+    /// never reached the server (WINDOWS #42).
+    let saveOutboxDrainTrigger: SaveOutboxDrainTrigger
     let playSessionRecorder: PlaySessionRecorder
     let reachability: Reachability
 
@@ -462,13 +467,22 @@ final class AppEnvironment {
         self.outboxWorker = worker
         self.playSessionRecorder = recorder
 
+        // `CASManager` is constructed here, ahead of the saves block
+        // below, because `SaveSessionRecovery` now needs one too (WINDOWS
+        // #52) -- moved up rather than making the property optional.
+        let cas = CASManager(paths: paths)
+        self.casManager = cas
+        self.preflightChecker = PreflightChecker(cas: cas)
+        self.launchMaterializer = LaunchMaterializer(paths: paths, cas: cas)
+
         let saveStore = SaveStore(localStore: store)
         let saveOutbox = SaveOutbox(localStore: store)
         self.saveStore = saveStore
         self.saveOutbox = saveOutbox
         self.saveConflictResolver = SaveConflictResolver(saveStore: saveStore, saveOutbox: saveOutbox)
-        self.saveCaptureBlockedState = SaveCaptureBlockedState(localStore: store)
-        self.saveSessionRecovery = SaveSessionRecovery(saveStore: saveStore)
+        let saveCaptureBlockedState = SaveCaptureBlockedState(localStore: store)
+        self.saveCaptureBlockedState = saveCaptureBlockedState
+        self.saveSessionRecovery = SaveSessionRecovery(saveStore: saveStore, casManager: cas, blockedState: saveCaptureBlockedState)
         let uploadLane = SaveUploadLane(apiClient: client, saveStore: saveStore)
         self.saveUploadLane = uploadLane
 
@@ -480,11 +494,6 @@ final class AppEnvironment {
         self.collectionsViewModel = CollectionsViewModel(curationStore: curationStore, outbox: outbox)
         self.continueViewModel = ContinueViewModel(curationStore: curationStore, outbox: outbox)
         self.recentViewModel = RecentViewModel(curationStore: curationStore, sessionRecorder: recorder)
-
-        let cas = CASManager(paths: paths)
-        self.casManager = cas
-        self.preflightChecker = PreflightChecker(cas: cas)
-        self.launchMaterializer = LaunchMaterializer(paths: paths, cas: cas)
 
         self.downloadQueue = DownloadQueue(localStore: store)
 
@@ -527,13 +536,24 @@ final class AppEnvironment {
         // environment.
         let trigger = OutboxDrainTrigger(worker: worker)
         self.drainTrigger = trigger
+        // `SaveOutboxDrainTrigger` is constructed after `saveOutbox` (like
+        // the curation trigger, after its worker), stored, and wired to
+        // the same three trigger classes: post-enqueue, reachability-
+        // regained, and scene-active (`drainSaveOutbox()` below).
+        let saveTrigger = SaveOutboxDrainTrigger(saveOutbox: saveOutbox, apiClient: client)
+        self.saveOutboxDrainTrigger = saveTrigger
         outbox.onEnqueue = { trigger.fire() }
+        // Drain trigger 1/3 for the save outbox: post-enqueue. The
+        // trigger is captured directly rather than through `self`, which
+        // is not yet fully initialized at this point in `init`.
+        saveOutbox.onEnqueue = { saveTrigger.fire() }
         // Drain trigger 2/3: reachability regained. `onChange` hands back
         // a token so this observer can actually be removed (`deinit`)
         // instead of outliving the environment.
         self.reachabilityToken = reachability.onChange { isOnline in
             guard isOnline else { return }
             trigger.fire()
+            saveTrigger.fire()
             // The save lane drains on the same transition, and ahead of
             // nothing else here -- it is a separate actor, so this does
             // not queue behind the curation outbox (D-32). The lane is
@@ -584,6 +604,7 @@ final class AppEnvironment {
     /// may have applied journal entries.
     func applicationDidBecomeActive() {
         drainOutbox()
+        drainSaveOutbox()
         refreshCurationViewModels()
     }
 
@@ -594,6 +615,14 @@ final class AppEnvironment {
     @discardableResult
     func drainOutbox() -> Task<OutboxDrainResult, Never> {
         drainTrigger.fire()
+    }
+
+    /// Drain trigger 3/3 for the save outbox: scene-active. Sits beside
+    /// `drainOutbox()`/`drainSaveUploads()`, the two existing public
+    /// drain entry points.
+    @discardableResult
+    func drainSaveOutbox() -> Task<Int, Never> {
+        saveOutboxDrainTrigger.fire()
     }
 
     /// Starts one `SaveUploadLane.drainOnce()` pass. The lane is an

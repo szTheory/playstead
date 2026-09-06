@@ -286,6 +286,12 @@ struct SaveOutboxEntry: Equatable {
 final class SaveOutbox {
     private let localStore: LocalStore
 
+    /// Fired after a successful `enqueue` -- never when the transaction
+    /// throws, since a drain over an entry that was never committed is
+    /// meaningless. Mirrors `Outbox.onEnqueue` exactly; wired to a
+    /// `SaveOutboxDrainTrigger.fire()` closure in `AppEnvironment.init`.
+    var onEnqueue: (@Sendable () -> Void)?
+
     init(localStore: LocalStore) {
         self.localStore = localStore
     }
@@ -317,6 +323,8 @@ final class SaveOutbox {
                 params: [entryID, intent.kind.rawValue, payloadJSON, idempotencyKey, createdAt]
             )
         }
+
+        onEnqueue?()
 
         return SaveOutboxEntry(
             id: entryID, kind: intent.kind, intent: intent, idempotencyKey: idempotencyKey,
