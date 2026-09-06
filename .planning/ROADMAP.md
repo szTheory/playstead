@@ -248,7 +248,7 @@ Plans:
   5. When two devices save from the same base revision, both revisions remain available with device, time, and play context; the user can inspect, choose, export, and resolve either side without silent last-write-wins.
 
 **Research / spike flags**: Required compatibility gate: test the selected adapter's persistent-save type, safe-flush/debounce, crash behavior, and two-device divergent offline revisions. Save states remain local-only and outside the v1 portability contract.
-**Plans**: 23/23 plans executed (20 executed; 3 gap-closure plans pending from 04-VERIFICATION.md)
+**Plans**: 25 plans (23 executed; 2 gap-closure plans pending from the 4/5 re-verification)
 
 Plans:
 
@@ -257,6 +257,11 @@ Plans:
 - [x] 04-21-PLAN.md — Tracer: supply real `Playstead.Saves` revisions to the export pipeline (WINDOWS #30 / PORT-01)
 - [x] 04-22-PLAN.md — Wire per-revision save history to real `SaveStore` data and give `SaveRollup` a caller (WINDOWS #43, #47)
 - [x] 04-23-PLAN.md — Drain the save outbox, commit crash-recovered bytes to the CAS, close the ledger (WINDOWS #42, #52, #32)
+
+**Gap closure, round 2** *(from the 04-VERIFICATION.md re-verification, 4/5 must-haves verified)*
+
+- [ ] 04-24-PLAN.md — Total order on revision queries so export `seq`/filenames are deterministic under a `recorded_at` tie (criterion 4 / PORT-01)
+- [ ] 04-25-PLAN.md — Fix `SaveOutboxDrainTrigger.fire()`'s TOCTOU so the single-lane drain guarantee is real (criterion 5 / SAVE-04)
 
 - [x] 04-20-PLAN.md
 
