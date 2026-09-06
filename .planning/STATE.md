@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 04
 current_phase_name: Persistent Save Continuity
 status: executing
-stopped_at: Completed 04-21-PLAN.md
-last_updated: "2026-09-06T01:20:18.366Z"
+stopped_at: Completed 04-22-PLAN.md
+last_updated: "2026-09-06T01:43:53.608Z"
 last_activity: 2026-09-05
 last_activity_desc: Phase 04 execution started
-state_head: 1555bce3e1b046312a49ec6d2912a29b77b061a9
+state_head: 46af14ea3b55b5b087e307b57ed1fa7a2defe591
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 61
-  completed_plans: 59
+  completed_plans: 60
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: `.planning/PROJECT.md` (updated 2026-08-30)
 ## Current Position
 
 Phase: 04 (Persistent Save Continuity) — EXECUTING
-Plan: 2 of 23
+Plan: 3 of 23
 Status: Ready to execute
 Last activity: 2026-09-05 — Phase 04 execution started
 
@@ -111,6 +111,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 | Phase 04 P19 | 75min | 4 tasks | 9 files |
 | Phase 04 P20 | 35m | 3 tasks | 8 files |
 | Phase 04 P21 | 55min | 3 tasks | 7 files |
+| Phase 04 P22 | ~50min | 3 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -231,6 +232,8 @@ Progress: [█████████░] 90% (Phase 03.5)
 - [Phase 04]: 04-19: SaveUploadLane.classify escalates only genuinely unfixable server outcomes (D-22 machine codes); transport loss, 5xx, 408/429 and notPaired stay .none because escalating a self-healing condition is what D-40 forbids
 - [Phase 04]: CAS commit failure surfaces as a D-31 blockage but still records the revision row — its localPath bytes are durable and uploadable, so dropping the row would turn a durability improvement into save loss (04-20)
 - [Phase 04]: branch_key is the fork root's own immutable UUID (not a derived hash/counter); SavesPlan.assign_branch_letters/1 already turns a stable key into a stable letter. — Minimal correct choice; avoids new stability logic in SavesPlan.
+- [Phase 04]: [Phase 04-22]: restored_here_at's upsert COALESCE order preserves the EXISTING value over incoming, opposite of manifest_digest/session_id, so restore-provenance is immutable once set
+- [Phase 04]: [Phase 04-22]: SaveHistorySheet.summary defaults to nil so every pre-existing snapshot fixture renders byte-identically after giving SaveRollup its first production caller
 
 ### Pending Todos
 
@@ -264,6 +267,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-06T01:20:18.213Z
-Stopped at: Completed 04-21-PLAN.md
+Last session: 2026-09-06T01:43:53.448Z
+Stopped at: Completed 04-22-PLAN.md
 Resume file: None
