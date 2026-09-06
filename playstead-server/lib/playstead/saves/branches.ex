@@ -31,9 +31,12 @@ defmodule Playstead.Saves.Branches do
 
   @doc """
   The revisions on `save_line_id` (scoped to `user_id`) that have no
-  children, ordered by server `recorded_at` -- never `:id` or
-  `inserted_at`, and never a device-claimed time (D-15). A line with
-  no revisions returns an empty list.
+  children, in a TOTAL order -- server `recorded_at` ascending, then
+  `id` ascending, never `inserted_at` or a device-claimed time (D-15).
+  `recorded_at` remains the only ordering SEMANTICS; `id` is a fixed
+  immutable tiebreaker that makes a `recorded_at` tie reproducible
+  across executions, not a claim about causal order. A line with no
+  revisions returns an empty list.
   """
   @spec heads(pos_integer(), binary()) :: [Revision.t()]
   def heads(user_id, save_line_id) do
@@ -42,7 +45,7 @@ defmodule Playstead.Saves.Branches do
     base_query =
       from(r in Revision,
         where: r.user_id == ^user_id and r.save_line_id == ^save_line_id,
-        order_by: [asc: r.recorded_at]
+        order_by: [asc: r.recorded_at, asc: r.id]
       )
 
     query =

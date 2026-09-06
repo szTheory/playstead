@@ -390,11 +390,14 @@ defmodule Playstead.Saves do
   defp base_matched?(base_sha256, %Revision{blob_sha256: parent_sha256}), do: base_sha256 == parent_sha256
 
   @doc """
-  A save line's revisions (ordered by server `recorded_at`) and its
-  derived branch heads, scoped strictly to `user_id`. Returns
-  `{:error, :not_found}` for a line outside the caller's scope --
-  never a distinct "forbidden" outcome, so existence is not confirmed
-  to a caller who does not own the line.
+  A save line's revisions -- in a TOTAL order, server `recorded_at`
+  ascending then `id` ascending -- and its derived branch heads, scoped
+  strictly to `user_id`. `recorded_at` remains the only ordering
+  SEMANTICS (D-15); `id` is a fixed immutable tiebreaker that makes a
+  `recorded_at` tie reproducible across executions, not a claim about
+  causal order. Returns `{:error, :not_found}` for a line outside the
+  caller's scope -- never a distinct "forbidden" outcome, so existence
+  is not confirmed to a caller who does not own the line.
   """
   @spec get_history(pos_integer(), binary()) ::
           {:ok, %{line: Save.t(), revisions: [Revision.t()], heads: [Revision.t()]}}
@@ -408,7 +411,7 @@ defmodule Playstead.Saves do
         revisions =
           from(r in Revision,
             where: r.user_id == ^user_id and r.save_line_id == ^save_line_id,
-            order_by: [asc: r.recorded_at]
+            order_by: [asc: r.recorded_at, asc: r.id]
           )
           |> Repo.all()
 

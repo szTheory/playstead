@@ -136,6 +136,47 @@ defmodule Playstead.SavesTest do
       assert Enum.map(revisions, & &1.id) == [revision.id]
       assert Enum.map(heads, & &1.id) == [revision.id]
     end
+
+    test "get_history/2 returns a recorded_at tie in a stable id-ascending order" do
+      scope = user_scope_fixture()
+      %{device: device} = device_fixture(scope)
+      key = content_key()
+
+      {:ok, root} = commit!(scope, device, key, :crypto.strong_rand_bytes(64))
+
+      # Commit the lexically-GREATER id first so an unfixed
+      # single-key sort (which has nothing to break the tie with)
+      # would return insertion order -- the inverse of id order --
+      # rather than accidentally passing.
+      [lower_id, greater_id] = Enum.sort([Ecto.UUID.generate(), Ecto.UUID.generate()])
+
+      {:ok, greater_child} =
+        commit!(scope, device, key, :crypto.strong_rand_bytes(64),
+          id: greater_id,
+          parent_revision_id: root.id
+        )
+
+      {:ok, lower_child} =
+        commit!(scope, device, key, :crypto.strong_rand_bytes(64),
+          id: lower_id,
+          parent_revision_id: root.id
+        )
+
+      tied_at = DateTime.utc_now() |> DateTime.truncate(:microsecond)
+
+      {2, nil} =
+        Repo.update_all(
+          from(r in Playstead.Saves.Revision, where: r.id in [^greater_child.id, ^lower_child.id]),
+          set: [recorded_at: tied_at]
+        )
+
+      assert {:ok, %{revisions: revisions}} = Saves.get_history(scope.user.id, root.save_line_id)
+
+      [_root_revision, first_child, second_child] = revisions
+      assert DateTime.compare(first_child.recorded_at, second_child.recorded_at) == :eq
+      assert first_child.id == lower_child.id
+      assert second_child.id == greater_child.id
+    end
   end
 
   describe "append-only divergence resolution (plan 04-05 task 3)" do

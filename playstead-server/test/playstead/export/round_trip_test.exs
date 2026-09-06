@@ -480,6 +480,90 @@ defmodule Playstead.Export.RoundTripTest do
     assert Enum.take(files_after, 2) == files_before
   end
 
+  test "two revisions sharing one recorded_at keep identical seq and filenames across two independent exports (D-59)" do
+    scope = user_scope_fixture()
+    bytes = random_bytes(1_024)
+    asset_set = import_bytes!(scope.user.id, "game.gba", bytes)
+    rom_sha256 = :crypto.hash(:sha256, bytes) |> Base.encode16(case: :lower)
+    %{device: device} = device_fixture(scope)
+
+    {:ok, base_revision} = commit_save!(scope, device, rom_sha256, random_bytes(64))
+
+    # Commit the lexically-GREATER id first -- with no id tiebreaker,
+    # Postgres has nothing to sort the tied pair by and returns them
+    # in whatever order the scan produced, which is the insertion
+    # order deliberately inverted here.
+    [lower_id, greater_id] = Enum.sort([Ecto.UUID.generate(), Ecto.UUID.generate()])
+
+    {:ok, greater_child} =
+      commit_save!(scope, device, rom_sha256, random_bytes(64), %{
+        "id" => greater_id,
+        "parent_revision_id" => base_revision.id
+      })
+
+    {:ok, lower_child} =
+      commit_save!(scope, device, rom_sha256, random_bytes(64), %{
+        "id" => lower_id,
+        "parent_revision_id" => base_revision.id
+      })
+
+    tied_at = DateTime.utc_now() |> DateTime.truncate(:microsecond)
+
+    {2, nil} =
+      Repo.update_all(
+        from(r in Playstead.Saves.Revision, where: r.id in [^greater_child.id, ^lower_child.id]),
+        set: [recorded_at: tied_at]
+      )
+
+    reloaded_greater = Repo.get!(Playstead.Saves.Revision, greater_child.id)
+    reloaded_lower = Repo.get!(Playstead.Saves.Revision, lower_child.id)
+
+    # The tie must be REAL before anything about ordering is asserted
+    # -- otherwise the whole test could pass vacuously because the tie
+    # was never constructed.
+    assert DateTime.compare(reloaded_greater.recorded_at, reloaded_lower.recorded_at) == :eq
+
+    target_name_1 = "export-tie-1-#{System.unique_integer([:positive])}"
+    target_name_2 = "export-tie-2-#{System.unique_integer([:positive])}"
+
+    export_and_run!(scope.user.id, :set, target_name: target_name_1, asset_set_id: asset_set.id)
+    export_and_run!(scope.user.id, :set, target_name: target_name_2, asset_set_id: asset_set.id)
+
+    # Two independent plan-and-write runs, not a resumed no-op over
+    # the first run's directory.
+    assert target_name_1 != target_name_2
+
+    files_1 = saves_revision_files(target_name_1)
+    files_2 = saves_revision_files(target_name_2)
+
+    # A run that produced zero or one file would otherwise make the
+    # list-equality assertion below trivially true.
+    assert length(files_1) == 3
+    assert length(files_2) == 3
+
+    assert files_1 == files_2
+
+    digest8 = fn revision -> String.slice(revision.blob_sha256, 0, 8) end
+    lower_digest8 = digest8.(reloaded_lower)
+    greater_digest8 = digest8.(reloaded_greater)
+
+    lower_filename_1 = Enum.find(files_1, &String.contains?(&1, lower_digest8))
+    lower_filename_2 = Enum.find(files_2, &String.contains?(&1, lower_digest8))
+    greater_filename_1 = Enum.find(files_1, &String.contains?(&1, greater_digest8))
+    greater_filename_2 = Enum.find(files_2, &String.contains?(&1, greater_digest8))
+
+    refute is_nil(lower_filename_1)
+    refute is_nil(greater_filename_1)
+
+    # List equality of files_1/files_2 alone would still pass if both
+    # runs happened to be wrong in the same way -- pinning the
+    # lower-id-to-lower-seq mapping is what actually asserts the
+    # tiebreaker rather than mere run-to-run repeatability.
+    assert lower_filename_1 == lower_filename_2
+    assert greater_filename_1 == greater_filename_2
+    assert String.slice(lower_filename_1, 0, 6) < String.slice(greater_filename_1, 0, 6)
+  end
+
   test "re-running the export worker twice against one target leaves every payload byte-identical and still verifies" do
     scope = user_scope_fixture()
     bytes = random_bytes(1_024)

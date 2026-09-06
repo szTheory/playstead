@@ -6,6 +6,7 @@ defmodule Playstead.SavesBranchesTest do
 
   use Playstead.DataCase, async: true
 
+  import Ecto.Query, warn: false
   import Playstead.AccountsFixtures
   import Playstead.PairingFixtures
 
@@ -91,6 +92,44 @@ defmodule Playstead.SavesBranchesTest do
     test "a line with no revisions returns an empty list" do
       scope = user_scope_fixture()
       assert Branches.heads(scope.user.id, Ecto.UUID.generate()) == []
+    end
+
+    test "heads/2 returns a recorded_at tie in a stable id-ascending order" do
+      scope = user_scope_fixture()
+      %{device: device} = device_fixture(scope)
+      key = content_key()
+
+      {:ok, root} = commit!(scope, device, key, :crypto.strong_rand_bytes(64))
+
+      # Commit the lexically-GREATER id first so an unfixed
+      # single-key sort (which has nothing to break the tie with)
+      # would return insertion order -- the inverse of id order --
+      # rather than accidentally passing.
+      [lower_id, greater_id] = Enum.sort([Ecto.UUID.generate(), Ecto.UUID.generate()])
+
+      {:ok, greater_child} =
+        commit!(scope, device, key, :crypto.strong_rand_bytes(64), %{
+          "id" => greater_id,
+          "parent_revision_id" => root.id
+        })
+
+      {:ok, lower_child} =
+        commit!(scope, device, key, :crypto.strong_rand_bytes(64), %{
+          "id" => lower_id,
+          "parent_revision_id" => root.id
+        })
+
+      tied_at = DateTime.utc_now() |> DateTime.truncate(:microsecond)
+
+      {2, nil} =
+        Playstead.Repo.update_all(
+          from(r in Playstead.Saves.Revision, where: r.id in [^greater_child.id, ^lower_child.id]),
+          set: [recorded_at: tied_at]
+        )
+
+      heads = Branches.heads(scope.user.id, root.save_line_id)
+
+      assert Enum.map(heads, & &1.id) == [lower_child.id, greater_child.id]
     end
   end
 
