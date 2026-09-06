@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 04
 current_phase_name: Persistent Save Continuity
 status: executing
-stopped_at: Completed 04-22-PLAN.md
-last_updated: "2026-09-06T01:43:53.608Z"
+stopped_at: Completed 04-23-PLAN.md
+last_updated: "2026-09-06T02:17:15.992Z"
 last_activity: 2026-09-05
 last_activity_desc: Phase 04 execution started
-state_head: 46af14ea3b55b5b087e307b57ed1fa7a2defe591
+state_head: d411e812771501061a8ec25fa578091f24cfc5a9
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 61
-  completed_plans: 60
+  completed_plans: 61
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: `.planning/PROJECT.md` (updated 2026-08-30)
 ## Current Position
 
 Phase: 04 (Persistent Save Continuity) — EXECUTING
-Plan: 3 of 23
+Plan: 4 of 23
 Status: Ready to execute
 Last activity: 2026-09-05 — Phase 04 execution started
 
@@ -112,6 +112,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 | Phase 04 P20 | 35m | 3 tasks | 8 files |
 | Phase 04 P21 | 55min | 3 tasks | 7 files |
 | Phase 04 P22 | ~50min | 3 tasks | 13 files |
+| Phase 04 P23 | 45 min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -234,6 +235,9 @@ Progress: [█████████░] 90% (Phase 03.5)
 - [Phase 04]: branch_key is the fork root's own immutable UUID (not a derived hash/counter); SavesPlan.assign_branch_letters/1 already turns a stable key into a stable letter. — Minimal correct choice; avoids new stability logic in SavesPlan.
 - [Phase 04]: [Phase 04-22]: restored_here_at's upsert COALESCE order preserves the EXISTING value over incoming, opposite of manifest_digest/session_id, so restore-provenance is immutable once set
 - [Phase 04]: [Phase 04-22]: SaveHistorySheet.summary defaults to nil so every pre-existing snapshot fixture renders byte-identically after giving SaveRollup its first production caller
+- [Phase 04]: SaveOutboxDrainTrigger self-serializes drain passes (awaits previous task) rather than relying on actor isolation, since SaveOutbox is a plain class — SaveOutbox.drainOnce is not actor-isolated the way OutboxWorker.drainOnce is
+- [Phase 04]: SaveCaptureBytesCommitter extracted from SaveSessionCoordinator and shared with SaveSessionRecovery so live and crash-recovery capture paths cannot drift apart — Two implementations of a content-addressed commit is how the two paths drifted apart in the first place (WINDOWS #52)
+- [Phase 04]: WINDOWS #32 closed as stale (resolved by plan 04-16 commit c223218 before the ledger entry was written), not as fixed-by-this-plan — 04-VERIFICATION confirmed the wiring directly in source; the ledger should record why it closed, not merely that it closed
 
 ### Pending Todos
 
@@ -267,6 +271,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-06T01:43:53.448Z
-Stopped at: Completed 04-22-PLAN.md
+Last session: 2026-09-06T02:17:15.839Z
+Stopped at: Completed 04-23-PLAN.md
 Resume file: None
