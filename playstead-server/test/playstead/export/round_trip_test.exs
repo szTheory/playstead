@@ -428,7 +428,13 @@ defmodule Playstead.Export.RoundTripTest do
     command_id = Ecto.UUID.generate()
 
     {:ok, _pending} =
-      Saves.record_pending_upload(scope.user.id, device.id, command_id, meta.sha256, meta.size_bytes)
+      Saves.record_pending_upload(
+        scope.user.id,
+        device.id,
+        command_id,
+        meta.sha256,
+        meta.size_bytes
+      )
 
     attrs =
       Map.merge(
@@ -457,20 +463,38 @@ defmodule Playstead.Export.RoundTripTest do
     {:ok, revision_1} = commit_save!(scope, device, rom_sha256, random_bytes(64))
 
     {:ok, _revision_2} =
-      commit_save!(scope, device, rom_sha256, random_bytes(64), %{"parent_revision_id" => revision_1.id})
+      commit_save!(scope, device, rom_sha256, random_bytes(64), %{
+        "parent_revision_id" => revision_1.id
+      })
 
     target_name_before = "export-#{System.unique_integer([:positive])}"
-    export_and_run!(scope.user.id, :set, target_name: target_name_before, asset_set_id: asset_set.id)
+
+    export_and_run!(scope.user.id, :set,
+      target_name: target_name_before,
+      asset_set_id: asset_set.id
+    )
+
     files_before = saves_revision_files(target_name_before)
     assert length(files_before) == 2
 
-    revision_2 = Repo.get_by!(Playstead.Saves.Revision, save_line_id: revision_1.save_line_id, parent_revision_id: revision_1.id)
+    revision_2 =
+      Repo.get_by!(Playstead.Saves.Revision,
+        save_line_id: revision_1.save_line_id,
+        parent_revision_id: revision_1.id
+      )
 
     {:ok, _revision_3} =
-      commit_save!(scope, device, rom_sha256, random_bytes(64), %{"parent_revision_id" => revision_2.id})
+      commit_save!(scope, device, rom_sha256, random_bytes(64), %{
+        "parent_revision_id" => revision_2.id
+      })
 
     target_name_after = "export-#{System.unique_integer([:positive])}"
-    export_and_run!(scope.user.id, :set, target_name: target_name_after, asset_set_id: asset_set.id)
+
+    export_and_run!(scope.user.id, :set,
+      target_name: target_name_after,
+      asset_set_id: asset_set.id
+    )
+
     files_after = saves_revision_files(target_name_after)
     assert length(files_after) == 3
 
@@ -576,17 +600,25 @@ defmodule Playstead.Export.RoundTripTest do
     target_name = "export-#{System.unique_integer([:positive])}"
 
     {:ok, export} =
-      Export.create_export(scope.user.id, :set, target_name: target_name, asset_set_id: asset_set.id)
+      Export.create_export(scope.user.id, :set,
+        target_name: target_name,
+        asset_set_id: asset_set.id
+      )
 
     assert :ok = perform_job(Worker, %{"export_id" => export.id})
 
     target_dir = Export.target_dir(target_name)
-    files_first_run = Path.wildcard(Path.join(target_dir, "data/**/*")) |> Enum.reject(&File.dir?/1)
+
+    files_first_run =
+      Path.wildcard(Path.join(target_dir, "data/**/*")) |> Enum.reject(&File.dir?/1)
+
     contents_first_run = Map.new(files_first_run, &{&1, File.read!(&1)})
 
     assert :ok = perform_job(Worker, %{"export_id" => export.id})
 
-    files_second_run = Path.wildcard(Path.join(target_dir, "data/**/*")) |> Enum.reject(&File.dir?/1)
+    files_second_run =
+      Path.wildcard(Path.join(target_dir, "data/**/*")) |> Enum.reject(&File.dir?/1)
+
     contents_second_run = Map.new(files_second_run, &{&1, File.read!(&1)})
 
     assert contents_first_run == contents_second_run
@@ -613,8 +645,15 @@ defmodule Playstead.Export.RoundTripTest do
     target_name_a = "export-a-#{System.unique_integer([:positive])}"
     target_name_b = "export-b-#{System.unique_integer([:positive])}"
 
-    export_and_run!(scope_a.user.id, :set, target_name: target_name_a, asset_set_id: asset_set_a.id)
-    export_and_run!(scope_b.user.id, :set, target_name: target_name_b, asset_set_id: asset_set_b.id)
+    export_and_run!(scope_a.user.id, :set,
+      target_name: target_name_a,
+      asset_set_id: asset_set_a.id
+    )
+
+    export_and_run!(scope_b.user.id, :set,
+      target_name: target_name_b,
+      asset_set_id: asset_set_b.id
+    )
 
     manifest_a = File.read!(Path.join(Export.target_dir(target_name_a), "manifest-sha256.txt"))
     manifest_b = File.read!(Path.join(Export.target_dir(target_name_b), "manifest-sha256.txt"))
