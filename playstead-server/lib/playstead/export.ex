@@ -11,7 +11,7 @@ defmodule Playstead.Export do
 
   alias Playstead.AuditLog
   alias Playstead.Catalogue.{AssetMember, AssetSet}
-  alias Playstead.Export.{BagitWriter, ExportRecord, Layout, Sanitize, Worker}
+  alias Playstead.Export.{BagitWriter, ExportRecord, Layout, Sanitize, SavesLineage, Worker}
   alias Playstead.Repo
   alias Playstead.Saves
 
@@ -123,6 +123,13 @@ defmodule Playstead.Export do
       {:ok, %{revisions: revisions, heads: heads}} = Saves.get_history(user_id, line.id)
       head_ids = MapSet.new(heads, & &1.id)
 
+      branch_keys =
+        SavesLineage.branch_keys(
+          Enum.map(revisions, fn r ->
+            %{id: r.id, parent_revision_id: r.parent_revision_id, recorded_at: r.recorded_at}
+          end)
+        )
+
       Enum.map(revisions, fn revision ->
         %{
           id: revision.id,
@@ -131,7 +138,7 @@ defmodule Playstead.Export do
           recorded_at: revision.recorded_at,
           save_kind: map_save_kind(line.save_kind),
           is_head: MapSet.member?(head_ids, revision.id),
-          branch_key: nil,
+          branch_key: Map.get(branch_keys, revision.id),
           bytes: if(Playstead.Blobs.exists?(revision.blob_sha256), do: :present, else: :missing)
         }
       end)
