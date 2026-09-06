@@ -248,13 +248,13 @@ Plans:
   5. When two devices save from the same base revision, both revisions remain available with device, time, and play context; the user can inspect, choose, export, and resolve either side without silent last-write-wins.
 
 **Research / spike flags**: Required compatibility gate: test the selected adapter's persistent-save type, safe-flush/debounce, crash behavior, and two-device divergent offline revisions. Save states remain local-only and outside the v1 portability contract.
-**Plans**: 23 plans (20 executed; 3 gap-closure plans pending from 04-VERIFICATION.md)
+**Plans**: 21/23 plans executed (20 executed; 3 gap-closure plans pending from 04-VERIFICATION.md)
 
 Plans:
 
 **Gap closure** *(from 04-VERIFICATION.md, 1/5 must-haves verified)*
 
-- [ ] 04-21-PLAN.md — Tracer: supply real `Playstead.Saves` revisions to the export pipeline (WINDOWS #30 / PORT-01)
+- [x] 04-21-PLAN.md — Tracer: supply real `Playstead.Saves` revisions to the export pipeline (WINDOWS #30 / PORT-01)
 - [ ] 04-22-PLAN.md — Wire per-revision save history to real `SaveStore` data and give `SaveRollup` a caller (WINDOWS #43, #47)
 - [ ] 04-23-PLAN.md — Drain the save outbox, commit crash-recovered bytes to the CAS, close the ledger (WINDOWS #42, #52, #32)
 
@@ -327,5 +327,5 @@ Plans:
 | 1. Private Custody and Durable Protocol | 8/8 | Complete    | 2026-08-28 |
 | 2. Explainable Import and Exact Export | 10/10 | Complete    | 2026-08-30 |
 | 3. Mac Offline Play Vertical Slice | 10/10 | In Progress|  |
-| 4. Persistent Save Continuity | 20/20 | In Progress|  |
+| 4. Persistent Save Continuity | 21/23 | In Progress|  |
 | 5. Recovery and Release Proof | 0/TBD | Not started | - |
