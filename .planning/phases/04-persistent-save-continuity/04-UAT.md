@@ -3,18 +3,18 @@ status: testing
 phase: 04-persistent-save-continuity
 source: [04-01-SUMMARY.md,04-02-SUMMARY.md 04-03-SUMMARY.md,04-04-SUMMARY.md 04-05-SUMMARY.md,04-06-SUMMARY.md 04-07-SUMMARY.md,04-08-SUMMARY.md 04-09-SUMMARY.md,04-10-SUMMARY.md 04-11-SUMMARY.md,04-12-SUMMARY.md 04-13-SUMMARY.md,04-14-SUMMARY.md 04-15-SUMMARY.md,04-16-SUMMARY.md 04-17-SUMMARY.md,04-18-SUMMARY.md 04-19-SUMMARY.md,04-20-SUMMARY.md 04-21-SUMMARY.md,04-22-SUMMARY.md 04-23-SUMMARY.md,04-24-SUMMARY.md 04-25-SUMMARY.md]
 started: 2026-09-04T00:00:00Z
-updated: 2026-09-06T14:18:42Z
+updated: 2026-09-06T14:52:00Z
 ---
 
 ## Current Test
 <!-- OVERWRITE each test - shows where we are -->
 
-number: 108
-name: Divergence comparison surface at /saves and /saves/:id
+number: 113
+name: Only-copy escalation default action feels non-destructive
 expected: |
-  See test 108 below. Two genuine-judgment checkpoints remain: 108 and 113. Both are
-  UX-feel reads on rendered surfaces; every structural assertion under them is already
-  covered by passing automated tests.
+  See test 113 below. Test 108 reported an issue (G-04-1) — /saves lists only diverged
+  lines, so its stated inspect/export purpose is unreachable on a healthy library.
+  113 is the last open judgment checkpoint and is observable during Session B.
 awaiting: user response
 
 ## Purpose
@@ -1060,12 +1060,36 @@ rationale: |
 ### 108. The console can inspect, choose, keep both, and export a diverged save line at /saves and /saves/:id — exactly four facts per side, digest b…
 expected: |
   The console can inspect, choose, keep both, and export a diverged save line at /saves and /saves/:id — exactly four facts per side, digest behind Details only, no confirmation dialog, no Undo, no recommended/pre-selected side, no bulk always-use-this-Mac control, all asserted absent by test
-result: [pending]
+result: issue
+gap_id: G-04-1
 source: human
 coverage_id: 04-10/D4
 reason_human: human_judgment
 rationale: |
   Automated tests assert the DOM-level absences and the correct context calls; the actual visual read (does the sheet feel calm, does keyboard order feel natural) is a genuine UX judgment call no test proves.
+reported: |
+  The user opened /saves on a healthy library and saw only the header "Saves — Inspect,
+  choose, and export save versions." above the empty state "Nothing needs a decision
+  right now." Their words: "that's ur saves right, 'needs a decision right now' doesn't
+  really fit into the psychology of our user who is a gamer trying to look at their
+  saves."
+
+  This is not a copy nit. saves_live.ex:51-59 filters every save line through
+  Saves.needs_divergence_decision?/2, so /saves lists ONLY unresolved conflicts. For a
+  user whose saves are healthy — the overwhelmingly common case, since divergence is by
+  design the exception — two of the header's three promised verbs are unreachable:
+  "inspect" has nothing to list, and "export" lives on /saves/:id which is only
+  navigable from that list. Only "choose" works, and only during a conflict.
+
+  Compounding it: /attention already owns the needs-a-decision queue and owns it better.
+  attention_live.ex:66 unions SavesAttention.list_items/1 into the inbox and :351 links
+  each card to /saves/#{grouping_key}. So /saves currently duplicates /attention's job
+  while failing its own.
+
+  Scope note: the capability is not missing. load_line (saves_live.ex:62) calls
+  Saves.get_history, which returns the line and its heads for ANY line; with a single
+  head, sides has one entry and /saves/:id renders inspect + export correctly today.
+  What is missing is the index — a way to reach it.
 
 ### 109. The comparison sheet's real keyboard operability, no-confirmation-dialog, no-Undo, and no-pre-selection behavior against a genuine hosted Ap…
 expected: |
@@ -1329,15 +1353,39 @@ records observations under test 120 and sets its own status by hand.
 
 total: 120
 passed: 109
-issues: 0
-pending: 2
+issues: 1
+pending: 1
 skipped: 0
 blocked: 9
 
 ## Gaps
 
 <!-- YAML format for plan-phase --gaps consumption -->
-[none yet — no test has reported an issue in this session]
+- gap_id: G-04-1
+  test: 108
+  title: /saves lists only diverged lines, so its stated purpose is unreachable
+  severity: medium
+  kind: reachability
+  evidence:
+    - lib/playstead_web/live/saves_live.ex:51-59  # filters all lines through needs_divergence_decision?/2
+    - lib/playstead_web/live/saves_live.ex:296    # header promises "Inspect, choose, and export"
+    - lib/playstead_web/live/saves_live.ex:306    # empty state "Nothing needs a decision right now."
+    - lib/playstead_web/live/saves_live.ex:62     # load_line already handles single-head lines
+    - lib/playstead_web/live/attention_live.ex:66 # /attention already owns the conflict queue
+    - lib/playstead_web/live/attention_live.ex:351
+  summary: |
+    /saves renders a conflict-resolution queue under a browse-your-saves header. On a
+    healthy library it is permanently empty, making "inspect" and "export" unreachable,
+    while /attention already surfaces the conflicts it does list. The detail view at
+    /saves/:id already supports non-diverged lines; only the index filter is wrong.
+  suggested_fix: |
+    Have load_diverged_lines list every save line for the user, carrying
+    needs_divergence_decision? as a per-row flag rather than as a filter. Reserve the
+    decision framing for the rows that have one, and rewrite the header and empty state
+    for someone browsing their saves rather than servicing a queue.
+    Reachability assertion required (see seams-between-plans-go-unowned): a test that a
+    user with exactly one healthy save line can reach /saves/:id and its export control
+    starting from /saves.
 
 ## Standing Non-Gap Notes
 
