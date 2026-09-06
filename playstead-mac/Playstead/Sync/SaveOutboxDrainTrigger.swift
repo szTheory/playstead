@@ -5,9 +5,16 @@ import Foundation
 ///
 /// `SaveOutbox.drainOnce` is not actor-isolated the way `OutboxWorker` is
 /// (it is a plain method on a plain class), so this trigger serializes
-/// passes itself: `fire()` awaits the previously started task before
-/// starting the next one, standing in for the actor isolation the
-/// curation drain trigger gets for free. Without this, two overlapping
+/// passes itself: `fire()` reads the previous `_lastTask` and replaces
+/// it with the newly started one INSIDE ONE critical section, then the
+/// new task awaits that predecessor before starting its own pass. That
+/// single critical section is what makes the chain a single lane: two
+/// concurrent `fire()` calls cannot both observe the same predecessor,
+/// because the lock serializes the read-and-replace itself, not just
+/// each half of it separately. (The sibling `OutboxDrainTrigger` needs
+/// no equivalent section — its `OutboxWorker` is actor-isolated and
+/// never reads `_lastTask` before starting a pass, so that isolation
+/// alone supplies the serialization there.) Without this, two overlapping
 /// `fire()` calls could both read `listPending()` before either one's
 /// send completed and send the same entry twice.
 ///
@@ -38,6 +45,14 @@ final class SaveOutboxDrainTrigger: @unchecked Sendable {
     /// Starts one drain pass, serialized behind whatever pass is already
     /// running. Two overlapping `fire()` calls therefore process the
     /// pending set one pass at a time rather than racing the same entry.
+    ///
+    /// The predecessor read, the `Task` construction, the drain-count
+    /// increment, and the `_lastTask` replacement all happen inside ONE
+    /// `lock.lock()`/`lock.unlock()` pair. Constructing a `Task` does not
+    /// block and does not re-enter the lock, so building it inside the
+    /// critical section is safe -- and it is exactly what closes the
+    /// race: two concurrent callers can no longer both read the same
+    /// `previous` before either one's replacement is published.
     @discardableResult
     func fire() -> Task<Int, Never> {
         let saveOutbox = self.saveOutbox
@@ -45,14 +60,10 @@ final class SaveOutboxDrainTrigger: @unchecked Sendable {
 
         lock.lock()
         let previous = _lastTask
-        lock.unlock()
-
         let task = Task<Int, Never> {
             _ = await previous?.value
             return await saveOutbox.drainOnce(apiClient: apiClient)
         }
-
-        lock.lock()
         _drainCount += 1
         _lastTask = task
         lock.unlock()

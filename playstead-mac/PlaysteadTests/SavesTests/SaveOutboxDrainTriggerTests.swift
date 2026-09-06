@@ -185,6 +185,138 @@ final class SaveOutboxDrainTriggerTests: XCTestCase {
         XCTAssertTrue(saveOutbox.listPending().isEmpty)
     }
 
+    // MARK: - Concurrent fire() calls from separate threads never overlap a drain pass.
+
+    /// `testTwoOverlappingDrainPassesProduceAtMostOneSuccessfulSend` above
+    /// calls `fire()` twice synchronously from one thread, which can never
+    /// interleave `fire()`'s two -- now one -- critical sections. This test
+    /// releases two threads into `fire()` at the same instant via an
+    /// explicit barrier, so it can actually observe whether
+    /// `SaveOutbox.drainOnce` is ever in flight twice at once.
+    func testConcurrentFireCallsFromSeparateThreadsNeverOverlapADrainPass() async throws {
+        let rounds = 200
+        let counterLock = NSLock()
+        var inFlight = 0
+        var maxInFlight = 0
+        var totalSent = 0
+
+        StubURLProtocol.responder = { _ in
+            counterLock.lock()
+            inFlight += 1
+            maxInFlight = max(maxInFlight, inFlight)
+            counterLock.unlock()
+
+            Thread.sleep(forTimeInterval: 0.02)
+
+            counterLock.lock()
+            inFlight -= 1
+            counterLock.unlock()
+
+            return StubURLProtocol.Stub(statusCode: 201, headers: [:], body: Data("{}".utf8))
+        }
+
+        let trigger = SaveOutboxDrainTrigger(saveOutbox: saveOutbox, apiClient: apiClient)
+
+        for round in 0..<rounds {
+            // Seed one fresh divergence per round -- `onEnqueue` is left
+            // disconnected so the enqueue itself starts no drain pass;
+            // only the two racing `fire()` calls below do.
+            try seedRoundDivergence(round)
+            try resolver.chooseSide(
+                saveLineID: "round-\(round)", chosenRevisionID: "round-\(round)-r1",
+                headRevisionIDs: ["round-\(round)-r1", "round-\(round)-r2"], originName: origin
+            )
+
+            let (first, second) = Self.raceTwoFireCalls(trigger)
+
+            let firstSent = await first.value
+            let secondSent = await second.value
+            totalSent += firstSent + secondSent
+        }
+
+        XCTAssertEqual(maxInFlight, 1, "at most one drainOnce pass must ever be in flight at a time")
+        XCTAssertEqual(totalSent, rounds, "every round's entry must be delivered exactly once")
+        XCTAssertEqual(saveOutbox.count(), 0, "the outbox must drain to empty across all rounds")
+    }
+
+    /// Releases two threads into `trigger.fire()` at the same instant via
+    /// an explicit barrier -- a plain (non-`async`) function, so the
+    /// blocking `DispatchSemaphore`/`DispatchGroup` waits below never run
+    /// on a Swift-concurrency async context (avoiding the "unavailable
+    /// from asynchronous contexts" diagnostic that is an error under the
+    /// Swift 6 language mode).
+    private static func raceTwoFireCalls(_ trigger: SaveOutboxDrainTrigger) -> (Task<Int, Never>, Task<Int, Never>) {
+        let ready = DispatchSemaphore(value: 0)
+        let release = DispatchSemaphore(value: 0)
+        let box = FireResultBox()
+
+        let group = DispatchGroup()
+        group.enter()
+        DispatchQueue.global().async {
+            ready.signal()
+            release.wait()
+            box.first = trigger.fire()
+            group.leave()
+        }
+        group.enter()
+        DispatchQueue.global().async {
+            ready.signal()
+            release.wait()
+            box.second = trigger.fire()
+            group.leave()
+        }
+
+        // Wait for both threads to be parked at `release.wait()` before
+        // releasing them simultaneously.
+        ready.wait()
+        ready.wait()
+        release.signal()
+        release.signal()
+        group.wait()
+
+        return (box.first!, box.second!)
+    }
+
+    /// A lock-guarded box for the two `Task` handles `raceTwoFireCalls`
+    /// hands off across threads -- plain `var` captures in the closures
+    /// above would race under strict concurrency checking even though
+    /// `DispatchGroup.wait()` establishes a genuine happens-before edge.
+    private final class FireResultBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var _first: Task<Int, Never>?
+        private var _second: Task<Int, Never>?
+
+        var first: Task<Int, Never>? {
+            get { lock.lock(); defer { lock.unlock() }; return _first }
+            set { lock.lock(); _first = newValue; lock.unlock() }
+        }
+
+        var second: Task<Int, Never>? {
+            get { lock.lock(); defer { lock.unlock() }; return _second }
+            set { lock.lock(); _second = newValue; lock.unlock() }
+        }
+    }
+
+    /// Seeds a distinct diverged line per round so each round's
+    /// `chooseSide` enqueues a genuinely new entry rather than colliding
+    /// on `line-1`'s primary key.
+    private func seedRoundDivergence(_ round: Int) throws {
+        let lineID = "round-\(round)"
+        try saveStore.resolveLine(contentKey: "round-content-\(round)", saveKind: "battery", slot: "0", placeholderID: lineID)
+        try saveStore.insertRevision(SaveRevisionRow(
+            id: "\(lineID)-r1", saveLineID: lineID, parentRevisionID: nil, blobSHA256: "sha-\(lineID)-r1", sizeBytes: 32_768,
+            originDeviceID: "device-a", deviceCapturedAt: nil, recordedAt: "2026-01-01T00:00:00Z",
+            captureMethod: nil, adapterID: nil, adapterVersion: nil, saveFormat: nil, formatConfidence: nil,
+            playSessionID: nil, durability: SaveDurability.uploaded.rawValue, localPath: nil
+        ))
+        try saveStore.insertRevision(SaveRevisionRow(
+            id: "\(lineID)-r2", saveLineID: lineID, parentRevisionID: nil, blobSHA256: "sha-\(lineID)-r2", sizeBytes: 32_768,
+            originDeviceID: "device-b", deviceCapturedAt: nil, recordedAt: "2026-01-01T01:00:00Z",
+            captureMethod: nil, adapterID: nil, adapterVersion: nil, saveFormat: nil, formatConfidence: nil,
+            playSessionID: nil, durability: SaveDurability.uploaded.rawValue, localPath: nil
+        ))
+    }
+
     // MARK: - Every send carries the entry's own Idempotency-Key; a retry replays the same key.
 
     func testEverySendCarriesTheEntrysIdempotencyKeyAndARetryReplaysTheSameKey() async throws {
