@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 04
 current_phase_name: Persistent Save Continuity
 status: executing
-stopped_at: Completed 04-23-PLAN.md
-last_updated: "2026-09-06T02:17:15.992Z"
+stopped_at: Completed 04-24-PLAN.md
+last_updated: "2026-09-06T03:32:18.884Z"
 last_activity: 2026-09-05
 last_activity_desc: Phase 04 execution started
-state_head: d411e812771501061a8ec25fa578091f24cfc5a9
+state_head: 342403e81ebcfbaed4a583e22a1fe886143a067a
 progress:
   total_phases: 6
   completed_phases: 3
-  total_plans: 61
-  completed_plans: 61
+  total_plans: 63
+  completed_plans: 62
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: `.planning/PROJECT.md` (updated 2026-08-30)
 ## Current Position
 
 Phase: 04 (Persistent Save Continuity) — EXECUTING
-Plan: 4 of 23
+Plan: 2 of 25
 Status: Ready to execute
 Last activity: 2026-09-05 — Phase 04 execution started
 
@@ -113,6 +113,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 | Phase 04 P21 | 55min | 3 tasks | 7 files |
 | Phase 04 P22 | ~50min | 3 tasks | 13 files |
 | Phase 04 P23 | 45 min | 3 tasks | 10 files |
+| Phase 04 P24 | 15min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -238,6 +239,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 - [Phase 04]: SaveOutboxDrainTrigger self-serializes drain passes (awaits previous task) rather than relying on actor isolation, since SaveOutbox is a plain class — SaveOutbox.drainOnce is not actor-isolated the way OutboxWorker.drainOnce is
 - [Phase 04]: SaveCaptureBytesCommitter extracted from SaveSessionCoordinator and shared with SaveSessionRecovery so live and crash-recovery capture paths cannot drift apart — Two implementations of a content-addressed commit is how the two paths drifted apart in the first place (WINDOWS #52)
 - [Phase 04]: WINDOWS #32 closed as stale (resolved by plan 04-16 commit c223218 before the ledger entry was written), not as fixed-by-this-plan — 04-VERIFICATION confirmed the wiring directly in source; the ledger should record why it closed, not merely that it closed
+- [Phase 04]: 04-24: id chosen as {recorded_at, id} tiebreaker for revision ordering (not a stored sequence column), following attention_source.ex precedent — recorded_at remains sole ordering semantics (D-15); id is immutable and reproducible, never exposed as causal order
 
 ### Pending Todos
 
@@ -271,6 +273,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-06T02:17:15.839Z
-Stopped at: Completed 04-23-PLAN.md
+Last session: 2026-09-06T03:32:18.726Z
+Stopped at: Completed 04-24-PLAN.md
 Resume file: None
