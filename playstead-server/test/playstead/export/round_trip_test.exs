@@ -15,15 +15,18 @@ defmodule Playstead.Export.RoundTripTest do
   import Ecto.Query, warn: false
   import Playstead.AccountsFixtures
   import Playstead.ImportFixtures
+  import Playstead.PairingFixtures
 
+  alias Playstead.Blobs
   alias Playstead.Blobs.Blob
   alias Playstead.Blobs.Store.LocalDisk
   alias Playstead.Catalogue.{AssetMember, AssetSet}
   alias Playstead.Export
-  alias Playstead.Export.Worker
+  alias Playstead.Export.{ExportRecord, Verifier, Worker}
   alias Playstead.Import
   alias Playstead.Import.FolderImport
   alias Playstead.Repo
+  alias Playstead.Saves
 
   setup do
     File.mkdir_p!(LocalDisk.blob_path())
@@ -398,6 +401,142 @@ defmodule Playstead.Export.RoundTripTest do
 
     expected_sha256 = :crypto.hash(:sha256, bytes) |> Base.encode16(case: :lower)
     assert receipt.sha256 == expected_sha256
+  end
+
+  # Plan 04-21 task 3: determinism and re-export stability against the
+  # real saves loader now that real save-revision data flows through
+  # the export pipeline (WINDOWS #30 / PORT-01).
+
+  # Like `import_bytes!/3`, but tolerates the blob already existing in
+  # the content-addressed store (e.g. a second user importing the same
+  # ROM bytes another user already imported).
+  defp import_bytes_any!(user_id, name, bytes) do
+    {:ok, _status, meta} = Playstead.Blobs.put_stream([bytes], byte_size(bytes))
+
+    {:ok, receipt} =
+      Import.import_single(
+        user_id,
+        %{original_name: name, origin: "upload", size_bytes: meta.size_bytes},
+        {:stored, meta}
+      )
+
+    Repo.get!(AssetSet, receipt.asset_set_id)
+  end
+
+  defp commit_save!(scope, device, content_key, bytes, extra_attrs \\ %{}) do
+    {:ok, _status, meta} = Blobs.put_stream([bytes], byte_size(bytes))
+    command_id = Ecto.UUID.generate()
+
+    {:ok, _pending} =
+      Saves.record_pending_upload(scope.user.id, device.id, command_id, meta.sha256, meta.size_bytes)
+
+    attrs =
+      Map.merge(
+        %{"id" => Ecto.UUID.generate(), "command_id" => command_id, "content_key" => content_key},
+        extra_attrs
+      )
+
+    Saves.commit_revision(scope.user.id, device, attrs)
+  end
+
+  defp saves_revision_files(target_name) do
+    Export.target_dir(target_name)
+    |> Path.join("data/*/*/saves/revisions/*")
+    |> Path.wildcard()
+    |> Enum.map(&Path.basename/1)
+    |> Enum.sort()
+  end
+
+  test "an appended revision never renumbers or renames a pre-existing revision's exported file (D-59)" do
+    scope = user_scope_fixture()
+    bytes = random_bytes(1_024)
+    asset_set = import_bytes!(scope.user.id, "game.gba", bytes)
+    rom_sha256 = :crypto.hash(:sha256, bytes) |> Base.encode16(case: :lower)
+    %{device: device} = device_fixture(scope)
+
+    {:ok, revision_1} = commit_save!(scope, device, rom_sha256, random_bytes(64))
+
+    {:ok, _revision_2} =
+      commit_save!(scope, device, rom_sha256, random_bytes(64), %{"parent_revision_id" => revision_1.id})
+
+    target_name_before = "export-#{System.unique_integer([:positive])}"
+    export_and_run!(scope.user.id, :set, target_name: target_name_before, asset_set_id: asset_set.id)
+    files_before = saves_revision_files(target_name_before)
+    assert length(files_before) == 2
+
+    revision_2 = Repo.get_by!(Playstead.Saves.Revision, save_line_id: revision_1.save_line_id, parent_revision_id: revision_1.id)
+
+    {:ok, _revision_3} =
+      commit_save!(scope, device, rom_sha256, random_bytes(64), %{"parent_revision_id" => revision_2.id})
+
+    target_name_after = "export-#{System.unique_integer([:positive])}"
+    export_and_run!(scope.user.id, :set, target_name: target_name_after, asset_set_id: asset_set.id)
+    files_after = saves_revision_files(target_name_after)
+    assert length(files_after) == 3
+
+    # The two pre-existing revisions' filenames -- exact string
+    # equality on seq AND digest -- are unchanged by the append. A
+    # shifted or reused seq is the specific defect this asserts against.
+    assert Enum.take(files_after, 2) == files_before
+  end
+
+  test "re-running the export worker twice against one target leaves every payload byte-identical and still verifies" do
+    scope = user_scope_fixture()
+    bytes = random_bytes(1_024)
+    asset_set = import_bytes!(scope.user.id, "game.gba", bytes)
+    rom_sha256 = :crypto.hash(:sha256, bytes) |> Base.encode16(case: :lower)
+    %{device: device} = device_fixture(scope)
+
+    {:ok, _revision} = commit_save!(scope, device, rom_sha256, random_bytes(64))
+
+    target_name = "export-#{System.unique_integer([:positive])}"
+
+    {:ok, export} =
+      Export.create_export(scope.user.id, :set, target_name: target_name, asset_set_id: asset_set.id)
+
+    assert :ok = perform_job(Worker, %{"export_id" => export.id})
+
+    target_dir = Export.target_dir(target_name)
+    files_first_run = Path.wildcard(Path.join(target_dir, "data/**/*")) |> Enum.reject(&File.dir?/1)
+    contents_first_run = Map.new(files_first_run, &{&1, File.read!(&1)})
+
+    assert :ok = perform_job(Worker, %{"export_id" => export.id})
+
+    files_second_run = Path.wildcard(Path.join(target_dir, "data/**/*")) |> Enum.reject(&File.dir?/1)
+    contents_second_run = Map.new(files_second_run, &{&1, File.read!(&1)})
+
+    assert contents_first_run == contents_second_run
+
+    reverified = Repo.get!(ExportRecord, export.id)
+    assert {:ok, _} = Verifier.verify(Export.target_dir(reverified.target_name))
+  end
+
+  test "a second user sharing the same content_key never sees the first user's save bytes (T-04-21-01)" do
+    scope_a = user_scope_fixture()
+    scope_b = user_scope_fixture()
+    bytes = random_bytes(1_024)
+    rom_sha256 = :crypto.hash(:sha256, bytes) |> Base.encode16(case: :lower)
+
+    asset_set_a = import_bytes!(scope_a.user.id, "game.gba", bytes)
+    asset_set_b = import_bytes_any!(scope_b.user.id, "game.gba", bytes)
+
+    %{device: device_a} = device_fixture(scope_a)
+    %{device: device_b} = device_fixture(scope_b)
+
+    {:ok, revision_a} = commit_save!(scope_a, device_a, rom_sha256, random_bytes(64))
+    {:ok, _revision_b} = commit_save!(scope_b, device_b, rom_sha256, random_bytes(64))
+
+    target_name_a = "export-a-#{System.unique_integer([:positive])}"
+    target_name_b = "export-b-#{System.unique_integer([:positive])}"
+
+    export_and_run!(scope_a.user.id, :set, target_name: target_name_a, asset_set_id: asset_set_a.id)
+    export_and_run!(scope_b.user.id, :set, target_name: target_name_b, asset_set_id: asset_set_b.id)
+
+    manifest_a = File.read!(Path.join(Export.target_dir(target_name_a), "manifest-sha256.txt"))
+    manifest_b = File.read!(Path.join(Export.target_dir(target_name_b), "manifest-sha256.txt"))
+
+    refute manifest_b =~ revision_a.blob_sha256
+    refute manifest_a == manifest_b
   end
 
   defp tag_sidecar_path(target_dir, _asset_set) do
