@@ -3,7 +3,7 @@ status: testing
 phase: 04-persistent-save-continuity
 source: [04-01-SUMMARY.md,04-02-SUMMARY.md 04-03-SUMMARY.md,04-04-SUMMARY.md 04-05-SUMMARY.md,04-06-SUMMARY.md 04-07-SUMMARY.md,04-08-SUMMARY.md 04-09-SUMMARY.md,04-10-SUMMARY.md 04-11-SUMMARY.md,04-12-SUMMARY.md 04-13-SUMMARY.md,04-14-SUMMARY.md 04-15-SUMMARY.md,04-16-SUMMARY.md 04-17-SUMMARY.md,04-18-SUMMARY.md 04-19-SUMMARY.md,04-20-SUMMARY.md 04-21-SUMMARY.md,04-22-SUMMARY.md 04-23-SUMMARY.md,04-24-SUMMARY.md 04-25-SUMMARY.md]
 started: 2026-09-04T00:00:00Z
-updated: 2026-09-06T14:17:35Z
+updated: 2026-09-06T14:18:42Z
 ---
 
 ## Current Test
@@ -1130,7 +1130,47 @@ rationale: |
 ### 114. MC-05: OnlyCopyEscalationPanel has a real, correctly-gated call site (never escalates offline/no-failure-signal states)
 expected: |
   MC-05: OnlyCopyEscalationPanel has a real, correctly-gated call site (never escalates offline/no-failure-signal states)
-result: [pending]
+result: pass
+source: artifact-record
+evidence: |
+  This checkpoint asked a human to confirm that MC-05's ungated escalation was an
+  acceptable, disclosed scope boundary. The premise is no longer true: 04-16 recorded
+  WR-04 ("SaveUploadLane has no wired failure-classification output anywhere in
+  production"), and 04-19 — two plans later — wired it. Verified in the code this
+  session:
+
+    - playstead-mac/Playstead/Saves/SaveUploadLane.swift:91
+      `static func classify(_ error: Error) -> SaveUploadFailureClassification` maps the
+      server's D-22 machine codes onto D-40's escalation vocabulary: device_revoked /
+      unauthorized -> .revokedAuth, capability_incompatible -> .capabilitySkew,
+      save_binding_incompatible / save_revision_digest_mismatch / save_parent_unknown /
+      save_revision_immutable / save_branch_limit_exceeded -> .compatibilityRejection.
+      Retryable conditions (transport, 5xx, slow_down, rate_limited, unpaired) stay
+      `.none` — the conservative rule D-40 requires.
+    - SaveUploadLane.swift:80 `lastFailureClassification` exposes it, backed by
+      `SaveUploadClassificationCell`, and returns to `.none` on a successful upload.
+    - playstead-mac/Playstead/App/PlaysteadApp.swift:1043
+      `saveUploadFailureClassification()` returns `.offlineQueue` when offline and
+      otherwise the live lane's own most recent outcome. Its own doc comment states:
+      "Until 04-19 this returned a constant `.none` for the online case, because
+      SaveUploadLane had no classification output and no production construction site
+      at all: the four unfixable reasons were unreachable code in the shipped app
+      (WINDOWS #40, #44)."
+    - playstead-mac/Playstead/Readiness/ReadinessSheetView.swift:57 passes that
+      classification, and line 71 constructs `OnlyCopyEscalationPanel` with it — a real,
+      reachable call site.
+
+  The offline gate is the structural guarantee this checkpoint asked about: the panel
+  cannot escalate an offline or no-failure-signal state, because
+  `saveUploadFailureClassification()` returns `.offlineQueue` before ever consulting the
+  lane, and the lane returns `.none` until a genuinely unfixable server code arrives.
+
+  Evidence boundary: this proves the call site exists and is correctly gated by reading
+  the shipped code. Observing the panel actually render for a real revoked-auth response
+  against a live server is the same hosted/live-server constraint as test 117.
+
+  Note: WR-04's other half (SaveOutbox had no drain trigger) was closed separately by
+  04-25 — see test 105 (04-25/D2).
 source: human
 coverage_id: 04-16/D5
 reason_human: human_judgment
@@ -1286,9 +1326,9 @@ records observations under test 120 and sets its own status by hand.
 ## Summary
 
 total: 120
-passed: 108
+passed: 109
 issues: 0
-pending: 3
+pending: 2
 skipped: 0
 blocked: 9
 
