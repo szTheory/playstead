@@ -3,7 +3,7 @@ status: testing
 phase: 04-persistent-save-continuity
 source: [04-01-SUMMARY.md,04-02-SUMMARY.md 04-03-SUMMARY.md,04-04-SUMMARY.md 04-05-SUMMARY.md,04-06-SUMMARY.md 04-07-SUMMARY.md,04-08-SUMMARY.md 04-09-SUMMARY.md,04-10-SUMMARY.md 04-11-SUMMARY.md,04-12-SUMMARY.md 04-13-SUMMARY.md,04-14-SUMMARY.md 04-15-SUMMARY.md,04-16-SUMMARY.md 04-17-SUMMARY.md,04-18-SUMMARY.md 04-19-SUMMARY.md,04-20-SUMMARY.md 04-21-SUMMARY.md,04-22-SUMMARY.md 04-23-SUMMARY.md,04-24-SUMMARY.md 04-25-SUMMARY.md]
 started: 2026-09-04T00:00:00Z
-updated: 2026-09-06T14:52:00Z
+updated: 2026-09-06T15:35:00Z
 ---
 
 ## Current Test
@@ -1094,11 +1094,39 @@ reported: |
 ### 109. The comparison sheet's real keyboard operability, no-confirmation-dialog, no-Undo, and no-pre-selection behavior against a genuine hosted Ap…
 expected: |
   The comparison sheet's real keyboard operability, no-confirmation-dialog, no-Undo, and no-pre-selection behavior against a genuine hosted AppKit/SwiftUI window
-result: blocked
-blocked_by: other
+result: issue
+gap_id: G-04-2
 source: human
-reason: |
-  Hosted macOS runner only. The tests build and are registered in TestPlans/UI.xctestplan, but their pass/fail cannot be observed locally: run-mac-verification.sh:1026 forbids automated GSD runs from setting PLAYSTEAD_HUMAN_APPROVED_LOCAL_APP_LAUNCH=1. WINDOWS #34.
+unblocked_by: |
+  The user set PLAYSTEAD_HUMAN_APPROVED_LOCAL_APP_LAUNCH=1 themselves and ran the suite
+  on 2026-09-06, which is the only legitimate way this row could move off blocked.
+reported: |
+  5 of 6 tests pass. One fails:
+  ConflictResolutionInteractionTests.testKeepBothIsReachableByKeyboardAndIsAPeerOfTheChoiceButtons()
+  at ConflictResolutionInteractionTests.swift:117 — XCTAssertTrue failed.
+
+  Line 113 passed, so Tab DID reach Keep Both. Line 116 passed, so a result message DID
+  render. Only line 117's text check failed. Per the harness at
+  ConflictComparisonSheet.swift:299-306, resultMessage returns the "Keeping both…" string
+  when keptBoth is true and the "…choosing" string when chosenID is set. A message that
+  exists but does not contain "Keeping both" therefore means keptBoth == false and
+  chosenID != nil: the space key at line 114 activated a Choose button, not Keep Both,
+  despite the loop at 106-112 having just observed Keep Both holding keyboard focus.
+
+  Leading hypothesis (NOT yet confirmed): a test-harness race. Line 108 polls
+  value(forKey: "hasKeyboardFocus") immediately after typeKey, and typeKey does not wait
+  for SwiftUI's focus update to propagate, so the accessibility snapshot can lag the real
+  first responder. If so the keyboard contract is sound and the defect is in the test.
+  The alternative — tab order genuinely places a Choose button under the space key — is a
+  real accessibility defect. A 3x repeat run of the single test distinguishes them and is
+  the next action.
+first_execution: |
+  CRITICAL CONTEXT: this test had never executed anywhere before 2026-09-06. It was
+  introduced in 91cdb43 on 2026-09-04 16:14; the most recent CI run is 33770958764 at
+  2026-09-03 15:08 on sha a14d171, and the working tree carries 154 unpushed commits.
+  04-11-SUMMARY.md:92 recorded the deferral honestly ("their pass/fail has not been
+  observed outside the hosted runner"), but the deferral was never redeemed. This was the
+  test's first-ever run, and it failed. See G-04-3.
 coverage_id: 04-11/D3
 reason_human: human_judgment
 rationale: |
@@ -1353,10 +1381,10 @@ records observations under test 120 and sets its own status by hand.
 
 total: 120
 passed: 109
-issues: 1
+issues: 2
 pending: 1
 skipped: 0
-blocked: 9
+blocked: 8
 
 ## Gaps
 
@@ -1386,6 +1414,58 @@ blocked: 9
     Reachability assertion required (see seams-between-plans-go-unowned): a test that a
     user with exactly one healthy save line can reach /saves/:id and its export control
     starting from /saves.
+
+- gap_id: G-04-2
+  test: 109
+  title: testKeepBothIsReachableByKeyboardAndIsAPeerOfTheChoiceButtons fails on first-ever execution
+  severity: unknown-pending-triage
+  kind: keyboard-activation
+  evidence:
+    - playstead-mac/PlaysteadUITests/ConflictResolutionInteractionTests.swift:117
+    - playstead-mac/Playstead/Saves/ConflictComparisonSheet.swift:299-306
+    - playstead-mac/Playstead/Saves/ConflictComparisonSheet.swift:96-99
+  summary: |
+    Space activated a Choose button instead of Keep Both, though the test had just
+    observed Keep Both holding focus. Either the test's post-typeKey focus poll races
+    SwiftUI's focus propagation (test defect) or tab order genuinely misplaces the
+    activation target (accessibility defect).
+  triage_next_action: |
+    Run the single test 3x. Intermittent pass => test defect, fix the focus polling to
+    wait on focus rather than sampling it. Deterministic failure => product defect in the
+    sheet's focus chain. Do not write a fix plan before this runs; the two fixes touch
+    different files.
+
+- gap_id: G-04-3
+  test: 109
+  title: Phase 4's entire UI layer has never run in CI; 154 commits unpushed
+  severity: high
+  kind: verification-integrity
+  evidence:
+    - "gh run list: most recent CI run 33770958764 at 2026-09-03T15:08Z on sha a14d171"
+    - "git log origin/main..HEAD: 154 commits"
+    - .planning/phases/04-persistent-save-continuity/04-11-SUMMARY.md:92
+    - .planning/phases/04-persistent-save-continuity/04-12-SUMMARY.md
+    - .planning/phases/04-persistent-save-continuity/04-18-SUMMARY.md
+  summary: |
+    The last green CI run predates every Phase 4 commit. Three plans (04-11, 04-12,
+    04-18) explicitly deferred UI-layer pass/fail to the hosted runner under WINDOWS #34.
+    Each deferral was recorded honestly, but none was ever redeemed, because the work was
+    never pushed. G-04-2 is the first evidence of what that deferral was hiding: the very
+    first execution of a deferred test failed.
+
+    This is the fail-open shape from playstead-ci-gates-rot-unnoticed — the gate did not
+    fail, it simply never ran. It is also why UAT Session C is not a formality: it is the
+    first real verification of 154 commits.
+  scope_note: |
+    Bounded, not phase-wide. Only one UAT row cites PlaysteadUITests, and the three
+    UI-deferring summaries map to checkpoints already recorded as blocked. The 104
+    coverage auto-passed rows rest on the Unit and Rendering layers, which run locally
+    without the launch guard and did execute (04-11-SUMMARY.md:140 — 437 unit tests,
+    0 failures; rendering 10/10).
+  suggested_fix: |
+    Push and get a green hosted run before any further UAT rows are treated as closed.
+    Then add a gate that fails when the phase's UI/LiveServer layers have no hosted
+    evidence newer than the phase's commits, so a deferral cannot silently expire again.
 
 ## Standing Non-Gap Notes
 
