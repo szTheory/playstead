@@ -2,12 +2,12 @@
 status: issues-found
 phase: 04-persistent-save-continuity
 depth: standard
-files_in_scope: 78
-files_reviewed: 78
-critical: 6
-warning: 16
-info: 7
-reviewed: 2026-09-04
+files_in_scope: 106
+files_reviewed: 106
+critical: 8
+warning: 22
+info: 8
+reviewed: 2026-09-05
 ---
 
 # Phase 04 Code Review — Persistent Save Continuity
@@ -237,3 +237,46 @@ hunt for defects. These were traced and confirmed:
    durability or a re-raised resolved conflict.
 3. Resolve the **WR-04** idempotency question with both runtimes in view.
 4. Either review the 22 unopened Mac files or record them as knowingly unreviewed.
+
+---
+
+## Gap-closure review (plans 04-21 → 04-23) — 2026-09-05
+
+A second review pass covering only the 28 source files changed by the three gap-closure
+plans, split by runtime for the same reason the first pass was: a single oversized context
+produces a skim rather than a review.
+
+- [`04-REVIEW-gaps-mac.md`](04-REVIEW-gaps-mac.md) — Swift/Mac, 20 files, 1 critical / 2 warning / 1 info
+- [`04-REVIEW-gaps-server.md`](04-REVIEW-gaps-server.md) — Elixir/server, 7 files, 1 critical / 4 warning / 0 info
+
+### Confirmed closed by this pass
+
+- **PORT-01 / WINDOWS #30** — `Export.load_save_revisions/2` is now called from both
+  `Worker.build_layout/1` clauses (`:set` and `:library`) and from `Export.export_set/3`;
+  `to_layout_input/2` threads `saves:` into `Layout.plan/2` on every production path traced.
+  The missing-bytes/manifest-integrity contract holds end to end through `BagitWriter`,
+  `Sidecar` and `Verifier`.
+- **WINDOWS #42** — all three `SaveOutboxDrainTrigger` production trigger paths are wired in
+  `PlaysteadApp.swift`.
+- **WINDOWS #52** — the CAS-before-row-insert ordering invariant holds on both
+  `SaveSessionCoordinator` and `SaveSessionRecovery`, including the CAS-throws path.
+- `Migrations.swift` / `SaveStore.swift`'s `restored_here_at` column is additive, idempotent,
+  and covered by an existing-database upgrade test.
+
+### New criticals introduced by the gap-closure work
+
+- **GM-01** (`SaveOutboxDrainTrigger.swift:41-61`) — `fire()` reads `_lastTask` and writes the
+  replacement in two separate locked sections, so two genuinely concurrent callers can both
+  read the same stale `previous` and both call `SaveOutbox.drainOnce`. This is the exact
+  double-send race the type's own doc comment claims to prevent. The existing test fires twice
+  synchronously from one thread and cannot observe it.
+- **GS-01** (`saves.ex:408-413`, `saves/branches.ex:42-46`) — `order_by: [asc: r.recorded_at]`
+  with no tiebreaker. `recorded_at` is microsecond-truncated and ties are plausible for
+  concurrent-device commits — the fork scenario this phase targets — making revision
+  `seq`/filename assignment non-deterministic across re-exports and silently violating D-59's
+  "never renumbers" guarantee. 04-21's own determinism must-have does not hold under ties.
+
+### Carried forward, still unresolved
+
+- **WR-05** (`GameRowView.swift:468-469`) — still constructs an ad hoc `SaveStore(localStore:)`
+  instead of using `environment.saveStore`. First flagged in `04-REVIEW-mac2.md`.
