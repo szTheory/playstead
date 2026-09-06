@@ -26,7 +26,20 @@ After each session, record the result (see **How to record a result** at the bot
    https://localhost:18443/saves
    ```
 
-   (Self-signed cert — click through the warning. Your stack is already up.)
+   (Self-signed cert — click through the warning.)
+
+   **You must log in first.** `/saves` is behind `:require_authenticated`, so an
+   unauthenticated visit redirects to `/log-in`. That redirect is normal, not an error.
+
+   > If you get a **404** here, your Docker stack is running a stale image built before
+   > Phase 4 existed. Fix it with:
+   >
+   > ```bash
+   > cd ~/projects/playstead/playstead-server && docker compose up -d --build
+   > ```
+   >
+   > No `-v` — your `playstead_db` and `playstead_blobs` volumes are safe. This also
+   > applies any Phase 4 migrations the old release never ran.
 
 2. Find a game with a diverged save line and open it. If none exists, `/saves` alone is
    enough to judge the list surface.
