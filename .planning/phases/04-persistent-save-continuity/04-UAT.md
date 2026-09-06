@@ -3,7 +3,7 @@ status: testing
 phase: 04-persistent-save-continuity
 source: [04-01-SUMMARY.md,04-02-SUMMARY.md 04-03-SUMMARY.md,04-04-SUMMARY.md 04-05-SUMMARY.md,04-06-SUMMARY.md 04-07-SUMMARY.md,04-08-SUMMARY.md 04-09-SUMMARY.md,04-10-SUMMARY.md 04-11-SUMMARY.md,04-12-SUMMARY.md 04-13-SUMMARY.md,04-14-SUMMARY.md 04-15-SUMMARY.md,04-16-SUMMARY.md 04-17-SUMMARY.md,04-18-SUMMARY.md 04-19-SUMMARY.md,04-20-SUMMARY.md 04-21-SUMMARY.md,04-22-SUMMARY.md 04-23-SUMMARY.md,04-24-SUMMARY.md 04-25-SUMMARY.md]
 started: 2026-09-04T00:00:00Z
-updated: 2026-09-06T15:35:00Z
+updated: 2026-09-06T19:45:00Z
 ---
 
 ## Current Test
@@ -1418,8 +1418,15 @@ blocked: 8
 - gap_id: G-04-2
   test: 109
   title: testKeepBothIsReachableByKeyboardAndIsAPeerOfTheChoiceButtons fails on first-ever execution
-  severity: unknown-pending-triage
+  severity: high
   kind: keyboard-activation
+  triage_result: |
+    RESOLVED 2026-09-06: the user ran the single test 3x. It failed 3/3 at the same
+    assertion. Not flaky. The harness-race hypothesis is therefore NOT the explanation —
+    a race would produce a mixed result. The failure is deterministic, so either the
+    focus poll lags by a fixed number of positions every time, or tab order genuinely
+    places a Choose button under the space key. Next step is to instrument the tab order
+    and print the focused identifier at each step, rather than reason about it further.
   evidence:
     - playstead-mac/PlaysteadUITests/ConflictResolutionInteractionTests.swift:117
     - playstead-mac/Playstead/Saves/ConflictComparisonSheet.swift:299-306
@@ -1429,11 +1436,9 @@ blocked: 8
     observed Keep Both holding focus. Either the test's post-typeKey focus poll races
     SwiftUI's focus propagation (test defect) or tab order genuinely misplaces the
     activation target (accessibility defect).
-  triage_next_action: |
-    Run the single test 3x. Intermittent pass => test defect, fix the focus polling to
-    wait on focus rather than sampling it. Deterministic failure => product defect in the
-    sheet's focus chain. Do not write a fix plan before this runs; the two fixes touch
-    different files.
+  next_action: |
+    Add a temporary diagnostic that logs the focused accessibility identifier after each
+    Tab, run it once, and read the real order. Only then write the fix.
 
 - gap_id: G-04-3
   test: 109
@@ -1466,6 +1471,72 @@ blocked: 8
     Push and get a green hosted run before any further UAT rows are treated as closed.
     Then add a gate that fails when the phase's UI/LiveServer layers have no hosted
     evidence newer than the phase's commits, so a deferral cannot silently expire again.
+
+- gap_id: G-04-4
+  test: 117
+  title: mix precommit failed on --check-formatted
+  severity: low
+  kind: hygiene
+  status: FIXED 2026-09-06 in 3328f6e
+  evidence:
+    - "CI run 34066095728, job 'mix precommit', step 'Run mix precommit'"
+    - playstead-server/test/playstead/export/round_trip_test.exs
+  summary: |
+    One unformatted test file failed the Linux gate. Fixed by running mix format; no
+    behavior change.
+
+- gap_id: G-04-5
+  test: 117
+  title: LiveServer.xctestplan selects 4 tests; the topology contract demands exactly 2
+  severity: medium
+  kind: contract-drift
+  evidence:
+    - playstead-mac/scripts/ci/tests/four-layer-topology-test.sh:106
+    - playstead-mac/TestPlans/LiveServer.xctestplan
+  summary: |
+    four-layer-topology-test.sh asserts LiveServer selects exactly
+    HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner() and
+    LiveServerSnapshotTests/testPairedFreshMirrorRenders...(). Phase 4 added
+    SaveEndToEndTests/testOneSaveRoundTripsCaptureUploadAndJournalReturn() and
+    SaveRestoreProofTests/testCapturedRevisionRestoresToByteIdenticalArtifactInLaunchDir()
+    to the plan without updating the contract, so the guard fails closed.
+  decision_required: |
+    This is a genuine either/or, not a bug with one right answer. Either the two Phase 4
+    live-server tests belong in the LiveServer plan and the contract's expected set must
+    grow to four, or they belong elsewhere. The contract exists to keep the live-server
+    layer minimal and serial; growing it is a deliberate choice about that budget, so a
+    human should make it rather than an executor picking the path that turns CI green.
+
+- gap_id: G-04-6
+  test: 117
+  title: UI test profile can now construct a real KeychainStore, weakening the fail-closed guard
+  severity: high
+  kind: safety-invariant
+  evidence:
+    - playstead-mac/scripts/ci/tests/keychain-prompt-safety-test.sh:38
+    - playstead-mac/Playstead/App/PlaysteadApp.swift:398-419
+  summary: |
+    The guard requires the uiTestingPaths convenience init to read literally
+    `apiClient: APIClient.unpairedForUITesting()` — fail closed, never touch the login
+    Keychain. Phase 4 added an optional `credential:` parameter, so it now reads
+    `apiClient: credential.map { APIClient(keychain: KeychainStore(), credential: $0) }
+    ?? APIClient.unpairedForUITesting()`. The nil default preserves the safe path, but a
+    caller passing a credential constructs a real KeychainStore in the UI test profile.
+
+    This is the exact hazard the PLAYSTEAD_HUMAN_APPROVED_LOCAL_APP_LAUNCH guard exists
+    to prevent, and it is the property that makes it safe to ask a human to run the UI
+    layer locally. The doc comment defending the change argues only that the path opens
+    no network connection — true, and not what this guard asserts. It answers a different
+    question than the one it appears to answer.
+  scope_note: |
+    Currently latent: a grep across PlaysteadUITests and the app finds no caller passing
+    `credential:`, so the parameter is unused today. No local UI run so far could have
+    reached the KeychainStore branch.
+  suggested_fix: |
+    Remove the unused `credential:` parameter and restore the literal fail-closed form.
+    If a future save-safety journey genuinely needs a seeded pairing credential, give it
+    a synthetic credential source that cannot reach KeychainStore, and widen the contract
+    deliberately rather than by parameter default.
 
 ## Standing Non-Gap Notes
 
