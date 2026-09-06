@@ -157,6 +157,24 @@ defmodule Playstead.Export.SavesPlanTest do
     assert plan.drop_in == nil
   end
 
+  test "plan/2 breaks a recorded_at tie by revision id regardless of input list order" do
+    [lower_id, greater_id] = Enum.sort([Ecto.UUID.generate(), Ecto.UUID.generate()])
+
+    lower = revision(id: lower_id, recorded_at: ts(0), is_head: false)
+    greater = revision(id: greater_id, recorded_at: ts(0), is_head: true)
+
+    plan_forward = SavesPlan.plan([lower, greater])
+    plan_reversed = SavesPlan.plan([greater, lower])
+
+    assert plan_forward == plan_reversed
+
+    entries_by_id = Map.new(plan_forward.entries, &{&1.revision_id, &1})
+    assert entries_by_id[lower.id].seq < entries_by_id[greater.id].seq
+
+    reversed_entries_by_id = Map.new(plan_reversed.entries, &{&1.revision_id, &1})
+    assert reversed_entries_by_id[lower.id].seq < reversed_entries_by_id[greater.id].seq
+  end
+
   test "no Repo, filesystem, or clock call is made anywhere in the module" do
     source = File.read!("lib/playstead/export/saves_plan.ex")
     refute source =~ ~r/Repo\.|File\.|DateTime\.utc_now|NaiveDateTime\.utc_now/i

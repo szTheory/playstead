@@ -3,10 +3,11 @@ defmodule Playstead.Export.SavesPlan do
   The pure planner that fills Phase 2's reserved `saves/` export slot
   (D-56, D-58, D-59, D-62). Turns a flat list of already-loaded save
   revisions into the deterministic file plan for one save slot:
-  sequence numbers in server `recorded_at` order, a device-independent
-  branch letter for a revision that belongs to a fork, and -- for a
-  linear `system_save` slot only -- a drop-in convenience copy named
-  from the set's primary member's original basename.
+  sequence numbers in a total order over server `recorded_at` then
+  `id`, a device-independent branch letter for a revision that belongs
+  to a fork, and -- for a linear `system_save` slot only -- a drop-in
+  convenience copy named from the set's primary member's original
+  basename.
 
   Performs no `Repo` call, no filesystem read or write, and reads no
   clock -- the caller loads the data (revision digests, branch keys,
@@ -16,10 +17,13 @@ defmodule Playstead.Export.SavesPlan do
   never aliases it either.
 
   Filenames follow `{seq:06}[-{branch}]-{digest8}.{ext}`. `seq` is
-  allocated once, in server `recorded_at` order, and is stable under
+  allocated once, in `{recorded_at, id}` order, and is stable under
   append -- a previously assigned sequence number is never reused or
-  shifted when a new revision arrives later, because sorting by a
-  fixed timestamp is itself stable under insertion. The optional
+  shifted when a new revision arrives later, because that total order
+  is itself stable under insertion. `recorded_at` remains the only
+  ordering SEMANTICS (D-15); `id` is a fixed immutable tiebreaker that
+  makes the order reproducible regardless of the caller's input order,
+  not a claim about causal order. The optional
   branch letter comes from each revision's `branch_key` -- a stable,
   fork-inherited string the caller already computed -- sorted
   ascending and never derived from a device name, so renaming a Mac
@@ -68,7 +72,7 @@ defmodule Playstead.Export.SavesPlan do
 
     ordered =
       revisions
-      |> Enum.sort_by(& &1.recorded_at, DateTime)
+      |> Enum.sort(&order_key_lte?/2)
       |> Enum.with_index(1)
       |> Enum.map(fn {revision, seq} -> Map.put(revision, :seq, seq) end)
 
@@ -83,6 +87,21 @@ defmodule Playstead.Export.SavesPlan do
       drop_in: plan_drop_in(heads, diverged?, primary_basename, ext),
       diverged?: diverged?
     }
+  end
+
+  # Total order over `recorded_at` then `.id`: `recorded_at` is the
+  # only ordering SEMANTICS (D-15); `.id` is a fixed immutable
+  # tiebreaker that makes the sort's result independent of the order
+  # `revisions` arrived in, rather than depending on `Enum.sort_by/3`'s
+  # stability (which merely preserves whatever order a tied pair
+  # already had). A comparator over the pair, not a second sort pass,
+  # so a single traversal produces the total order.
+  defp order_key_lte?(%{recorded_at: a_at, id: a_id}, %{recorded_at: b_at, id: b_id}) do
+    case DateTime.compare(a_at, b_at) do
+      :lt -> true
+      :gt -> false
+      :eq -> a_id <= b_id
+    end
   end
 
   defp assign_branch_letters(ordered) do
