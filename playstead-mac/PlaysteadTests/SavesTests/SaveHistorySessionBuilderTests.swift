@@ -268,4 +268,31 @@ final class SaveHistorySessionBuilderTests: XCTestCase {
 
         XCTAssertNil(environment.saveRollupSummary(forAssetSetID: "no-such-game"))
     }
+
+    // MARK: - Falsification check: both call sites must be wired
+
+    /// The exact regression this plan closes (WINDOWS #43): leaving
+    /// EITHER `ReadinessSheetView` call site unwired reproduces the
+    /// empty-state defect. Source-level, since both call sites
+    /// construct the real `AppEnvironment` identically and a runtime
+    /// test could not distinguish "wired at one site" from "wired at
+    /// both".
+    func testBothReadinessSheetViewCallSitesPassARealSaveHistorySessionsClosure() throws {
+        for relativePath in ["Playstead/Library/GameRowView.swift", "Playstead/Library/LibraryShellView.swift"] {
+            let sourceURL = URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent() // SavesTests
+                .deletingLastPathComponent() // PlaysteadTests
+                .deletingLastPathComponent() // playstead-mac
+                .appendingPathComponent(relativePath)
+            let source = try String(contentsOf: sourceURL, encoding: .utf8)
+            XCTAssertTrue(
+                source.contains("saveHistorySessions: { environment.saveHistorySessions(forAssetSetID:"),
+                "\(relativePath) must wire a real saveHistorySessions closure at its ReadinessSheetView call site"
+            )
+            XCTAssertTrue(
+                source.contains("saveRollupSummary: { environment.saveRollupSummary(forAssetSetID:"),
+                "\(relativePath) must wire a real saveRollupSummary closure at its ReadinessSheetView call site"
+            )
+        }
+    }
 }
