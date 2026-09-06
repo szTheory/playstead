@@ -12,7 +12,9 @@ updated: 2026-09-06T14:18:42Z
 number: 108
 name: Divergence comparison surface at /saves and /saves/:id
 expected: |
-  See test 108 below. Three genuine-judgment checkpoints remain: 108, 113, 114.
+  See test 108 below. Two genuine-judgment checkpoints remain: 108 and 113. Both are
+  UX-feel reads on rendered surfaces; every structural assertion under them is already
+  covered by passing automated tests.
 awaiting: user response
 
 ## Purpose
