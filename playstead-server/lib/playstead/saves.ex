@@ -416,6 +416,22 @@ defmodule Playstead.Saves do
     end
   end
 
+  @doc """
+  `user_id`'s save lines for `content_key`, ordered by `save_kind`
+  then `slot`. Scoped strictly to `user_id`, like every other public
+  function here. Normally a single line (v1 ships exactly one
+  `save_kind`/`slot` pair per game, D-10), but a line list is returned
+  rather than a single line because nothing here forbids a second one.
+  """
+  @spec list_lines(pos_integer(), String.t()) :: [Save.t()]
+  def list_lines(user_id, content_key) do
+    from(s in Save,
+      where: s.user_id == ^user_id and s.content_key == ^content_key,
+      order_by: [asc: s.save_kind, asc: s.slot]
+    )
+    |> Repo.all()
+  end
+
   # P5-WR-001 shape (`Curation`): a Postgres transaction-scoped
   # advisory lock keyed on `{resource, key}` so a concurrent
   # cap-check-then-insert for the same resource serializes behind

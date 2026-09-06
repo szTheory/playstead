@@ -73,20 +73,32 @@ defmodule Playstead.Export.Worker do
          saves_scope: saves_scope
        }) do
     asset_set = Export.fetch_asset_set(user_id, asset_set_id)
+    saves_scope_atom = Layout.saves_scope_atom(saves_scope)
+    saves = load_saves(saves_scope_atom, user_id, asset_set)
 
-    Layout.plan([Export.to_layout_input(asset_set)],
+    Layout.plan([Export.to_layout_input(asset_set, saves)],
       include_excluded: true,
-      saves: Layout.saves_scope_atom(saves_scope)
+      saves: saves_scope_atom
     )
   end
 
   defp build_layout(%ExportRecord{scope: "library", user_id: user_id, saves_scope: saves_scope}) do
     asset_sets = Export.fetch_all_asset_sets(user_id)
+    saves_scope_atom = Layout.saves_scope_atom(saves_scope)
 
-    Layout.plan(Enum.map(asset_sets, &Export.to_layout_input/1),
-      saves: Layout.saves_scope_atom(saves_scope)
-    )
+    inputs =
+      Enum.map(asset_sets, fn asset_set ->
+        Export.to_layout_input(asset_set, load_saves(saves_scope_atom, user_id, asset_set))
+      end)
+
+    Layout.plan(inputs, saves: saves_scope_atom)
   end
+
+  # `saves_scope: :none` performs no saves read at all -- not merely a
+  # discarded one -- so a user opting out of saves in an export never
+  # pays for a `Playstead.Saves` query.
+  defp load_saves(:none, _user_id, _asset_set), do: []
+  defp load_saves(:all, user_id, asset_set), do: Export.load_save_revisions(user_id, asset_set)
 
   @doc """
   Re-verifies `export_id` (owned by `user_id`) at any time, without
