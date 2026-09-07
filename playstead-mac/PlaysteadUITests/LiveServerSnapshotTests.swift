@@ -55,7 +55,7 @@ final class LiveServerSnapshotTests: XCTestCase {
         launched.buttons["playstead.control.show-list"].click()
         let row = launched.descendants(matching: .any)["playstead.game.\(first.assetSetID).summary"]
         XCTAssertTrue(row.waitForExistence(timeout: 10))
-        XCTAssertTrue(row.label.contains(first.title))
+        XCTAssertTrue(row.readableText.contains(first.title))
         XCTAssertFalse(try storedCursor(root: runRoot).isEmpty)
         try assertNoGameBytes(root: runRoot)
 
@@ -78,7 +78,7 @@ final class LiveServerSnapshotTests: XCTestCase {
         for sentinel in [first, second] {
             let refreshedRow = launched.descendants(matching: .any)["playstead.game.\(sentinel.assetSetID).summary"]
             XCTAssertTrue(refreshedRow.waitForExistence(timeout: 10))
-            XCTAssertTrue(refreshedRow.label.contains(sentinel.title))
+            XCTAssertTrue(refreshedRow.readableText.contains(sentinel.title))
         }
         XCTAssertFalse(try storedCursor(root: runRoot).isEmpty)
         try assertNoGameBytes(root: runRoot)

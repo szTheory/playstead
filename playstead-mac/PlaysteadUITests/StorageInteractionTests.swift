@@ -438,7 +438,7 @@ final class StorageInteractionTests: XCTestCase {
         let action = downloads.firstMatch
         let exactIdentity = harness.element(quotaDownloadAction, type: .button)
         XCTAssertTrue(exactIdentity.waitForExistence(timeout: 5))
-        XCTAssertEqual(exactIdentity.label, "Download")
+        XCTAssertEqual(exactIdentity.readableText, "Download")
         XCTAssertEqual(
             action.frame,
             exactIdentity.frame,
@@ -505,7 +505,7 @@ final class StorageInteractionTests: XCTestCase {
     private func assertCanonicalRow(assetID: String, title: String) {
         let row = harness.element("playstead.game.\(assetID).summary")
         XCTAssertTrue(row.waitForExistence(timeout: 5), "canonical row missing: \(title)")
-        XCTAssertTrue(row.label.hasPrefix(title), "canonical row label drifted: \(title)")
+        XCTAssertTrue(row.readableText.hasPrefix(title), "canonical row label drifted: \(title)")
     }
 
     private func waitForValue(_ identifier: String, equals expected: String) {

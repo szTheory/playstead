@@ -87,7 +87,10 @@ final class ConflictResolutionInteractionTests: XCTestCase {
         app.buttons[ID.chooseR1].click()
         XCTAssertTrue(app.staticTexts[ID.result].waitForExistence(timeout: 5))
 
-        let undoPredicate = NSPredicate(format: "label CONTAINS[c] 'undo'")
+        // Matched on both attributes: a macOS AXStaticText keeps its content
+        // in `value`, so a label-only predicate would sweep the static texts
+        // vacuously and report "no Undo anywhere" even if one rendered.
+        let undoPredicate = NSPredicate(format: "label CONTAINS[c] 'undo' OR value CONTAINS[c] 'undo'")
         XCTAssertEqual(app.buttons.matching(undoPredicate).count, 0)
         XCTAssertEqual(app.staticTexts.matching(undoPredicate).count, 0)
 

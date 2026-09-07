@@ -168,7 +168,7 @@ final class HostedRunnerCanaryTests: XCTestCase {
         // masquerade as additional focus owners.
         let focused = app.buttons
             .matching(NSPredicate(format: "hasKeyboardFocus == true"))
-        let focusedLabels = focused.allElementsBoundByIndex.map(\.label)
+        let focusedLabels = focused.allElementsBoundByIndex.map(\.readableText)
         XCTAssertEqual(
             focusedLabels.count,
             1,

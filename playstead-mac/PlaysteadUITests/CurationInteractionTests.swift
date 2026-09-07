@@ -43,7 +43,7 @@ final class CurationInteractionTests: XCTestCase {
         selectSidebar("Favorites", in: harness)
         let cards = harness.app.descendants(matching: .any).matching(identifier: "library.card")
         XCTAssertEqual(cards.count, 1)
-        XCTAssertEqual(cards.element(boundBy: 0).label, "Synthetic Game 1, Unidentified")
+        XCTAssertEqual(cards.element(boundBy: 0).readableText, "Synthetic Game 1, Unidentified")
     }
 
     func testCollectionsShelfRootExists() throws {
@@ -57,7 +57,7 @@ final class CurationInteractionTests: XCTestCase {
         selectSidebar("Collections", in: harness)
         let rows = harness.app.buttons.matching(identifier: collectionRowID)
         XCTAssertEqual(rows.count, 1)
-        XCTAssertEqual(rows.element(boundBy: 0).label, "Synthetic Collection")
+        XCTAssertEqual(rows.element(boundBy: 0).readableText, "Synthetic Collection")
     }
 
     func testQueueShelfRendersHonestEmptyFixture() throws {
@@ -98,7 +98,7 @@ final class CurationInteractionTests: XCTestCase {
         let action = harness.element(moveID(memberID(2), direction: "up"), type: .button)
         XCTAssertTrue(action.waitForExistence(timeout: 5))
         XCTAssertTrue(action.isEnabled)
-        XCTAssertEqual(action.label, "Move Synthetic Game 2 up")
+        XCTAssertEqual(action.readableText, "Move Synthetic Game 2 up")
     }
 
     func testCollectionMoveUpClickProducesOneEffect() throws {
@@ -297,7 +297,7 @@ final class CurationInteractionTests: XCTestCase {
     }
 
     private func assertSyntheticGamesVisible(_ expected: Int, in harness: UITestHarness) {
-        let games = harness.app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Synthetic Game "))
+        let games = harness.app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@ OR value BEGINSWITH %@", "Synthetic Game ", "Synthetic Game "))
         XCTAssertEqual(games.count, expected)
     }
 
@@ -329,7 +329,7 @@ final class CurationInteractionTests: XCTestCase {
         let visualOrder = rows.sorted { $0.frame.minY < $1.frame.minY }.map(\.identifier)
         XCTAssertEqual(visualOrder, expected.map { "playstead.curation.collection-member.\($0)" })
         for (row, memberID) in zip(rows, expected) {
-            XCTAssertEqual(row.label, "Synthetic Game \(Int(memberID.suffix(1))!)")
+            XCTAssertEqual(row.readableText, "Synthetic Game \(Int(memberID.suffix(1))!)")
         }
     }
 

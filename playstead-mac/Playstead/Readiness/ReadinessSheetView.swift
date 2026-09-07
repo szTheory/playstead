@@ -160,7 +160,23 @@ struct ReadinessSheetView: View {
         .accessibilityIdentifier(AccessibilityIdentifiers.Surface.readiness)
         .focusSection()
         .defaultFocus($doneHasFocus, true)
+        // `.defaultFocus` alone is not observed to place focus in this app when
+        // the view arrives through `.sheet` -- that window is not yet key when
+        // `onAppear` runs, so the focus is discarded. Hop one runloop first:
+        // the one focus-placement pattern here observed to work in CI, proved
+        // under G-04-8 on `OnlyCopyInterruptiveSheet` and swept to every other
+        // `.defaultFocus` sheet by `sheet-focus-placement-test.sh`.
+        .onAppear { placeInitialFocus() }
         .onExitCommand(perform: onClose)
+    }
+
+    /// The dismissal control owns focus the moment this sheet appears, so a
+    /// keyboard user always has a defined starting point and a visible ring.
+    private func placeInitialFocus() {
+        Task { @MainActor in
+            await Task.yield()
+            doneHasFocus = true
+        }
     }
 
     /// Routes one remedy to the surface that can actually resolve it.

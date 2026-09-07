@@ -140,6 +140,10 @@ struct LibraryShellView: View {
             .accessibilityIdentifier(Self.surfaceIdentifier(for: surface))
             .focusSection()
             .defaultFocus($focusedSheetDismissal, true)
+            // See `sheet-focus-placement-test.sh`: `.defaultFocus` alone is not
+            // observed to land in this app for a `.sheet`-presented view, whose
+            // window is not yet key when `onAppear` runs. Hop one runloop first.
+            .onAppear { placeInitialSheetFocus() }
             .onExitCommand { presentedSurface = nil }
         }
         .onChange(of: presentedSurface) { previous, current in
@@ -186,6 +190,15 @@ struct LibraryShellView: View {
         .padding(.vertical, DesignTokens.Spacing.sm)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Library actions")
+    }
+
+    /// The sheet's dismissal control owns focus the moment it appears, so a
+    /// keyboard user always has a defined starting point and a visible ring.
+    private func placeInitialSheetFocus() {
+        Task { @MainActor in
+            await Task.yield()
+            focusedSheetDismissal = true
+        }
     }
 
     private func shellCommandButton(

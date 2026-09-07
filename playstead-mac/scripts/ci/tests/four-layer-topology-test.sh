@@ -349,7 +349,10 @@ grep -F 'private let quotaDownloadAssetID = "00000000-0000-7000-8000-00000000004
 grep -F 'private let quotaReclaimAssetID = "00000000-0000-7000-8000-000000000041"' "$STORAGE_TEST" >/dev/null
 grep -F '"playstead.game.\(quotaDownloadAssetID).download"' "$STORAGE_TEST" >/dev/null
 grep -F 'harness.element("playstead.game.\(assetID).summary")' "$STORAGE_TEST" >/dev/null
-grep -F 'XCTAssertTrue(row.label.hasPrefix(title)' "$STORAGE_TEST" >/dev/null
+# `readableText`, not `label`: on macOS a static text keeps its content in
+# AXValue, so `.label` reads empty and this canonical-row proof would assert
+# nothing (ax-value-semantics-test.sh now forbids the `.label` form outright).
+grep -F 'XCTAssertTrue(row.readableText.hasPrefix(title)' "$STORAGE_TEST" >/dev/null
 python3 - "$STORAGE_TEST" <<'PY'
 import pathlib, sys
 
@@ -380,8 +383,20 @@ grep -F '.keyboardShortcut("d", modifiers: .command)' "$LIBRARY_SHELL" >/dev/nul
 grep -F 'downloadCommand = LibraryDownloadCommand(' "$LIBRARY_SHELL" >/dev/null
 grep -F '.onChange(of: downloadCommand)' "$GAME_ROW" >/dev/null
 [ "$(grep -Fc '.keyboardShortcut("d", modifiers: .command)' "$LIBRARY_SHELL")" -eq 1 ]
-if grep -F 'Task.yield()' "$LIBRARY_SHELL" >/dev/null; then
+# The library List's focus must come from its concrete appearance lifecycle,
+# never from generic Task inference. Asserted as "the required
+# `.onAppear { libraryListHasFocus = true }` on line above is the ONLY place
+# this state is set", which is strictly stronger than the file-wide
+# `Task.yield()` ban this replaces -- that ban also caught unrelated focus
+# states, and this file now legitimately contains one: the sheet dismissal
+# control's runloop hop, which `sheet-focus-placement-test.sh` requires because
+# `.defaultFocus` is not observed to land on a `.sheet`-presented view (G-04-8).
+if [ "$(grep -Fc 'libraryListHasFocus = true' "$LIBRARY_SHELL")" -ne 1 ]; then
   printf 'library List focus must use its concrete appearance lifecycle, not generic Task inference\n' >&2
+  exit 1
+fi
+if grep -E 'Task\.yield\(\)' -A 2 "$LIBRARY_SHELL" | grep -F 'libraryListHasFocus' >/dev/null; then
+  printf 'library List focus must not be placed through a yielded Task\n' >&2
   exit 1
 fi
 if grep -F '.keyboardShortcut(' "$GAME_ROW" >/dev/null; then

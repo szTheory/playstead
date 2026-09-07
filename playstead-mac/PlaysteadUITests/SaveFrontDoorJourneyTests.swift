@@ -74,8 +74,8 @@ final class SaveFrontDoorJourneyTests: XCTestCase {
         let summary = harness.element(GameRowSummaryIdentifier.saveRestorable)
         XCTAssertTrue(summary.waitForExistence(timeout: 5))
         XCTAssertFalse(
-            (summary.label).contains("Launch failed"),
-            "the launch path reported an error instead of completing the restore: \(summary.label)"
+            (summary.readableText).contains("Launch failed"),
+            "the launch path reported an error instead of completing the restore: \(summary.readableText)"
         )
     }
 
@@ -192,6 +192,10 @@ final class SaveFrontDoorJourneyTests: XCTestCase {
             comparison.waitForExistence(timeout: 5),
             "'Review versions…' must open the comparison sheet for a diverged line, but it never appeared"
         )
+        assertDismissalOwnsFocus(
+            "playstead.conflict-comparison.done",
+            "when the comparison sheet opens from 'Review versions…'"
+        )
     }
 
     // MARK: - Journey 4 (D-37): the readiness Save row reports real state
@@ -205,14 +209,48 @@ final class SaveFrontDoorJourneyTests: XCTestCase {
         launch(.saveRestorable)
         openSurface(control: "playstead.control.open-readiness", root: "playstead.surface.readiness")
 
+        assertDismissalOwnsFocus("playstead.control.done", "when the readiness sheet opens")
+
         let saveRow = harness.element("playstead.readiness.row.saveState")
         XCTAssertTrue(
             saveRow.waitForExistence(timeout: 5),
             "the readiness surface never rendered a Save row at all"
         )
         XCTAssertFalse(
-            saveRow.label.contains("No saved progress yet."),
+            saveRow.readableText.contains("No saved progress yet."),
             "a game with a committed, uploaded save revision must never report the empty Save row state"
+        )
+    }
+
+    // MARK: - Sheet focus placement (G-04-8's sweep, proven on the real paths)
+
+    private func focusReport() -> String {
+        let focused = harness.app.buttons.allElementsBoundByIndex
+            .filter { $0.value(forKey: "hasKeyboardFocus") as? Bool == true }
+            .map(\.identifier)
+        return focused.isEmpty ? "nothing owns keyboard focus" : "focus is on \(focused)"
+    }
+
+    /// A `.sheet`-presented surface must open with its dismissal control
+    /// focused: keyboard users need a defined starting point and a visible
+    /// ring. `.defaultFocus` alone does not achieve this (G-04-8), so these
+    /// journeys assert it on the real presentation path rather than trusting
+    /// the modifier.
+    ///
+    /// Each cause gets its own line, because the CI evidence sanitizer strips
+    /// assertion messages and keeps only file:line.
+    private func assertDismissalOwnsFocus(_ identifier: String, _ moment: String) {
+        let app = harness.app
+        let anyFocused = app.buttons.allElementsBoundByIndex
+            .contains { $0.value(forKey: "hasKeyboardFocus") as? Bool == true }
+        // Fails here => focus was never placed at all in this sheet.
+        XCTAssertTrue(anyFocused, "no button owns focus \(moment) -- \(focusReport())")
+        // Fails here => the dismissal control is not even present.
+        XCTAssertTrue(app.buttons[identifier].exists, "no dismissal control \(moment)")
+        // Fails here => focus landed on some other control instead.
+        XCTAssertEqual(
+            app.buttons[identifier].value(forKey: "hasKeyboardFocus") as? Bool, true,
+            "the dismissal control must own focus \(moment) -- \(focusReport())"
         )
     }
 
