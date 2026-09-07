@@ -25,7 +25,8 @@ defmodule Playstead.Export.SavesLineageTest do
     :ok
   end
 
-  defp ts(offset_seconds), do: DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.add(offset_seconds, :second)
+  defp ts(offset_seconds),
+    do: DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.add(offset_seconds, :second)
 
   defp revision(id, parent_id, offset),
     do: %{id: id, parent_revision_id: parent_id, recorded_at: ts(offset)}
@@ -129,11 +130,21 @@ defmodule Playstead.Export.SavesLineageTest do
       command_id = Ecto.UUID.generate()
 
       {:ok, _pending} =
-        Saves.record_pending_upload(scope.user.id, device.id, command_id, meta.sha256, meta.size_bytes)
+        Saves.record_pending_upload(
+          scope.user.id,
+          device.id,
+          command_id,
+          meta.sha256,
+          meta.size_bytes
+        )
 
       attrs =
         Map.merge(
-          %{"id" => Ecto.UUID.generate(), "command_id" => command_id, "content_key" => content_key},
+          %{
+            "id" => Ecto.UUID.generate(),
+            "command_id" => command_id,
+            "content_key" => content_key
+          },
           extra_attrs
         )
 
@@ -155,13 +166,28 @@ defmodule Playstead.Export.SavesLineageTest do
       {:ok, root} = commit_save!(scope, device, rom_sha256, random_bytes(64))
 
       {:ok, _branch_a} =
-        commit_save!(scope, device, rom_sha256, random_bytes(64), %{"parent_revision_id" => root.id})
+        commit_save!(scope, device, rom_sha256, random_bytes(64), %{
+          "parent_revision_id" => root.id
+        })
 
       {:ok, _branch_b} =
-        commit_save!(scope, device, rom_sha256, random_bytes(64), %{"parent_revision_id" => root.id})
+        commit_save!(scope, device, rom_sha256, random_bytes(64), %{
+          "parent_revision_id" => root.id
+        })
 
-      export1 = create_and_run!(scope.user.id, asset_set.id, "export-#{System.unique_integer([:positive])}")
-      export2 = create_and_run!(scope.user.id, asset_set.id, "export-#{System.unique_integer([:positive])}")
+      export1 =
+        create_and_run!(
+          scope.user.id,
+          asset_set.id,
+          "export-#{System.unique_integer([:positive])}"
+        )
+
+      export2 =
+        create_and_run!(
+          scope.user.id,
+          asset_set.id,
+          "export-#{System.unique_integer([:positive])}"
+        )
 
       assert export1.status == "verified"
       assert export2.status == "verified"
@@ -203,7 +229,13 @@ defmodule Playstead.Export.SavesLineageTest do
 
       {:ok, _revision} = commit_save!(scope, device, rom_sha256, random_bytes(64))
 
-      export = create_and_run!(scope.user.id, asset_set.id, "export-#{System.unique_integer([:positive])}")
+      export =
+        create_and_run!(
+          scope.user.id,
+          asset_set.id,
+          "export-#{System.unique_integer([:positive])}"
+        )
+
       assert export.status == "verified"
 
       drop_in =
@@ -221,12 +253,22 @@ defmodule Playstead.Export.SavesLineageTest do
       {:ok, root} = commit_save!(scope, device, rom_sha256, random_bytes(64))
 
       {:ok, _a} =
-        commit_save!(scope, device, rom_sha256, random_bytes(64), %{"parent_revision_id" => root.id})
+        commit_save!(scope, device, rom_sha256, random_bytes(64), %{
+          "parent_revision_id" => root.id
+        })
 
       {:ok, _b} =
-        commit_save!(scope, device, rom_sha256, random_bytes(64), %{"parent_revision_id" => root.id})
+        commit_save!(scope, device, rom_sha256, random_bytes(64), %{
+          "parent_revision_id" => root.id
+        })
 
-      export = create_and_run!(scope.user.id, asset_set.id, "export-#{System.unique_integer([:positive])}")
+      export =
+        create_and_run!(
+          scope.user.id,
+          asset_set.id,
+          "export-#{System.unique_integer([:positive])}"
+        )
+
       assert export.status == "verified"
 
       drop_in =

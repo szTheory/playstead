@@ -9,6 +9,8 @@ defmodule Playstead.Repo.Migrations.AddSavesScopeToExportRecords do
       add :saves_scope, :string, null: false, default: "all"
     end
 
-    create constraint(:exports, :saves_scope_must_be_known, check: "saves_scope IN ('all', 'none')")
+    create constraint(:exports, :saves_scope_must_be_known,
+             check: "saves_scope IN ('all', 'none')"
+           )
   end
 end

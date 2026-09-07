@@ -69,7 +69,10 @@ defmodule Playstead.Saves do
       device_id: device_id,
       blob_sha256: blob_sha256,
       size_bytes: size_bytes,
-      expires_at: DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.add(@pending_upload_ttl_seconds, :second)
+      expires_at:
+        DateTime.utc_now()
+        |> DateTime.truncate(:second)
+        |> DateTime.add(@pending_upload_ttl_seconds, :second)
     }
 
     %PendingUpload{}
@@ -125,7 +128,9 @@ defmodule Playstead.Saves do
       # concurrent cap-check-then-insert for the same line serializes
       # behind whichever request acquires it first, rather than racing
       # on a plain read-then-write of the current heads.
-      |> Ecto.Multi.run(:lock, fn repo, %{line: line} -> acquire_cap_lock(repo, :save_line, line.id) end)
+      |> Ecto.Multi.run(:lock, fn repo, %{line: line} ->
+        acquire_cap_lock(repo, :save_line, line.id)
+      end)
       |> Ecto.Multi.run(:blob, fn _repo, _changes ->
         if Blobs.exists?(pending.blob_sha256) do
           {:ok, pending}
@@ -144,7 +149,9 @@ defmodule Playstead.Saves do
       # save line must be refused exactly like an unknown parent, since
       # history is append-only and a cross-line link can never be
       # corrected once committed.
-      |> Ecto.Multi.run(:parent, fn _repo, %{line: line} -> resolve_parent(line.id, parent_revision_id) end)
+      |> Ecto.Multi.run(:parent, fn _repo, %{line: line} ->
+        resolve_parent(line.id, parent_revision_id)
+      end)
       |> Ecto.Multi.run(:outcome, fn _repo, %{line: line, parent: parent} ->
         commit_outcome(
           user_id,
@@ -236,7 +243,10 @@ defmodule Playstead.Saves do
 
   defp confirm_existing(%Revision{} = parent, now) do
     parent
-    |> Ecto.Changeset.change(last_confirmed_at: now, confirm_count: (parent.confirm_count || 0) + 1)
+    |> Ecto.Changeset.change(
+      last_confirmed_at: now,
+      confirm_count: (parent.confirm_count || 0) + 1
+    )
     |> Repo.update()
   end
 
@@ -387,7 +397,9 @@ defmodule Playstead.Saves do
   # recorded, never rejected -- the caller proceeds regardless.
   defp base_matched?(nil, _parent), do: nil
   defp base_matched?(_base_sha256, nil), do: false
-  defp base_matched?(base_sha256, %Revision{blob_sha256: parent_sha256}), do: base_sha256 == parent_sha256
+
+  defp base_matched?(base_sha256, %Revision{blob_sha256: parent_sha256}),
+    do: base_sha256 == parent_sha256
 
   @doc """
   A save line's revisions -- in a TOTAL order, server `recorded_at`
@@ -566,8 +578,7 @@ defmodule Playstead.Saves do
   defp find_head(heads, chosen_head_id) do
     case Enum.find(heads, &(&1.id == chosen_head_id)) do
       nil ->
-        {:error,
-         {:validation_failed, "chosen_head_id is not a current head of this save line."}}
+        {:error, {:validation_failed, "chosen_head_id is not a current head of this save line."}}
 
       %Revision{} = chosen ->
         {:ok, chosen}
@@ -639,5 +650,6 @@ defmodule Playstead.Saves do
     end
   end
 
-  defp get(attrs, key) when is_map(attrs), do: Map.get(attrs, key) || Map.get(attrs, String.to_atom(key))
+  defp get(attrs, key) when is_map(attrs),
+    do: Map.get(attrs, key) || Map.get(attrs, String.to_atom(key))
 end

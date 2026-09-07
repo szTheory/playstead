@@ -93,7 +93,8 @@ defmodule Playstead.ReadinessCriticalReserveTest do
           # reserve is used. The floor is never bypassed.
           requested = avail - 10 * 1024 * 1024
 
-          assert {:error, :insufficient_space} = LocalDisk.open_write(requested, reserve: :critical)
+          assert {:error, :insufficient_space} =
+                   LocalDisk.open_write(requested, reserve: :critical)
 
         _ ->
           :ok
@@ -102,7 +103,10 @@ defmodule Playstead.ReadinessCriticalReserveTest do
 
     test "an unmeasurable volume (df fails) degrades to allow, same as the non-critical path" do
       previous = System.get_env("PLAYSTEAD_BLOB_PATH")
-      bogus_path = Path.join(System.tmp_dir!(), "does-not-exist-#{System.unique_integer([:positive])}")
+
+      bogus_path =
+        Path.join(System.tmp_dir!(), "does-not-exist-#{System.unique_integer([:positive])}")
+
       System.put_env("PLAYSTEAD_BLOB_PATH", bogus_path)
 
       try do

@@ -41,7 +41,8 @@ defmodule PlaysteadWeb.Api.V1.SavesLimitsTest do
     "#{p1}-#{p2}-#{p3}-#{p4}-#{p5}"
   end
 
-  defp content_key, do: :crypto.hash(:sha256, :crypto.strong_rand_bytes(16)) |> Base.encode16(case: :lower)
+  defp content_key,
+    do: :crypto.hash(:sha256, :crypto.strong_rand_bytes(16)) |> Base.encode16(case: :lower)
 
   defp upload!(conn, token, bytes, command_id, opts \\ []) do
     digest = repr_digest_header(bytes)

@@ -68,7 +68,8 @@ defmodule PlaysteadWeb.AttentionLive do
 
     grouped = Map.merge(import_grouped, saves_grouped, fn _reason, a, b -> a ++ b end)
 
-    saves_count = if socket.assigns[:session_filter], do: 0, else: SavesAttention.count(scope.user.id)
+    saves_count =
+      if socket.assigns[:session_filter], do: 0, else: SavesAttention.count(scope.user.id)
 
     assign(socket,
       grouped: grouped,

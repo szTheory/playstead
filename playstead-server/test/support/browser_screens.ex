@@ -323,7 +323,9 @@ defmodule PlaysteadWeb.BrowserScreens do
 
     %{device: device_a} = device_fixture(scope)
     %{device: device_b} = device_fixture(scope)
-    content_key = :crypto.hash(:sha256, :crypto.strong_rand_bytes(16)) |> Base.encode16(case: :lower)
+
+    content_key =
+      :crypto.hash(:sha256, :crypto.strong_rand_bytes(16)) |> Base.encode16(case: :lower)
 
     {:ok, revision_a} = save_commit(scope, device_a, content_key)
     {:ok, revision_b} = save_commit(scope, device_b, content_key)
@@ -337,7 +339,13 @@ defmodule PlaysteadWeb.BrowserScreens do
     command_id = Ecto.UUID.generate()
 
     {:ok, _pending} =
-      Saves.record_pending_upload(scope.user.id, device.id, command_id, meta.sha256, meta.size_bytes)
+      Saves.record_pending_upload(
+        scope.user.id,
+        device.id,
+        command_id,
+        meta.sha256,
+        meta.size_bytes
+      )
 
     Saves.commit_revision(scope.user.id, device, %{
       "id" => Ecto.UUID.generate(),

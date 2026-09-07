@@ -46,8 +46,7 @@ defmodule PlaysteadWeb.Api.V1.SavesController do
     declared_length = conn.assigns.declared_length
 
     if declared_length > Blobs.max_save_revision_bytes() do
-      {:error,
-       {:save_revision_too_large, "The save revision exceeds the maximum accepted size."}}
+      {:error, {:save_revision_too_large, "The save revision exceeds the maximum accepted size."}}
     else
       conn
       |> body_stream()
@@ -65,7 +64,13 @@ defmodule PlaysteadWeb.Api.V1.SavesController do
   defp handle_upload_result({:error, reason}, _device, _command_id), do: {:error, reason}
 
   defp handle_upload_result({:ok, _status, meta}, device, command_id) do
-    case Saves.record_pending_upload(device.user_id, device.id, command_id, meta.sha256, meta.size_bytes) do
+    case Saves.record_pending_upload(
+           device.user_id,
+           device.id,
+           command_id,
+           meta.sha256,
+           meta.size_bytes
+         ) do
       {:ok, _pending} -> {:ok, %{sha256: meta.sha256, size_bytes: meta.size_bytes}}
       {:error, reason} -> {:error, reason}
     end

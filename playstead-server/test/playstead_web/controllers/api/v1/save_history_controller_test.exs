@@ -38,7 +38,8 @@ defmodule PlaysteadWeb.Api.V1.SaveHistoryControllerTest do
     "#{p1}-#{p2}-#{p3}-#{p4}-#{p5}"
   end
 
-  defp content_key, do: :crypto.hash(:sha256, :crypto.strong_rand_bytes(16)) |> Base.encode16(case: :lower)
+  defp content_key,
+    do: :crypto.hash(:sha256, :crypto.strong_rand_bytes(16)) |> Base.encode16(case: :lower)
 
   defp upload!(token, bytes, command_id) do
     digest = repr_digest_header(bytes)

@@ -21,13 +21,22 @@ defmodule Playstead.SavesAttentionSourceTest do
     :ok
   end
 
-  defp content_key, do: :crypto.hash(:sha256, :crypto.strong_rand_bytes(16)) |> Base.encode16(case: :lower)
+  defp content_key,
+    do: :crypto.hash(:sha256, :crypto.strong_rand_bytes(16)) |> Base.encode16(case: :lower)
 
   defp commit!(scope, device, content_key, bytes, extra_attrs \\ []) do
     {:ok, _status, meta} = Blobs.put_stream([bytes], byte_size(bytes))
 
     command_id = Ecto.UUID.generate()
-    {:ok, _pending} = Saves.record_pending_upload(scope.user.id, device.id, command_id, meta.sha256, meta.size_bytes)
+
+    {:ok, _pending} =
+      Saves.record_pending_upload(
+        scope.user.id,
+        device.id,
+        command_id,
+        meta.sha256,
+        meta.size_bytes
+      )
 
     attrs =
       %{
@@ -85,7 +94,8 @@ defmodule Playstead.SavesAttentionSourceTest do
       {:ok, _revision_b} = commit!(scope, device_b, key, :crypto.strong_rand_bytes(1024))
       # A third device commits a new root on the same line -- a second,
       # independent trigger for the same fork's divergence item.
-      {:ok, _revision_c} = commit!(scope, device_a, key, :crypto.strong_rand_bytes(1024), origin: "external")
+      {:ok, _revision_c} =
+        commit!(scope, device_a, key, :crypto.strong_rand_bytes(1024), origin: "external")
 
       grouped = AttentionSource.list_items(scope.user.id)
       assert [item] = grouped["divergence"]
@@ -107,7 +117,8 @@ defmodule Playstead.SavesAttentionSourceTest do
 
       assert %{"divergence" => [_item]} = AttentionSource.list_items(scope.user.id)
 
-      assert {:ok, _resolution} = Saves.resolve_divergence(scope.user.id, device_a, line_id, revision_a.id)
+      assert {:ok, _resolution} =
+               Saves.resolve_divergence(scope.user.id, device_a, line_id, revision_a.id)
 
       refute Map.has_key?(AttentionSource.list_items(scope.user.id), "divergence")
     end
@@ -159,13 +170,21 @@ defmodule Playstead.SavesAttentionSourceTest do
       scope = user_scope_fixture()
       %{device: device} = device_fixture(scope)
 
-      assert :ok = AttentionSource.maybe_raise_backstop(scope.user.id, :revision_count, 100_001, 100_000)
+      assert :ok =
+               AttentionSource.maybe_raise_backstop(
+                 scope.user.id,
+                 :revision_count,
+                 100_001,
+                 100_000
+               )
+
       assert %{"retention_backstop" => [item]} = AttentionSource.list_items(scope.user.id)
       assert item.grouping_key == "backstop:revision_count"
 
       # The next commit still succeeds -- a backstop crossing is
       # surfaced as attention, never enforced as a refusal.
-      assert {:ok, _revision} = commit!(scope, device, content_key(), :crypto.strong_rand_bytes(1024))
+      assert {:ok, _revision} =
+               commit!(scope, device, content_key(), :crypto.strong_rand_bytes(1024))
     end
 
     test "below the threshold, no item is raised" do
@@ -183,7 +202,9 @@ defmodule Playstead.SavesAttentionSourceTest do
       assert Attention.list_items(scope.user.id) == %{}
       assert AttentionSource.list_items(scope.user.id) == %{}
 
-      merged = Map.merge(Attention.list_items(scope.user.id), AttentionSource.list_items(scope.user.id))
+      merged =
+        Map.merge(Attention.list_items(scope.user.id), AttentionSource.list_items(scope.user.id))
+
       assert merged == %{}
     end
 

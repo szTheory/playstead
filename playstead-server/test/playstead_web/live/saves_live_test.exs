@@ -21,13 +21,22 @@ defmodule PlaysteadWeb.SavesLiveTest do
     :ok
   end
 
-  defp content_key, do: :crypto.hash(:sha256, :crypto.strong_rand_bytes(16)) |> Base.encode16(case: :lower)
+  defp content_key,
+    do: :crypto.hash(:sha256, :crypto.strong_rand_bytes(16)) |> Base.encode16(case: :lower)
 
   defp commit!(scope, device, content_key, bytes, extra_attrs \\ []) do
     {:ok, _status, meta} = Blobs.put_stream([bytes], byte_size(bytes))
 
     command_id = Ecto.UUID.generate()
-    {:ok, _pending} = Saves.record_pending_upload(scope.user.id, device.id, command_id, meta.sha256, meta.size_bytes)
+
+    {:ok, _pending} =
+      Saves.record_pending_upload(
+        scope.user.id,
+        device.id,
+        command_id,
+        meta.sha256,
+        meta.size_bytes
+      )
 
     attrs =
       %{
@@ -63,6 +72,68 @@ defmodule PlaysteadWeb.SavesLiveTest do
     assert has_element?(lv, "#line-#{line_id}")
   end
 
+  defp healthy_line!(scope) do
+    %{device: device} = device_fixture(scope)
+    {:ok, revision} = commit!(scope, device, content_key(), :crypto.strong_rand_bytes(1024))
+    %{line_id: revision.save_line_id, revision: revision}
+  end
+
+  # G-04-1 regression guard. `/saves` used to filter every line through
+  # `Saves.needs_divergence_decision?/2`, so a player whose saves were all
+  # healthy -- the common case -- saw a permanently empty page and could
+  # reach neither "inspect" nor "export", the two things the page's own
+  # header offers. Every existing test passed throughout, because each one
+  # seeded a divergence first.
+  #
+  # These assert reachability, not behaviour given a divergence: the path a
+  # player actually walks, from the shelf to the export control, with no
+  # conflict anywhere in it.
+  describe "a healthy save line (G-04-1 reachability)" do
+    test "is listed on /saves even though nothing needs deciding", %{conn: conn, scope: scope} do
+      %{line_id: line_id} = healthy_line!(scope)
+
+      {:ok, lv, _html} = live(conn, ~p"/saves")
+
+      assert has_element?(lv, "#line-#{line_id}"),
+             "a healthy save line must appear on the shelf"
+
+      refute has_element?(lv, "#saves-empty"),
+             "a user with a save must not be shown the no-saves zero state"
+    end
+
+    test "carries no decision badge, while a diverged one does", %{conn: conn, scope: scope} do
+      %{line_id: healthy_id} = healthy_line!(scope)
+      %{line_id: diverged_id} = diverged_line!(scope)
+
+      {:ok, lv, _html} = live(conn, ~p"/saves")
+
+      refute has_element?(lv, "#needs-decision-#{healthy_id}"),
+             "decision framing must appear only on lines that have a decision"
+
+      assert has_element?(lv, "#needs-decision-#{diverged_id}")
+    end
+
+    test "is reachable from /saves through to its export control", %{conn: conn, scope: scope} do
+      %{line_id: line_id, revision: revision} = healthy_line!(scope)
+
+      {:ok, index, _html} = live(conn, ~p"/saves")
+
+      # The shelf must actually offer the door, not merely know the line
+      # exists: the row links at this line's own detail path.
+      assert index
+             |> element(~s{#line-#{line_id} a[href="/saves/#{line_id}"]})
+             |> has_element?(),
+             "the shelf row must link to this line's detail page"
+
+      {:ok, detail, _html} = live(conn, ~p"/saves/#{line_id}")
+
+      assert has_element?(detail, "#comparison-panel")
+
+      assert has_element?(detail, "#export-#{revision.id}"),
+             "export must be reachable on a line that never diverged"
+    end
+  end
+
   describe "the comparison panel" do
     test "shows exactly four facts per side and never file size, byte-diff, similarity, ordinal, or parent pointer",
          %{conn: conn, scope: scope} do
@@ -79,7 +150,10 @@ defmodule PlaysteadWeb.SavesLiveTest do
       refute html =~ ~r/\bfile size\b/i
     end
 
-    test "choosing performs the mutation with no intervening confirmation", %{conn: conn, scope: scope} do
+    test "choosing performs the mutation with no intervening confirmation", %{
+      conn: conn,
+      scope: scope
+    } do
       %{line_id: line_id, revision_a: revision_a} = diverged_line!(scope)
 
       {:ok, lv, _html} = live(conn, ~p"/saves/#{line_id}")
@@ -97,7 +171,10 @@ defmodule PlaysteadWeb.SavesLiveTest do
       _ = line_id
     end
 
-    test "the rendered output contains no Undo control and no recommended badge", %{conn: conn, scope: scope} do
+    test "the rendered output contains no Undo control and no recommended badge", %{
+      conn: conn,
+      scope: scope
+    } do
       %{line_id: line_id} = diverged_line!(scope)
 
       {:ok, lv, html} = live(conn, ~p"/saves/#{line_id}")
@@ -108,7 +185,10 @@ defmodule PlaysteadWeb.SavesLiveTest do
       _ = lv
     end
 
-    test "no confirmation dialog attribute exists on the choose button", %{conn: conn, scope: scope} do
+    test "no confirmation dialog attribute exists on the choose button", %{
+      conn: conn,
+      scope: scope
+    } do
       %{line_id: line_id, revision_a: revision_a} = diverged_line!(scope)
 
       {:ok, _lv, html} = live(conn, ~p"/saves/#{line_id}")
@@ -116,7 +196,10 @@ defmodule PlaysteadWeb.SavesLiveTest do
       assert html =~ "choose-#{revision_a.id}"
     end
 
-    test "keep-both is a peer action and calls Saves.acknowledge_divergence/3", %{conn: conn, scope: scope} do
+    test "keep-both is a peer action and calls Saves.acknowledge_divergence/3", %{
+      conn: conn,
+      scope: scope
+    } do
       %{line_id: line_id} = diverged_line!(scope)
 
       {:ok, lv, _html} = live(conn, ~p"/saves/#{line_id}")
@@ -165,14 +248,20 @@ defmodule PlaysteadWeb.SavesLiveTest do
   end
 
   describe "absences asserted by test (D-49, D-51, D-55)" do
-    test "no bulk always-use-this-Mac control exists on the saves surface", %{conn: conn, scope: scope} do
+    test "no bulk always-use-this-Mac control exists on the saves surface", %{
+      conn: conn,
+      scope: scope
+    } do
       %{line_id: line_id} = diverged_line!(scope)
 
       {:ok, _lv, html} = live(conn, ~p"/saves/#{line_id}")
       refute html =~ ~r/always use|prefer this mac/i
     end
 
-    test "no console surface renders a global current-version playhead", %{conn: conn, scope: scope} do
+    test "no console surface renders a global current-version playhead", %{
+      conn: conn,
+      scope: scope
+    } do
       %{line_id: line_id} = diverged_line!(scope)
 
       {:ok, _lv, html} = live(conn, ~p"/saves/#{line_id}")
@@ -181,7 +270,10 @@ defmodule PlaysteadWeb.SavesLiveTest do
   end
 
   describe "keyboard-only traversal" do
-    test "every action in the panel is a native, keyboard-focusable element", %{conn: conn, scope: scope} do
+    test "every action in the panel is a native, keyboard-focusable element", %{
+      conn: conn,
+      scope: scope
+    } do
       %{line_id: line_id, revision_a: revision_a} = diverged_line!(scope)
 
       {:ok, lv, _html} = live(conn, ~p"/saves/#{line_id}")

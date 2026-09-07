@@ -26,9 +26,12 @@ defmodule Playstead.Repo.Migrations.CreateSaveLinesAndRevisions do
     create table(:save_revisions, primary_key: false) do
       add :id, :binary_id, primary_key: true
       add :user_id, references(:users, on_delete: :delete_all), null: false
-      add :save_line_id, references(:save_lines, type: :binary_id, on_delete: :delete_all), null: false
 
-      add :parent_revision_id, references(:save_revisions, type: :binary_id, on_delete: :nilify_all)
+      add :save_line_id, references(:save_lines, type: :binary_id, on_delete: :delete_all),
+        null: false
+
+      add :parent_revision_id,
+          references(:save_revisions, type: :binary_id, on_delete: :nilify_all)
 
       add :blob_sha256, :string, null: false
       add :size_bytes, :integer, null: false

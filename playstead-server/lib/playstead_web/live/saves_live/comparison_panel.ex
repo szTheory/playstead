@@ -151,7 +151,8 @@ defmodule PlaysteadWeb.SavesLive.ComparisonPanel do
     "all #{length(sides)} versions are safe. Pick the one to continue from, or keep them all."
   end
 
-  defp subtitle(_sides), do: "both versions are safe. Pick the one to continue from, or keep both."
+  defp subtitle(_sides),
+    do: "both versions are safe. Pick the one to continue from, or keep both."
 
   defp keep_both_label(sides) when length(sides) > 2, do: "Keep them all"
   defp keep_both_label(_sides), do: "Keep both"

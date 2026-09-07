@@ -19,14 +19,21 @@ defmodule Playstead.SavesBranchesTest do
     :ok
   end
 
-  defp content_key, do: :crypto.hash(:sha256, :crypto.strong_rand_bytes(16)) |> Base.encode16(case: :lower)
+  defp content_key,
+    do: :crypto.hash(:sha256, :crypto.strong_rand_bytes(16)) |> Base.encode16(case: :lower)
 
   defp commit!(scope, device, content_key, bytes, extra_attrs \\ %{}) do
     {:ok, _status, meta} = Blobs.put_stream([bytes], byte_size(bytes))
     command_id = Ecto.UUID.generate()
 
     {:ok, _pending} =
-      Saves.record_pending_upload(scope.user.id, device.id, command_id, meta.sha256, meta.size_bytes)
+      Saves.record_pending_upload(
+        scope.user.id,
+        device.id,
+        command_id,
+        meta.sha256,
+        meta.size_bytes
+      )
 
     attrs =
       Map.merge(
@@ -46,7 +53,9 @@ defmodule Playstead.SavesBranchesTest do
       {:ok, root} = commit!(scope, device, key, :crypto.strong_rand_bytes(64))
 
       {:ok, child} =
-        commit!(scope, device, key, :crypto.strong_rand_bytes(64), %{"parent_revision_id" => root.id})
+        commit!(scope, device, key, :crypto.strong_rand_bytes(64), %{
+          "parent_revision_id" => root.id
+        })
 
       heads = Branches.heads(scope.user.id, root.save_line_id)
       assert Enum.map(heads, & &1.id) == [child.id]
@@ -61,10 +70,14 @@ defmodule Playstead.SavesBranchesTest do
       {:ok, root} = commit!(scope, device, key, :crypto.strong_rand_bytes(64))
 
       {:ok, branch_a} =
-        commit!(scope, device, key, :crypto.strong_rand_bytes(64), %{"parent_revision_id" => root.id})
+        commit!(scope, device, key, :crypto.strong_rand_bytes(64), %{
+          "parent_revision_id" => root.id
+        })
 
       {:ok, branch_b} =
-        commit!(scope, device, key, :crypto.strong_rand_bytes(64), %{"parent_revision_id" => root.id})
+        commit!(scope, device, key, :crypto.strong_rand_bytes(64), %{
+          "parent_revision_id" => root.id
+        })
 
       heads = Branches.heads(scope.user.id, root.save_line_id)
       assert MapSet.new(Enum.map(heads, & &1.id)) == MapSet.new([branch_a.id, branch_b.id])
@@ -123,7 +136,9 @@ defmodule Playstead.SavesBranchesTest do
 
       {2, nil} =
         Playstead.Repo.update_all(
-          from(r in Playstead.Saves.Revision, where: r.id in [^greater_child.id, ^lower_child.id]),
+          from(r in Playstead.Saves.Revision,
+            where: r.id in [^greater_child.id, ^lower_child.id]
+          ),
           set: [recorded_at: tied_at]
         )
 

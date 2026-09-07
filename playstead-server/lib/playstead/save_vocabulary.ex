@@ -12,8 +12,10 @@ defmodule Playstead.SaveVocabulary do
   """
 
   @all %{
-    "result.console_after_choosing" => "Continuing from {Origin}. Your Macs will use this version the next time they connect.",
-    "result.console_after_keeping_both" => "Keeping both. Each Mac keeps playing the version it already has.",
+    "result.console_after_choosing" =>
+      "Continuing from {Origin}. Your Macs will use this version the next time they connect.",
+    "result.console_after_keeping_both" =>
+      "Keeping both. Each Mac keeps playing the version it already has."
   }
 
   @doc "key => value, for every save string the console ships today."

@@ -82,8 +82,7 @@ defmodule Playstead.Saves.Branches do
       from(rp in RevisionParent,
         join: r in Revision,
         on: r.id == rp.revision_id,
-        where:
-          r.user_id == ^user_id and r.save_line_id == ^save_line_id and rp.role == "chosen",
+        where: r.user_id == ^user_id and r.save_line_id == ^save_line_id and rp.role == "chosen",
         select: rp.parent_revision_id
       )
       |> Repo.all()

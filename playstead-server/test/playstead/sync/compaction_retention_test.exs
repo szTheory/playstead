@@ -35,13 +35,22 @@ defmodule Playstead.Sync.CompactionRetentionTest do
     :ok
   end
 
-  defp content_key, do: :crypto.hash(:sha256, :crypto.strong_rand_bytes(16)) |> Base.encode16(case: :lower)
+  defp content_key,
+    do: :crypto.hash(:sha256, :crypto.strong_rand_bytes(16)) |> Base.encode16(case: :lower)
 
   defp commit!(scope, device, content_key, bytes, extra_attrs \\ []) do
     {:ok, _status, meta} = Blobs.put_stream([bytes], byte_size(bytes))
 
     command_id = Ecto.UUID.generate()
-    {:ok, _pending} = Saves.record_pending_upload(scope.user.id, device.id, command_id, meta.sha256, meta.size_bytes)
+
+    {:ok, _pending} =
+      Saves.record_pending_upload(
+        scope.user.id,
+        device.id,
+        command_id,
+        meta.sha256,
+        meta.size_bytes
+      )
 
     attrs =
       %{
@@ -56,8 +65,13 @@ defmodule Playstead.Sync.CompactionRetentionTest do
 
   defp diverge!(scope, device, key) do
     {:ok, root} = commit!(scope, device, key, :crypto.strong_rand_bytes(64))
-    {:ok, branch_a} = commit!(scope, device, key, :crypto.strong_rand_bytes(64), parent_revision_id: root.id)
-    {:ok, branch_b} = commit!(scope, device, key, :crypto.strong_rand_bytes(64), parent_revision_id: root.id)
+
+    {:ok, branch_a} =
+      commit!(scope, device, key, :crypto.strong_rand_bytes(64), parent_revision_id: root.id)
+
+    {:ok, branch_b} =
+      commit!(scope, device, key, :crypto.strong_rand_bytes(64), parent_revision_id: root.id)
+
     {root, branch_a, branch_b}
   end
 
@@ -77,7 +91,9 @@ defmodule Playstead.Sync.CompactionRetentionTest do
       key = content_key()
       {_root, branch_a, branch_b} = diverge!(scope, device, key)
 
-      assert {:ok, _ack} = Saves.acknowledge_divergence(scope.user.id, device, branch_a.save_line_id)
+      assert {:ok, _ack} =
+               Saves.acknowledge_divergence(scope.user.id, device, branch_a.save_line_id)
+
       refute Saves.needs_divergence_decision?(scope.user.id, branch_a.save_line_id)
 
       age_all_entries!(Compaction.horizon())
@@ -87,8 +103,11 @@ defmodule Playstead.Sync.CompactionRetentionTest do
       refute Saves.needs_divergence_decision?(scope.user.id, branch_a.save_line_id),
              "an acknowledgment older than the horizon must still suppress the divergence decision"
 
-      heads = Branches.heads(scope.user.id, branch_a.save_line_id) |> Enum.map(& &1.id) |> MapSet.new()
-      assert heads == MapSet.new([branch_a.id, branch_b.id]), "both heads must still stand -- nothing is ever deleted (D-48)"
+      heads =
+        Branches.heads(scope.user.id, branch_a.save_line_id) |> Enum.map(& &1.id) |> MapSet.new()
+
+      assert heads == MapSet.new([branch_a.id, branch_b.id]),
+             "both heads must still stand -- nothing is ever deleted (D-48)"
     end
 
     test "an ordinary journal entry older than the horizon is still deleted -- retention is narrowed, not disabled" do
@@ -101,7 +120,9 @@ defmodule Playstead.Sync.CompactionRetentionTest do
         |> DateTime.add(-(Compaction.horizon() + 1) * 24 * 60 * 60, :second)
         |> DateTime.truncate(:second)
 
-      Repo.update_all(from(e in Entry, where: e.id == ^old_entry.id), set: [inserted_at: old_timestamp])
+      Repo.update_all(from(e in Entry, where: e.id == ^old_entry.id),
+        set: [inserted_at: old_timestamp]
+      )
 
       recent_entry = Playstead.SyncFixtures.journal_entry_fixture(user.id, :device, "d2", %{})
 
@@ -132,7 +153,8 @@ defmodule Playstead.Sync.CompactionRetentionTest do
       key = content_key()
       {_root, branch_a, _branch_b} = diverge!(scope, device, key)
 
-      assert {:ok, _ack} = Saves.acknowledge_divergence(scope.user.id, device, branch_a.save_line_id)
+      assert {:ok, _ack} =
+               Saves.acknowledge_divergence(scope.user.id, device, branch_a.save_line_id)
 
       age_all_entries!(Compaction.horizon())
 
@@ -149,11 +171,13 @@ defmodule Playstead.Sync.CompactionRetentionTest do
       key = content_key()
       {_root, branch_a, _branch_b} = diverge!(scope, device, key)
 
-      assert {:ok, _ack} = Saves.acknowledge_divergence(scope.user.id, device, branch_a.save_line_id)
+      assert {:ok, _ack} =
+               Saves.acknowledge_divergence(scope.user.id, device, branch_a.save_line_id)
 
       ack_entry =
         from(e in Entry,
-          where: e.entity_kind == "save" and fragment("?->>'type' = ?", e.payload, "fork_acknowledged"),
+          where:
+            e.entity_kind == "save" and fragment("?->>'type' = ?", e.payload, "fork_acknowledged"),
           order_by: [desc: e.seq],
           limit: 1
         )
@@ -161,7 +185,8 @@ defmodule Playstead.Sync.CompactionRetentionTest do
 
       age_all_entries!(Compaction.horizon())
 
-      recent_entry = Playstead.SyncFixtures.journal_entry_fixture(scope.user.id, :device, "recent-device", %{})
+      recent_entry =
+        Playstead.SyncFixtures.journal_entry_fixture(scope.user.id, :device, "recent-device", %{})
 
       assert {:ok, _removed} = Compaction.run()
 
@@ -172,7 +197,9 @@ defmodule Playstead.Sync.CompactionRetentionTest do
       # were, in fact, compacted away.
       assert Compaction.oldest_surviving_seq() == recent_entry.seq
       assert ack_entry.seq < recent_entry.seq
-      assert Repo.get(Entry, ack_entry.id), "precondition: the acknowledgment entry itself must have survived"
+
+      assert Repo.get(Entry, ack_entry.id),
+             "precondition: the acknowledgment entry itself must have survived"
     end
   end
 end

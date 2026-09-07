@@ -22,13 +22,22 @@ defmodule Playstead.SavesTest do
     :ok
   end
 
-  defp content_key, do: :crypto.hash(:sha256, :crypto.strong_rand_bytes(16)) |> Base.encode16(case: :lower)
+  defp content_key,
+    do: :crypto.hash(:sha256, :crypto.strong_rand_bytes(16)) |> Base.encode16(case: :lower)
 
   defp commit!(scope, device, content_key, bytes, extra_attrs \\ []) do
     {:ok, _status, meta} = Blobs.put_stream([bytes], byte_size(bytes))
 
     command_id = Ecto.UUID.generate()
-    {:ok, _pending} = Saves.record_pending_upload(scope.user.id, device.id, command_id, meta.sha256, meta.size_bytes)
+
+    {:ok, _pending} =
+      Saves.record_pending_upload(
+        scope.user.id,
+        device.id,
+        command_id,
+        meta.sha256,
+        meta.size_bytes
+      )
 
     attrs =
       %{
@@ -111,7 +120,15 @@ defmodule Playstead.SavesTest do
 
       {:ok, _status, meta} = Blobs.put_stream([:crypto.strong_rand_bytes(64)], 64)
       command_id = Ecto.UUID.generate()
-      {:ok, _pending} = Saves.record_pending_upload(scope.user.id, device.id, command_id, meta.sha256, meta.size_bytes)
+
+      {:ok, _pending} =
+        Saves.record_pending_upload(
+          scope.user.id,
+          device.id,
+          command_id,
+          meta.sha256,
+          meta.size_bytes
+        )
 
       assert {:error, {:save_revision_immutable, _detail}} =
                Saves.commit_revision(scope.user.id, device, %{
@@ -166,7 +183,9 @@ defmodule Playstead.SavesTest do
 
       {2, nil} =
         Repo.update_all(
-          from(r in Playstead.Saves.Revision, where: r.id in [^greater_child.id, ^lower_child.id]),
+          from(r in Playstead.Saves.Revision,
+            where: r.id in [^greater_child.id, ^lower_child.id]
+          ),
           set: [recorded_at: tied_at]
         )
 
@@ -182,8 +201,13 @@ defmodule Playstead.SavesTest do
   describe "append-only divergence resolution (plan 04-05 task 3)" do
     defp diverge!(scope, device, key) do
       {:ok, root} = commit!(scope, device, key, :crypto.strong_rand_bytes(64))
-      {:ok, branch_a} = commit!(scope, device, key, :crypto.strong_rand_bytes(64), parent_revision_id: root.id)
-      {:ok, branch_b} = commit!(scope, device, key, :crypto.strong_rand_bytes(64), parent_revision_id: root.id)
+
+      {:ok, branch_a} =
+        commit!(scope, device, key, :crypto.strong_rand_bytes(64), parent_revision_id: root.id)
+
+      {:ok, branch_b} =
+        commit!(scope, device, key, :crypto.strong_rand_bytes(64), parent_revision_id: root.id)
+
       {root, branch_a, branch_b}
     end
 
@@ -193,7 +217,8 @@ defmodule Playstead.SavesTest do
       key = content_key()
       {_root, branch_a, branch_b} = diverge!(scope, device, key)
 
-      assert {:ok, resolution} = Saves.resolve_divergence(scope.user.id, device, branch_a.save_line_id, branch_a.id)
+      assert {:ok, resolution} =
+               Saves.resolve_divergence(scope.user.id, device, branch_a.save_line_id, branch_a.id)
 
       edges =
         from(rp in RevisionParent, where: rp.revision_id == ^resolution.id)
@@ -210,7 +235,8 @@ defmodule Playstead.SavesTest do
       key = content_key()
       {_root, branch_a, branch_b} = diverge!(scope, device, key)
 
-      {:ok, _resolution} = Saves.resolve_divergence(scope.user.id, device, branch_a.save_line_id, branch_a.id)
+      {:ok, _resolution} =
+        Saves.resolve_divergence(scope.user.id, device, branch_a.save_line_id, branch_a.id)
 
       reloaded_a = Saves.get_revision(scope.user.id, branch_a.id)
       reloaded_b = Saves.get_revision(scope.user.id, branch_b.id)
@@ -225,7 +251,8 @@ defmodule Playstead.SavesTest do
       key = content_key()
       {_root, branch_a, _branch_b} = diverge!(scope, device, key)
 
-      {:ok, resolution} = Saves.resolve_divergence(scope.user.id, device, branch_a.save_line_id, branch_a.id)
+      {:ok, resolution} =
+        Saves.resolve_divergence(scope.user.id, device, branch_a.save_line_id, branch_a.id)
 
       assert resolution.blob_sha256 == branch_a.blob_sha256
 
@@ -247,11 +274,18 @@ defmodule Playstead.SavesTest do
       %{device: device} = device_fixture(scope)
       key = content_key()
       {:ok, root} = commit!(scope, device, key, :crypto.strong_rand_bytes(64))
-      {:ok, a} = commit!(scope, device, key, :crypto.strong_rand_bytes(64), parent_revision_id: root.id)
-      {:ok, b} = commit!(scope, device, key, :crypto.strong_rand_bytes(64), parent_revision_id: root.id)
-      {:ok, c} = commit!(scope, device, key, :crypto.strong_rand_bytes(64), parent_revision_id: root.id)
 
-      assert {:ok, resolution} = Saves.resolve_divergence(scope.user.id, device, root.save_line_id, a.id)
+      {:ok, a} =
+        commit!(scope, device, key, :crypto.strong_rand_bytes(64), parent_revision_id: root.id)
+
+      {:ok, b} =
+        commit!(scope, device, key, :crypto.strong_rand_bytes(64), parent_revision_id: root.id)
+
+      {:ok, c} =
+        commit!(scope, device, key, :crypto.strong_rand_bytes(64), parent_revision_id: root.id)
+
+      assert {:ok, resolution} =
+               Saves.resolve_divergence(scope.user.id, device, root.save_line_id, a.id)
 
       edges = from(rp in RevisionParent, where: rp.revision_id == ^resolution.id) |> Repo.all()
       assert length(edges) == 3
@@ -270,12 +304,18 @@ defmodule Playstead.SavesTest do
       {_root2, branch_a2, branch_b2} = diverge!(scope2, device2, key2)
 
       # Order A: device chooses branch_a then (independently) branch_b's device chooses branch_b.
-      {:ok, res1} = Saves.resolve_divergence(scope1.user.id, device1, branch_a1.save_line_id, branch_a1.id)
-      {:ok, res1b} = Saves.resolve_divergence(scope1.user.id, device1, branch_a1.save_line_id, branch_b1.id)
+      {:ok, res1} =
+        Saves.resolve_divergence(scope1.user.id, device1, branch_a1.save_line_id, branch_a1.id)
+
+      {:ok, res1b} =
+        Saves.resolve_divergence(scope1.user.id, device1, branch_a1.save_line_id, branch_b1.id)
 
       # Order B: reversed.
-      {:ok, res2b} = Saves.resolve_divergence(scope2.user.id, device2, branch_a2.save_line_id, branch_b2.id)
-      {:ok, res2} = Saves.resolve_divergence(scope2.user.id, device2, branch_a2.save_line_id, branch_a2.id)
+      {:ok, res2b} =
+        Saves.resolve_divergence(scope2.user.id, device2, branch_a2.save_line_id, branch_b2.id)
+
+      {:ok, res2} =
+        Saves.resolve_divergence(scope2.user.id, device2, branch_a2.save_line_id, branch_a2.id)
 
       retained1 =
         from(r in Playstead.Saves.Revision, where: r.user_id == ^scope1.user.id, select: r.id)
@@ -334,12 +374,14 @@ defmodule Playstead.SavesTest do
       key = content_key()
       {_root, branch_a, branch_b} = diverge!(scope, device, key)
 
-      heads_before = Branches.heads(scope.user.id, branch_a.save_line_id) |> Enum.map(& &1.id) |> MapSet.new()
+      heads_before =
+        Branches.heads(scope.user.id, branch_a.save_line_id) |> Enum.map(& &1.id) |> MapSet.new()
 
       assert {:ok, %{head_ids: head_ids}} =
                Saves.acknowledge_divergence(scope.user.id, device, branch_a.save_line_id)
 
-      heads_after = Branches.heads(scope.user.id, branch_a.save_line_id) |> Enum.map(& &1.id) |> MapSet.new()
+      heads_after =
+        Branches.heads(scope.user.id, branch_a.save_line_id) |> Enum.map(& &1.id) |> MapSet.new()
 
       assert heads_before == heads_after
       assert MapSet.new(head_ids) == MapSet.new([branch_a.id, branch_b.id])
@@ -357,7 +399,9 @@ defmodule Playstead.SavesTest do
 
       refute Saves.needs_divergence_decision?(scope.user.id, branch_a.save_line_id)
 
-      heads = Branches.heads(scope.user.id, branch_a.save_line_id) |> Enum.map(& &1.id) |> MapSet.new()
+      heads =
+        Branches.heads(scope.user.id, branch_a.save_line_id) |> Enum.map(& &1.id) |> MapSet.new()
+
       assert heads == MapSet.new([branch_a.id, branch_b.id])
     end
   end

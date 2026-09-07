@@ -49,7 +49,13 @@ defmodule Playstead.Export.SavesLoadingTest do
     command_id = Ecto.UUID.generate()
 
     {:ok, _pending} =
-      Saves.record_pending_upload(scope.user.id, device.id, command_id, meta.sha256, meta.size_bytes)
+      Saves.record_pending_upload(
+        scope.user.id,
+        device.id,
+        command_id,
+        meta.sha256,
+        meta.size_bytes
+      )
 
     attrs =
       %{"id" => Ecto.UUID.generate(), "command_id" => command_id, "content_key" => content_key}

@@ -104,16 +104,26 @@ defmodule Playstead.SaveCopyContractTest do
     json = json_vocabulary!()
 
     json
-    |> Enum.filter(fn {key, _value} -> Enum.any?(@divergence_prefixes, &String.starts_with?(key, &1)) end)
+    |> Enum.filter(fn {key, _value} ->
+      Enum.any?(@divergence_prefixes, &String.starts_with?(key, &1))
+    end)
     |> Enum.each(fn {key, value} ->
       hits = whole_word_hits(@banned_divergence_words ++ @banned_divergence_phrases, value)
-      assert hits == [], "divergence key #{key} contains banned word(s) #{inspect(hits)}: #{value}"
+
+      assert hits == [],
+             "divergence key #{key} contains banned word(s) #{inspect(hits)}: #{value}"
     end)
   end
 
   test "the banned-word scan catches a real violation" do
-    assert whole_word_hits(@banned_words ++ @banned_phrases, "This save was backed up.") == ["backed up"]
+    assert whole_word_hits(@banned_words ++ @banned_phrases, "This save was backed up.") == [
+             "backed up"
+           ]
+
     assert whole_word_hits(@banned_words ++ @banned_phrases, "It has not been merged.") == []
-    assert whole_word_hits(@banned_words ++ @banned_phrases, "the next time they sync.") == ["sync"]
+
+    assert whole_word_hits(@banned_words ++ @banned_phrases, "the next time they sync.") == [
+             "sync"
+           ]
   end
 end

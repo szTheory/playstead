@@ -118,7 +118,10 @@ defmodule PlaysteadWeb.ExportsLive do
     saves_scope = normalize_saves_scope(params["saves_scope"])
 
     socket =
-      case Export.create_export(user_id, :library, target_name: target_name, saves_scope: saves_scope) do
+      case Export.create_export(user_id, :library,
+             target_name: target_name,
+             saves_scope: saves_scope
+           ) do
         {:ok, _export} -> load(socket)
         {:error, _reason} -> put_flash(socket, :error, generic_error_flash())
       end

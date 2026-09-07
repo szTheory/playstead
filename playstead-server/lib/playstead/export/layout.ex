@@ -177,7 +177,10 @@ defmodule Playstead.Export.Layout do
       | entries: Enum.map(saves_plan.entries, &prefix_saves_entry(&1, relative_dir)),
         branches:
           Enum.map(saves_plan.branches, fn branch ->
-            %{branch | revisions: Enum.map(branch.revisions, &prefix_saves_entry(&1, relative_dir))}
+            %{
+              branch
+              | revisions: Enum.map(branch.revisions, &prefix_saves_entry(&1, relative_dir))
+            }
           end),
         drop_in: prefix_saves_entry(saves_plan.drop_in, relative_dir)
     }

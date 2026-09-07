@@ -45,18 +45,54 @@ defmodule PlaysteadWeb.SavesLive do
     {:noreply,
      socket
      |> assign(save_line_id: nil, line: nil, heads: [], sides: [])
-     |> load_diverged_lines()}
+     |> load_save_lines()}
   end
 
-  defp load_diverged_lines(socket) do
+  # D-67 follow-up (G-04-1): this lists EVERY save line the user has, not
+  # only the diverged ones. `/saves` is the shelf a player browses; it is
+  # not a work queue. `needs_divergence_decision?` rides along as a
+  # per-row flag so the decision framing appears on exactly the rows that
+  # have a decision, and nowhere else.
+  #
+  # Filtering by it here -- the original shape -- made "inspect" and
+  # "export" unreachable for anyone whose saves were healthy, which is
+  # the overwhelmingly common case, since divergence is by design the
+  # exception. It also duplicated `/attention`, which already unions the
+  # saves attention source and links each card to `/saves/:id`.
+  defp load_save_lines(socket) do
     user_id = socket.assigns.current_scope.user.id
 
     lines =
       from(l in Save, where: l.user_id == ^user_id, order_by: [asc: l.inserted_at])
       |> Repo.all()
-      |> Enum.filter(&Saves.needs_divergence_decision?(user_id, &1.id))
+      |> Enum.map(fn line ->
+        %{
+          id: line.id,
+          title: line_title(user_id, line.content_key),
+          needs_decision?: Saves.needs_divergence_decision?(user_id, line.id)
+        }
+      end)
 
-    assign(socket, diverged_lines: lines)
+    assign(socket, save_lines: lines)
+  end
+
+  # The player thinks in game names, not content keys. Fall back to a
+  # plain phrase rather than leaking a sha256 into the shelf.
+  defp line_title(user_id, content_key) do
+    query =
+      from(m in AssetMember,
+        join: b in assoc(m, :blob),
+        join: s in assoc(m, :asset_set),
+        where: s.user_id == ^user_id and b.sha256 == ^content_key,
+        select: s.display_title,
+        limit: 1
+      )
+
+    case Repo.one(query) do
+      nil -> "Untitled game"
+      "" -> "Untitled game"
+      title -> title
+    end
   end
 
   defp load_line(socket) do
@@ -74,12 +110,12 @@ defmodule PlaysteadWeb.SavesLive do
           heads: heads,
           sides: Enum.map(sides, &Map.put(&1, :chosen?, &1.id == current_id))
         )
-        |> assign(diverged_lines: [])
+        |> assign(save_lines: [])
 
       {:error, :not_found} ->
         socket
         |> put_flash(:error, generic_error_flash())
-        |> assign(line: nil, heads: [], sides: [], diverged_lines: [])
+        |> assign(line: nil, heads: [], sides: [], save_lines: [])
     end
   end
 
@@ -211,7 +247,10 @@ defmodule PlaysteadWeb.SavesLive do
         {:noreply,
          socket
          |> load_line()
-         |> assign(:result_message, "Keeping both. Each Mac keeps playing the version it already has.")}
+         |> assign(
+           :result_message,
+           "Keeping both. Each Mac keeps playing the version it already has."
+         )}
 
       {:error, _reason} ->
         {:noreply, put_flash(socket, :error, generic_error_flash())}
@@ -293,26 +332,36 @@ defmodule PlaysteadWeb.SavesLive do
         <div>
           <h1 class="text-display font-semibold text-[#F1F5F9]">Saves</h1>
           <p class="mt-1 text-sm text-[#94A3B8]">
-            Inspect, choose, and export save versions.
+            Every game you have a save for. Open one to look through its versions or export it.
           </p>
         </div>
 
         <div :if={is_nil(@save_line_id)}>
           <div
-            :if={@diverged_lines == []}
+            :if={@save_lines == []}
             id="saves-empty"
             class="rounded-lg border border-[#334155] bg-[#1E293B] p-6"
           >
-            <p class="text-base text-[#F1F5F9]">Nothing needs a decision right now.</p>
+            <p class="text-base text-[#F1F5F9]">No saves yet.</p>
+            <p class="mt-1 text-sm text-[#94A3B8]">
+              Play a game through Playstead and its saves will show up here.
+            </p>
           </div>
 
-          <ul :if={@diverged_lines != []} id="diverged-lines" class="space-y-3">
-            <li :for={line <- @diverged_lines} id={"line-#{line.id}"}>
+          <ul :if={@save_lines != []} id="save-lines" class="space-y-3">
+            <li :for={line <- @save_lines} id={"line-#{line.id}"}>
               <.link
                 href={"/saves/#{line.id}"}
-                class="block rounded-lg border border-[#334155] bg-[#1E293B] p-4 text-[#F1F5F9] hover:border-[#38BDF8]"
+                class="flex items-center justify-between gap-4 rounded-lg border border-[#334155] bg-[#1E293B] p-4 text-[#F1F5F9] hover:border-[#38BDF8]"
               >
-                Two versions of your progress
+                <span>{line.title}</span>
+                <span
+                  :if={line.needs_decision?}
+                  id={"needs-decision-#{line.id}"}
+                  class="shrink-0 text-sm text-[#94A3B8]"
+                >
+                  Two versions to compare
+                </span>
               </.link>
             </li>
           </ul>

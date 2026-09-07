@@ -209,7 +209,9 @@ defmodule Playstead.Export.BagitWriter do
 
     lines =
       Enum.map(revisions, fn r ->
-        missing = if Map.get(r, :bytes, :present) == :missing, do: " (not on this server)", else: ""
+        missing =
+          if Map.get(r, :bytes, :present) == :missing, do: " (not on this server)", else: ""
+
         seq = r.seq |> Integer.to_string() |> String.pad_leading(3, " ")
         "  #{seq}  #{Path.basename(r.relative)}  #{r.sha256}  #{r.size_bytes} bytes#{missing}"
       end)

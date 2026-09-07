@@ -21,13 +21,22 @@ defmodule Playstead.SavesLineageScopingTest do
     :ok
   end
 
-  defp content_key, do: :crypto.hash(:sha256, :crypto.strong_rand_bytes(16)) |> Base.encode16(case: :lower)
+  defp content_key,
+    do: :crypto.hash(:sha256, :crypto.strong_rand_bytes(16)) |> Base.encode16(case: :lower)
 
   defp commit!(scope, device, content_key, bytes, extra_attrs \\ []) do
     {:ok, _status, meta} = Blobs.put_stream([bytes], byte_size(bytes))
 
     command_id = Ecto.UUID.generate()
-    {:ok, _pending} = Saves.record_pending_upload(scope.user.id, device.id, command_id, meta.sha256, meta.size_bytes)
+
+    {:ok, _pending} =
+      Saves.record_pending_upload(
+        scope.user.id,
+        device.id,
+        command_id,
+        meta.sha256,
+        meta.size_bytes
+      )
 
     attrs =
       %{
@@ -47,7 +56,8 @@ defmodule Playstead.SavesLineageScopingTest do
 
       # Two different content_keys => two different save lines for the
       # same user (D-10 identity tuple).
-      {:ok, line_a_revision} = commit!(scope, device, content_key(), :crypto.strong_rand_bytes(64))
+      {:ok, line_a_revision} =
+        commit!(scope, device, content_key(), :crypto.strong_rand_bytes(64))
 
       assert {:error, {:save_parent_unknown, _detail}} =
                commit!(scope, device, content_key(), :crypto.strong_rand_bytes(64),
@@ -63,7 +73,9 @@ defmodule Playstead.SavesLineageScopingTest do
       {:ok, root} = commit!(scope, device, key, :crypto.strong_rand_bytes(64))
 
       assert {:ok, child} =
-               commit!(scope, device, key, :crypto.strong_rand_bytes(64), parent_revision_id: root.id)
+               commit!(scope, device, key, :crypto.strong_rand_bytes(64),
+                 parent_revision_id: root.id
+               )
 
       assert child.parent_revision_id == root.id
       assert child.save_line_id == root.save_line_id
@@ -73,14 +85,18 @@ defmodule Playstead.SavesLineageScopingTest do
       scope = user_scope_fixture()
       %{device: device} = device_fixture(scope)
 
-      assert {:ok, revision} = commit!(scope, device, content_key(), :crypto.strong_rand_bytes(64))
+      assert {:ok, revision} =
+               commit!(scope, device, content_key(), :crypto.strong_rand_bytes(64))
+
       assert is_nil(revision.parent_revision_id)
     end
 
     test "a parent belonging to a different USER remains refused, as it is today" do
       scope_a = user_scope_fixture()
       %{device: device_a} = device_fixture(scope_a)
-      {:ok, other_users_revision} = commit!(scope_a, device_a, content_key(), :crypto.strong_rand_bytes(64))
+
+      {:ok, other_users_revision} =
+        commit!(scope_a, device_a, content_key(), :crypto.strong_rand_bytes(64))
 
       scope_b = user_scope_fixture()
       %{device: device_b} = device_fixture(scope_b)
@@ -95,8 +111,11 @@ defmodule Playstead.SavesLineageScopingTest do
       scope = user_scope_fixture()
       %{device: device} = device_fixture(scope)
 
-      {:ok, line_a_revision} = commit!(scope, device, content_key(), :crypto.strong_rand_bytes(64))
-      {:ok, line_b_revision} = commit!(scope, device, content_key(), :crypto.strong_rand_bytes(64))
+      {:ok, line_a_revision} =
+        commit!(scope, device, content_key(), :crypto.strong_rand_bytes(64))
+
+      {:ok, line_b_revision} =
+        commit!(scope, device, content_key(), :crypto.strong_rand_bytes(64))
 
       changeset =
         Revision.create_changeset(%Revision{}, %{
