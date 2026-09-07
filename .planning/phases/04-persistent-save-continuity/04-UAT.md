@@ -3,7 +3,7 @@ status: testing
 phase: 04-persistent-save-continuity
 source: [04-01-SUMMARY.md,04-02-SUMMARY.md 04-03-SUMMARY.md,04-04-SUMMARY.md 04-05-SUMMARY.md,04-06-SUMMARY.md 04-07-SUMMARY.md,04-08-SUMMARY.md 04-09-SUMMARY.md,04-10-SUMMARY.md 04-11-SUMMARY.md,04-12-SUMMARY.md 04-13-SUMMARY.md,04-14-SUMMARY.md 04-15-SUMMARY.md,04-16-SUMMARY.md 04-17-SUMMARY.md,04-18-SUMMARY.md 04-19-SUMMARY.md,04-20-SUMMARY.md 04-21-SUMMARY.md,04-22-SUMMARY.md 04-23-SUMMARY.md,04-24-SUMMARY.md 04-25-SUMMARY.md]
 started: 2026-09-04T00:00:00Z
-updated: 2026-09-06T19:45:00Z
+updated: 2026-09-06T22:40:00Z
 ---
 
 ## Current Test
@@ -1393,6 +1393,9 @@ blocked: 8
   test: 108
   title: /saves lists only diverged lines, so its stated purpose is unreachable
   severity: medium
+  status: FIXED 2026-09-06 in 33a3fc5 — index lists every line; decision framing is a
+    per-row flag in muted text, not a filter and not an accent pill. Three reachability
+    tests added and verified to fail against the old filter. mix precommit 1037/0.
   kind: reachability
   evidence:
     - lib/playstead_web/live/saves_live.ex:51-59  # filters all lines through needs_divergence_decision?/2
@@ -1489,6 +1492,12 @@ blocked: 8
   test: 117
   title: LiveServer.xctestplan selects 4 tests; the topology contract demands exactly 2
   severity: medium
+  status: OPEN — patch prepared, human application required. A sandbox guard blocked the
+    assistant from editing a CI contract file, which is the correct protection: a model
+    widening a gate so CI turns green is the failure mode worth preventing. The diff is at
+    .planning/phases/04-persistent-save-continuity/G-04-5-liveserver-contract.patch and
+    the recommendation is to apply it — the two save tests need a real server and cannot
+    be proven in a cheaper layer.
   kind: contract-drift
   evidence:
     - playstead-mac/scripts/ci/tests/four-layer-topology-test.sh:106
@@ -1511,6 +1520,10 @@ blocked: 8
   test: 117
   title: UI test profile can now construct a real KeychainStore, weakening the fail-closed guard
   severity: high
+  status: FIXED 2026-09-06 in a457028 — added APIClient.pairedForUITesting(_:) using the
+    existing .fixed credential source, and branched the convenience init explicitly so the
+    unpaired default stays the literal shape the contract greps for. Paired world state
+    preserved, Keychain path gone. Guard passes; Mac unit layer 583/0.
   kind: safety-invariant
   evidence:
     - playstead-mac/scripts/ci/tests/keychain-prompt-safety-test.sh:38
@@ -1528,10 +1541,16 @@ blocked: 8
     layer locally. The doc comment defending the change argues only that the path opens
     no network connection — true, and not what this guard asserts. It answers a different
     question than the one it appears to answer.
-  scope_note: |
-    Currently latent: a grep across PlaysteadUITests and the app finds no caller passing
-    `credential:`, so the parameter is unused today. No local UI run so far could have
-    reached the KeychainStore branch.
+  correction: |
+    An earlier revision of this gap called the parameter unused and the hazard latent.
+    That was wrong, and the error was mine: I grepped Playstead/App/UITestBootstrap.swift,
+    but the file is at Playstead/UITesting/UITestBootstrap.swift. The empty result read as
+    "no callers."
+
+    There is a caller. UITestBootstrap.swift:64 passes profile.uiTestingCredential, and
+    DeterministicProfile.swift:48 returns a real credential for .saveOnlyCopy — the
+    profile behind OnlyCopyInterruptionTests. The KeychainStore branch was live, in
+    exactly the suite a human would be asked to run locally.
   suggested_fix: |
     Remove the unused `credential:` parameter and restore the literal fail-closed form.
     If a future save-safety journey genuinely needs a seeded pairing credential, give it
