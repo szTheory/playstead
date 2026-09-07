@@ -121,6 +121,51 @@ final class ConflictResolutionInteractionTests: XCTestCase {
         XCTAssertTrue(app.buttons[ID.chooseR2].exists)
     }
 
+    // MARK: - TEMPORARY DIAGNOSTIC (G-04-2)
+    //
+    // testKeepBothIsReachableByKeyboardAndIsAPeerOfTheChoiceButtons fails
+    // deterministically (3/3) at :117: a result message renders, but it is
+    // the "choosing" string, so the space press activated a Choose button
+    // rather than Keep Both -- one line after the poll reported Keep Both
+    // holding focus.
+    //
+    // Rather than guess between "the poll lags the real first responder"
+    // and "tab order genuinely misplaces the activation target", this
+    // prints the actual focus owner after every Tab. Run it alone:
+    //
+    //   ./scripts/ci/run-mac-verification.sh --layers ui \
+    //     --only-testing PlaysteadUITests/ConflictResolutionInteractionTests/testDiagnosticTabOrder
+    //
+    // Then grep the output for PLAYSTEAD_TABORDER. Delete this test once
+    // G-04-2 has a fix.
+    func testDiagnosticTabOrder() {
+        let app = launchHarness()
+        let watched = [
+            ("chooseR1", ID.chooseR1), ("exportR1", ID.exportR1),
+            ("chooseR2", ID.chooseR2), ("exportR2", ID.exportR2),
+            ("keepBoth", ID.keepBoth), ("done", ID.done),
+        ]
+
+        func focusOwners() -> [String] {
+            watched.compactMap { name, id in
+                let button = app.buttons[id]
+                guard button.exists,
+                      button.value(forKey: "hasKeyboardFocus") as? Bool == true
+                else { return nil }
+                return name
+            }
+        }
+
+        print("PLAYSTEAD_TABORDER step=0 (at launch) focused=\(focusOwners())")
+        for step in 1...14 {
+            app.typeKey(.tab, modifierFlags: [])
+            print("PLAYSTEAD_TABORDER step=\(step) focused=\(focusOwners())")
+        }
+
+        // Deliberately never fails: this exists to be read, not to gate.
+        XCTAssertTrue(true)
+    }
+
     // MARK: - Export is independently reachable by keyboard
 
     func testExportActionIsReachableByKeyboardOnBothSides() {
