@@ -1561,6 +1561,16 @@ blocked: 6
 - gap_id: G-04-3
   test: 109
   title: Phase 4's entire UI layer has never run in CI; 154 commits unpushed
+  resolved: |
+    RESOLVED 2026-09-07. CI run 34082159625 executed 111 UI tests on the hosted runner —
+    the deferral 04-11/04-12/04-18 each recorded honestly is finally redeemed. It found
+    5 real failures on that first execution, in three separate suites, none of which any
+    of 583 unit tests or any rendering test could see. The deferral was hiding defects,
+    not paperwork.
+
+    The standing lesson (honest-deferrals-expire-silently) holds: every one of these was
+    correctly recorded as deferred, and correct recording did nothing to stop the rot.
+    What stopped it was executing the tests.
   severity: high
   kind: verification-integrity
   evidence:
@@ -1760,7 +1770,34 @@ blocked: 6
     - playstead-mac/Playstead/Saves/OnlyCopyInterruptiveSheet.swift
     - playstead-mac/Playstead/Design/FocusRing.swift
     - playstead-mac/PlaysteadUITests/OnlyCopyInterruptionTests.swift
-  status: (A) FIXED in 9613a79 with a well-founded cause. (B) FIXED but NOT VERIFIED —
+  ci_first_run: |
+    2026-09-07, CI run 34082159625 — the hosted runner executed 111 UI tests. This is
+    the first time this phase's UI layer has ever run in CI, and it closes the deferral
+    that G-04-3 recorded. 5 failures.
+
+    (A) CONFIRMED FIXED. The harness's result, no-modal and revisions-remaining Texts
+    are addressable and their tests pass.
+
+    (B) NOT FIXED by `.focusSection()`. Export still does not hold focus — and it failed
+    in SaveFrontDoorJourneyTests:115 as well, which drives the real modal presented from
+    Storage, so the defect is in the sheet and not in the harness. Nothing in this app
+    proves `.defaultFocus` ever lands anywhere. The sheet now sets focus directly with
+    .onAppear in addition, because D-40's contract should not rest on a modifier not
+    observed to fire. Pushed in 2bead02; unverified until the next CI run.
+
+    Instrumentation failure of my own: the previous round's `focus is on [...]` message
+    never reached the artifact, because the evidence sanitizer strips assertion messages
+    and keeps only file:line. The check is now four assertions on four separate lines
+    (nothing focused / cancel took it / the destructive button took it / something else
+    did), so the line number alone carries the diagnosis through sanitization. A
+    diagnostic has to survive the evidence pipeline, not just run.
+
+    Third failure, SaveFrontDoorJourneyTests:152, was a wrong assumption in the test
+    rather than a missing badge: GameCardView deliberately collapses to a single element
+    (`children: .ignore`) and composes the status sentence into its own label — better
+    for a screen reader than three separate stops. The test now proves D-38's rung
+    through the card's composed accessible name.
+  status: (A) CONFIRMED FIXED by CI run 34082159625. (B) FIXED AGAIN but NOT VERIFIED —
     the focus half is reasoned from the comparison sheet's precedent, not observed. The
     three focus assertions now report which element actually owns focus when they fail,
     so the next UI-layer run resolves it either way rather than costing another
@@ -1790,6 +1827,40 @@ blocked: 6
     now matches either attribute. CurationInteractionTests:300 uses the same predicate
     shape but matches GameCardView, which sets an explicit label under
     `children: .ignore`, so it is correct as written and was left alone.
+
+- gap_id: G-04-9
+  test: 110
+  title: The evidence sanitizer rejects the reachability sweep's summary, truncating failure evidence
+  severity: medium
+  kind: verification-integrity
+  found_by: |
+    Debugging G-04-8 from CI evidence. The failure artifact contained only three files;
+    the per-layer test evidence I needed was missing.
+  triage_result: |
+    sanitize-evidence.sh validates every `*-tests.json` in the evidence directory
+    against the xctest-layer schema. 04-18 promoted the reachability sweep to a real
+    layer, and it writes a static-sweep summary — layer/kind/outcome/exit_status — into
+    that same directory under that same filename pattern. The validator matched it by
+    filename, found a shape it did not recognise, and raised. Sanitization aborts on
+    first rejection, so every failing run silently uploaded truncated evidence.
+
+    Blast radius is bounded: the sanitizer runs only when the aggregate has already
+    failed (run-mac-verification.sh:1322), so this never turned a green run red. What it
+    did was degrade the evidence for exactly the runs where evidence matters most.
+
+    Another unowned seam between plans, in the shape recorded in
+    seams-between-plans-go-unowned: 04-18 added a new artifact to a directory owned by
+    an earlier plan's contract, and nothing asserted the two still agreed.
+  fix: |
+    The sanitizer recognises the sweep's own shape and validates it on its own terms.
+    Four new checks in sanitizer-test.sh: one positive (the sweep's real shape is
+    accepted and reaches the output) and three negative — the static-sweep marker must
+    not become a bypass for an arbitrary extra key, an uninterpretable outcome, or real
+    xctest evidence. Guard count 29 -> 34.
+  negative_control: |
+    PERFORMED. With the sanitizer fix reverted, reachability_sweep_accepted fails and
+    the guards go red; restored, all 34 pass. The new checks bite.
+  status: FIXED in 2bead02, with a negative control. Verified by the guard suite.
 
 ## Standing Non-Gap Notes
 
