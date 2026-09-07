@@ -166,6 +166,60 @@ final class ConflictResolutionInteractionTests: XCTestCase {
         XCTAssertTrue(true)
     }
 
+    // MARK: - TEMPORARY DIAGNOSTIC 2 (G-04-2)
+    //
+    // testDiagnosticTabOrder proved the tab order is correct and stable:
+    // chooseR1, exportR1, chooseR2, exportR2, (disclosure), (disclosure),
+    // keepBoth, done -- a clean cycle of 8 with keepBoth at step 6. So the
+    // failure is NOT a misordered focus chain.
+    //
+    // This replays the failing test's exact sequence and prints what
+    // actually happens at the moment of activation: how many tabs it took,
+    // who holds focus immediately before the space press, and the verbatim
+    // result label afterwards. Run it alone and grep PLAYSTEAD_ACTIVATE.
+    func testDiagnosticKeepBothActivation() {
+        let app = launchHarness()
+        let watched = [
+            ("chooseR1", ID.chooseR1), ("exportR1", ID.exportR1),
+            ("chooseR2", ID.chooseR2), ("exportR2", ID.exportR2),
+            ("keepBoth", ID.keepBoth), ("done", ID.done),
+        ]
+
+        func focusOwners() -> [String] {
+            watched.compactMap { name, id in
+                let button = app.buttons[id]
+                guard button.exists,
+                      button.value(forKey: "hasKeyboardFocus") as? Bool == true
+                else { return nil }
+                return name
+            }
+        }
+
+        var tabs = 0
+        for step in 1...40 {
+            app.typeKey(.tab, modifierFlags: [])
+            if app.buttons[ID.keepBoth].value(forKey: "hasKeyboardFocus") as? Bool == true {
+                tabs = step
+                break
+            }
+        }
+        print("PLAYSTEAD_ACTIVATE tabsToReachKeepBoth=\(tabs)")
+        print("PLAYSTEAD_ACTIVATE focusJustBeforeSpace=\(focusOwners())")
+
+        app.typeKey(.space, modifierFlags: [])
+
+        let result = app.staticTexts[ID.result]
+        let appeared = result.waitForExistence(timeout: 5)
+        print("PLAYSTEAD_ACTIVATE resultExists=\(appeared)")
+        print("PLAYSTEAD_ACTIVATE resultLabel=>>>\(appeared ? result.label : "<none>")<<<")
+        print("PLAYSTEAD_ACTIVATE focusAfterSpace=\(focusOwners())")
+        print("PLAYSTEAD_ACTIVATE chosenR1Exists=\(app.staticTexts[ID.chosenR1].exists)")
+        print("PLAYSTEAD_ACTIVATE chooseR1StillAButton=\(app.buttons[ID.chooseR1].exists)")
+        print("PLAYSTEAD_ACTIVATE chooseR2StillAButton=\(app.buttons[ID.chooseR2].exists)")
+
+        XCTAssertTrue(true)
+    }
+
     // MARK: - Export is independently reachable by keyboard
 
     func testExportActionIsReachableByKeyboardOnBothSides() {
