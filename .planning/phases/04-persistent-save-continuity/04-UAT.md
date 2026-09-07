@@ -3,7 +3,7 @@ status: testing
 phase: 04-persistent-save-continuity
 source: [04-01-SUMMARY.md,04-02-SUMMARY.md 04-03-SUMMARY.md,04-04-SUMMARY.md 04-05-SUMMARY.md,04-06-SUMMARY.md 04-07-SUMMARY.md,04-08-SUMMARY.md 04-09-SUMMARY.md,04-10-SUMMARY.md 04-11-SUMMARY.md,04-12-SUMMARY.md 04-13-SUMMARY.md,04-14-SUMMARY.md 04-15-SUMMARY.md,04-16-SUMMARY.md 04-17-SUMMARY.md,04-18-SUMMARY.md 04-19-SUMMARY.md,04-20-SUMMARY.md 04-21-SUMMARY.md,04-22-SUMMARY.md 04-23-SUMMARY.md,04-24-SUMMARY.md 04-25-SUMMARY.md]
 started: 2026-09-04T00:00:00Z
-updated: 2026-09-07T03:10:00Z
+updated: 2026-09-07T03:40:00Z
 ---
 
 ## Current Test
@@ -1493,7 +1493,10 @@ blocked: 8
   test: 117
   title: LiveServer.xctestplan selects 4 tests; the topology contract demands exactly 2
   severity: medium
-  status: OPEN — the sole remaining CI failure. Hosted run 34077469940 reduced the
+  status: APPLIED 2026-09-06 by the user (82f1c84) via
+    .planning/phases/04-persistent-save-continuity/apply-G-04-5.py. Applying it unmasked
+    G-04-7, a second failing assertion in the same guard that the LiveServer failure had
+    been hiding. Previously: the sole visible CI failure. Hosted run 34077469940 reduced the
     macOS job to exactly this one guard; every other contract passes, including the
     keychain-prompt-safety guard G-04-6 fixed. Patch prepared, human application required. A sandbox guard blocked the
     assistant from editing a CI contract file, which is the correct protection: a model
@@ -1559,6 +1562,39 @@ blocked: 8
     If a future save-safety journey genuinely needs a seeded pairing credential, give it
     a synthetic credential source that cannot reach KeychainStore, and widen the contract
     deliberately rather than by parameter default.
+
+- gap_id: G-04-7
+  test: 117
+  title: The reclaim-ordering guard truncates the button body at the first brace
+  severity: medium
+  kind: guard-parsing
+  status: OPEN — apply script prepared, human application required (same sandbox block as
+    G-04-5). .planning/phases/04-persistent-save-continuity/apply-G-04-7.py
+  evidence:
+    - playstead-mac/scripts/ci/tests/four-layer-topology-test.sh:431
+    - playstead-mac/Playstead/Library/ReclaimPromptView.swift:136-149
+    - playstead-mac/Playstead/Library/StorageView.swift:181-
+  summary: |
+    The guard extracts the "Reclaim selected" body with
+    `source.split('}', 1)[0]`, which stops at the first closing brace. Phase 4 added the
+    only-copy interruption gate to that body, and its `candidates.filter { ... }` closure
+    now closes a brace before any marker the guard looks for. The body is truncated to two
+    lines, so the guard reports a violation that does not exist.
+  not_a_product_defect: |
+    Verified by reading the full body: ReclaimPromptView.swift:137, :147, :148 still do
+    `let selection = selected`, `selected.removeAll()`, `onReclaim(selection)` in that
+    order — exactly what the guard asserts. The interruption branch deliberately defers
+    the clear to the sheet's resolution, which is the intended interruptive behaviour.
+  suggested_fix: |
+    Replace the split with real brace matching so the guard reads the whole body. This
+    restores the original assertion rather than relaxing it; the apply script prints a
+    negative control (swap removeAll and onReclaim, confirm the guard fails) so the check
+    is proven to still bite before being trusted.
+  note: |
+    Third guard in this phase to fail on well-formed code (with G-04-5, and the
+    ripgrep-exit-127 case in playstead-ci-gates-rot-unnoticed). The common shape is a
+    guard parsing source with naive string operations. Worth a sweep of the remaining
+    contracts for `.split(` on Swift source before the phase closes.
 
 ## Standing Non-Gap Notes
 
