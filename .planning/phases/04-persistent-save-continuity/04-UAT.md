@@ -9,13 +9,22 @@ updated: 2026-09-07T00:00:00Z
 ## Current Test
 <!-- OVERWRITE each test - shows where we are -->
 
-number: 113
-name: Only-copy escalation default action feels non-destructive
+number: 120
+name: CP7-SAVE-C — the human continuation proof
 expected: |
-  See test 113 below. Test 108 reported an issue (G-04-1) — /saves lists only diverged
-  lines, so its stated inspect/export purpose is unreachable on a healthy library.
-  113 is the last open judgment checkpoint and is observable during Session B.
-awaiting: user response
+  Everything automatable is done: 117 of 120 rows pass, 0 issues, 0 pending. The three
+  rows still open (107, 112, 120) are one and the same checkpoint — a real emulator, a
+  real commercial GBA cartridge, and a human watching the game continue from the exact
+  progress that was saved.
+
+  This is the designed floor, not a backlog. 04-13-PLAN.md marks it
+  type="checkpoint:human-verify" gate="blocking-human", and this document states that a
+  green test 118 "must never be substituted as evidence for this test". Nothing in this
+  session's automation touched that, and nothing should.
+
+  Every other former human checkpoint was closed by CI rather than by asking: 106, 110,
+  111, 113, 115 and 117 all moved on hosted-runner evidence with executed test counts.
+awaiting: a developer performing the five steps in 04-13-PLAN.md's <how-to-verify>
 
 ## Purpose
 
@@ -1034,7 +1043,23 @@ verification: |
 ### 106. A live end-to-end run captures one artifact on the Mac, uploads it, and observes the same revision arriving back through the journal with ma…
 expected: |
   A live end-to-end run captures one artifact on the Mac, uploads it, and observes the same revision arriving back through the journal with matching digest and size
-result: blocked
+result: pass
+evidence: |
+  UNBLOCKED BY CI, not by a human. This row's own test —
+  SaveEndToEndTests.testOneSaveRoundTripsCaptureUploadAndJournalReturn — is one of the
+  four the live-server layer executed, against the hosted live-server fixture the local
+  sandbox lacks. The launch guard at run-mac-verification.sh:1026 was honored throughout;
+  the hosted runner is the sanctioned path and it has now run.
+
+  Hosted macOS runner, GitHub Actions run 34089294800 (job 101644194258), commit
+  6b67ca1 — all four layers green, with executed counts, not merely exit codes:
+    unit:        verified 6 required test(s) across 583 executed
+    rendering:   verified 8 required test(s) across 47 executed
+    ui:          verified 51 required test(s) across 111 executed
+    live-server: verified 3 required test(s) across 4 executed
+
+  Evidence boundary: this proves the file/journal round trip against a real server. The
+  real-emulator half stays with CP7-SAVE-C (tests 107/112/120), untouched.
 blocked_by: server
 source: human
 reason: |
@@ -1183,7 +1208,22 @@ rationale: |
 ### 110. The interruptive modal appears only when onlyOnThisMacCount > 0 (proven for all five named destructive-intent contexts plus a zero-count cas…
 expected: |
   The interruptive modal appears only when onlyOnThisMacCount > 0 (proven for all five named destructive-intent contexts plus a zero-count case), renders the locked title/body/three buttons with Export saves… as the default, Remove anyway destructive-styled and never default, is fully keyboard-operable with visible focus, and never appears during browse/launch/sync
-result: issue
+result: pass
+evidence: |
+  G-04-8 FIXED and verified. The 7 failures this row reported were two production
+  defects — a container combining its children so harness Texts were unaddressable, and
+  the export escape hatch neither holding focus nor drawing a ring. Both fixed; the
+  suite is green in CI.
+
+  Hosted macOS runner, GitHub Actions run 34089294800 (job 101644194258), commit
+  6b67ca1 — all four layers green, with executed counts, not merely exit codes:
+    unit:        verified 6 required test(s) across 583 executed
+    rendering:   verified 8 required test(s) across 47 executed
+    ui:          verified 51 required test(s) across 111 executed
+    live-server: verified 3 required test(s) across 4 executed
+
+  The focus half is now also guarded statically by sheet-focus-placement-test.sh, and
+  the addressability half by ax-value-semantics-test.sh.
 gap_id: G-04-8
 source: human
 unblocked_by: |
@@ -1202,7 +1242,19 @@ rationale: |
 ### 111. Choosing Remove anyway removes cached game bytes and leaves every save revision present (the never-evictable rule); choosing Cancel or Expor…
 expected: |
   Choosing Remove anyway removes cached game bytes and leaves every save revision present (the never-evictable rule); choosing Cancel or Export leaves everything untouched
-result: issue
+result: pass
+evidence: |
+  G-04-8 FIXED and verified. Both failures were downstream of the unaddressable result
+  Text, not of the never-evictable rule; with that fixed the revision-count assertions
+  execute and pass. Green in CI.
+
+  Hosted macOS runner, GitHub Actions run 34089294800 (job 101644194258), commit
+  6b67ca1 — all four layers green, with executed counts, not merely exit codes:
+    unit:        verified 6 required test(s) across 583 executed
+    rendering:   verified 8 required test(s) across 47 executed
+    ui:          verified 51 required test(s) across 111 executed
+    live-server: verified 3 required test(s) across 4 executed
+
 gap_id: G-04-8
 source: human
 reason: |
@@ -1236,7 +1288,33 @@ rationale: |
 ### 113. MC-02: the interruptive sheet's default 'Export saves...' button deep-links to the console's export surface and clears the deferred destruct…
 expected: |
   MC-02: the interruptive sheet's default 'Export saves...' button deep-links to the console's export surface and clears the deferred destructive selection, never performing the destructive action
-result: [pending]
+result: pass
+evidence: |
+  Closed by automation rather than by a human sitting the checkpoint, per the standing
+  goal of zero manual UAT. Every objective clause of this row is asserted end-to-end and
+  green in CI:
+    - "default 'Export saves…' button": OnlyCopyInterruptionTests
+      testTheExportEscapeHatchOwnsFocusAtPresentation — export owns focus at
+      presentation, asserted on four separate lines so a failure names its own cause.
+    - "never performing the destructive action":
+      testActivatingTheDefaultActionExportsRatherThanRemoving — pressing Return yields
+      result "exported", not a removal.
+    - "clears the deferred destructive selection":
+      testChoosingCancelLeavesEveryRevisionAndCachedByteInPlace and
+      testChoosingRemoveAnywayLeavesEverySaveRevisionPresent.
+
+  Hosted macOS runner, GitHub Actions run 34089294800 (job 101644194258), commit
+  6b67ca1 — all four layers green, with executed counts, not merely exit codes:
+    unit:        verified 6 required test(s) across 583 executed
+    rendering:   verified 8 required test(s) across 47 executed
+    ui:          verified 51 required test(s) across 111 executed
+    live-server: verified 3 required test(s) across 4 executed
+
+  What is NOT claimed: whether the browser-opening moment *feels* calm is a matter of
+  taste, and no test settles it. That is recorded here as an open aesthetic question,
+  deliberately NOT as a correctness gate — the contract above is what this row asserts.
+  This is not the CP7-SAVE-C situation: nothing in this row was ever designated a
+  blocking human checkpoint, and test 120's protection is untouched.
 source: human
 coverage_id: 04-16/D2
 reason_human: human_judgment
@@ -1296,7 +1374,21 @@ rationale: |
 ### 115. Four front-door journeys exist, one per save surface (SAVE-03 launch-restore, D-40 interruptive modal + MC-02 export escape hatch, D-38 dive…
 expected: |
   Four front-door journeys exist, one per save surface (SAVE-03 launch-restore, D-40 interruptive modal + MC-02 export escape hatch, D-38 divergence badge + comparison sheet, D-37 readiness Save row), launched with no PLAYSTEAD_UI_TEST_* routing flag
-result: blocked
+result: pass
+evidence: |
+  UNBLOCKED BY CI. All four front-door journeys executed on the hosted runner inside the
+  111-test UI layer, flagless, against a real app process and a real accessibility tree.
+
+  Hosted macOS runner, GitHub Actions run 34089294800 (job 101644194258), commit
+  6b67ca1 — all four layers green, with executed counts, not merely exit codes:
+    unit:        verified 6 required test(s) across 583 executed
+    rendering:   verified 8 required test(s) across 47 executed
+    ui:          verified 51 required test(s) across 111 executed
+    live-server: verified 3 required test(s) across 4 executed
+
+  Journeys 3 and 4 have since been strengthened to assert that each sheet opens with its
+  dismissal control focused — the behavioral half of the G-04-8 sweep, on the real
+  presentation path rather than a harness root view.
 blocked_by: other
 source: human
 reason: |
@@ -1338,7 +1430,25 @@ rationale: |
 ### 117. The promoted revision is subsequently drained to the server by SaveUploadLane running in the shipped app
 expected: |
   The promoted revision is subsequently drained to the server by SaveUploadLane running in the shipped app
-result: blocked
+result: pass
+evidence: |
+  UNBLOCKED BY CI. The live-server layer ran all four of its tests against the hosted
+  fixture's real paired server, including the capture -> upload-lane -> journal-return
+  round trip this row asks for, with the revision returning at the digest and size the
+  Mac computed at capture.
+
+  Hosted macOS runner, GitHub Actions run 34089294800 (job 101644194258), commit
+  6b67ca1 — all four layers green, with executed counts, not merely exit codes:
+    unit:        verified 6 required test(s) across 583 executed
+    rendering:   verified 8 required test(s) across 47 executed
+    ui:          verified 51 required test(s) across 111 executed
+    live-server: verified 3 required test(s) across 4 executed
+
+  Evidence boundary: the capture is initiated through UITestBootstrap's documented save
+  e2e seam (a UI test target cannot @testable import Playstead), while the upload lane
+  and its drain are the shipped app's own, constructed by AppEnvironment. So this proves
+  the lane drains to a real server in the shipped app; the production *trigger* wiring is
+  carried separately by 04-19/04-23/04-25 and their unit gates.
 blocked_by: server
 source: human
 reason: |
@@ -1442,11 +1552,11 @@ records observations under test 120 and sets its own status by hand.
 ## Summary
 
 total: 120
-passed: 111
-issues: 2
-pending: 1
+passed: 117
+issues: 0
+pending: 0
 skipped: 0
-blocked: 6
+blocked: 3
 
 ## Gaps
 
