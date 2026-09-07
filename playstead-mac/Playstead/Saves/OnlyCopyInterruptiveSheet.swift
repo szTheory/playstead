@@ -97,8 +97,23 @@ struct OnlyCopyInterruptiveSheet: View {
         // this app proves it lands. D-40's contract -- the easiest button is the
         // one that saves the user's progress -- is too important to rest on a
         // modifier that is not observed to fire, so state it directly as well.
-        .onAppear { exportHasFocus = true }
+        //
+        // Setting it in `onAppear` fixed the harness, where this sheet is the
+        // root view, but not the real modal, which arrives through `.sheet` --
+        // that window is not yet key when `onAppear` runs, so the focus is
+        // discarded. Hop one runloop first, mirroring
+        // CollectionDetailView.restoreMemberListFocus(), which is the one
+        // focus-placement pattern in this app observed to work in CI.
+        .onAppear { focusTheEscapeHatch() }
         .onExitCommand(perform: onCancel)
+    }
+
+    /// D-40: the safe escape hatch owns focus the moment this modal appears.
+    private func focusTheEscapeHatch() {
+        Task { @MainActor in
+            await Task.yield()
+            exportHasFocus = true
+        }
     }
 }
 

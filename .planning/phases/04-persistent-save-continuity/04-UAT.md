@@ -1814,7 +1814,28 @@ blocked: 6
     (`children: .ignore`) and composes the status sentence into its own label — better
     for a screen reader than three separate stops. The test now proves D-38's rung
     through the card's composed accessible name.
-  status: (A) CONFIRMED FIXED by CI run 34082159625. (B) FIXED AGAIN but NOT VERIFIED —
+  ci_second_run: |
+    CI run 34085607449 (macOS job 101629176081): 5 failures -> 1. unit PASSED,
+    rendering PASSED, live-server PASSED, ui 110/111.
+
+    CONFIRMED FIXED: all three OnlyCopyInterruptionTests focus failures, and the
+    GameCardView composed-label assertion. G-04-9 confirmed too — no schema rejection,
+    so the failure evidence is whole again.
+
+    STILL FAILING: SaveFrontDoorJourneyTests:115 only — export focus in the real modal,
+    the one presented through `.sheet` from Storage. The split is the diagnosis: focus
+    now lands when the sheet is a root view (the harness) but not when it arrives as a
+    real sheet, whose window is not yet key while `onAppear` runs, so the focus is set
+    and then discarded.
+
+    Fixed by hopping one runloop before placing focus, mirroring
+    CollectionDetailView.restoreMemberListFocus() — the one focus-placement pattern in
+    this app observed to pass in CI, rather than another invention. The assertion at
+    :115 is now four assertions on four lines, so if this is still wrong the line
+    number says whether focus is absent, on cancel, on the destructive button, or
+    elsewhere.
+  status: (A) CONFIRMED FIXED by CI run 34082159625. (B) harness half CONFIRMED FIXED by
+    run 34085607449; the `.sheet` presentation half is fixed but NOT VERIFIED —
     the focus half is reasoned from the comparison sheet's precedent, not observed. The
     three focus assertions now report which element actually owns focus when they fail,
     so the next UI-layer run resolves it either way rather than costing another

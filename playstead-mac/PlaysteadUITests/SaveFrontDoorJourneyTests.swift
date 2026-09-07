@@ -112,8 +112,27 @@ final class SaveFrontDoorJourneyTests: XCTestCase {
 
         let export = harness.element("playstead.save.only-copy-interruptive.export", type: .button)
         XCTAssertTrue(export.waitForExistence(timeout: 5))
+        // One assertion per hypothesis, on its own line: the CI evidence
+        // sanitizer keeps file:line and discards the message, so the line number
+        // has to carry the diagnosis by itself.
+        func owns(_ element: XCUIElement) -> Bool {
+            element.value(forKey: "hasKeyboardFocus") as? Bool == true
+        }
+        let cancel = harness.element("playstead.save.only-copy-interruptive.cancel", type: .button)
+        let removeAnyway = harness.element("playstead.save.only-copy-interruptive.remove-anyway", type: .button)
+
+        // Fails here => focus was never placed in the presented sheet at all.
         XCTAssertTrue(
-            export.value(forKey: "hasKeyboardFocus") as? Bool == true,
+            harness.app.buttons.allElementsBoundByIndex.contains(where: owns),
+            "no button owns focus in the presented modal"
+        )
+        // Fails here => cancel took the focus that belongs to the escape hatch.
+        XCTAssertFalse(owns(cancel), "cancel owns focus in the presented modal")
+        // Fails here => the destructive button is default-focused: a D-40 violation.
+        XCTAssertFalse(owns(removeAnyway), "the destructive button owns focus")
+        // Fails here => focus landed on some other element entirely.
+        XCTAssertTrue(
+            owns(export),
             "the safe escape hatch ('Export saves…') must be the default-focused button, never the destructive one"
         )
         export.typeKey(.space, modifierFlags: [])
