@@ -59,7 +59,12 @@ final class SaveFrontDoorJourneyTests: XCTestCase {
         play.click()
 
         let lastExit = harness.app.staticTexts
-            .matching(NSPredicate(format: "label BEGINSWITH %@", "Last exit:"))
+            // GameRowView renders this as a bare Text inside a
+            // `.accessibilityElement(children: .contain)` container, so macOS
+            // carries the string in AXValue and `label` is empty (G-04-2).
+            // Match either attribute so the query cannot silently never fire.
+            .matching(NSPredicate(format: "label BEGINSWITH %@ OR value BEGINSWITH %@",
+                                  "Last exit:", "Last exit:"))
             .firstMatch
         XCTAssertTrue(
             lastExit.waitForExistence(timeout: 15),

@@ -1703,6 +1703,13 @@ blocked: 6
     ripgrep-exit-127 case in playstead-ci-gates-rot-unnoticed). The common shape is a
     guard parsing source with naive string operations. Worth a sweep of the remaining
     contracts for `.split(` on Swift source before the phase closes.
+  negative_control: |
+    PERFORMED 2026-09-07. Swapped `selected.removeAll()` and `onReclaim(...)` in
+    ReclaimPromptView.swift and re-ran the guards: they failed with "ReclaimPromptView
+    .swift: reclaim must snapshot, clear stale selection, then invoke its effect", then
+    passed again once the file was restored (git diff clean). The guard bites on the
+    defect it claims to catch — it is not fail-open, which is the specific rot mode
+    recorded in playstead-ci-gates-rot-unnoticed.
 
 - gap_id: G-04-8
   test: 110
@@ -1756,6 +1763,26 @@ blocked: 6
     Both halves were invisible to 583 passing unit tests and to every rendering test.
     They are only observable in a hosted window. This is the third time in this phase
     that first-ever execution of a deferred UI test found a real defect — see G-04-3.
+  sweep: |
+    Swept the whole tree for both shapes rather than fixing only what failed.
+
+    Containment: a detector for "accessibility modifier applied to a container with no
+    `.accessibilityElement(children:)` nearby" was validated against the known-bad
+    original (it flags exactly the two OnlyCopy harness roots and nothing else) and
+    then run over the fixed tree, which is clean. No third instance exists.
+
+    Label-vs-value: no `.label` reads on static texts remain anywhere in the UI test
+    target. The reads that survive (LiveServerSnapshot, StorageInteraction, Curation,
+    SaveFrontDoorJourney's summary/badge/saveRow) are all on containers that set an
+    explicit `.accessibilityLabel`, where `label` is the correct attribute.
+
+    One further instance was found and fixed by the sweep, in a suite that has also
+    never run: SaveFrontDoorJourneyTests matched `label BEGINSWITH "Last exit:"` on
+    static texts, but GameRowView:109 renders that as a bare Text inside a `.contain`
+    container, so the string lives in AXValue and the predicate could never fire. It
+    now matches either attribute. CurationInteractionTests:300 uses the same predicate
+    shape but matches GameCardView, which sets an explicit label under
+    `children: .ignore`, so it is correct as written and was left alone.
 
 ## Standing Non-Gap Notes
 
