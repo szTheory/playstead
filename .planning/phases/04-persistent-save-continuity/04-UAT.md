@@ -1060,8 +1060,15 @@ rationale: |
 ### 108. The console can inspect, choose, keep both, and export a diverged save line at /saves and /saves/:id — exactly four facts per side, digest b…
 expected: |
   The console can inspect, choose, keep both, and export a diverged save line at /saves and /saves/:id — exactly four facts per side, digest behind Details only, no confirmation dialog, no Undo, no recommended/pre-selected side, no bulk always-use-this-Mac control, all asserted absent by test
-result: issue
+result: pass
 gap_id: G-04-1
+closed: |
+  Fixed in 33a3fc5 and proven by three reachability tests that were verified to fail
+  against the old diverged-only filter (mix precommit 1037/0). The running dev
+  container was rebuilt on 2026-09-07 — it had been built at 14:27Z, before the 02:47Z
+  fix, so the deployed page still served the old copy. Same stale-image trap that
+  produced this phase's original /saves 404: a green test tree says nothing about what
+  the running container is serving.
 source: human
 coverage_id: 04-10/D4
 reason_human: human_judgment
@@ -1435,8 +1442,8 @@ records observations under test 120 and sets its own status by hand.
 ## Summary
 
 total: 120
-passed: 110
-issues: 3
+passed: 111
+issues: 2
 pending: 1
 skipped: 0
 blocked: 6
