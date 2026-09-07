@@ -60,6 +60,23 @@ final class OnlyCopyInterruptionTests: XCTestCase {
         return app
     }
 
+    /// Reports which actionable elements actually own focus, so a focus
+    /// assertion that fails says where focus went instead of only that it was
+    /// not here.
+    private func focusReport(_ app: XCUIApplication) -> String {
+        let focused = app.buttons.allElementsBoundByIndex
+            .filter { $0.value(forKey: "hasKeyboardFocus") as? Bool == true }
+            .map(\.identifier)
+        return focused.isEmpty ? "nothing owns keyboard focus" : "focus is on \(focused)"
+    }
+
+    private func assertExportOwnsFocus(_ app: XCUIApplication, _ moment: String) {
+        XCTAssertTrue(
+            app.buttons[ID.export].value(forKey: "hasKeyboardFocus") as? Bool == true,
+            "the export escape hatch must own focus \(moment) -- \(focusReport(app))"
+        )
+    }
+
     // MARK: - The five destructive-intent points all reach the same modal
 
     func testRemovingLocalCopyWithOnlyOnThisMacVersionsRaisesTheModal() {
@@ -106,14 +123,14 @@ final class OnlyCopyInterruptionTests: XCTestCase {
         XCTAssertTrue(app.buttons[ID.removeAnyway].exists)
         // The default is focused at presentation (D-40's easiest button
         // is the one that saves the user's progress).
-        XCTAssertTrue(app.buttons[ID.export].value(forKey: "hasKeyboardFocus") as? Bool == true)
+        assertExportOwnsFocus(app, "at presentation")
     }
 
     // MARK: - Activating the default does not perform the destructive action
 
     func testActivatingTheDefaultActionExportsRatherThanRemoving() {
         let app = launchHarness(context: "remove_local_copy")
-        XCTAssertTrue(app.buttons[ID.export].value(forKey: "hasKeyboardFocus") as? Bool == true)
+        assertExportOwnsFocus(app, "before activating the default")
         app.typeKey(.return, modifierFlags: [])
         XCTAssertTrue(app.staticTexts[ID.result].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts[ID.result].readableText, "exported")
@@ -146,7 +163,7 @@ final class OnlyCopyInterruptionTests: XCTestCase {
 
     func testModalIsOperableEntirelyByKeyboardWithVisibleFocus() {
         let app = launchHarness(context: "remove_local_copy")
-        XCTAssertTrue(app.buttons[ID.export].value(forKey: "hasKeyboardFocus") as? Bool == true)
+        assertExportOwnsFocus(app, "when the modal is driven by keyboard alone")
 
         var reachedRemoveAnyway = false
         for _ in 0..<10 {

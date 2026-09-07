@@ -36,9 +36,37 @@ private struct PlaysteadFocusableModifier: ViewModifier {
     }
 }
 
+/// The same treatment for a control whose focus state is owned by its parent
+/// (a `.defaultFocus` target, say), which cannot use the self-owned modifier
+/// above without losing the binding the parent drives.
+private struct PlaysteadBoundFocusableModifier: ViewModifier {
+    let identifier: String
+    @FocusState.Binding var ownsFocus: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .focused($ownsFocus)
+            .accessibilityIdentifier(identifier)
+            .overlay {
+                RoundedRectangle(cornerRadius: PlaysteadFocusRing.cornerRadius)
+                    .stroke(PlaysteadFocusRing.color, lineWidth: PlaysteadFocusRing.lineWidth)
+                    .opacity(PlaysteadFocusRing.opacity(isFocused: ownsFocus))
+                    .accessibilityHidden(true)
+                    .allowsHitTesting(false)
+            }
+    }
+}
+
 extension View {
     /// Adds stable identity, keyboard focus ownership, and the locked cyan ring.
     func playsteadFocusable(identifier: String) -> some View {
         modifier(PlaysteadFocusableModifier(identifier: identifier))
+    }
+
+    /// As above, for a control whose focus is driven by a parent-owned
+    /// `@FocusState` -- the ring is the same one, so a default action does not
+    /// silently lose its visible focus treatment.
+    func playsteadFocusable(identifier: String, focus: FocusState<Bool>.Binding) -> some View {
+        modifier(PlaysteadBoundFocusableModifier(identifier: identifier, ownsFocus: focus))
     }
 }

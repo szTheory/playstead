@@ -80,8 +80,7 @@ struct OnlyCopyInterruptiveSheet: View {
                 // that discards it.
                 Button(SaveVocabulary.dangerInterruptiveActionExport, action: onExport)
                     .keyboardShortcut(.defaultAction)
-                    .focused($exportHasFocus)
-                    .accessibilityIdentifier(Automation.export)
+                    .playsteadFocusable(identifier: Automation.export, focus: $exportHasFocus)
             }
         }
         .padding(DesignTokens.Spacing.lg)
@@ -91,6 +90,7 @@ struct OnlyCopyInterruptiveSheet: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(SaveVocabulary.dangerInterruptiveTitle) \(bodyText)")
         .accessibilityIdentifier(Automation.surface)
+        .focusSection()
         .defaultFocus($exportHasFocus, true)
         .onExitCommand(perform: onCancel)
     }
@@ -153,6 +153,12 @@ struct OnlyCopyInterruptionHarnessRootView: View {
                 .accessibilityIdentifier("playstead.harness.only-copy-interruption.revisions-remaining")
         }
         .frame(minWidth: 640, minHeight: 420)
+        // An accessibility modifier on a container makes SwiftUI combine its
+        // children into one element. Without `children: .contain` the harness's
+        // own Texts (no-modal, result, revisions-remaining) are swallowed by
+        // this VStack and no test can address them. The sheet below survives
+        // only because it declares `.contain` itself.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("playstead.harness.only-copy-interruption")
     }
 }
@@ -174,6 +180,7 @@ struct OnlyCopyInterruptionNeutralHarnessRootView: View {
                 .accessibilityIdentifier("playstead.harness.only-copy-neutral.sync")
         }
         .frame(minWidth: 640, minHeight: 420)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("playstead.harness.only-copy-neutral")
     }
 }

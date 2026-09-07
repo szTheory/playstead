@@ -125,6 +125,14 @@ final class ConflictResolutionInteractionTests: XCTestCase {
         XCTAssertTrue(app.buttons[ID.chooseR2].exists)
     }
 
+    // MARK: - Export is independently reachable by keyboard
+
+    func testExportActionIsReachableByKeyboardOnBothSides() {
+        let app = launchHarness()
+        XCTAssertTrue(app.buttons[ID.exportR1].exists)
+        XCTAssertTrue(app.buttons[ID.exportR2].exists)
+    }
+
     // MARK: - Done closes the sheet-equivalent surface without side effects
 
     func testDoneIsReachableByKeyboardAndCarriesNoDestinationChange() {
