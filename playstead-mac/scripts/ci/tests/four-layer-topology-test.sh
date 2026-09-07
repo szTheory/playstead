@@ -426,9 +426,30 @@ PY
 python3 - "$RECLAIM_VIEW" "$STORAGE_VIEW" <<'PY'
 import pathlib, sys
 
+def brace_matched_body(source, opener):
+    """The text between `opener`'s trailing '{' and its matching '}'.
+
+    A plain `.split('}', 1)` stops at the first nested closure's brace, which
+    silently truncates the body and turns any later marker into a false
+    violation. Braces inside string literals are not tracked; no Swift button
+    body in this repo contains one, and a naive split handled them no better.
+    """
+    start = source.index(opener) + len(opener)
+    depth = 1
+    for offset in range(start, len(source)):
+        character = source[offset]
+        if character == "{":
+            depth += 1
+        elif character == "}":
+            depth -= 1
+            if depth == 0:
+                return source[start:offset]
+    raise SystemExit(f"unbalanced braces after {opener!r}")
+
+
 for path in map(pathlib.Path, sys.argv[1:]):
     source = path.read_text(encoding="utf-8")
-    action = source.split('Button("Reclaim selected") {', 1)[1].split('}', 1)[0]
+    action = brace_matched_body(source, 'Button("Reclaim selected") {')
     markers = [action.find("let selection = selected"), action.find("selected.removeAll()"), action.find("onReclaim(selection)")]
     if any(marker < 0 for marker in markers) or markers != sorted(markers):
         raise SystemExit(f"{path.name}: reclaim must snapshot, clear stale selection, then invoke its effect")
