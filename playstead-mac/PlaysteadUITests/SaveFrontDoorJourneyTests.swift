@@ -148,14 +148,15 @@ final class SaveFrontDoorJourneyTests: XCTestCase {
 
         let card = harness.element("library.card")
         XCTAssertTrue(card.waitForExistence(timeout: 5), "the seeded diverged game's card never rendered")
-        let badge = card.descendants(matching: .any)["library.status-slot"]
+        // GameCardView deliberately collapses to a single accessibility element
+        // (`children: .ignore`) and composes the status ladder's sentence into
+        // its own label, so `library.status-slot` cannot be addressed inside the
+        // card -- by design, and better for a screen reader than three separate
+        // stops. D-38's rank-1 union is therefore proven by the card's composed
+        // accessible name, which ends in the divergence rung's sentence.
         XCTAssertTrue(
-            badge.waitForExistence(timeout: 5),
-            "divergence badge not present on the diverged game's card -- D-38's rank-1 union is unreachable"
-        )
-        XCTAssertTrue(
-            badge.label.hasSuffix("needs your attention."),
-            "the card badge exists but is not the D-38 divergence rung: \(badge.label)"
+            card.readableText.hasSuffix("needs your attention."),
+            "the card does not carry the D-38 divergence rung: \(card.readableText)"
         )
 
         openSurface(control: "playstead.control.open-readiness", root: "playstead.surface.readiness")

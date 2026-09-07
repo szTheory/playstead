@@ -92,6 +92,12 @@ struct OnlyCopyInterruptiveSheet: View {
         .accessibilityIdentifier(Automation.surface)
         .focusSection()
         .defaultFocus($exportHasFocus, true)
+        // `.defaultFocus` alone did not place focus here in CI, in either the
+        // harness or the real modal presented from Storage, and nothing else in
+        // this app proves it lands. D-40's contract -- the easiest button is the
+        // one that saves the user's progress -- is too important to rest on a
+        // modifier that is not observed to fire, so state it directly as well.
+        .onAppear { exportHasFocus = true }
         .onExitCommand(perform: onCancel)
     }
 }

@@ -109,6 +109,24 @@ def scan_json(value):
 
 test_identifier = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*/[A-Za-z_][A-Za-z0-9_]*\(\)$")
 
+# 04-18 promoted the reachability sweep to a real layer. It is a static sweep,
+# not an xctest layer -- there is no xcresult to parse, so it writes a summary of
+# a different shape into the same evidence directory. This validator matched it
+# by filename alone and rejected it, which aborted sanitization partway and
+# truncated the failure evidence for every failing run (the per-layer test
+# evidence never reached the artifact). Recognise the sweep's own shape.
+def validate_static_sweep_evidence(data, relative):
+    allowed_keys = {"layer", "kind", "outcome", "exit_status"}
+    if not isinstance(data, dict) or set(data) != allowed_keys:
+        raise SystemExit(f"static sweep evidence has unexpected schema: {relative}")
+    if not isinstance(data.get("layer"), str) or data.get("kind") != "static-sweep":
+        raise SystemExit(f"static sweep evidence identity is malformed: {relative}")
+    if data.get("outcome") not in ("passed", "failed"):
+        raise SystemExit(f"static sweep evidence outcome is malformed: {relative}")
+    if type(data.get("exit_status")) is not int or data["exit_status"] < 0:
+        raise SystemExit(f"static sweep evidence exit status is malformed: {relative}")
+
+
 def validate_test_evidence(data, relative):
     allowed_keys = {
         "schema_version", "layer", "executed_test_count", "required_tests",
@@ -247,7 +265,10 @@ for item in allowed:
         except Exception as exc:
             raise SystemExit(f"invalid JSON evidence {relative}: {exc}")
         if relative.name.endswith("-tests.json"):
-            validate_test_evidence(data, relative)
+            if isinstance(data, dict) and data.get("kind") == "static-sweep":
+                validate_static_sweep_evidence(data, relative)
+            else:
+                validate_test_evidence(data, relative)
         scan_json(data)
         destination.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     elif suffix == ".txt" or suffix == ".log":

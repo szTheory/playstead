@@ -246,6 +246,41 @@ grep -F '[REDACTED SECRET-BEARING LINE]' "$TMP_ROOT/embedded-credential-url-outp
 }
 PASS_COUNT=$((PASS_COUNT + 1))
 
+# 04-UAT G-04-9: the reachability sweep (04-18) writes a static-sweep summary
+# into the evidence directory under the *-tests.json name. The validator matched
+# it by filename and rejected it as malformed xctest evidence, which aborted
+# sanitization partway and truncated the failure evidence for every failing run.
+# Positive: the sweep's real shape is accepted and reaches the output.
+reachability_ok="$TMP_ROOT/reachability-ok"
+make_valid "$reachability_ok"
+printf '%s\n' '{"exit_status":0,"kind":"static-sweep","layer":"reachability","outcome":"passed"}' >"$reachability_ok/evidence/reachability-tests.json"
+expect_pass reachability_sweep_accepted "$SANITIZER" --input "$reachability_ok" --output "$TMP_ROOT/reachability-ok-output"
+grep -F '"static-sweep"' "$TMP_ROOT/reachability-ok-output/reachability-tests.json" >/dev/null || {
+  printf 'FAIL: static-sweep evidence did not reach the sanitized output\n' >&2
+  exit 1
+}
+PASS_COUNT=$((PASS_COUNT + 1))
+
+# Negative: claiming to be a static sweep must not become a way to smuggle an
+# arbitrary shape past the validator.
+reachability_bad="$TMP_ROOT/reachability-bad"
+make_valid "$reachability_bad"
+printf '%s\n' '{"kind":"static-sweep","layer":"reachability","outcome":"passed","exit_status":0,"extra":"unvalidated"}' >"$reachability_bad/evidence/reachability-tests.json"
+expect_fail reachability_sweep_extra_key_rejected "$SANITIZER" --input "$reachability_bad" --output "$TMP_ROOT/reachability-bad-output"
+
+# Negative: an outcome the aggregate cannot interpret must still be rejected.
+reachability_outcome="$TMP_ROOT/reachability-outcome"
+make_valid "$reachability_outcome"
+printf '%s\n' '{"kind":"static-sweep","layer":"reachability","outcome":"maybe","exit_status":0}' >"$reachability_outcome/evidence/reachability-tests.json"
+expect_fail reachability_sweep_bad_outcome_rejected "$SANITIZER" --input "$reachability_outcome" --output "$TMP_ROOT/reachability-outcome-output"
+
+# Negative: real xctest evidence must NOT gain a bypass -- a layer file without
+# the static-sweep marker still goes through the full test-evidence validator.
+xctest_still_strict="$TMP_ROOT/xctest-still-strict"
+make_valid "$xctest_still_strict"
+printf '%s\n' '{"layer":"ui","outcome":"passed"}' >"$xctest_still_strict/evidence/ui-tests.json"
+expect_fail xctest_evidence_still_strict "$SANITIZER" --input "$xctest_still_strict" --output "$TMP_ROOT/xctest-still-strict-output"
+
 if [ "$FAIL_COUNT" -ne 0 ]; then
   printf 'evidence sanitizer: %d check(s) failed\n' "$FAIL_COUNT" >&2
   exit 1

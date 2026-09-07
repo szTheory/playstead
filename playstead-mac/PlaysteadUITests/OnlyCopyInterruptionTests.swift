@@ -70,11 +70,24 @@ final class OnlyCopyInterruptionTests: XCTestCase {
         return focused.isEmpty ? "nothing owns keyboard focus" : "focus is on \(focused)"
     }
 
+    /// Each hypothesis gets its own line, because the CI evidence sanitizer
+    /// strips assertion messages and keeps only file:line -- so the line number
+    /// has to carry the diagnosis by itself.
     private func assertExportOwnsFocus(_ app: XCUIApplication, _ moment: String) {
-        XCTAssertTrue(
-            app.buttons[ID.export].value(forKey: "hasKeyboardFocus") as? Bool == true,
-            "the export escape hatch must own focus \(moment) -- \(focusReport(app))"
-        )
+        func owns(_ identifier: String) -> Bool {
+            app.buttons[identifier].value(forKey: "hasKeyboardFocus") as? Bool == true
+        }
+        let anyFocused = app.buttons.allElementsBoundByIndex
+            .contains { $0.value(forKey: "hasKeyboardFocus") as? Bool == true }
+
+        // Fails here => nothing owns focus at all: focus was never placed.
+        XCTAssertTrue(anyFocused, "no button owns focus \(moment) -- \(focusReport(app))")
+        // Fails here => cancel took the focus that belongs to export.
+        XCTAssertFalse(owns(ID.cancel), "cancel owns focus \(moment)")
+        // Fails here => the destructive button took it, which is a D-40 violation.
+        XCTAssertFalse(owns(ID.removeAnyway), "remove anyway owns focus \(moment)")
+        // Fails here => focus exists on some other element entirely.
+        XCTAssertTrue(owns(ID.export), "export must own focus \(moment) -- \(focusReport(app))")
     }
 
     // MARK: - The five destructive-intent points all reach the same modal
