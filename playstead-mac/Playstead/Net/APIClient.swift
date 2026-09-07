@@ -103,6 +103,19 @@ actor APIClient: NSObject {
         APIClient(credentialSource: .fixed(nil))
     }
 
+    /// A UI-profile client seeded with a synthetic pairing credential and,
+    /// like its unpaired sibling, no Security.framework credential source at
+    /// all. A deterministic profile that needs "this Mac is already paired"
+    /// world state (`.saveOnlyCopy`) gets it from here.
+    ///
+    /// Constructing a real `KeychainStore` in a UI profile is what triggers
+    /// the login-Keychain authorization prompt that
+    /// `PLAYSTEAD_HUMAN_APPROVED_LOCAL_APP_LAUNCH` exists to gate, so paired
+    /// world state must never be a reason to reach for one.
+    static func pairedForUITesting(_ credential: PairingCredential) -> APIClient {
+        APIClient(credentialSource: .fixed(credential))
+    }
+
     private init(credentialSource: CredentialSource) {
         self.credentialSource = credentialSource
         self.pinnedCertificateURL = nil

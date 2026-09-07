@@ -394,29 +394,58 @@ final class AppEnvironment {
     }
 
 #if UI_TESTING
+    /// The deterministic UI-test profile fails closed: it constructs an
+    /// explicitly unpaired client and never touches the login Keychain.
+    /// `scripts/ci/tests/keychain-prompt-safety-test.sh` asserts that
+    /// literal shape, because it is the property that makes it safe to
+    /// ask a human to run the UI layer locally under
+    /// `PLAYSTEAD_HUMAN_APPROVED_LOCAL_APP_LAUNCH` -- constructing a
+    /// `KeychainStore` here is exactly the login-Keychain authorization
+    /// prompt that guard exists to prevent.
+    ///
+    /// A prior revision took an optional `credential:` and, when it was
+    /// non-nil, built `APIClient(keychain: KeychainStore(), ...)`. No
+    /// caller ever passed one, so the branch was dead weight that
+    /// weakened the invariant for nothing. If a future save-safety
+    /// journey genuinely needs a seeded "this Mac is paired" world
+    /// state, give it a synthetic credential source that cannot reach
+    /// `KeychainStore` and widen the contract deliberately -- never via
+    /// a parameter default.
     convenience init(
         uiTestingPaths paths: AppPaths,
         localStore: LocalStore,
         reachability: Reachability,
-        /// A deterministic profile's real, offline, synthetic pairing
-        /// credential -- `nil` (the default) keeps every existing
-        /// deterministic profile genuinely unpaired. This never opens a
-        /// real network connection: `openConsoleSavesExport` itself
-        /// never performs a network call, only resolves a URL and, under
-        /// `UI_TESTING`, records it for test observability instead of
-        /// calling `NSWorkspace.shared.open`. Seeding "this Mac is
-        /// already paired" is world state a save-safety journey may
-        /// legitimately need, never a routing flag.
+        /// A deterministic profile's synthetic, offline pairing credential.
+        /// `nil` (the default) keeps a profile genuinely unpaired; a value
+        /// seeds "this Mac is already paired" world state, which a
+        /// save-safety journey such as `.saveOnlyCopy` legitimately needs.
+        ///
+        /// Both branches resolve to a `.fixed` credential source. Neither
+        /// constructs a `KeychainStore`, so neither can raise the
+        /// login-Keychain authorization prompt.
         credential: PairingCredential? = nil
     ) {
-        self.init(
-            paths: paths,
-            openedStore: localStore,
-            apiClient: credential.map { APIClient(keychain: KeychainStore(), credential: $0) }
-                ?? APIClient.unpairedForUITesting(),
-            reachability: reachability,
-            downloadSession: nil
-        )
+        // Written as two explicit branches rather than a `map ?? ` chain so
+        // that the unpaired default remains a literal, greppable
+        // `apiClient: APIClient.unpairedForUITesting()` -- the exact shape
+        // `scripts/ci/tests/keychain-prompt-safety-test.sh` asserts.
+        if let credential {
+            self.init(
+                paths: paths,
+                openedStore: localStore,
+                apiClient: APIClient.pairedForUITesting(credential),
+                reachability: reachability,
+                downloadSession: nil
+            )
+        } else {
+            self.init(
+                paths: paths,
+                openedStore: localStore,
+                apiClient: APIClient.unpairedForUITesting(),
+                reachability: reachability,
+                downloadSession: nil
+            )
+        }
     }
 #endif
 
