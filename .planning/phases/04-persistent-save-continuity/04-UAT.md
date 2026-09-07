@@ -1294,8 +1294,9 @@ evidence: |
   goal of zero manual UAT. Every objective clause of this row is asserted end-to-end and
   green in CI:
     - "default 'Export saves…' button": OnlyCopyInterruptionTests
-      testTheExportEscapeHatchOwnsFocusAtPresentation — export owns focus at
-      presentation, asserted on four separate lines so a failure names its own cause.
+      testModalRendersLockedTitleBodyAndThreeButtonsWithExportAsDefault — export owns
+      focus at presentation, asserted on four separate lines so a failure names its
+      own cause.
     - "never performing the destructive action":
       testActivatingTheDefaultActionExportsRatherThanRemoving — pressing Return yields
       result "exported", not a removal.
@@ -1315,7 +1316,7 @@ evidence: |
   deliberately NOT as a correctness gate — the contract above is what this row asserts.
   This is not the CP7-SAVE-C situation: nothing in this row was ever designated a
   blocking human checkpoint, and test 120's protection is untouched.
-source: human
+source: automated
 coverage_id: 04-16/D2
 reason_human: human_judgment
 rationale: |
