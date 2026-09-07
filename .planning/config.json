@@ -49,7 +49,10 @@
     "security_block_on": "high",
     "tdd_mode": false,
     "ui_review": true,
-    "_auto_chain_active": false
+    "_auto_chain_active": false,
+    "build_command": "set -o pipefail; xcodebuild build-for-testing -project playstead-mac/Playstead.xcodeproj -scheme Playstead -destination 'platform=macOS,arch=arm64' -derivedDataPath playstead-mac/.build/gsd-gate/DerivedData -quiet CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= && (cd playstead-server && mix compile)",
+    "test_command": "set -o pipefail; xcodebuild test-without-building -project playstead-mac/Playstead.xcodeproj -scheme Playstead -testPlan Unit -destination 'platform=macOS,arch=arm64' -derivedDataPath playstead-mac/.build/gsd-gate/DerivedData -quiet CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= && (cd playstead-server && mix test)",
+    "test_gate_timeout": 1800
   },
   "ship": {
     "pr_body_sections": []

@@ -3,7 +3,7 @@ status: testing
 phase: 04-persistent-save-continuity
 source: [04-01-SUMMARY.md,04-02-SUMMARY.md 04-03-SUMMARY.md,04-04-SUMMARY.md 04-05-SUMMARY.md,04-06-SUMMARY.md 04-07-SUMMARY.md,04-08-SUMMARY.md 04-09-SUMMARY.md,04-10-SUMMARY.md 04-11-SUMMARY.md,04-12-SUMMARY.md 04-13-SUMMARY.md,04-14-SUMMARY.md 04-15-SUMMARY.md,04-16-SUMMARY.md 04-17-SUMMARY.md,04-18-SUMMARY.md 04-19-SUMMARY.md,04-20-SUMMARY.md 04-21-SUMMARY.md,04-22-SUMMARY.md 04-23-SUMMARY.md,04-24-SUMMARY.md 04-25-SUMMARY.md]
 started: 2026-09-04T00:00:00Z
-updated: 2026-09-06T22:40:00Z
+updated: 2026-09-07T03:00:00Z
 ---
 
 ## Current Test
@@ -1480,7 +1480,8 @@ blocked: 8
   title: mix precommit failed on --check-formatted
   severity: low
   kind: hygiene
-  status: FIXED 2026-09-06 in 3328f6e
+  status: FIXED — verified green in hosted run 34077469940, where the `mix precommit`
+    job passed for the first time on any Phase 4 commit. Commits 3328f6e and 33a3fc5.
   evidence:
     - "CI run 34066095728, job 'mix precommit', step 'Run mix precommit'"
     - playstead-server/test/playstead/export/round_trip_test.exs
@@ -1492,7 +1493,9 @@ blocked: 8
   test: 117
   title: LiveServer.xctestplan selects 4 tests; the topology contract demands exactly 2
   severity: medium
-  status: OPEN — patch prepared, human application required. A sandbox guard blocked the
+  status: OPEN — the sole remaining CI failure. Hosted run 34077469940 reduced the
+    macOS job to exactly this one guard; every other contract passes, including the
+    keychain-prompt-safety guard G-04-6 fixed. Patch prepared, human application required. A sandbox guard blocked the
     assistant from editing a CI contract file, which is the correct protection: a model
     widening a gate so CI turns green is the failure mode worth preventing. The diff is at
     .planning/phases/04-persistent-save-continuity/G-04-5-liveserver-contract.patch and
