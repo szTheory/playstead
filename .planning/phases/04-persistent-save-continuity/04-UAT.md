@@ -1120,6 +1120,44 @@ reported: |
   The alternative — tab order genuinely places a Choose button under the space key — is a
   real accessibility defect. A 3x repeat run of the single test distinguishes them and is
   the next action.
+diagnosis: |
+  RESOLVED 2026-09-06. Both hypotheses above were wrong, and so were two subsequent
+  fix attempts. The instrumented run settled it:
+
+    resultLabel=>>><<<
+    resultValue=>>>Optional(Keeping both. This Mac plays the This Mac version.
+                  Neither version will be removed.)<<<
+    resultTitle=>>><<<
+    focusJustBeforeSpace=["keepBoth"]  focusAfterSpace=["keepBoth"]
+    chosenR1Exists=false
+
+  Keep Both DID activate. There was no focus race and no tab-order defect. The keyboard
+  contract was sound the whole time. On macOS an AXStaticText carries its content in
+  AXValue — what XCUITest exposes as `value` and what VoiceOver speaks — while `label`
+  maps to AXTitle/AXDescription, which a SwiftUI Text leaves empty. The assertion at
+  :117 read `.label` and had been comparing against "" since the day it was written.
+
+  Two intermediate diagnoses were asserted with more confidence than the evidence
+  carried: (1) accessibility-modifier ordering, and (2) a missing explicit
+  .accessibilityLabel. Both were rebuilt and re-run; neither changed the empty label.
+  `.accessibilityLabel` is a no-op on a macOS Text for this purpose. Both are reverted
+  and ConflictComparisonSheet.swift is back to its original shape — the production view
+  never contained the defect.
+
+  Also corrected: this was NOT a screen-reader defect. An earlier note in this session
+  claimed the reassurance message was silent to VoiceOver users. It was not; the string
+  is exposed on the attribute macOS actually reads.
+
+  Blast radius beyond this row: OnlyCopyInterruptionTests reads `.label` on macOS static
+  texts in eight further places (:102, :103, :119, :128, :129, :138, :142, :173) and has
+  never been run, so it would have failed identically on its first execution — another
+  instance of the G-04-3 pattern, where a never-executed test hides a defect in itself.
+  All nine reads now route through XCUIElement.readableText (PlaysteadUITests/Support/
+  UITestHarness.swift), which prefers `label` and falls back to `value`.
+
+  Fixed in 13eb3bb. Both temporary diagnostics deleted; the real assertion now reports
+  the observed text on failure. UI target builds and all static contract guards pass.
+  Re-run of the UI layer by a human is still required to move this row to pass.
 first_execution: |
   CRITICAL CONTEXT: this test had never executed anywhere before 2026-09-06. It was
   introduced in 91cdb43 on 2026-09-04 16:14; the most recent CI run is 33770958764 at
@@ -1437,38 +1475,56 @@ blocked: 8
     assertion at :117 fails because the result element's accessibility label is EMPTY,
     not because it carries the wrong message.
 
-    Root cause is production accessibility, not the test:
-    ConflictComparisonSheet.swift applied `.accessibilityIdentifier(Automation.result)`
-    after `.padding`/`.background`/`.clipShape`, so the identifier landed on the
-    resulting decorated container. That container resolves as a static text carrying the
-    identifier but no label of its own — the text sits on a child element. Every other
-    identified Text in the file attaches its identifier directly after
-    font/foregroundStyle; this was the only one that did not, and the result message is
-    the only one whose label a test reads rather than merely asserting exists.
+    Root cause is the TEST, not the production view. On macOS an AXStaticText carries
+    its content in AXValue — what XCUITest exposes as `value`, and what VoiceOver
+    speaks — while `label` maps to AXTitle/AXDescription, which a SwiftUI Text leaves
+    empty. The instrumented run showed resultValue carrying the exact expected string
+    while resultLabel and resultTitle were both empty. The assertion at :117 was
+    written to iOS semantics and had been comparing against "" since it was written.
   correction: |
-    This gap originally recorded, as though it were established, that "the space key at
-    line 114 activated a Choose button, not Keep Both." That was an inference from
-    `label.contains("Keeping both") == false` plus the harness's resultMessage branches,
-    and it was stated far more confidently than the evidence supported. chosenR1Exists=false
-    disproves it. The available evidence was consistent with an empty label the whole
-    time; I did not consider that branch.
+    THREE wrong diagnoses were recorded in this gap before the right one, each stated
+    more confidently than its evidence supported.
+
+    (1) "The space key at line 114 activated a Choose button, not Keep Both." An
+    inference from `label.contains(...) == false` plus the harness's resultMessage
+    branches. chosenR1Exists=false disproved it. The evidence was consistent with an
+    empty label the whole time; that branch was never considered.
+
+    (2) "The identifier landed on the decorated container instead of the Text."
+    Moving `.accessibilityIdentifier` above the decorative modifiers was rebuilt and
+    re-run; the label stayed empty. Modifier ordering was never the cause.
+
+    (3) "The Text needs an explicit .accessibilityLabel." Also rebuilt and re-run;
+    also no change. `.accessibilityLabel` is a no-op on a macOS Text for this purpose.
+
+    Both (2) and (3) are reverted. ConflictComparisonSheet.swift is back to its
+    original shape: the production view never contained this defect.
+
+    Also corrected: an earlier note in this session claimed the "Keeping both" message
+    was silent to VoiceOver users. It was not. The string is exposed on the attribute
+    macOS actually reads.
   evidence:
     - playstead-mac/PlaysteadUITests/ConflictResolutionInteractionTests.swift:117
-    - playstead-mac/Playstead/Saves/ConflictComparisonSheet.swift:299-306
-    - playstead-mac/Playstead/Saves/ConflictComparisonSheet.swift:96-99
+    - playstead-mac/PlaysteadUITests/Support/UITestHarness.swift (readableText)
+    - "PLAYSTEAD_ACTIVATE resultValue carried the full string; resultLabel/resultTitle empty"
   summary: |
-    Space activated a Choose button instead of Keep Both, though the test had just
-    observed Keep Both holding focus. Either the test's post-typeKey focus poll races
-    SwiftUI's focus propagation (test defect) or tab order genuinely misplaces the
-    activation target (accessibility defect).
-  status: FIXED in production code — the identifier now sits on the Text itself, above
-    the decorative modifiers. Build-for-testing succeeds. NOT yet confirmed green: the
-    assistant cannot run the UI layer, so the real test
-    (testKeepBothIsReachableByKeyboardAndIsAPeerOfTheChoiceButtons) must be run by a
-    human before this is treated as closed.
-  cleanup_pending: |
-    Delete testDiagnosticTabOrder and testDiagnosticKeepBothActivation from
-    ConflictResolutionInteractionTests.swift once the real test is confirmed green.
+    The assertion read `.label` on a macOS static text, where SwiftUI puts the string in
+    `.value`. It compared against the empty string and failed. Keep Both had activated
+    correctly; tab order, focus propagation and the keyboard contract were all sound.
+  blast_radius: |
+    Not a one-line bug. OnlyCopyInterruptionTests reads `.label` on macOS static texts in
+    eight further places (:102, :103, :119, :128, :129, :138, :142, :173) and has never
+    been run, so it would have failed identically on first execution. Same G-04-3 shape:
+    a never-executed test hiding a defect in itself. All nine reads now go through
+    XCUIElement.readableText, which prefers `label` and falls back to `value`.
+  status: FIXED in 13eb3bb (test-layer fix; production view reverted to original). UI
+    test target builds and all static contract guards pass. NOT yet confirmed green —
+    the assistant cannot run the UI layer, so a human must run
+    ConflictResolutionInteractionTests AND OnlyCopyInterruptionTests before this closes.
+  cleanup_done: |
+    testDiagnosticTabOrder and testDiagnosticKeepBothActivation are deleted as of
+    13eb3bb; the real assertion now reports the observed text on failure, which is what
+    the diagnostics existed to provide.
 
 - gap_id: G-04-3
   test: 109
