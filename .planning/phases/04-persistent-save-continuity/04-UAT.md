@@ -3,7 +3,7 @@ status: testing
 phase: 04-persistent-save-continuity
 source: [04-01-SUMMARY.md,04-02-SUMMARY.md 04-03-SUMMARY.md,04-04-SUMMARY.md 04-05-SUMMARY.md,04-06-SUMMARY.md 04-07-SUMMARY.md,04-08-SUMMARY.md 04-09-SUMMARY.md,04-10-SUMMARY.md 04-11-SUMMARY.md,04-12-SUMMARY.md 04-13-SUMMARY.md,04-14-SUMMARY.md 04-15-SUMMARY.md,04-16-SUMMARY.md 04-17-SUMMARY.md,04-18-SUMMARY.md 04-19-SUMMARY.md,04-20-SUMMARY.md 04-21-SUMMARY.md,04-22-SUMMARY.md 04-23-SUMMARY.md,04-24-SUMMARY.md 04-25-SUMMARY.md]
 started: 2026-09-04T00:00:00Z
-updated: 2026-09-07T04:05:00Z
+updated: 2026-09-07T00:00:00Z
 ---
 
 ## Current Test
@@ -1094,9 +1094,12 @@ reported: |
 ### 109. The comparison sheet's real keyboard operability, no-confirmation-dialog, no-Undo, and no-pre-selection behavior against a genuine hosted Ap…
 expected: |
   The comparison sheet's real keyboard operability, no-confirmation-dialog, no-Undo, and no-pre-selection behavior against a genuine hosted AppKit/SwiftUI window
-result: issue
+result: pass
 gap_id: G-04-2
 source: human
+closed: |
+  Confirmed green 2026-09-06: ConflictResolutionInteractionTests 5/5 after the
+  readableText fix, restored to its full 6 tests in 9613a79.
 unblocked_by: |
   The user set PLAYSTEAD_HUMAN_APPROVED_LOCAL_APP_LAUNCH=1 themselves and ran the suite
   on 2026-09-06, which is the only legitimate way this row could move off blocked.
@@ -1173,11 +1176,17 @@ rationale: |
 ### 110. The interruptive modal appears only when onlyOnThisMacCount > 0 (proven for all five named destructive-intent contexts plus a zero-count cas…
 expected: |
   The interruptive modal appears only when onlyOnThisMacCount > 0 (proven for all five named destructive-intent contexts plus a zero-count case), renders the locked title/body/three buttons with Export saves… as the default, Remove anyway destructive-styled and never default, is fully keyboard-operable with visible focus, and never appears during browse/launch/sync
-result: blocked
-blocked_by: other
+result: issue
+gap_id: G-04-8
 source: human
-reason: |
-  Hosted macOS runner only — same run-mac-verification.sh:1026 launch guard as test 109. WINDOWS #36.
+unblocked_by: |
+  The user set PLAYSTEAD_HUMAN_APPROVED_LOCAL_APP_LAUNCH=1 and ran the suite on
+  2026-09-06 — the first execution this suite has ever had, anywhere.
+reported: |
+  7 of 12 failed. The five destructive-intent contexts all reach the modal (those five
+  passed), so the gate itself is correct. Two production defects account for the rest:
+  harness Texts unaddressable because a container combined its children, and the export
+  escape hatch neither holding focus nor carrying the focus ring. See G-04-8.
 coverage_id: 04-12/D3
 reason_human: human_judgment
 rationale: |
@@ -1186,11 +1195,19 @@ rationale: |
 ### 111. Choosing Remove anyway removes cached game bytes and leaves every save revision present (the never-evictable rule); choosing Cancel or Expor…
 expected: |
   Choosing Remove anyway removes cached game bytes and leaves every save revision present (the never-evictable rule); choosing Cancel or Export leaves everything untouched
-result: blocked
-blocked_by: other
+result: issue
+gap_id: G-04-8
 source: human
 reason: |
   Hosted macOS runner only — same run-mac-verification.sh:1026 launch guard as test 109. WINDOWS #36.
+unblocked_by: |
+  Ran for the first time on 2026-09-06 under the user's explicit launch approval.
+reported: |
+  testChoosingCancelLeavesEveryRevisionAndCachedByteInPlace and
+  testChoosingRemoveAnywayLeavesEverySaveRevisionPresent both failed, but on the
+  harness's result Text being unaddressable (G-04-8 half A), not on the never-evictable
+  rule itself — the revision count assertion is downstream of the failed one and never
+  executed. The rule's unit-level proof (OnlyCopyWiringTests) is unaffected and green.
 coverage_id: 04-12/D4
 reason_human: human_judgment
 rationale: |
@@ -1418,11 +1435,11 @@ records observations under test 120 and sets its own status by hand.
 ## Summary
 
 total: 120
-passed: 109
-issues: 2
+passed: 110
+issues: 3
 pending: 1
 skipped: 0
-blocked: 8
+blocked: 6
 
 ## Gaps
 
@@ -1517,10 +1534,18 @@ blocked: 8
     been run, so it would have failed identically on first execution. Same G-04-3 shape:
     a never-executed test hiding a defect in itself. All nine reads now go through
     XCUIElement.readableText, which prefers `label` and falls back to `value`.
-  status: FIXED in 13eb3bb (test-layer fix; production view reverted to original). UI
-    test target builds and all static contract guards pass. NOT yet confirmed green —
-    the assistant cannot run the UI layer, so a human must run
-    ConflictResolutionInteractionTests AND OnlyCopyInterruptionTests before this closes.
+  status: CLOSED — confirmed green by a human UI-layer run on 2026-09-06.
+    ConflictResolutionInteractionTests passed 5/5 immediately after the readableText
+    fix, and the previously-failing label reads in OnlyCopyInterruptionTests (:102,
+    :103) passed as well, which is independent confirmation the diagnosis was right.
+    The suite is 6 tests again as of 9613a79 (see cleanup_correction).
+  cleanup_correction: |
+    Deleting the two diagnostics in 13eb3bb also deleted a real test,
+    testExportActionIsReachableByKeyboardOnBothSides — the sed range ran to a closing
+    brace I read as the last diagnostic's when it belonged to that test. Caught only
+    because the run reported 5 tests where 6 were expected. Restored in 9613a79. A
+    deletion whose range is chosen by line number needs its result counted, not
+    eyeballed.
   cleanup_done: |
     testDiagnosticTabOrder and testDiagnosticKeepBothActivation are deleted as of
     13eb3bb; the real assertion now reports the observed text on failure, which is what
@@ -1678,6 +1703,59 @@ blocked: 8
     ripgrep-exit-127 case in playstead-ci-gates-rot-unnoticed). The common shape is a
     guard parsing source with naive string operations. Worth a sweep of the remaining
     contracts for `.split(` on Swift source before the phase closes.
+
+- gap_id: G-04-8
+  test: 110
+  title: OnlyCopyInterruptionTests failed 7 of 12 on its first-ever execution
+  severity: high
+  kind: accessibility-containment, visible-focus
+  first_execution: |
+    Same shape as G-04-3 and G-04-2: this suite had never run anywhere. Its first
+    execution, on 2026-09-06, failed 7 of 12. Five tests passed (the five
+    destructive-intent contexts all reach the modal), so the harness launches and the
+    gate is correct.
+  triage_result: |
+    Two independent defects, both in production code, neither in the tests.
+
+    (A) CONTAINMENT — four elements could not be addressed at all: the interruption
+    harness's no-modal (:95), result (:127, :137) and revisions-remaining Texts, and
+    the neutral harness's browse/launch/sync Texts (:180). Every one is a direct child
+    of a VStack carrying `.accessibilityIdentifier` with no
+    `.accessibilityElement(children: .contain)`. An accessibility modifier on a
+    container makes SwiftUI combine its children into a single element, so the
+    children stop being addressable. What DID resolve — title, body — lives inside
+    OnlyCopyInterruptiveSheet, which declares `.contain` itself.
+    ConflictComparisonHarnessRootView applies its identifier directly onto its sheet
+    rather than onto a wrapping VStack, which is why the comparison harness never hit
+    this and why it was invisible until this suite first ran.
+
+    (B) VISIBLE FOCUS — the export button never held focus (:109, :116, :149). It was
+    also the only button in that row without the focus ring: cancel and remove-anyway
+    use `playsteadFocusable`, while export hand-rolled `.focused` + identifier and so
+    silently lost the ring. That is the "visible focus" contract failing on the
+    control it matters most for — the destructive modal's escape hatch, the button
+    D-40 requires to be the easiest one to reach.
+  fix: |
+    (A) Both harness roots now declare `.accessibilityElement(children: .contain)`.
+    (B) A new `playsteadFocusable(identifier:focus:)` overload takes a parent-owned
+    `@FocusState` binding, so a `.defaultFocus` target keeps the shared ring; export
+    now uses it. The sheet also declares `.focusSection()`, which
+    ConflictComparisonSheet — whose keyboard contract is proven green — has and this
+    sheet lacked.
+  evidence:
+    - playstead-mac/Playstead/Saves/OnlyCopyInterruptiveSheet.swift
+    - playstead-mac/Playstead/Design/FocusRing.swift
+    - playstead-mac/PlaysteadUITests/OnlyCopyInterruptionTests.swift
+  status: (A) FIXED in 9613a79 with a well-founded cause. (B) FIXED but NOT VERIFIED —
+    the focus half is reasoned from the comparison sheet's precedent, not observed. The
+    three focus assertions now report which element actually owns focus when they fail,
+    so the next UI-layer run resolves it either way rather than costing another
+    round trip. Verified so far: UI target builds, Unit plan 583/583, all static
+    contract guards pass.
+  pattern: |
+    Both halves were invisible to 583 passing unit tests and to every rendering test.
+    They are only observable in a hosted window. This is the third time in this phase
+    that first-ever execution of a deferred UI test found a real defect — see G-04-3.
 
 ## Standing Non-Gap Notes
 
