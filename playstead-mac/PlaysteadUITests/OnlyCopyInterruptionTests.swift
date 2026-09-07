@@ -99,8 +99,8 @@ final class OnlyCopyInterruptionTests: XCTestCase {
 
     func testModalRendersLockedTitleBodyAndThreeButtonsWithExportAsDefault() {
         let app = launchHarness(context: "remove_local_copy")
-        XCTAssertEqual(app.staticTexts[ID.title].label, "This is the only copy of your progress.")
-        XCTAssertTrue(app.staticTexts[ID.body].label.contains("3 versions of Metroid Fusion are only on this Mac and nowhere else."))
+        XCTAssertEqual(app.staticTexts[ID.title].readableText, "This is the only copy of your progress.")
+        XCTAssertTrue(app.staticTexts[ID.body].readableText.contains("3 versions of Metroid Fusion are only on this Mac and nowhere else."))
         XCTAssertTrue(app.buttons[ID.export].exists)
         XCTAssertTrue(app.buttons[ID.cancel].exists)
         XCTAssertTrue(app.buttons[ID.removeAnyway].exists)
@@ -116,7 +116,7 @@ final class OnlyCopyInterruptionTests: XCTestCase {
         XCTAssertTrue(app.buttons[ID.export].value(forKey: "hasKeyboardFocus") as? Bool == true)
         app.typeKey(.return, modifierFlags: [])
         XCTAssertTrue(app.staticTexts[ID.result].waitForExistence(timeout: 5))
-        XCTAssertEqual(app.staticTexts[ID.result].label, "exported")
+        XCTAssertEqual(app.staticTexts[ID.result].readableText, "exported")
     }
 
     // MARK: - Cancel leaves everything in place
@@ -125,8 +125,8 @@ final class OnlyCopyInterruptionTests: XCTestCase {
         let app = launchHarness(context: "remove_local_copy")
         app.buttons[ID.cancel].click()
         XCTAssertTrue(app.staticTexts[ID.result].waitForExistence(timeout: 5))
-        XCTAssertEqual(app.staticTexts[ID.result].label, "cancelled")
-        XCTAssertEqual(app.staticTexts[ID.revisionsRemaining].label, "3")
+        XCTAssertEqual(app.staticTexts[ID.result].readableText, "cancelled")
+        XCTAssertEqual(app.staticTexts[ID.revisionsRemaining].readableText, "3")
     }
 
     // MARK: - Remove anyway removes cached bytes but never a save revision
@@ -135,11 +135,11 @@ final class OnlyCopyInterruptionTests: XCTestCase {
         let app = launchHarness(context: "remove_local_copy")
         app.buttons[ID.removeAnyway].click()
         XCTAssertTrue(app.staticTexts[ID.result].waitForExistence(timeout: 5))
-        XCTAssertEqual(app.staticTexts[ID.result].label, "removed")
+        XCTAssertEqual(app.staticTexts[ID.result].readableText, "removed")
         // Choosing "Remove anyway" removes cached game bytes and still
         // keeps every save revision (the never-evictable rule, D-40) --
         // the harness's fixed revision count never changes.
-        XCTAssertEqual(app.staticTexts[ID.revisionsRemaining].label, "3")
+        XCTAssertEqual(app.staticTexts[ID.revisionsRemaining].readableText, "3")
     }
 
     // MARK: - Full keyboard operability with visible focus
@@ -170,7 +170,7 @@ final class OnlyCopyInterruptionTests: XCTestCase {
 
         app.typeKey(.space, modifierFlags: [])
         XCTAssertTrue(app.staticTexts[ID.result].waitForExistence(timeout: 5))
-        XCTAssertEqual(app.staticTexts[ID.result].label, "cancelled")
+        XCTAssertEqual(app.staticTexts[ID.result].readableText, "cancelled")
     }
 
     // MARK: - The modal appears at no other time

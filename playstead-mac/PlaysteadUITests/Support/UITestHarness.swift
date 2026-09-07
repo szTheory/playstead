@@ -336,3 +336,20 @@ private extension CGRect {
         [origin.x, origin.y, width, height].allSatisfy(\.isFinite)
     }
 }
+
+extension XCUIElement {
+    /// The user-visible string of a static text, read from wherever macOS
+    /// actually puts it.
+    ///
+    /// On macOS an `AXStaticText` carries its content in `AXValue`, which
+    /// XCUITest surfaces as `value` and VoiceOver speaks. `label` maps to
+    /// `AXTitle`/`AXDescription`, which a SwiftUI `Text` leaves empty --
+    /// applying `.accessibilityLabel` to the `Text` does not change that
+    /// (proved under G-04-2). Tests written to iOS semantics read `label`
+    /// and silently compare against "".
+    ///
+    /// Prefers `label` so a view that does set one explicitly still wins.
+    var readableText: String {
+        label.isEmpty ? (value as? String ?? "") : label
+    }
+}

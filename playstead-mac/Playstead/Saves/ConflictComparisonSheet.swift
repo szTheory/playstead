@@ -76,25 +76,10 @@ struct ConflictComparisonSheet: View {
                 .foregroundStyle(DesignTokens.textMuted)
 
             if let resultMessage {
-                // G-04-2: this element resolved with the right identifier but an
-                // EMPTY accessibility label, so a test reading `.label` saw "".
-                // Moving the identifier above the decorative modifiers alone did
-                // NOT fix it -- the label stayed empty -- so the cause is not
-                // modifier ordering. Inside this sheet's
-                // `.accessibilityElement(children: .contain)` container, a bare
-                // `Text` does not surface its content as the AX label.
-                //
-                // Every label this app's tests actually read is set explicitly
-                // (GameRowView:115, ReadinessSheetView:159). This one was the
-                // exception, and the result message is the only Text here whose
-                // label is read rather than merely asserted to exist -- which is
-                // why every other test stayed green. It was also empty for
-                // anyone using a screen reader, which is the part that matters.
                 Text(resultMessage)
                     .font(.psLabel)
                     .foregroundStyle(DesignTokens.textPrimary)
                     .accessibilityIdentifier(Automation.result)
-                    .accessibilityLabel(resultMessage)
                     .padding(DesignTokens.Spacing.sm)
                     .background(DesignTokens.border.opacity(0.3))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
