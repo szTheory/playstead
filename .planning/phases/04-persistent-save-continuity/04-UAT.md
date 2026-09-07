@@ -3,7 +3,7 @@ status: testing
 phase: 04-persistent-save-continuity
 source: [04-01-SUMMARY.md,04-02-SUMMARY.md 04-03-SUMMARY.md,04-04-SUMMARY.md 04-05-SUMMARY.md,04-06-SUMMARY.md 04-07-SUMMARY.md,04-08-SUMMARY.md 04-09-SUMMARY.md,04-10-SUMMARY.md 04-11-SUMMARY.md,04-12-SUMMARY.md 04-13-SUMMARY.md,04-14-SUMMARY.md 04-15-SUMMARY.md,04-16-SUMMARY.md 04-17-SUMMARY.md,04-18-SUMMARY.md 04-19-SUMMARY.md,04-20-SUMMARY.md 04-21-SUMMARY.md,04-22-SUMMARY.md 04-23-SUMMARY.md,04-24-SUMMARY.md 04-25-SUMMARY.md]
 started: 2026-09-04T00:00:00Z
-updated: 2026-09-07T03:00:00Z
+updated: 2026-09-07T03:10:00Z
 ---
 
 ## Current Test
@@ -1561,6 +1561,14 @@ blocked: 8
     deliberately rather than by parameter default.
 
 ## Standing Non-Gap Notes
+
+- Three load-sensitive Mac unit flakes are on record for this phase: the two named by
+  04-23, plus `PlaySessionTests.test_launchSucceedsIndependentlyOfPlaySessionRecording`
+  (recorded by 04-25, which found it failing on a 5s "process exits" timeout under
+  full-suite load and passing in isolation; it passed 583/583 in the 2026-09-06 UAT run).
+  CI runs the full suite under load, so a macOS red on one of these three is a known
+  flake, not a new defect — confirm by re-running the named test alone before treating it
+  as a finding. Not a gap: no user-facing behaviour is implicated.
 
 - CP7-SAVE-C (test 120) requires a human session with the pinned mGBA adapter installed,
   a real commercial GBA title, a running paired server, and roughly 15-30 minutes to
