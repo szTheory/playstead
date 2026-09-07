@@ -1720,6 +1720,23 @@ blocked: 6
     ripgrep-exit-127 case in playstead-ci-gates-rot-unnoticed). The common shape is a
     guard parsing source with naive string operations. Worth a sweep of the remaining
     contracts for `.split(` on Swift source before the phase closes.
+  sweep: |
+    PERFORMED 2026-09-07. Result: clean, no further instances.
+
+    `.split(marker, 1)[1]` raises IndexError when the marker is absent, so those crash
+    the guard loudly — fail-closed, and merely a confusing message rather than a wrong
+    verdict.
+
+    `.find()` is the shape that can fail OPEN, because it returns -1 and `-1 < anything`
+    is true, so an ordering assertion over a missing marker passes vacuously. Every
+    `.find()` in the guard suite was checked: four-layer-topology-test.sh:141, :153,
+    :244, :359 and :418 all test `< 0` explicitly (or via `min(...) < 0` / `any(marker <
+    0 ...)`), and the long ordering chain at :161 is safe by construction — a -1 can
+    never sit ascending after a non-negative first term, so any missing marker makes the
+    chain False and raises.
+
+    Recorded so this is not re-swept: the hazard G-04-7 exhibited is not present
+    elsewhere in the contracts.
   negative_control: |
     PERFORMED 2026-09-07. Swapped `selected.removeAll()` and `onReclaim(...)` in
     ReclaimPromptView.swift and re-ran the guards: they failed with "ReclaimPromptView
