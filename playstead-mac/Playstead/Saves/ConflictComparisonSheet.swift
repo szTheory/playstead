@@ -76,13 +76,21 @@ struct ConflictComparisonSheet: View {
                 .foregroundStyle(DesignTokens.textMuted)
 
             if let resultMessage {
+                // The identifier must sit on the `Text` itself, above the
+                // decorative modifiers. Applied after `.background`/`.clipShape`
+                // it lands on the resulting container instead, which resolves as
+                // a static text carrying the identifier but an EMPTY label --
+                // the text stays on a child element. Every other identified
+                // `Text` in this file already follows this order; this one did
+                // not, and the result message is the only one whose label a test
+                // reads rather than merely asserting exists (G-04-2).
                 Text(resultMessage)
                     .font(.psLabel)
                     .foregroundStyle(DesignTokens.textPrimary)
+                    .accessibilityIdentifier(Automation.result)
                     .padding(DesignTokens.Spacing.sm)
                     .background(DesignTokens.border.opacity(0.3))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .accessibilityIdentifier(Automation.result)
             }
 
             ScrollView {

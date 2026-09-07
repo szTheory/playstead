@@ -3,7 +3,7 @@ status: testing
 phase: 04-persistent-save-continuity
 source: [04-01-SUMMARY.md,04-02-SUMMARY.md 04-03-SUMMARY.md,04-04-SUMMARY.md 04-05-SUMMARY.md,04-06-SUMMARY.md 04-07-SUMMARY.md,04-08-SUMMARY.md 04-09-SUMMARY.md,04-10-SUMMARY.md 04-11-SUMMARY.md,04-12-SUMMARY.md 04-13-SUMMARY.md,04-14-SUMMARY.md 04-15-SUMMARY.md,04-16-SUMMARY.md 04-17-SUMMARY.md,04-18-SUMMARY.md 04-19-SUMMARY.md,04-20-SUMMARY.md 04-21-SUMMARY.md,04-22-SUMMARY.md 04-23-SUMMARY.md,04-24-SUMMARY.md 04-25-SUMMARY.md]
 started: 2026-09-04T00:00:00Z
-updated: 2026-09-07T03:40:00Z
+updated: 2026-09-07T04:05:00Z
 ---
 
 ## Current Test
@@ -1424,12 +1424,34 @@ blocked: 8
   severity: high
   kind: keyboard-activation
   triage_result: |
-    RESOLVED 2026-09-06: the user ran the single test 3x. It failed 3/3 at the same
-    assertion. Not flaky. The harness-race hypothesis is therefore NOT the explanation —
-    a race would produce a mixed result. The failure is deterministic, so either the
-    focus poll lags by a fixed number of positions every time, or tab order genuinely
-    places a Choose button under the space key. Next step is to instrument the tab order
-    and print the focused identifier at each step, rather than reason about it further.
+    RESOLVED 2026-09-06 — and BOTH earlier hypotheses were wrong, including the
+    inference recorded in this gap's original `reported` block.
+
+    Two diagnostics settled it. Tab order is clean and stable: chooseR1, exportR1,
+    chooseR2, exportR2, two disclosure groups, keepBoth, done — a cycle of 8 with
+    keepBoth at step 6. The activation replay then showed tabsToReachKeepBoth=6,
+    focusJustBeforeSpace=[keepBoth], chosenR1Exists=FALSE, and
+    resultLabel=>>><<< — the empty string.
+
+    So Keep Both activated correctly and no Choose button was ever touched. The
+    assertion at :117 fails because the result element's accessibility label is EMPTY,
+    not because it carries the wrong message.
+
+    Root cause is production accessibility, not the test:
+    ConflictComparisonSheet.swift applied `.accessibilityIdentifier(Automation.result)`
+    after `.padding`/`.background`/`.clipShape`, so the identifier landed on the
+    resulting decorated container. That container resolves as a static text carrying the
+    identifier but no label of its own — the text sits on a child element. Every other
+    identified Text in the file attaches its identifier directly after
+    font/foregroundStyle; this was the only one that did not, and the result message is
+    the only one whose label a test reads rather than merely asserting exists.
+  correction: |
+    This gap originally recorded, as though it were established, that "the space key at
+    line 114 activated a Choose button, not Keep Both." That was an inference from
+    `label.contains("Keeping both") == false` plus the harness's resultMessage branches,
+    and it was stated far more confidently than the evidence supported. chosenR1Exists=false
+    disproves it. The available evidence was consistent with an empty label the whole
+    time; I did not consider that branch.
   evidence:
     - playstead-mac/PlaysteadUITests/ConflictResolutionInteractionTests.swift:117
     - playstead-mac/Playstead/Saves/ConflictComparisonSheet.swift:299-306
@@ -1439,9 +1461,14 @@ blocked: 8
     observed Keep Both holding focus. Either the test's post-typeKey focus poll races
     SwiftUI's focus propagation (test defect) or tab order genuinely misplaces the
     activation target (accessibility defect).
-  next_action: |
-    Add a temporary diagnostic that logs the focused accessibility identifier after each
-    Tab, run it once, and read the real order. Only then write the fix.
+  status: FIXED in production code — the identifier now sits on the Text itself, above
+    the decorative modifiers. Build-for-testing succeeds. NOT yet confirmed green: the
+    assistant cannot run the UI layer, so the real test
+    (testKeepBothIsReachableByKeyboardAndIsAPeerOfTheChoiceButtons) must be run by a
+    human before this is treated as closed.
+  cleanup_pending: |
+    Delete testDiagnosticTabOrder and testDiagnosticKeepBothActivation from
+    ConflictResolutionInteractionTests.swift once the real test is confirmed green.
 
 - gap_id: G-04-3
   test: 109
