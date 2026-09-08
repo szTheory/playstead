@@ -103,6 +103,53 @@ defmodule PlaysteadWeb.Api.V1.SavesControllerTest do
     _ = ChangeJournal
   end
 
+  # WINDOWS #57: `adapter_id`/`adapter_version` are plumbed from the Mac
+  # client through this endpoint, into the revision row, and out again in
+  # the journal payload a second device reads. Every link existed and no
+  # test anywhere asserted any of them, which is part of why the client
+  # sent empty strings for months without anyone noticing.
+  test "capture provenance survives the commit and reaches the journal payload", %{conn: conn} do
+    {scope, _device, token} = paired()
+    bytes = :crypto.strong_rand_bytes(32_768)
+    command_id = uuid_v7()
+    revision_id = uuid_v7()
+
+    upload_resp = upload!(build_conn(), token, bytes, command_id)
+    json_response(upload_resp, 200)
+
+    commit_resp =
+      commit!(build_conn(), token, "commit-#{System.unique_integer([:positive])}", %{
+        "id" => revision_id,
+        "command_id" => command_id,
+        "content_key" => content_key(),
+        "capture_method" => "session",
+        "adapter_id" => "mgba",
+        "adapter_version" => "0.10.5"
+      })
+
+    json_response(commit_resp, 201)
+
+    revision = Repo.get_by(Revision, id: revision_id, user_id: scope.user.id)
+    assert revision.adapter_id == "mgba"
+    assert revision.adapter_version == "0.10.5"
+    assert revision.capture_method == "session"
+
+    entry =
+      from(e in Playstead.Sync.Entry,
+        where:
+          e.user_id == ^scope.user.id and e.entity_kind == "save" and
+            e.entity_id == ^revision_id
+      )
+      |> Repo.one()
+
+    assert entry.payload["adapter_id"] == "mgba",
+           "a second device learns provenance only through the journal payload"
+
+    assert entry.payload["adapter_version"] == "0.10.5"
+
+    _ = conn
+  end
+
   test "replaying the same Idempotency-Key returns the original receipt with no second revision",
        %{conn: conn} do
     {scope, _device, token} = paired()
