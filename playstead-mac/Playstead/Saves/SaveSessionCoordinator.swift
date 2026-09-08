@@ -68,6 +68,11 @@ actor SaveSessionCoordinator {
     private let casManager: CASManager
     private let bytesCommitter: SaveCaptureBytesCommitter
     private let blockedState: SaveCaptureBlockedState?
+    /// Which adapter produced this session's captures. Required, never
+    /// defaulted -- WINDOWS #57 was a literal `nil` sitting in
+    /// `persist()` that nothing ever noticed, and a default value here
+    /// would let exactly that recur.
+    private let provenance: SaveCaptureProvenance
     private let pollInterval: TimeInterval
     /// Fired after a promoted revision is durably recorded, so the
     /// upload lane drains it without this type knowing the lane exists.
@@ -87,6 +92,7 @@ actor SaveSessionCoordinator {
         saveStore: SaveStore,
         casManager: CASManager,
         blockedState: SaveCaptureBlockedState? = nil,
+        provenance: SaveCaptureProvenance,
         pollInterval: TimeInterval = 1.0,
         onPromoted: (@Sendable () -> Void)? = nil
     ) {
@@ -94,6 +100,7 @@ actor SaveSessionCoordinator {
         self.casManager = casManager
         self.bytesCommitter = SaveCaptureBytesCommitter(casManager: casManager)
         self.blockedState = blockedState
+        self.provenance = provenance
         self.pollInterval = pollInterval
         self.onPromoted = onPromoted
     }
@@ -265,8 +272,8 @@ actor SaveSessionCoordinator {
             deviceCapturedAt: nil,
             recordedAt: nil,
             captureMethod: captureMethod,
-            adapterID: nil,
-            adapterVersion: nil,
+            adapterID: provenance.adapterID,
+            adapterVersion: provenance.adapterVersion,
             saveFormat: nil,
             formatConfidence: nil,
             playSessionID: capture.sessionID,

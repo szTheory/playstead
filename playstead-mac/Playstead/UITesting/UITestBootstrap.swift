@@ -253,7 +253,15 @@ enum UITestBootstrap {
             "size_bytes": roundTripped.sizeBytes,
             "durability": roundTripped.durability,
             "captured_sha256": capture.sha256,
-            "captured_size_bytes": capture.sizeBytes
+            "captured_size_bytes": capture.sizeBytes,
+            // WINDOWS #57 claimed `SaveUploadLane` forwards adapter
+            // provenance "when present" -- reported here so the live
+            // server proof asserts the claim instead of restating it.
+            // This value comes back off the round-tripped revision, so
+            // it is what upload -> journal -> sync actually preserved,
+            // never the literal this harness inserted.
+            "adapter_id": roundTripped.adapterID ?? "",
+            "adapter_version": roundTripped.adapterVersion ?? ""
         ]
         let data = try JSONSerialization.data(withJSONObject: result)
         try data.write(to: resultURL, options: .atomic)

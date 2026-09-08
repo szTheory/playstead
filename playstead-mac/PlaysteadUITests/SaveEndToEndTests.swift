@@ -106,6 +106,11 @@ final class SaveEndToEndTests: XCTestCase {
         XCTAssertEqual(result.blobSHA256, expectedSHA256, "the revision that came back through sync must carry the same digest the Mac computed at capture")
         XCTAssertEqual(result.sizeBytes, 32_768)
         XCTAssertEqual(result.durability, "uploaded")
+        // Provenance survives the round trip (WINDOWS #57): the columns
+        // were plumbed client -> wire -> server -> journal -> client and
+        // nothing ever asserted the whole run of it.
+        XCTAssertEqual(result.adapterID, "e2e-harness", "adapter_id must survive upload, journal and sync")
+        XCTAssertEqual(result.adapterVersion, "1.0")
 
         guard try runFixture("verify", root: runRoot) else {
             return XCTFail("live fixture stage 'verify' failed")
@@ -117,6 +122,8 @@ final class SaveEndToEndTests: XCTestCase {
         let blobSHA256: String
         let sizeBytes: Int
         let durability: String
+        let adapterID: String
+        let adapterVersion: String
         let capturedSHA256: String
         let capturedSizeBytes: Int
 
@@ -125,6 +132,8 @@ final class SaveEndToEndTests: XCTestCase {
             case blobSHA256 = "blob_sha256"
             case sizeBytes = "size_bytes"
             case durability
+            case adapterID = "adapter_id"
+            case adapterVersion = "adapter_version"
             case capturedSHA256 = "captured_sha256"
             case capturedSizeBytes = "captured_size_bytes"
         }

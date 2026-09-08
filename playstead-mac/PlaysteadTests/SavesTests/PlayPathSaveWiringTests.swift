@@ -142,7 +142,16 @@ final class PlayPathSaveWiringTests: XCTestCase {
             .appendingPathComponent("Playstead/App/PlaysteadApp.swift")
         let source = try String(contentsOf: sourceURL, encoding: .utf8)
 
-        XCTAssertTrue(source.contains("SaveSessionRecovery(saveStore:"), "SaveSessionRecovery must be constructed in production")
+        XCTAssertTrue(source.contains("SaveSessionRecovery("), "SaveSessionRecovery must be constructed in production")
+        // WINDOWS #57: both save writers take their provenance from one
+        // value the composition root computes, so the live path and the
+        // crash-replay path cannot be handed different answers. Asserted
+        // on the source because the two constructions are in `init`,
+        // where a test cannot observe the arguments themselves.
+        XCTAssertEqual(
+            source.components(separatedBy: "provenance: saveCaptureProvenance").count - 1, 2,
+            "both SaveSessionRecovery and makeSaveSessionCoordinator must be handed the same provenance value"
+        )
         XCTAssertTrue(
             source.contains(".task { await appEnvironment.recoverAbandonedSaveSessionsAtLaunch() }"),
             "the production root view must actually run the replay pass at launch"
@@ -357,6 +366,18 @@ final class PlayPathSaveWiringTests: XCTestCase {
             .filter { $0.tier == SaveCaptureTier.promoted.rawValue }
         XCTAssertEqual(promoted.count, 1, "exactly one promoted revision per session (D-04)")
         XCTAssertEqual(promoted.first?.blobSHA256, hex(of: played))
+        // Reachability, not behaviour: `SaveSessionCoordinatorTests`
+        // already proves the coordinator records whatever provenance it
+        // is handed. What WINDOWS #57 actually was is that the *shipped*
+        // composition root handed it nothing, so this asserts against
+        // the real `AppEnvironment` and the real pin -- the only path a
+        // user's revision ever takes.
+        let pin = try AdapterPin.load()
+        XCTAssertEqual(
+            promoted.first?.adapterID, pin.emulator,
+            "a revision the shipped Play path produced must name the adapter that produced it"
+        )
+        XCTAssertEqual(promoted.first?.adapterVersion, pin.version)
         XCTAssertEqual(promoted.first?.durability, SaveDurability.localOnly.rawValue)
         XCTAssertEqual(environment.onlyOnThisMacCount(forAssetSetID: "asset-5"), 0, "no catalogue entry yet, so no rollup")
     }

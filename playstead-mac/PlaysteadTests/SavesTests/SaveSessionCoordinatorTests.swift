@@ -71,13 +71,20 @@ final class SaveSessionCoordinatorTests: XCTestCase {
     /// loop (`SaveCaptureTierTests` already covers `observe()`).
     private func makeCoordinator(
         blockedState: SaveCaptureBlockedState? = nil,
+        provenance: SaveCaptureProvenance = SaveSessionCoordinatorTests.testProvenance,
         onPromoted: (@Sendable () -> Void)? = nil
     ) -> SaveSessionCoordinator {
         SaveSessionCoordinator(
             saveStore: saveStore, casManager: casManager, blockedState: blockedState,
-            pollInterval: 3600, onPromoted: onPromoted
+            provenance: provenance, pollInterval: 3600, onPromoted: onPromoted
         )
     }
+
+    /// Deliberately not the shipped pin's values: an assertion that
+    /// passed only because it matched `AdapterPin.json` would keep
+    /// passing if the coordinator stopped reading the provenance it was
+    /// handed and hardcoded the pin instead.
+    static let testProvenance = SaveCaptureProvenance(adapterID: "test-adapter", adapterVersion: "9.9.9")
 
     private func begin(_ coordinator: SaveSessionCoordinator, lineID: String) async {
         await coordinator.begin(
@@ -111,6 +118,12 @@ final class SaveSessionCoordinatorTests: XCTestCase {
         XCTAssertEqual(baselines.first?.blobSHA256, digest(outOfBand))
         XCTAssertEqual(baselines.first?.origin, SaveCaptureOrigin.external.rawValue)
         XCTAssertEqual(baselines.first?.captureMethod, "baseline")
+        // A session-start baseline goes through the same `persist()` as
+        // the promotion, so it carries the same provenance -- otherwise
+        // whether a revision knows its adapter would depend on whether
+        // the bytes changed out of band.
+        XCTAssertEqual(baselines.first?.adapterID, Self.testProvenance.adapterID)
+        XCTAssertEqual(baselines.first?.adapterVersion, Self.testProvenance.adapterVersion)
         XCTAssertEqual(baselines.first?.durability, SaveDurability.localOnly.rawValue)
         XCTAssertNotNil(baselines.first?.localPath)
     }
@@ -150,6 +163,11 @@ final class SaveSessionCoordinatorTests: XCTestCase {
         XCTAssertEqual(promoted.count, 1, "exactly one promoted revision per session (D-04)")
         XCTAssertEqual(promoted.first?.blobSHA256, digest(played))
         XCTAssertEqual(promoted.first?.captureMethod, "session")
+        // WINDOWS #57: both columns existed, both were forwarded on the
+        // wire, and both were written as a literal `nil` by the shipped
+        // app for every revision it ever produced.
+        XCTAssertEqual(promoted.first?.adapterID, Self.testProvenance.adapterID)
+        XCTAssertEqual(promoted.first?.adapterVersion, Self.testProvenance.adapterVersion)
         XCTAssertEqual(promoted.first?.durability, SaveDurability.localOnly.rawValue)
         XCTAssertNotNil(promoted.first?.playSessionID)
         XCTAssertEqual(promoted.first?.sessionID, promoted.first?.playSessionID)
@@ -386,7 +404,8 @@ final class SaveSessionCoordinatorTests: XCTestCase {
         let unwritable = URL(fileURLWithPath: "/dev/null/save-captures")
 
         let coordinator = SaveSessionCoordinator(
-            saveStore: saveStore, casManager: casManager, blockedState: blocked, pollInterval: 3600
+            saveStore: saveStore, casManager: casManager, blockedState: blocked,
+            provenance: Self.testProvenance, pollInterval: 3600
         )
         await coordinator.begin(
             saveLineID: lineID, targetURL: targetURL, destinationDirectory: unwritable,

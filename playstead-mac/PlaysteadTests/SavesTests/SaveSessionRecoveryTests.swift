@@ -86,7 +86,12 @@ final class SaveSessionRecoveryTests: XCTestCase {
         try markSessionAbandoned(lineID: lineID, sessionID: sessionID, digest: onDiskDigest)
         let artifactURL = try writeArtifact(bytes)
 
-        let recovery = SaveSessionRecovery(saveStore: saveStore, casManager: casManager)
+        // A real provenance here, not `.unknown`: a crash-replayed
+        // capture came off the same emulator as the session it replays,
+        // so it must be stamped exactly as the live path stamps one
+        // (WINDOWS #57).
+        let provenance = SaveCaptureProvenance(adapterID: "test-adapter", adapterVersion: "9.9.9")
+        let recovery = SaveSessionRecovery(saveStore: saveStore, casManager: casManager, provenance: provenance)
         let session = AbandonedSaveSession(
             saveLineID: lineID, sessionID: sessionID, artifactSource: FileSaveArtifactSource(url: artifactURL),
             destinationDirectory: tempRoot.appendingPathComponent("dest-\(sessionID)"), artifactRelativePath: "save"
@@ -96,6 +101,8 @@ final class SaveSessionRecoveryTests: XCTestCase {
         XCTAssertNotNil(result, "recovery must promote the revision the crashed session did not")
         XCTAssertEqual(result?.blobSHA256, onDiskDigest)
         XCTAssertEqual(result?.tier, SaveCaptureTier.promoted.rawValue)
+        XCTAssertEqual(result?.adapterID, provenance.adapterID)
+        XCTAssertEqual(result?.adapterVersion, provenance.adapterVersion)
         XCTAssertEqual(promotedRows(lineID: lineID).count, 1)
     }
 
@@ -110,7 +117,7 @@ final class SaveSessionRecoveryTests: XCTestCase {
         let sessionID = UUID().uuidString
         let artifactURL = try writeArtifact(bytes) // identical to the already-recorded head
 
-        let recovery = SaveSessionRecovery(saveStore: saveStore, casManager: casManager)
+        let recovery = SaveSessionRecovery(saveStore: saveStore, casManager: casManager, provenance: .unknown)
         let session = AbandonedSaveSession(
             saveLineID: lineID, sessionID: sessionID, artifactSource: FileSaveArtifactSource(url: artifactURL),
             destinationDirectory: tempRoot.appendingPathComponent("dest-\(sessionID)"), artifactRelativePath: "save"
@@ -130,7 +137,7 @@ final class SaveSessionRecoveryTests: XCTestCase {
         try markSessionAbandoned(lineID: lineID, sessionID: sessionID, digest: digest(bytes))
         let artifactURL = try writeArtifact(bytes)
 
-        let recovery = SaveSessionRecovery(saveStore: saveStore, casManager: casManager)
+        let recovery = SaveSessionRecovery(saveStore: saveStore, casManager: casManager, provenance: .unknown)
         let session = AbandonedSaveSession(
             saveLineID: lineID, sessionID: sessionID, artifactSource: FileSaveArtifactSource(url: artifactURL),
             destinationDirectory: tempRoot.appendingPathComponent("dest-\(sessionID)"), artifactRelativePath: "save"
@@ -159,7 +166,7 @@ final class SaveSessionRecoveryTests: XCTestCase {
         // recorded and promote nothing itself.
         try recordPromotedRow(lineID: lineID, sessionID: sessionID, digest: sharedDigest)
 
-        let recovery = SaveSessionRecovery(saveStore: saveStore, casManager: casManager)
+        let recovery = SaveSessionRecovery(saveStore: saveStore, casManager: casManager, provenance: .unknown)
         let session = AbandonedSaveSession(
             saveLineID: lineID, sessionID: sessionID, artifactSource: FileSaveArtifactSource(url: artifactURL),
             destinationDirectory: tempRoot.appendingPathComponent("dest-\(sessionID)"), artifactRelativePath: "save"
@@ -182,7 +189,7 @@ final class SaveSessionRecoveryTests: XCTestCase {
             try markSessionAbandoned(lineID: lineID, sessionID: sessionID, digest: digest(bytes))
             let artifactURL = try writeArtifact(bytes)
 
-            let recovery = SaveSessionRecovery(saveStore: saveStore, casManager: casManager)
+            let recovery = SaveSessionRecovery(saveStore: saveStore, casManager: casManager, provenance: .unknown)
             let session = AbandonedSaveSession(
                 saveLineID: lineID, sessionID: sessionID, artifactSource: FileSaveArtifactSource(url: artifactURL),
                 destinationDirectory: tempRoot.appendingPathComponent("dest-\(sessionID)"), artifactRelativePath: "save"
@@ -286,7 +293,7 @@ final class SaveSessionRecoveryTests: XCTestCase {
         try markSessionAbandoned(lineID: lineID, sessionID: sessionID, digest: onDiskDigest)
         let artifactURL = try writeArtifact(bytes)
 
-        let recovery = SaveSessionRecovery(saveStore: saveStore, casManager: casManager)
+        let recovery = SaveSessionRecovery(saveStore: saveStore, casManager: casManager, provenance: .unknown)
         let session = AbandonedSaveSession(
             saveLineID: lineID, sessionID: sessionID, artifactSource: FileSaveArtifactSource(url: artifactURL),
             destinationDirectory: tempRoot.appendingPathComponent("dest-\(sessionID)"), artifactRelativePath: "save"
@@ -309,7 +316,7 @@ final class SaveSessionRecoveryTests: XCTestCase {
         try markSessionAbandoned(lineID: lineID, sessionID: sessionID, digest: onDiskDigest)
         let artifactURL = try writeArtifact(bytes)
 
-        let recovery = SaveSessionRecovery(saveStore: saveStore, casManager: casManager)
+        let recovery = SaveSessionRecovery(saveStore: saveStore, casManager: casManager, provenance: .unknown)
         let session = AbandonedSaveSession(
             saveLineID: lineID, sessionID: sessionID, artifactSource: FileSaveArtifactSource(url: artifactURL),
             destinationDirectory: tempRoot.appendingPathComponent("dest-\(sessionID)"), artifactRelativePath: "save"
@@ -354,7 +361,7 @@ final class SaveSessionRecoveryTests: XCTestCase {
         let brokenCAS = CASManager(paths: unwritablePaths)
         defer { try? FileManager.default.removeItem(at: unwritableRoot) }
 
-        let recovery = SaveSessionRecovery(saveStore: saveStore, casManager: brokenCAS)
+        let recovery = SaveSessionRecovery(saveStore: saveStore, casManager: brokenCAS, provenance: .unknown)
         let session = AbandonedSaveSession(
             saveLineID: lineID, sessionID: sessionID, artifactSource: FileSaveArtifactSource(url: artifactURL),
             destinationDirectory: tempRoot.appendingPathComponent("dest-\(sessionID)"), artifactRelativePath: "save"
@@ -384,7 +391,7 @@ final class SaveSessionRecoveryTests: XCTestCase {
         try Data("not a directory".utf8).write(to: objects)
 
         let blocked = SaveCaptureBlockedState(localStore: localStore)
-        let recovery = SaveSessionRecovery(saveStore: saveStore, casManager: casManager, blockedState: blocked)
+        let recovery = SaveSessionRecovery(saveStore: saveStore, casManager: casManager, blockedState: blocked, provenance: .unknown)
         let session = AbandonedSaveSession(
             saveLineID: lineID, sessionID: sessionID, artifactSource: FileSaveArtifactSource(url: artifactURL),
             destinationDirectory: tempRoot.appendingPathComponent("dest-\(sessionID)"), artifactRelativePath: "save"
@@ -409,7 +416,7 @@ final class SaveSessionRecoveryTests: XCTestCase {
         let artifactURL = try writeArtifact(bytes)
         let destination = tempRoot.appendingPathComponent("dest-\(sessionID)")
 
-        let recovery = SaveSessionRecovery(saveStore: saveStore, casManager: casManager)
+        let recovery = SaveSessionRecovery(saveStore: saveStore, casManager: casManager, provenance: .unknown)
 
         let first = try await recovery.replayAll(
             saveLineID: lineID, artifactSource: FileSaveArtifactSource(url: artifactURL),

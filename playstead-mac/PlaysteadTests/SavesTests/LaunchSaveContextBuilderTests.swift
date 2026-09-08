@@ -110,6 +110,7 @@ final class LaunchSaveContextBuilderTests: XCTestCase {
         let coordinator = SaveSessionCoordinator(
             saveStore: saveStore,
             casManager: cas,
+            provenance: .unknown,
             pollInterval: 3600 // the 1 Hz loop never fires inside this test
         )
         await coordinator.begin(

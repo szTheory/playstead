@@ -48,11 +48,24 @@ actor SaveSessionRecovery {
     /// as a live one.
     private let bytesCommitter: SaveCaptureBytesCommitter
     private let blockedState: SaveCaptureBlockedState?
+    /// The same required, undefaulted provenance the live path takes
+    /// (`SaveSessionCoordinator`). A crash-replayed capture came off the
+    /// same emulator as the session it replays, so recording it as
+    /// unknown here -- or worse, recording something different -- would
+    /// make provenance depend on whether the emulator happened to exit
+    /// cleanly.
+    private let provenance: SaveCaptureProvenance
 
-    init(saveStore: SaveStore, casManager: CASManager, blockedState: SaveCaptureBlockedState? = nil) {
+    init(
+        saveStore: SaveStore,
+        casManager: CASManager,
+        blockedState: SaveCaptureBlockedState? = nil,
+        provenance: SaveCaptureProvenance
+    ) {
         self.saveStore = saveStore
         self.bytesCommitter = SaveCaptureBytesCommitter(casManager: casManager)
         self.blockedState = blockedState
+        self.provenance = provenance
     }
 
     /// Every `sessionID` for `saveLineID` that has at least one `staged`
@@ -111,8 +124,8 @@ actor SaveSessionRecovery {
             deviceCapturedAt: nil,
             recordedAt: nil,
             captureMethod: "recovery",
-            adapterID: nil,
-            adapterVersion: nil,
+            adapterID: provenance.adapterID,
+            adapterVersion: provenance.adapterVersion,
             saveFormat: nil,
             formatConfidence: nil,
             playSessionID: session.sessionID,

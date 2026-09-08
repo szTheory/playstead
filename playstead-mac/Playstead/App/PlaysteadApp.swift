@@ -270,6 +270,11 @@ final class AppEnvironment {
     /// emulator check and the capability card.
     private(set) var adapterInstallState: AdapterInstallState = .notInstalled
     private(set) var adapterProvenance: AdapterProvenance = .pinnedRelease
+    /// Which adapter every capture this app writes is stamped with
+    /// (WINDOWS #57). Held on the environment rather than re-derived at
+    /// each construction site so the live path and the crash-replay path
+    /// are provably handed the same value.
+    let saveCaptureProvenance: SaveCaptureProvenance
     private(set) var adapterSetupPhase: AdapterSetupPhase = .idle
 
     // MARK: - Download coordination
@@ -504,6 +509,15 @@ final class AppEnvironment {
         self.preflightChecker = PreflightChecker(cas: cas)
         self.launchMaterializer = LaunchMaterializer(paths: paths, cas: cas)
 
+        // Loaded here, ahead of the saves block, because both save
+        // writers now need the adapter's identity (WINDOWS #57) -- the
+        // pin's own `do`/`catch` below still owns the host, catalog and
+        // installer, and still records a decode failure as
+        // `adapterPinLoadError`.
+        let adapterPin = try? AdapterPin.load()
+        let saveCaptureProvenance = adapterPin.map(SaveCaptureProvenance.init(pin:)) ?? .unknown
+        self.saveCaptureProvenance = saveCaptureProvenance
+
         let saveStore = SaveStore(localStore: store)
         let saveOutbox = SaveOutbox(localStore: store)
         self.saveStore = saveStore
@@ -511,7 +525,10 @@ final class AppEnvironment {
         self.saveConflictResolver = SaveConflictResolver(saveStore: saveStore, saveOutbox: saveOutbox)
         let saveCaptureBlockedState = SaveCaptureBlockedState(localStore: store)
         self.saveCaptureBlockedState = saveCaptureBlockedState
-        self.saveSessionRecovery = SaveSessionRecovery(saveStore: saveStore, casManager: cas, blockedState: saveCaptureBlockedState)
+        self.saveSessionRecovery = SaveSessionRecovery(
+            saveStore: saveStore, casManager: cas, blockedState: saveCaptureBlockedState,
+            provenance: saveCaptureProvenance
+        )
         let uploadLane = SaveUploadLane(apiClient: client, saveStore: saveStore)
         self.saveUploadLane = uploadLane
 
@@ -537,7 +554,7 @@ final class AppEnvironment {
         )
 
         do {
-            let pin = try AdapterPin.load()
+            guard let pin = adapterPin else { throw AdapterPin.LoadError.resourceMissing }
             let host = AdapterHost(pin: pin, emulatorsRoot: paths.emulators)
             self.adapterHost = host
             self.adapterCatalog = AdapterCatalog(pin: pin)
@@ -863,6 +880,7 @@ final class AppEnvironment {
             // a save this very Mac made (WINDOWS #49).
             casManager: casManager,
             blockedState: saveCaptureBlockedState,
+            provenance: saveCaptureProvenance,
             // Drain trigger: a session's promotion is the moment a new
             // local-only revision exists, and a revision that exists on
             // exactly one device is the most dangerous state in the
