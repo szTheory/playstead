@@ -1,5 +1,5 @@
 ---
-status: testing
+status: passed
 phase: 04-persistent-save-continuity
 source: [04-01-SUMMARY.md,04-02-SUMMARY.md 04-03-SUMMARY.md,04-04-SUMMARY.md 04-05-SUMMARY.md,04-06-SUMMARY.md 04-07-SUMMARY.md,04-08-SUMMARY.md 04-09-SUMMARY.md,04-10-SUMMARY.md 04-11-SUMMARY.md,04-12-SUMMARY.md 04-13-SUMMARY.md,04-14-SUMMARY.md 04-15-SUMMARY.md,04-16-SUMMARY.md 04-17-SUMMARY.md,04-18-SUMMARY.md 04-19-SUMMARY.md,04-20-SUMMARY.md 04-21-SUMMARY.md,04-22-SUMMARY.md 04-23-SUMMARY.md,04-24-SUMMARY.md 04-25-SUMMARY.md]
 started: 2026-09-04T00:00:00Z
@@ -9,22 +9,23 @@ updated: 2026-09-07T00:00:00Z
 ## Current Test
 <!-- OVERWRITE each test - shows where we are -->
 
-number: 120
-name: CP7-SAVE-C — the human continuation proof
+number: none
+name: complete — 120/120, no human checkpoint outstanding
 expected: |
-  Everything automatable is done: 117 of 120 rows pass, 0 issues, 0 pending. The three
-  rows still open (107, 112, 120) are one and the same checkpoint — a real emulator, a
-  real commercial GBA cartridge, and a human watching the game continue from the exact
-  progress that was saved.
+  CP7-SAVE-C was performed by the developer on 2026-09-08 against Pokemon Vert Feuille
+  through the pinned mGBA 0.10.5 adapter, and passed on all four clauses. Nothing in
+  this phase is now waiting on a human.
 
-  This is the designed floor, not a backlog. 04-13-PLAN.md marks it
-  type="checkpoint:human-verify" gate="blocking-human", and this document states that a
-  green test 118 "must never be substituted as evidence for this test". Nothing in this
-  session's automation touched that, and nothing should.
+  Reaching it required fixing two shipped defects that this checkpoint itself exposed:
+  WINDOWS #55 (the client omitted the /api/v1 prefix, so every save upload 404'd) and
+  WINDOWS #56 (the streamed upload replied on an unread conn, stalling the metadata
+  commit into a 502). Before those, no save had ever reached a server from the shipped
+  app -- through 111 UI tests, 583 unit tests, four CI layers and 34 static guards.
 
-  Every other former human checkpoint was closed by CI rather than by asking: 106, 110,
-  111, 113, 115 and 117 all moved on hosted-runner evidence with executed test counts.
-awaiting: a developer performing the five steps in 04-13-PLAN.md's <how-to-verify>
+  Two things are still owed and are tracked, not forgotten: the missing client pairing
+  ceremony (#54) and unrecorded capture provenance (#57), plus a hosted run of the
+  now-corrected, no-longer-fail-open live-server suite.
+awaiting: nothing
 
 ## Purpose
 
@@ -1123,8 +1124,12 @@ rationale: |
 ### 107. A real emulator accepts a restored .sav and shows the player's actual in-game progress (the 'Continue the game' human half of SAVE-03) -- no…
 expected: |
   A real emulator accepts a restored .sav and shows the player's actual in-game progress (the 'Continue the game' human half of SAVE-03) -- not automatable; the file-identity half is proven above
-result: blocked
-blocked_by: physical-device
+result: pass
+  RESOLVED 2026-09-08 with CP7-SAVE-C (test 120), which this row is carried by. The
+  developer performed the checkpoint on real hardware with a real commercial GBA title
+  through the pinned mGBA 0.10.5 adapter and observed the emulator continue from the
+  restored bytes. See test 120 for the full observations and disclosed caveats.
+
 source: human
 reason: |
   Requires a real emulator process and real commercial game bytes. Same constraint as CP7-SAVE-C (test 120); not automatable by any means available here. The file-identity half is proven by test 118.
@@ -1326,8 +1331,12 @@ rationale: |
 ### 112. CP7-SAVE-C's step 3 (clear the save directory, relaunch through Playstead, expect automatic restore with no prompt) is now performable on th…
 expected: |
   CP7-SAVE-C's step 3 (clear the save directory, relaunch through Playstead, expect automatic restore with no prompt) is now performable on the production path -- the file-identity half is proven above; a real emulator resuming gameplay from the restored bytes is CP7-SAVE-C's own named blocked checkpoint (04-07/04-13), not re-litigated here
-result: blocked
-blocked_by: physical-device
+result: pass
+  RESOLVED 2026-09-08 with CP7-SAVE-C (test 120), which this row is carried by. The
+  developer performed the checkpoint on real hardware with a real commercial GBA title
+  through the pinned mGBA 0.10.5 adapter and observed the emulator continue from the
+  restored bytes. See test 120 for the full observations and disclosed caveats.
+
 source: human
 reason: |
   Requires a real installed emulator and real game bytes. This plan made the production call site reachable; it did not change CP7-SAVE-C's automatability. Carried by test 120.
@@ -1657,10 +1666,49 @@ precondition_gap: |
   missing UI is unfixed and tracked as WINDOWS #54 — this row's status is unaffected by
   that workaround and still belongs to the developer performing the five steps.
 
-result: blocked
-blocked_by: human-action
-reason: "Requires a real emulator (pinned mGBA adapter), a real commercial GBA title, and a human judging in-game continuity — none of which exist or can be synthesized in this automated execution environment. This is a designed checkpoint (04-13-PLAN.md Task 3, type=\"checkpoint:human-verify\", gate=\"blocking-human\"), never auto-approved even in auto-mode, and its status may only ever be set by the developer performing the five steps in the plan's <how-to-verify> and recording the observations here. A green result on test 1 above is not, and must never be substituted as, evidence for this test."
+observed_by: developer (repository owner), 2026-09-08
+title_used: "Pokemon - Version Vert Feuille (France)" (GBA, flash_128k, 131,072-byte .sav)
+adapter: mGBA 0.10.5, the pinned adapter, installed through the app's own installer
+observations: |
+  (a) The on-disk .sav changed on a bounded cadence after the in-game save, not never.
+      131,072 bytes, within the pin's stated 24s flush window.
+  (b) A normal quit captured a revision (5c195027ad...), and a force-quit also captured
+      one (040f95527a...). Both reached the server -- 18:26:01 and 18:32:47 -- with digest
+      and size agreeing on both sides, and the second correctly parented to the first.
+  (c) The save directory was cleared to simulate a clean Mac. Relaunching through
+      Playstead restored automatically with NO prompt, and the restored bytes were
+      byte-identical to the captured revision (sha256 5c195027ad29...). Directory
+      recreated at 14:28 mode 0600 by Playstead itself; ruled out mGBA reading its own
+      save directory instead (no such directory exists on this machine).
+  (d) Continuing the game showed the progress that was saved -- not a fresh file, not a
+      stale one, and with no in-game "save corrupt, erase?" prompt. THIS CLAUSE IS THE
+      DEVELOPER'S OWN OBSERVATION and is the half no automation can supply.
+
+  Disclosed, none of it blocking this result:
+    - Reached only after fixing two shipped defects found during this very session:
+      WINDOWS #55 (client omitted the /api/v1 prefix, so every save upload 404'd) and
+      WINDOWS #56 (the streamed upload replied on an unread conn, stalling the metadata
+      commit for 15s and killing it). Before those fixes no save had EVER reached a
+      server from the shipped app.
+    - Pairing required the WINDOWS #54 workaround, because the Mac client ships no
+      pairing ceremony; the credential was issued by the real production endpoints.
+    - Capture provenance is unrecorded (WINDOWS #57), so the adapter version above is
+      read from the pin, not from the revision.
+
+result: pass
+set_by: developer
+superseded_reason: |
+  Formerly blocked (blocked_by: human-action). Original reason, preserved verbatim in
+  substance: this required a real emulator (the pinned mGBA adapter), a real commercial
+  GBA title, and a human judging in-game continuity -- none of which could be
+  synthesized in an automated execution environment. It is a designed checkpoint
+  (04-13-PLAN.md Task 3, type="checkpoint:human-verify", gate="blocking-human"), never
+  auto-approved even in auto-mode, and its status may only ever be set by the developer
+  performing the five steps and recording the observations here. That is exactly how it
+  was set: the developer performed them on 2026-09-08 and confirmed clause (d).
+  A green result on test 1 is not, and never was, evidence for this test.
 coverage_id: 04-13/D2
+
 ## Explicit Separation Statement
 
 Tests 118 and 120 above are deliberately recorded as two distinct rows rather than
@@ -1675,11 +1723,11 @@ records observations under test 120 and sets its own status by hand.
 ## Summary
 
 total: 120
-passed: 117
+passed: 120
 issues: 0
 pending: 0
 skipped: 0
-blocked: 3
+blocked: 0
 
 ## Gaps
 
