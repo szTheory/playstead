@@ -16,6 +16,7 @@ This MVP proves one trustworthy Mac-to-server custody and continuity journey: de
 - [ ] **Phase 3: Mac Offline Play Vertical Slice** - Let a paired Mac browse, selectively cache, preflight, and launch one proven adapter path offline.
 - [x] **Phase 3.5: Mac Verification Automation** - Stand up macOS CI and a UI-test harness so Mac client behavior is machine-verified instead of hand-checked. (completed 2026-09-03)
 - [ ] **Phase 4: Persistent Save Continuity** - Preserve compatible progress through offline queues, immutable revisions, restore, and conflict recovery.
+- [ ] **Phase 4.5: Mac Pairing Ceremony** - Ship the client half of pairing so a human can actually pair a Mac, unblocking every checkpoint that needs a paired device.
 - [ ] **Phase 5: Recovery and Release Proof** - Demonstrate independently backed-up recovery, safe updates, diagnostics, and release-quality operations.
 
 ## Phase Details
@@ -307,6 +308,29 @@ Plans:
 **Wave 7** *(blocked on Wave 6 completion)*
 
 - [x] 04-13-PLAN.md — Restore proof, zero-network Play flow, validation map, and CP7-SAVE-C (D-68)
+
+### Phase 4.5: Mac Pairing Ceremony
+
+**Goal**: A human with a fresh Mac install and a server URL can pair the Mac from inside the app, with no shell script, no hand-written Keychain item, and no developer intervention.
+**Rationale**: Discovered 2026-09-08 during Phase 4 UAT (WINDOWS #54), when the owner tried to run CP7-SAVE-C and had no way to pair. The server half has been complete since Phase 1 — `POST /device-pairing/requests`, `GET /requests/:id`, `POST /requests/:id/redeem`, plus the devices approval console — and the client calls none of it. `APIClient.swift:57` says so outright; `LibraryShellView.swift:474` tells the user to "Pair with your Playstead server", naming an action that exists nowhere in the app. 03.5-08 proved the ceremony only by driving it from `scripts/ci/live-server.sh` and handing a credential to a test build; the human path was never built. Every production `PairingCredential` construction is a Keychain **read** — the only writers are `UI_TESTING`-gated. Consequence: every checkpoint requiring a paired Mac is unperformable across Phases 3, 4 and 5, so the cost compounds exactly the way Phase 3.5's did. Worked around for the owner's Mac only, by driving the production endpoints by hand.
+**Depends on**: Phase 1 (server endpoints, complete)
+**Requirements**: PROT-01 (its second clause — "the Mac client stores the resulting scoped credential in Keychain" — is currently marked complete with no user-reachable implementation); unblocks CP7-SAVE-C and every paired-device checkpoint
+**Success Criteria** (what must be TRUE):
+
+  1. A user can enter a server URL in the app, see the display code the server issued, have it approved in the devices console, and end with a working credential in the login Keychain.
+  2. The ceremony lives in a `PairingCoordinator` a test constructs directly — no step of it inline in a SwiftUI view, the WINDOWS #37/#45 rule.
+  3. The empty state that already says "Pair with your Playstead server" offers the action it names.
+  4. Each of the server's four refusals (expired, already redeemed, not approved, slow down) is a distinct actionable state, not one generic failure.
+  5. A successful pairing captures the trust anchor to `AppPaths.root/pinned-ca.der`, which `APIClient` already watches for and already switches to pinned evaluation on.
+  6. The whole ceremony is proven against the real Phoenix in the live-server CI layer — a UI test against a stub is not evidence that a human can pair.
+
+**Research / spike flags**: Certificate capture is the least-proven step; which anchor to persist depends on the deployment (Caddy internal CA vs. a public certificate). If it cannot be made reliable, ship the ceremony without it and record the pin as its own window rather than writing a file `APIClient` will then trust wrongly.
+**Plans**: 0/1 plans executed
+
+Plans:
+**Wave 1**
+
+- [ ] 04.5-01-PLAN.md — `PairingClient`, `PairingCoordinator`, certificate capture, `PairingView` and its two call sites, tests at three levels
 
 ### Phase 5: Recovery and Release Proof
 
