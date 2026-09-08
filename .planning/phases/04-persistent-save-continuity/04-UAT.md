@@ -1535,6 +1535,26 @@ rationale: |
   was disclosed, not fixed, in this plan.
 ### 120. CP7-SAVE-C — the human continuation proof
 expected: Against a real commercial GBA title through the pinned mGBA adapter: (a) the on-disk `.sav` changes on a bounded cadence after an in-game save, not never; (b) a normal quit captures a revision, and a force-quit also captures a revision; (c) restoring onto a cleared save directory happens automatically with no prompt; (d) continuing the game shows the exact progress that was saved — not fresh, not stale, and with no in-game "save corrupt, erase?" prompt.
+precondition_gap: |
+  UNDERSTATED UNTIL 2026-09-08. This row's `blocked_by: physical-device`/`human-action`
+  reasons named only the emulator and the human. They omitted a second, harder blocker:
+  **the Mac client ships no pairing ceremony at all** (WINDOWS #54), so until that day no
+  human could pair a Mac, could not see their library, and therefore could not reach step 1
+  of this checkpoint by any supported means.
+
+  Found the way these things are always found — the owner tried to actually perform the
+  checkpoint and had nowhere to click. Every production `PairingCredential` construction is
+  a Keychain *read*; the only writers are `UI_TESTING`-gated. The server ships the whole
+  ceremony and the client calls none of it. 03.5-08's pairing proof ran through
+  `scripts/ci/live-server.sh`, a shell script handing a credential to a test build, which
+  is why CI stayed green over a hole no user could get past.
+
+  Worked around for the owner's Mac on 2026-09-08 by driving the real production endpoints
+  by hand (request -> console approval -> redeem) and writing the server-issued credential
+  into the login Keychain. The credential is genuine; only the last hop was manual. The
+  missing UI is unfixed and tracked as WINDOWS #54 — this row's status is unaffected by
+  that workaround and still belongs to the developer performing the five steps.
+
 result: blocked
 blocked_by: human-action
 reason: "Requires a real emulator (pinned mGBA adapter), a real commercial GBA title, and a human judging in-game continuity — none of which exist or can be synthesized in this automated execution environment. This is a designed checkpoint (04-13-PLAN.md Task 3, type=\"checkpoint:human-verify\", gate=\"blocking-human\"), never auto-approved even in auto-mode, and its status may only ever be set by the developer performing the five steps in the plan's <how-to-verify> and recording the observations here. A green result on test 1 above is not, and must never be substituted as, evidence for this test."

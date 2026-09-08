@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 35
+open_count: 36
 waived_count: 1
 fixed_count: 17
-total_count: 53
-last_updated: 2026-09-06T02:02:53.323Z
+total_count: 54
+last_updated: 2026-09-08T17:38:16.547Z
 ---
 
 # Broken Windows Ledger
@@ -68,6 +68,7 @@ last_updated: 2026-09-06T02:02:53.323Z
 | 51 | 04 | deviation | playstead-mac/Playstead/Saves/SaveCapturePoller.swift |  | The save-captures directory (<root>/save-captures/<assetSetID>/) has no reclamation path: each session leaves one session-<id>.staged.sav plus one <digest>.sav promoted blob, and QuotaManager measures paths.objects only, so capture blobs count against neither the quota nor the free-space floor and are never evicted. Save artifacts are small (tens of KB), so this is slow growth rather than an immediate hazard, but nothing bounds it. | open |  | 2026-09-05T22:19:41.957Z |  |
 | 52 | 04 | stub | playstead-mac/Playstead/Saves/SaveSessionRecovery.swift |  | SaveSessionRecovery.replay (D-07 crash-recovery, reachable in production via AppEnvironment.recoverAbandonedSaveSessionsAtLaunch) records a promoted revision but holds no CASManager, so a crash-recovered capture's bytes never enter the CAS and LaunchSaveContextBuilder reports bytesLocal: false for it -- the same hole 04-20 closed on the live-session path (WINDOWS #49), reached via the second capture path. Out of 04-20's declared scope (files_modified named SaveSessionCoordinator only). Fix should extract 04-20's SaveSessionCoordinator.commitCaptureBytes into one shared spelling rather than a second copy. FIXED by plan 04-23 (fd4e2b4): extracted SaveCaptureBytesCommitter, shared by SaveSessionCoordinator and SaveSessionRecovery; recovery replay commits bytes into the CAS before inserting the row. | fixed |  | 2026-09-05T22:36:11.098Z | 2026-09-06T02:02:53.188Z |
 | 53 | 04 | deviation | playstead-server/lib/playstead/export.ex |  | Export.load_save_revisions/2 selects only the (battery, slot 0) save line when a content_key has more than one save line; any other lines are silently excluded from export rather than merged (v1 client only ever writes one line, so this is currently unreachable). | open |  | 2026-09-06T01:18:12.481Z |  |
+| 54 | 04 | stub | playstead-mac/Playstead/Net/APIClient.swift |  | The Mac client ships no pairing ceremony, so a human cannot pair a Mac at all. Every production PairingCredential construction is a keychain READ (KeychainStore.swift:152); the only writers are UI_TESTING-gated (UITestBootstrap.swift:552, DeterministicProfile.swift:49). There is no pairing view, no code-entry surface, no URL-scheme handler. The server side is complete -- POST /api/v1/device-pairing/requests, GET /requests/:id, POST /requests/:id/redeem, plus the devices approval console -- and the client calls none of it. APIClient.swift:57 states it outright ('this tracer plan does not yet ship the pairing ceremony') and anticipates a future plan writing AppPaths.root/pinned-ca.der; until then APIClient uses default TLS trust rather than the pinned root CA. LibraryShellView.swift:474's empty state instructs the user to 'Pair with your Playstead server to see your library', naming an action that exists nowhere in the app. 03.5-08 proved pairing only through scripts/ci/live-server.sh driving the HTTP ceremony from a shell script and handing a credential to a test build -- the human path was never built. Consequence: every human checkpoint requiring a paired Mac is unperformable, CP7-SAVE-C (UAT tests 107/112/120) included, which its 'blocked_by: physical-device' reason understates. Discovered 2026-09-08 when the owner tried to run CP7-SAVE-C and had no way to pair. Worked around for the owner's Mac only, by driving the production endpoints by hand and writing the server-issued credential into the login keychain (service dev.playstead.mac, device d23b584e); the missing UI itself is unfixed. | open |  | 2026-09-08T17:38:16.547Z |  |
 
 ````json
 [
@@ -705,6 +706,18 @@ last_updated: 2026-09-06T02:02:53.323Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-06T01:18:12.481Z",
+    "resolved_at": null
+  },
+  {
+    "id": 54,
+    "kind": "stub",
+    "phase": "04",
+    "file": "playstead-mac/Playstead/Net/APIClient.swift",
+    "line": null,
+    "description": "The Mac client ships no pairing ceremony, so a human cannot pair a Mac at all. Every production PairingCredential construction is a keychain READ (KeychainStore.swift:152); the only writers are UI_TESTING-gated (UITestBootstrap.swift:552, DeterministicProfile.swift:49). There is no pairing view, no code-entry surface, no URL-scheme handler. The server side is complete -- POST /api/v1/device-pairing/requests, GET /requests/:id, POST /requests/:id/redeem, plus the devices approval console -- and the client calls none of it. APIClient.swift:57 states it outright ('this tracer plan does not yet ship the pairing ceremony') and anticipates a future plan writing AppPaths.root/pinned-ca.der; until then APIClient uses default TLS trust rather than the pinned root CA. LibraryShellView.swift:474's empty state instructs the user to 'Pair with your Playstead server to see your library', naming an action that exists nowhere in the app. 03.5-08 proved pairing only through scripts/ci/live-server.sh driving the HTTP ceremony from a shell script and handing a credential to a test build -- the human path was never built. Consequence: every human checkpoint requiring a paired Mac is unperformable, CP7-SAVE-C (UAT tests 107/112/120) included, which its 'blocked_by: physical-device' reason understates. Discovered 2026-09-08 when the owner tried to run CP7-SAVE-C and had no way to pair. Worked around for the owner's Mac only, by driving the production endpoints by hand and writing the server-issued credential into the login keychain (service dev.playstead.mac, device d23b584e); the missing UI itself is unfixed.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T17:38:16.547Z",
     "resolved_at": null
   }
 ]
