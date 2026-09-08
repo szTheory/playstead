@@ -3,8 +3,10 @@ import Security
 import CryptoKit
 
 /// Plan 04-04 task 3: the tracer's real end-to-end check. Pairs against
-/// the live test server (reusing `LiveServerSnapshotTests`' fixture and
-/// preflight discipline verbatim), writes one 32,768-byte artifact into
+/// the live test server (following `LiveServerSnapshotTests`' fixture and
+/// preflight discipline -- including resolving the runner's runtime config
+/// before the inherited environment, which this class originally omitted),
+/// writes one 32,768-byte artifact into
 /// a synthetic game's save directory, lets capture and the upload lane
 /// run in-process inside the paired app (via `UITestBootstrap`'s save
 /// e2e hook -- a UI test target cannot `@testable import Playstead`, so
@@ -167,16 +169,58 @@ final class SaveEndToEndTests: XCTestCase {
             "PLAYSTEAD_LIVE_SERVER_STAGE_FILE", "MAC_CI_DATABASE_URL", "MIX_ENV", "PORT"
         ])
         let inherited = ProcessInfo.processInfo.environment
-        if required.allSatisfy({ !(inherited[$0] ?? "").isEmpty }) {
+
+        // Resolve through the runner's runtime config FIRST, exactly as
+        // `LiveServerSnapshotTests` does. This class's own doc comment claimed
+        // it reused that fixture discipline "verbatim"; it did not -- it read
+        // the inherited environment only. The inherited PATH has no Elixir
+        // toolchain, so `live-server.sh`'s `mix playstead.mac_ci_fixture`
+        // died with "mix: command not found" at provision-domain on every
+        // hosted run. That was invisible because this test was fail-open
+        // until e6316d5: the fixture returned false, the test returned
+        // without asserting, and XCTest recorded a pass. Hosted run
+        // 34272794656 is the first one that could say so.
+        let url = runtimeConfigurationURL()
+        if
+            (try? permissions(of: url)) == 0o600,
+            let data = try? Data(contentsOf: url),
+            data.count <= 32_768,
+            let configured = try? JSONDecoder().decode([String: String].self, from: data),
+            Set(configured.keys) == required.union(["PATH"]),
+            required.allSatisfy({ !(configured[$0] ?? "").isEmpty }),
+            configured["MIX_ENV"] == "mac_ci",
+            configured["PORT"] == "4010"
+        {
+            return inherited.merging(configured) { _, configuredValue in configuredValue }
+        }
+
+        // Without a config, fall back to a fully inherited environment, and
+        // only when it is self-consistent: the runner derives both roots from
+        // one native server root, so disagreement means these values did not
+        // come from this run's runner.
+        let inheritedRootsAgree =
+            resolved(inherited["PLAYSTEAD_MAC_CI_ROOT"] ?? "")
+                == resolved(inherited["PLAYSTEAD_LIVE_SERVER_STAGE_ROOT"] ?? "")
+        if required.allSatisfy({ !(inherited[$0] ?? "").isEmpty }), inheritedRootsAgree {
             return inherited
         }
         return nil
+    }
+
+    private func resolved(_ path: String) -> URL {
+        URL(fileURLWithPath: path, isDirectory: true).resolvingSymlinksInPath().standardizedFileURL
     }
 
     private func fixtureScriptURL() -> URL {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("scripts/ci/live-server.sh")
+    }
+
+    private func runtimeConfigurationURL() -> URL {
+        fixtureScriptURL()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent(".build/ci/four-layer/raw/live-server-runtime.json")
     }
 
     private func runFixture(_ action: String, root: URL) throws -> Bool {
