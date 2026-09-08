@@ -1348,7 +1348,8 @@ PY
   run_test_layer live-server LiveServer 900 \
     --required-test PlaysteadUITests.HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner \
     --required-test PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch \
-    --required-test PlaysteadUITests.SaveRestoreProofTests/testCapturedRevisionRestoresToByteIdenticalArtifactInLaunchDir
+    --required-test PlaysteadUITests.SaveRestoreProofTests/testCapturedRevisionRestoresToByteIdenticalArtifactInLaunchDir \
+    --required-test PlaysteadUITests.SaveEndToEndTests/testOneSaveRoundTripsCaptureUploadAndJournalReturn
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
   restore_live_server_xctestrun
   cleanup_live_server_runtime_config
