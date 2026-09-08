@@ -92,11 +92,24 @@ final class SaveEndToEndTests: XCTestCase {
 
         XCTAssertTrue(launched.descendants(matching: .any)["playstead.surface.library"].waitForExistence(timeout: 20))
 
-        let deadline = Date().addingTimeInterval(60)
-        while !FileManager.default.fileExists(atPath: resultURL.path), Date() < deadline {
+        // The harness writes exactly one of these two files. Polling for
+        // both means a failure is reported by its cause on the run it
+        // happens, instead of as an indistinguishable timeout -- hosted
+        // run 34281587417 timed out here and said nothing about why.
+        let errorURL = resultURL.deletingPathExtension().appendingPathExtension("error.txt")
+        let deadline = Date().addingTimeInterval(120)
+        while
+            !FileManager.default.fileExists(atPath: resultURL.path),
+            !FileManager.default.fileExists(atPath: errorURL.path),
+            Date() < deadline
+        {
             Thread.sleep(forTimeInterval: 0.5)
         }
-        XCTAssertTrue(FileManager.default.fileExists(atPath: resultURL.path), "save-e2e result was never written within 60s")
+        if FileManager.default.fileExists(atPath: errorURL.path) {
+            let reason = (try? String(contentsOf: errorURL, encoding: .utf8)) ?? ""
+            return recordSaveHarnessFailure(reason.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: resultURL.path), "save-e2e result was never written within 120s")
 
         let resultData = try Data(contentsOf: resultURL)
         let result = try JSONDecoder().decode(SaveE2EResult.self, from: resultData)
@@ -136,6 +149,26 @@ final class SaveEndToEndTests: XCTestCase {
             case adapterVersion = "adapter_version"
             case capturedSHA256 = "captured_sha256"
             case capturedSizeBytes = "captured_size_bytes"
+        }
+    }
+
+    /// One assertion site per cause, for the same reason
+    /// `recordFixtureFailure` has one: CI's evidence pipeline keeps
+    /// `file:line` and discards assertion messages, so a single shared
+    /// `XCTFail(reason)` would report every distinct failure at the same
+    /// line and diagnose nothing.
+    private func recordSaveHarnessFailure(_ reason: String) {
+        switch reason {
+        case "save-e2e: capture did not quiesce":
+            XCTAssertTrue(false, "save-e2e-harness=capture-did-not-quiesce")
+        case "save-e2e: no paired APIClient":
+            XCTAssertTrue(false, "save-e2e-harness=no-paired-api-client")
+        case "save-e2e: upload did not complete":
+            XCTAssertTrue(false, "save-e2e-harness=upload-did-not-complete")
+        case "save-e2e: revision not found after sync":
+            XCTAssertTrue(false, "save-e2e-harness=revision-missing-after-sync")
+        default:
+            XCTAssertTrue(false, "save-e2e-harness=unexpected")
         }
     }
 

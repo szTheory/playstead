@@ -180,11 +180,36 @@ enum UITestBootstrap {
                     artifactURL: artifactURL, resultURL: resultURL, contentKey: contentKey, appEnvironment: appEnvironment
                 )
             } catch {
-                // Best effort: the absence of the result file at
-                // `resultURL` is itself the signal the polling XCUITest
-                // times out on -- no separate failure channel is needed.
+                // The absence of the result file IS a signal the polling
+                // XCUITest times out on -- but it is a signal with no
+                // content: every failure looks like "never written
+                // within 60s", so a genuinely slow run and a broken
+                // upload are indistinguishable. Hosted run 34281587417
+                // failed exactly this way and said nothing about why.
+                //
+                // Same discipline as the live-server fixture's own
+                // diagnostic (`live-server.sh`): name the stage, and
+                // never emit anything a sanitizer would have to strip.
+                // `DeterministicProfileError.stateMismatch` reasons are
+                // fixed literals written in this file; any other error
+                // is reported by type alone, because an arbitrary
+                // error's description can carry paths.
+                let reason: String
+                if case let DeterministicProfileError.stateMismatch(literal) = error {
+                    reason = literal
+                } else {
+                    reason = "save-e2e: unexpected \(type(of: error))"
+                }
+                try? Data(reason.utf8).write(to: saveEndToEndErrorURL(for: resultURL), options: [.atomic])
             }
         }
+    }
+
+    /// The sibling file the harness writes its failure reason to. A
+    /// sibling of an already-contained destination is contained by the
+    /// same check, so this needs no second validation pass.
+    static func saveEndToEndErrorURL(for resultURL: URL) -> URL {
+        resultURL.deletingPathExtension().appendingPathExtension("error.txt")
     }
 
     private static func runSaveEndToEnd(
