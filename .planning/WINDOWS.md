@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 37
+open_count: 38
 waived_count: 1
 fixed_count: 17
-total_count: 55
-last_updated: 2026-09-08T17:49:43.371Z
+total_count: 56
+last_updated: 2026-09-08T18:22:12.727Z
 ---
 
 # Broken Windows Ledger
@@ -70,6 +70,7 @@ last_updated: 2026-09-08T17:49:43.371Z
 | 53 | 04 | deviation | playstead-server/lib/playstead/export.ex |  | Export.load_save_revisions/2 selects only the (battery, slot 0) save line when a content_key has more than one save line; any other lines are silently excluded from export rather than merged (v1 client only ever writes one line, so this is currently unreachable). | open |  | 2026-09-06T01:18:12.481Z |  |
 | 54 | 04 | stub | playstead-mac/Playstead/Net/APIClient.swift |  | The Mac client ships no pairing ceremony, so a human cannot pair a Mac at all. Every production PairingCredential construction is a keychain READ (KeychainStore.swift:152); the only writers are UI_TESTING-gated (UITestBootstrap.swift:552, DeterministicProfile.swift:49). There is no pairing view, no code-entry surface, no URL-scheme handler. The server side is complete -- POST /api/v1/device-pairing/requests, GET /requests/:id, POST /requests/:id/redeem, plus the devices approval console -- and the client calls none of it. APIClient.swift:57 states it outright ('this tracer plan does not yet ship the pairing ceremony') and anticipates a future plan writing AppPaths.root/pinned-ca.der; until then APIClient uses default TLS trust rather than the pinned root CA. LibraryShellView.swift:474's empty state instructs the user to 'Pair with your Playstead server to see your library', naming an action that exists nowhere in the app. 03.5-08 proved pairing only through scripts/ci/live-server.sh driving the HTTP ceremony from a shell script and handing a credential to a test build -- the human path was never built. Consequence: every human checkpoint requiring a paired Mac is unperformable, CP7-SAVE-C (UAT tests 107/112/120) included, which its 'blocked_by: physical-device' reason understates. Discovered 2026-09-08 when the owner tried to run CP7-SAVE-C and had no way to pair. Worked around for the owner's Mac only, by driving the production endpoints by hand and writing the server-issued credential into the login keychain (service dev.playstead.mac, device d23b584e); the missing UI itself is unfixed. | open |  | 2026-09-08T17:38:16.547Z |  |
 | 55 | 04 | deviation | playstead-mac/Playstead/Saves/SaveUploadLane.swift |  | SHIPPED DEFECT: save uploads 404'd against every real server, so no captured revision has ever reached a server from the shipped app. APIClient.send does credential.baseURL.appendingPathComponent(path) and the paired credential's baseURL is the server ORIGIN, so callers own the whole path. SnapshotClient (/api/v1/snapshot) and ChangesClient (/api/v1/changes) spell it correctly; SaveUploadLane spelled 'saves/uploads/<id>' and 'saves/revisions' without the /api/v1 prefix, at both of its call sites. Server routes are PUT /api/v1/saves/uploads/:command_id and POST /api/v1/saves/revisions (router.ex:285,292). Observed on the owner's machine 2026-09-08: 'PUT /saves/uploads/... Sent 404' twice in the server log while POST /api/v1/play-sessions succeeded; two captured revisions sat at durability='queued' with 0 rows in the server's save_revisions. Capture, promotion and CAS commit all work -- only the upload half was broken. Fixed 2026-09-08 by prefixing both paths; guarded by scripts/ci/tests/api-path-prefix-test.sh, verified to reject the pre-fix source. WHY CI MISSED IT: SaveEndToEndTests guarded three fixture stages with bare 'guard try runFixture(...) else { return }', so a failing stage returned from the test having asserted nothing and XCTest recorded a pass -- the end-to-end proof of this exact path was fail-open. Seven such returns existed across SaveEndToEndTests and LiveServerSnapshotTests; all seven now XCTFail, and four-layer-topology-test.sh line 199 previously PINNED the fail-open shape as required. UAT tests 106 and 117 were marked pass on that evidence and are reverted to issue. | open |  | 2026-09-08T17:49:43.371Z |  |
+| 56 | 04 | deviation | playstead-server/lib/playstead_web/controllers/api/v1/saves_controller.ex |  | SHIPPED DEFECT (server): the streamed save-upload route replied on the ORIGINAL conn instead of the one advanced by reading the body. Plug.Conn is immutable and body_stream/1 threads its own conn through Stream.resource, so create_upload/2 responded 200 on a conn that still believed the request body was unread. The connection was then left mid-body, and the NEXT request on it stalled until Bandit's 15s read timeout, surfacing as 'Bandit.HTTPError Read timeout' on the upload's request_id and a 502 EOF at Caddy for the following request. Because SaveUploadLane does PUT bytes then immediately POST /api/v1/saves/revisions on the same connection, the metadata commit ALWAYS died: bytes landed in save_pending_uploads, no revision ever committed, and the client's revision stayed durability='queued' forever. Size-dependent, which is why it was never noticed: reproduced deterministically at 4096 bytes -> next request 0.004s, 65536 -> 15.010s, 131072 -> 15.010s. Fixed 2026-09-08 by capturing the drained conn from body_stream/1 and replying on it; re-verified 0.0017s at both previously-broken sizes. Not reachable by ConnTest (Phoenix.ConnTest never opens a real connection), which is why the 2 existing saves_controller tests pass either way; the live-server e2e test WOULD have caught it had it not been fail-open (WINDOWS #55). Full server suite green after the fix: 1037 tests, 0 failures. | open |  | 2026-09-08T18:22:12.727Z |  |
 
 ````json
 [
@@ -731,6 +732,18 @@ last_updated: 2026-09-08T17:49:43.371Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-08T17:49:43.371Z",
+    "resolved_at": null
+  },
+  {
+    "id": 56,
+    "kind": "deviation",
+    "phase": "04",
+    "file": "playstead-server/lib/playstead_web/controllers/api/v1/saves_controller.ex",
+    "line": null,
+    "description": "SHIPPED DEFECT (server): the streamed save-upload route replied on the ORIGINAL conn instead of the one advanced by reading the body. Plug.Conn is immutable and body_stream/1 threads its own conn through Stream.resource, so create_upload/2 responded 200 on a conn that still believed the request body was unread. The connection was then left mid-body, and the NEXT request on it stalled until Bandit's 15s read timeout, surfacing as 'Bandit.HTTPError Read timeout' on the upload's request_id and a 502 EOF at Caddy for the following request. Because SaveUploadLane does PUT bytes then immediately POST /api/v1/saves/revisions on the same connection, the metadata commit ALWAYS died: bytes landed in save_pending_uploads, no revision ever committed, and the client's revision stayed durability='queued' forever. Size-dependent, which is why it was never noticed: reproduced deterministically at 4096 bytes -> next request 0.004s, 65536 -> 15.010s, 131072 -> 15.010s. Fixed 2026-09-08 by capturing the drained conn from body_stream/1 and replying on it; re-verified 0.0017s at both previously-broken sizes. Not reachable by ConnTest (Phoenix.ConnTest never opens a real connection), which is why the 2 existing saves_controller tests pass either way; the live-server e2e test WOULD have caught it had it not been fail-open (WINDOWS #55). Full server suite green after the fix: 1037 tests, 0 failures.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T18:22:12.727Z",
     "resolved_at": null
   }
 ]

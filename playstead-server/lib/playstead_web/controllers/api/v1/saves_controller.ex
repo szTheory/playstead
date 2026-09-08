@@ -19,6 +19,7 @@ defmodule PlaysteadWeb.Api.V1.SavesController do
   action_fallback PlaysteadWeb.Api.V1.FallbackController
 
   @chunk_size 1_048_576
+  @drained_conn_key :playstead_save_upload_drained_conn
 
   @doc """
   Streams the request body directly into the CAS (`reserve: :critical`,
@@ -31,7 +32,7 @@ defmodule PlaysteadWeb.Api.V1.SavesController do
 
     with {:ok, _command_id} <- CommandId.cast(command_id),
          {:ok, body} <- run_upload(conn, device, command_id) do
-      conn |> put_status(200) |> json(body)
+      conn |> drained_conn() |> put_status(200) |> json(body)
     else
       :error ->
         {:error, {:invalid_command_id, "The command_id must be a valid UUIDv7."}}
@@ -76,11 +77,29 @@ defmodule PlaysteadWeb.Api.V1.SavesController do
     end
   end
 
+  # The conn left behind by `body_stream/1` once the body is fully read,
+  # falling back to the original when the stream never ran (an error path
+  # that returned before reading, e.g. the size cap).
+  defp drained_conn(fallback) do
+    case Process.delete(@drained_conn_key) do
+      %Plug.Conn{} = conn -> conn
+      _ -> fallback
+    end
+  end
+
   defp body_stream(conn) do
     Stream.resource(
       fn -> {conn, :more} end,
       fn
-        {_conn, :done} ->
+        {conn, :done} ->
+          # Hand the ADVANCED conn back so the response is sent on it.
+          # `Plug.Conn` is immutable: replying on the original conn leaves
+          # the connection believing its request body was never read, and
+          # the NEXT request on that connection then stalls until Bandit's
+          # 15s read timeout. That is what made every real save upload
+          # succeed (200) and its metadata commit die at the proxy with a
+          # 502 EOF -- so no revision ever committed (WINDOWS #56).
+          Process.put(@drained_conn_key, conn)
           {:halt, nil}
 
         {conn, :more} ->
