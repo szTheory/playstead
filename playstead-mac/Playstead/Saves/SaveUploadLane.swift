@@ -178,7 +178,7 @@ actor SaveUploadLane {
 
         _ = try await apiClient.send(
             method: "PUT",
-            path: "saves/uploads/\(commandID)",
+            path: "/api/v1/saves/uploads/\(commandID)",
             body: data,
             headers: [
                 "Repr-Digest": Self.reprDigestHeader(for: data),
@@ -207,7 +207,7 @@ actor SaveUploadLane {
 
         let response = try await apiClient.send(
             method: "POST",
-            path: "saves/revisions",
+            path: "/api/v1/saves/revisions",
             body: body,
             headers: ["Idempotency-Key": "save-revision-\(revision.id)"]
         )

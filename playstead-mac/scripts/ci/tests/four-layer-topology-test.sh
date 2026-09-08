@@ -196,7 +196,14 @@ grep -F 'resolved_parent" = "$resolved_root' "$LIVE_SERVER_FIXTURE" >/dev/null
 grep -F 'live-server: FAILURE_STAGE %s' "$RUNNER" >/dev/null
 grep -F 'prepare_live_server_failure_stage' "$RUNNER" >/dev/null
 grep -F 'PLAYSTEAD_LIVE_SERVER_STAGE_FILE="$server_root/live-server-failure-stage"' "$RUNNER" >/dev/null
-[ "$(grep -c 'guard fixtureEnvironmentIsReady() else { return }' "$LIVE_SERVER_TEST")" -eq 1 ]
+# The live-server test must be preflight-gated -- but NOT with a bare return,
+# which this clause used to pin. A bare `else { return }` makes a failed
+# preflight report success; that exact shape is how a save-upload path that
+# 404'd against every real server sat behind a green end-to-end suite
+# (fixed 2026-09-08, see fail-open-test-guard-test.sh). The gate is still
+# required; it must now say why it stopped.
+[ "$(grep -c 'guard fixtureEnvironmentIsReady() else {' "$LIVE_SERVER_TEST")" -eq 1 ]
+grep -F 'return XCTFail("live fixture preflight failed")' "$LIVE_SERVER_TEST" >/dev/null
 for key in PLAYSTEAD_MAC_CI_ROOT PLAYSTEAD_LIVE_SERVER_STAGE_ROOT PLAYSTEAD_LIVE_SERVER_STAGE_FILE MAC_CI_DATABASE_URL MIX_ENV PORT; do
   grep -F "${key}=\"\$${key}\"" "$RUNNER" >/dev/null
 done

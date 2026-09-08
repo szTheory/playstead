@@ -1043,7 +1043,35 @@ verification: |
 ### 106. A live end-to-end run captures one artifact on the Mac, uploads it, and observes the same revision arriving back through the journal with ma…
 expected: |
   A live end-to-end run captures one artifact on the Mac, uploads it, and observes the same revision arriving back through the journal with matching digest and size
-result: pass
+result: issue
+gap_id: G-04-10
+  CORRECTED 2026-09-08 — this row was moved to `pass` earlier the same day on the
+  strength of a green hosted live-server layer. That evidence does not hold, and the
+  row is reverted rather than left standing.
+
+  Two independent reasons:
+
+  1. The path this row asserts was broken in the shipped app. `SaveUploadLane` spelled
+     its two API paths without the `/api/v1` prefix, so every save upload 404'd
+     (WINDOWS #55). Observed directly on the owner's machine: `PUT /saves/uploads/...
+     Sent 404` in the server log, two revisions stuck at `durability='queued'`, and
+     zero rows in the server's `save_revisions`.
+
+  2. The test that was supposed to prove it was fail-open.
+     `SaveEndToEndTests.testOneSaveRoundTripsCaptureUploadAndJournalReturn` guarded
+     three fixture stages with a bare `guard try runFixture(...) else { return }` — a
+     failing stage returned from the test having asserted nothing, and XCTest recorded
+     a pass. So a green run was never evidence of a successful round trip.
+
+  Both are fixed (paths prefixed; all seven bare returns now `XCTFail`) and both are
+  now guarded — `api-path-prefix-test.sh` and `fail-open-test-guard-test.sh`, each
+  verified against the pre-fix source. But this row may only return to `pass` on a
+  hosted run of the corrected suite, which has not happened yet.
+
+  Lesson recorded rather than glossed: I marked this row pass from a layer summary
+  ("live-server: 3 required / 4 executed") without checking whether the test could
+  fail. Executed is not asserted.
+
 evidence: |
   UNBLOCKED BY CI, not by a human. This row's own test —
   SaveEndToEndTests.testOneSaveRoundTripsCaptureUploadAndJournalReturn — is one of the
@@ -1431,7 +1459,35 @@ rationale: |
 ### 117. The promoted revision is subsequently drained to the server by SaveUploadLane running in the shipped app
 expected: |
   The promoted revision is subsequently drained to the server by SaveUploadLane running in the shipped app
-result: pass
+result: issue
+gap_id: G-04-10
+  CORRECTED 2026-09-08 — this row was moved to `pass` earlier the same day on the
+  strength of a green hosted live-server layer. That evidence does not hold, and the
+  row is reverted rather than left standing.
+
+  Two independent reasons:
+
+  1. The path this row asserts was broken in the shipped app. `SaveUploadLane` spelled
+     its two API paths without the `/api/v1` prefix, so every save upload 404'd
+     (WINDOWS #55). Observed directly on the owner's machine: `PUT /saves/uploads/...
+     Sent 404` in the server log, two revisions stuck at `durability='queued'`, and
+     zero rows in the server's `save_revisions`.
+
+  2. The test that was supposed to prove it was fail-open.
+     `SaveEndToEndTests.testOneSaveRoundTripsCaptureUploadAndJournalReturn` guarded
+     three fixture stages with a bare `guard try runFixture(...) else { return }` — a
+     failing stage returned from the test having asserted nothing, and XCTest recorded
+     a pass. So a green run was never evidence of a successful round trip.
+
+  Both are fixed (paths prefixed; all seven bare returns now `XCTFail`) and both are
+  now guarded — `api-path-prefix-test.sh` and `fail-open-test-guard-test.sh`, each
+  verified against the pre-fix source. But this row may only return to `pass` on a
+  hosted run of the corrected suite, which has not happened yet.
+
+  Lesson recorded rather than glossed: I marked this row pass from a layer summary
+  ("live-server: 3 required / 4 executed") without checking whether the test could
+  fail. Executed is not asserted.
+
 evidence: |
   UNBLOCKED BY CI. The live-server layer ran all four of its tests against the hosted
   fixture's real paired server, including the capture -> upload-lane -> journal-return
@@ -1573,8 +1629,8 @@ records observations under test 120 and sets its own status by hand.
 ## Summary
 
 total: 120
-passed: 117
-issues: 0
+passed: 115
+issues: 2
 pending: 0
 skipped: 0
 blocked: 3

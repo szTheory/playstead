@@ -34,7 +34,11 @@ final class SaveEndToEndTests: XCTestCase {
     }
 
     func testOneSaveRoundTripsCaptureUploadAndJournalReturn() throws {
-        guard fixtureEnvironmentIsReady() else { return }
+        guard fixtureEnvironmentIsReady() else {
+            // Never a bare return: a preflight failure must be a visible failure,
+            // not a silently green test (see fail-open-test-guard-test.sh).
+            return XCTFail("live fixture preflight failed")
+        }
 
         let runRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("playstead-save-e2e-\(UUID().uuidString.lowercased())", isDirectory: true)
@@ -52,7 +56,9 @@ final class SaveEndToEndTests: XCTestCase {
         XCTAssertEqual(status, errSecSuccess)
         keychain = created
 
-        guard try runFixture("prepare", root: runRoot) else { return }
+        guard try runFixture("prepare", root: runRoot) else {
+            return XCTFail("live fixture stage 'prepare' failed")
+        }
         let handoff = runRoot.appendingPathComponent("credential-handoff.json")
         XCTAssertEqual(try permissions(of: handoff), 0o600)
 
@@ -99,7 +105,9 @@ final class SaveEndToEndTests: XCTestCase {
         XCTAssertEqual(result.sizeBytes, 32_768)
         XCTAssertEqual(result.durability, "uploaded")
 
-        guard try runFixture("verify", root: runRoot) else { return }
+        guard try runFixture("verify", root: runRoot) else {
+            return XCTFail("live fixture stage 'verify' failed")
+        }
     }
 
     private struct SaveE2EResult: Decodable {

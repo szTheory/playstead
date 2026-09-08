@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 36
+open_count: 37
 waived_count: 1
 fixed_count: 17
-total_count: 54
-last_updated: 2026-09-08T17:38:16.547Z
+total_count: 55
+last_updated: 2026-09-08T17:49:43.371Z
 ---
 
 # Broken Windows Ledger
@@ -69,6 +69,7 @@ last_updated: 2026-09-08T17:38:16.547Z
 | 52 | 04 | stub | playstead-mac/Playstead/Saves/SaveSessionRecovery.swift |  | SaveSessionRecovery.replay (D-07 crash-recovery, reachable in production via AppEnvironment.recoverAbandonedSaveSessionsAtLaunch) records a promoted revision but holds no CASManager, so a crash-recovered capture's bytes never enter the CAS and LaunchSaveContextBuilder reports bytesLocal: false for it -- the same hole 04-20 closed on the live-session path (WINDOWS #49), reached via the second capture path. Out of 04-20's declared scope (files_modified named SaveSessionCoordinator only). Fix should extract 04-20's SaveSessionCoordinator.commitCaptureBytes into one shared spelling rather than a second copy. FIXED by plan 04-23 (fd4e2b4): extracted SaveCaptureBytesCommitter, shared by SaveSessionCoordinator and SaveSessionRecovery; recovery replay commits bytes into the CAS before inserting the row. | fixed |  | 2026-09-05T22:36:11.098Z | 2026-09-06T02:02:53.188Z |
 | 53 | 04 | deviation | playstead-server/lib/playstead/export.ex |  | Export.load_save_revisions/2 selects only the (battery, slot 0) save line when a content_key has more than one save line; any other lines are silently excluded from export rather than merged (v1 client only ever writes one line, so this is currently unreachable). | open |  | 2026-09-06T01:18:12.481Z |  |
 | 54 | 04 | stub | playstead-mac/Playstead/Net/APIClient.swift |  | The Mac client ships no pairing ceremony, so a human cannot pair a Mac at all. Every production PairingCredential construction is a keychain READ (KeychainStore.swift:152); the only writers are UI_TESTING-gated (UITestBootstrap.swift:552, DeterministicProfile.swift:49). There is no pairing view, no code-entry surface, no URL-scheme handler. The server side is complete -- POST /api/v1/device-pairing/requests, GET /requests/:id, POST /requests/:id/redeem, plus the devices approval console -- and the client calls none of it. APIClient.swift:57 states it outright ('this tracer plan does not yet ship the pairing ceremony') and anticipates a future plan writing AppPaths.root/pinned-ca.der; until then APIClient uses default TLS trust rather than the pinned root CA. LibraryShellView.swift:474's empty state instructs the user to 'Pair with your Playstead server to see your library', naming an action that exists nowhere in the app. 03.5-08 proved pairing only through scripts/ci/live-server.sh driving the HTTP ceremony from a shell script and handing a credential to a test build -- the human path was never built. Consequence: every human checkpoint requiring a paired Mac is unperformable, CP7-SAVE-C (UAT tests 107/112/120) included, which its 'blocked_by: physical-device' reason understates. Discovered 2026-09-08 when the owner tried to run CP7-SAVE-C and had no way to pair. Worked around for the owner's Mac only, by driving the production endpoints by hand and writing the server-issued credential into the login keychain (service dev.playstead.mac, device d23b584e); the missing UI itself is unfixed. | open |  | 2026-09-08T17:38:16.547Z |  |
+| 55 | 04 | deviation | playstead-mac/Playstead/Saves/SaveUploadLane.swift |  | SHIPPED DEFECT: save uploads 404'd against every real server, so no captured revision has ever reached a server from the shipped app. APIClient.send does credential.baseURL.appendingPathComponent(path) and the paired credential's baseURL is the server ORIGIN, so callers own the whole path. SnapshotClient (/api/v1/snapshot) and ChangesClient (/api/v1/changes) spell it correctly; SaveUploadLane spelled 'saves/uploads/<id>' and 'saves/revisions' without the /api/v1 prefix, at both of its call sites. Server routes are PUT /api/v1/saves/uploads/:command_id and POST /api/v1/saves/revisions (router.ex:285,292). Observed on the owner's machine 2026-09-08: 'PUT /saves/uploads/... Sent 404' twice in the server log while POST /api/v1/play-sessions succeeded; two captured revisions sat at durability='queued' with 0 rows in the server's save_revisions. Capture, promotion and CAS commit all work -- only the upload half was broken. Fixed 2026-09-08 by prefixing both paths; guarded by scripts/ci/tests/api-path-prefix-test.sh, verified to reject the pre-fix source. WHY CI MISSED IT: SaveEndToEndTests guarded three fixture stages with bare 'guard try runFixture(...) else { return }', so a failing stage returned from the test having asserted nothing and XCTest recorded a pass -- the end-to-end proof of this exact path was fail-open. Seven such returns existed across SaveEndToEndTests and LiveServerSnapshotTests; all seven now XCTFail, and four-layer-topology-test.sh line 199 previously PINNED the fail-open shape as required. UAT tests 106 and 117 were marked pass on that evidence and are reverted to issue. | open |  | 2026-09-08T17:49:43.371Z |  |
 
 ````json
 [
@@ -718,6 +719,18 @@ last_updated: 2026-09-08T17:38:16.547Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-08T17:38:16.547Z",
+    "resolved_at": null
+  },
+  {
+    "id": 55,
+    "kind": "deviation",
+    "phase": "04",
+    "file": "playstead-mac/Playstead/Saves/SaveUploadLane.swift",
+    "line": null,
+    "description": "SHIPPED DEFECT: save uploads 404'd against every real server, so no captured revision has ever reached a server from the shipped app. APIClient.send does credential.baseURL.appendingPathComponent(path) and the paired credential's baseURL is the server ORIGIN, so callers own the whole path. SnapshotClient (/api/v1/snapshot) and ChangesClient (/api/v1/changes) spell it correctly; SaveUploadLane spelled 'saves/uploads/<id>' and 'saves/revisions' without the /api/v1 prefix, at both of its call sites. Server routes are PUT /api/v1/saves/uploads/:command_id and POST /api/v1/saves/revisions (router.ex:285,292). Observed on the owner's machine 2026-09-08: 'PUT /saves/uploads/... Sent 404' twice in the server log while POST /api/v1/play-sessions succeeded; two captured revisions sat at durability='queued' with 0 rows in the server's save_revisions. Capture, promotion and CAS commit all work -- only the upload half was broken. Fixed 2026-09-08 by prefixing both paths; guarded by scripts/ci/tests/api-path-prefix-test.sh, verified to reject the pre-fix source. WHY CI MISSED IT: SaveEndToEndTests guarded three fixture stages with bare 'guard try runFixture(...) else { return }', so a failing stage returned from the test having asserted nothing and XCTest recorded a pass -- the end-to-end proof of this exact path was fail-open. Seven such returns existed across SaveEndToEndTests and LiveServerSnapshotTests; all seven now XCTFail, and four-layer-topology-test.sh line 199 previously PINNED the fail-open shape as required. UAT tests 106 and 117 were marked pass on that evidence and are reverted to issue.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T17:49:43.371Z",
     "resolved_at": null
   }
 ]

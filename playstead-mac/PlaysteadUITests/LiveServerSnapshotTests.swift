@@ -16,7 +16,11 @@ final class LiveServerSnapshotTests: XCTestCase {
     }
 
     func testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch() throws {
-        guard fixtureEnvironmentIsReady() else { return }
+        guard fixtureEnvironmentIsReady() else {
+            // Never a bare return: a preflight failure must be a visible failure,
+            // not a silently green test (see fail-open-test-guard-test.sh).
+            return XCTFail("live fixture preflight failed")
+        }
         let runRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("playstead-live-\(UUID().uuidString.lowercased())", isDirectory: true)
         root = runRoot
@@ -33,7 +37,9 @@ final class LiveServerSnapshotTests: XCTestCase {
         XCTAssertEqual(status, errSecSuccess)
         keychain = created
 
-        guard try runFixture("prepare", root: runRoot) else { return }
+        guard try runFixture("prepare", root: runRoot) else {
+            return XCTFail("live fixture stage 'prepare' failed")
+        }
         let first = try sentinel(at: runRoot.appendingPathComponent("control/first-sentinel.json"))
         let handoff = runRoot.appendingPathComponent("credential-handoff.json")
         XCTAssertEqual(try permissions(of: handoff), 0o600)
@@ -60,7 +66,9 @@ final class LiveServerSnapshotTests: XCTestCase {
         try assertNoGameBytes(root: runRoot)
 
         launched.terminate()
-        guard try runFixture("second", root: runRoot) else { return }
+        guard try runFixture("second", root: runRoot) else {
+            return XCTFail("live fixture stage 'second' failed")
+        }
         let second = try sentinel(at: runRoot.appendingPathComponent("control/second-sentinel.json"))
         XCTAssertNotEqual(second.assetSetID, first.assetSetID)
 
@@ -82,7 +90,9 @@ final class LiveServerSnapshotTests: XCTestCase {
         }
         XCTAssertFalse(try storedCursor(root: runRoot).isEmpty)
         try assertNoGameBytes(root: runRoot)
-        guard try runFixture("verify", root: runRoot) else { return }
+        guard try runFixture("verify", root: runRoot) else {
+            return XCTFail("live fixture stage 'verify' failed")
+        }
     }
 
     private struct Control: Decodable {
