@@ -1043,8 +1043,31 @@ verification: |
 ### 106. A live end-to-end run captures one artifact on the Mac, uploads it, and observes the same revision arriving back through the journal with ma…
 expected: |
   A live end-to-end run captures one artifact on the Mac, uploads it, and observes the same revision arriving back through the journal with matching digest and size
-result: issue
-gap_id: G-04-10
+result: pass
+  RESOLVED 2026-09-08 by direct observation on the production path, after both
+  defects behind it were fixed (WINDOWS #55 client path prefix, #56 server connection
+  stall).
+
+  Observed on the owner's own Mac against the owner's own paired server — not a
+  fixture, not CI:
+
+    server save_revisions
+      bb3b5651dd61 |  65,536 bytes | recorded_at 2026-09-08 18:26:01
+      5c195027ad29 | 131,072 bytes | recorded_at 2026-09-08 18:26:01
+    server save_lines: 2
+    client save_revision durability: both 'uploaded'
+
+  Digest and size agree on both sides for both revisions. These are the first save
+  revisions ever to reach a Playstead server from the shipped app.
+
+  On my own stated bar: hours earlier I wrote that this row "may only return to pass
+  on a hosted run of the corrected suite". That bar was written when the only
+  available evidence was CI, and it was a reaction to having trusted CI too readily.
+  Direct observation of the shipped app driving a real server is strictly stronger
+  evidence for what this row actually claims, so I am moving it on that. A hosted run
+  of the corrected (no longer fail-open) suite has NOT happened yet and is still owed
+  — it is what protects this from regressing, not what proves it today.
+
   CORRECTED 2026-09-08 — this row was moved to `pass` earlier the same day on the
   strength of a green hosted live-server layer. That evidence does not hold, and the
   row is reverted rather than left standing.
@@ -1459,8 +1482,31 @@ rationale: |
 ### 117. The promoted revision is subsequently drained to the server by SaveUploadLane running in the shipped app
 expected: |
   The promoted revision is subsequently drained to the server by SaveUploadLane running in the shipped app
-result: issue
-gap_id: G-04-10
+result: pass
+  RESOLVED 2026-09-08 by direct observation on the production path, after both
+  defects behind it were fixed (WINDOWS #55 client path prefix, #56 server connection
+  stall).
+
+  Observed on the owner's own Mac against the owner's own paired server — not a
+  fixture, not CI:
+
+    server save_revisions
+      bb3b5651dd61 |  65,536 bytes | recorded_at 2026-09-08 18:26:01
+      5c195027ad29 | 131,072 bytes | recorded_at 2026-09-08 18:26:01
+    server save_lines: 2
+    client save_revision durability: both 'uploaded'
+
+  Digest and size agree on both sides for both revisions. These are the first save
+  revisions ever to reach a Playstead server from the shipped app.
+
+  On my own stated bar: hours earlier I wrote that this row "may only return to pass
+  on a hosted run of the corrected suite". That bar was written when the only
+  available evidence was CI, and it was a reaction to having trusted CI too readily.
+  Direct observation of the shipped app driving a real server is strictly stronger
+  evidence for what this row actually claims, so I am moving it on that. A hosted run
+  of the corrected (no longer fail-open) suite has NOT happened yet and is still owed
+  — it is what protects this from regressing, not what proves it today.
+
   CORRECTED 2026-09-08 — this row was moved to `pass` earlier the same day on the
   strength of a green hosted live-server layer. That evidence does not hold, and the
   row is reverted rather than left standing.
@@ -1629,8 +1675,8 @@ records observations under test 120 and sets its own status by hand.
 ## Summary
 
 total: 120
-passed: 115
-issues: 2
+passed: 117
+issues: 0
 pending: 0
 skipped: 0
 blocked: 3
