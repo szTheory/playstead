@@ -2,9 +2,9 @@
 schema_version: 1
 open_count: 38
 waived_count: 1
-fixed_count: 20
-total_count: 59
-last_updated: 2026-09-08T22:15:00.000Z
+fixed_count: 21
+total_count: 60
+last_updated: 2026-09-08T22:40:00.000Z
 ---
 
 # Broken Windows Ledger
@@ -74,6 +74,7 @@ last_updated: 2026-09-08T22:15:00.000Z
 | 57 | 04 | stub | playstead-mac/Playstead/Saves/SaveSessionCoordinator.swift |  | Capture provenance is never recorded: save_revision.adapter_id and adapter_version are empty on every revision produced by the real Play path, though both columns exist client-side and server-side and SaveUploadLane forwards them when present. Observed on the owner's machine 2026-09-08 across all three revisions captured through the shipped app (Advance Wars 65,536 bytes; Pokemon LeafGreen 131,072 x2) -- adapter_id '', adapter_version '', capture_method 'session'. Consequence: a stored revision cannot say which emulator or which pinned adapter version produced it, so a future adapter upgrade that changes save-format behaviour leaves no way to tell affected revisions from unaffected ones. CP7-SAVE-C's own how-to-verify asks the developer to record the adapter version alongside the observations, which the app itself cannot supply. Not blocking: capture, upload, restore and byte-identity are all proven correct without it. Low severity, but it is provenance for the one artifact class this phase exists to protect. | fixed |  | 2026-09-08T18:34:29.543Z | 2026-09-08T22:15:00.000Z |
 | 58 | 04 | deviation | playstead-mac/PlaysteadUITests/SaveEndToEndTests.swift |  | CI GAP (fixed same day, cc7640d): the phase's only end-to-end save proof had never run on a hosted runner. SaveEndToEndTests resolved its fixture environment from ProcessInfo.processInfo.environment alone; the XCTest process inherits a PATH with no Elixir toolchain, so live-server.sh's 'mix playstead.mac_ci_fixture' died with 'mix: command not found' at provision-domain on every hosted run. The sibling LiveServerSnapshotTests already merged the runner-written live-server-runtime.json (which carries the real PATH) over the inherited environment and documented exactly this hazard; SaveEndToEndTests' doc comment claimed it reused that discipline 'verbatim' and did not. Invisible because the test was fail-open until e6316d5 and because live-server.sh discarded its own stderr until 266015e. Third seam-between-plans defect of this phase after #55 and #56. Guarded by scripts/ci/tests/live-server-env-resolution-test.sh, falsified against the real pre-fix source. | fixed |  | 2026-09-08T20:58:11.764Z | 2026-09-08T20:58:25.364Z |
 | 59 | 04 | deviation | playstead-mac/scripts/ci/run-mac-verification.sh |  | CI GAP (fixed same day, 266015e): the hosted UI layer's 1800s deadline sat 9% above its own observed runtime (1631s in the last green run, 50960ba), and run 34264338508 was SIGTERMed at exactly 1800s on a commit whose diff touched no file in the UI test plan. Raised to 2700s with four-layer-topology-test.sh's pinned expectation and ceiling moved with it. Recorded because the failure mode is a gate that reports red for reasons unrelated to the code under test, which trains readers to discount it. | fixed |  | 2026-09-08T20:58:18.772Z | 2026-09-08T20:58:25.464Z |
+| 60 | 04 | deviation | playstead-mac/Playstead/UITesting/UITestBootstrap.swift |  | CI GAP (fixed same day, 4903ec8): the save end-to-end harness swallowed every failure, on the stated grounds that the absent result file was itself the signal. It is a signal with no content -- a slow run and a broken upload both surface as 'result was never written within 60s'. Hosted run 34281587417 failed exactly this way one run after the test was promoted to required, and the evidence named only the polling assertion's file:line. Fixed by writing a sanitized reason to a sibling file (stateMismatch literals verbatim, any other error by type alone, matching live-server.sh's own diagnostic) and giving each known cause its own assertion site, since CI's evidence pipeline keeps file:line and discards messages. Deadline raised 60s -> 120s only alongside the diagnostic; alone it would have turned an unexplained failure into an unexplained pass. Root cause of the underlying timeout still unknown -- the next occurrence will name it. | fixed |  | 2026-09-08T22:40:00.000Z | 2026-09-08T22:40:00.000Z |
 
 ````json
 [
@@ -760,6 +761,18 @@ last_updated: 2026-09-08T22:15:00.000Z
     "reason": "",
     "recorded_at": "2026-09-08T18:34:29.543Z",
     "resolved_at": "2026-09-08T22:15:00.000Z"
+  },
+  {
+    "id": 60,
+    "kind": "deviation",
+    "phase": "04",
+    "file": "playstead-mac/Playstead/UITesting/UITestBootstrap.swift",
+    "line": null,
+    "description": "CI GAP (fixed same day, 4903ec8): the save end-to-end harness swallowed every failure, on the stated grounds that the absent result file was itself the signal. It is a signal with no content -- a slow run and a broken upload both surface as 'result was never written within 60s'. Hosted run 34281587417 failed exactly this way one run after the test was promoted to required, and the evidence named only the polling assertion's file:line. Fixed by writing a sanitized reason to a sibling file and giving each known cause its own assertion site, since CI's evidence pipeline keeps file:line and discards messages. Deadline raised 60s -> 120s only alongside the diagnostic. Root cause of the underlying timeout still unknown -- the next occurrence will name it.",
+    "status": "fixed",
+    "reason": "",
+    "recorded_at": "2026-09-08T22:40:00.000Z",
+    "resolved_at": "2026-09-08T22:40:00.000Z"
   },
   {
     "id": 58,
