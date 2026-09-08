@@ -6,7 +6,29 @@ stage="validate-input"
 # Keep raw subprocess stderr inside the hosted runner. XCTest receives only a
 # bounded stage name: no credentials, response bodies, or absolute paths.
 exec 3>&2
-exec 2>/dev/null
+
+# Raw stderr used to go straight to /dev/null so no path, credential, or
+# response body could ride an XCTest assertion message into published
+# evidence. That held, and cost us the diagnosis: run 34264338508 could say
+# only "provision-domain" -- never which of this stage's three commands
+# failed, nor why. The bytes now land in a runner-owned file that is torn
+# down with the native root and never uploaded; run-mac-verification.sh
+# prints a sanitized, bounded tail of it to the job log on failure. The
+# XCTest channel (fd 3) is unchanged and still carries a stage name only.
+fixture_diagnostic=""
+diagnostic_root="${PLAYSTEAD_LIVE_SERVER_STAGE_ROOT:-}"
+if [ -n "$diagnostic_root" ] && [ "${diagnostic_root#/}" != "$diagnostic_root" ] && [ -d "$diagnostic_root" ]; then
+  candidate="$diagnostic_root/live-server-fixture-diagnostic"
+  if (umask 077; : >>"$candidate") 2>/dev/null; then
+    chmod 0600 "$candidate" 2>/dev/null || true
+    fixture_diagnostic="$candidate"
+  fi
+fi
+if [ -n "$fixture_diagnostic" ]; then
+  exec 2>>"$fixture_diagnostic"
+else
+  exec 2>/dev/null
+fi
 
 write_failure_stage() {
   case "$stage" in
@@ -35,6 +57,10 @@ write_failure_stage() {
 enter_stage() {
   stage="$1"
   write_failure_stage || true
+  # A stage banner in the raw diagnostic: the sanitized tail printed on
+  # failure is a tail, so without this the surviving lines can belong to an
+  # earlier stage than the one the marker names.
+  printf '=== stage %s ===\n' "$stage" >&2 || true
 }
 
 trap 'status=$?; if [ "$status" -ne 0 ]; then write_failure_stage || true; printf "live-server fixture failed at %s\n" "$stage" >&3; fi' EXIT

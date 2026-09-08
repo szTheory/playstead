@@ -911,6 +911,7 @@ prepare_live_server_failure_stage() {
   [ "$(cd "$(dirname "$marker")" && pwd -P)" = "$(cd "$evidence_root" && pwd -P)" ] || \
     die "live-server failure-stage channel escaped its owned root"
   rm -f "$marker"
+  rm -f "$evidence_root/live-server-fixture-diagnostic"
 }
 
 print_live_server_failure_stage() {
@@ -936,6 +937,57 @@ print_live_server_failure_stage() {
       ;;
     *) printf '%s\n' "live-server: FAILURE_STAGE invalid-token" ;;
   esac
+  print_live_server_fixture_diagnostic
+}
+
+# The stage token names WHERE the fixture died; this names WHY. live-server.sh
+# writes its raw stderr into a runner-owned file under the native root (torn
+# down by cleanup_native_services, never uploaded as evidence). Only a
+# sanitized, bounded tail reaches the job log: absolute paths and any token
+# long enough to be a credential or bare UUID are redacted, the character set
+# is allowlisted, and the output is capped. An Elixir exception line such as
+# "** (MatchError) no match of right hand side value: {:error, :enospc}"
+# survives that intact, which is the whole point.
+print_live_server_fixture_diagnostic() {
+  local evidence_root="${PLAYSTEAD_LIVE_SERVER_STAGE_ROOT:-}"
+  local diagnostic="$evidence_root/live-server-fixture-diagnostic"
+  [ -n "$evidence_root" ] && [ -f "$diagnostic" ] || return 0
+  python3 - "$diagnostic" <<'PY' || printf '%s\n' "live-server: FIXTURE_DIAGNOSTIC unavailable"
+import pathlib, re, sys
+
+try:
+    raw = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
+except Exception:
+    raise SystemExit(1)
+
+lines = raw.splitlines()[-40:]
+# Absolute paths first (they are the only leak that survives the char
+# allowlist), then any run long enough to be a credential or bare UUID.
+# The lookbehind keeps ABSOLUTE paths only: an Elixir stacktrace's
+# "lib/playstead/import.ex:91" is the most useful line in the file and must
+# survive, while "/Users/runner/work/..." must not.
+path = re.compile(r"(?<![A-Za-z0-9._-])/[A-Za-z0-9._~/-]{6,}")
+secret = re.compile(r"[A-Za-z0-9_-]{32,}")
+allowed = re.compile(r"[^A-Za-z0-9 _:.,;=<>()\[\]{}#*!?'\"/+-]")
+
+shown, budget = [], 4000
+for line in lines:
+    line = secret.sub("<token>", path.sub("<path>", line))
+    line = allowed.sub(" ", line).rstrip()[:200]
+    if not line.strip():
+        continue
+    if budget - len(line) < 0:
+        shown.append("... truncated")
+        break
+    budget -= len(line)
+    shown.append(line)
+
+if not shown:
+    print("live-server: FIXTURE_DIAGNOSTIC empty")
+else:
+    for line in shown:
+        print(f"live-server: FIXTURE_DIAGNOSTIC {line}")
+PY
 }
 
 print_build_diagnostics() {
@@ -1226,7 +1278,12 @@ PY
     --required-test PlaysteadTests.StorageContractSnapshotTests/testStorageMotionAndReducedMotionContract
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
 
-  run_test_layer ui UI 1800 \
+  # 2700s, not 1800s: the last green hosted run spent 1631s in this layer
+  # against a 1800s cap -- 9% headroom, which run 34264338508 promptly ate
+  # (SIGTERM at exactly 1800s, xcode=143, on a commit whose diff touches no
+  # file in the UI test plan). A deadline that close to the observed runtime
+  # is a coin flip, not a gate.
+  run_test_layer ui UI 2700 \
     --required-test PlaysteadUITests.HostedRunnerCanaryTests/testFullKeyboardAccessCanaryFocusesAndActivatesTwoControls \
     --required-test PlaysteadUITests.HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice \
     --required-test PlaysteadUITests.CurationInteractionTests/testCurationProfileBootstrapsLibrarySurface \

@@ -165,11 +165,15 @@ deadline_pairs = re.findall(
     flags=re.MULTILINE,
 )
 deadlines = {layer: int(seconds) for layer, seconds in deadline_pairs}
-expected_deadlines = {"unit": 900, "rendering": 600, "ui": 1800, "live-server": 900}
+# ui moved 1800 -> 2700 after run 34264338508 was SIGTERMed at exactly its
+# deadline: the last green run spent 1631s here, 9% under the old cap, on a
+# commit whose diff touched no file in the UI test plan. The cap stays a real
+# bound -- it just has to sit above the observed runtime, not on top of it.
+expected_deadlines = {"unit": 900, "rendering": 600, "ui": 2700, "live-server": 900}
 if len(deadline_pairs) != 4 or deadlines != expected_deadlines:
     raise SystemExit(f"four-layer deadlines drifted: {deadlines} != {expected_deadlines}")
-if any(seconds <= 0 or seconds > 1800 for seconds in deadlines.values()):
-    raise SystemExit("every hosted layer deadline must remain positive and bounded at 1800 seconds")
+if any(seconds <= 0 or seconds > 2700 for seconds in deadlines.values()):
+    raise SystemExit("every hosted layer deadline must remain positive and bounded at 2700 seconds")
 test_layer = runner_source.split("run_test_layer() {", 1)[1].split("run_four_layer_verification() {", 1)[0]
 if test_layer.count("test-without-building") != 1 or "retry" in test_layer.lower():
     raise SystemExit("a layer must execute once without automatic retry")
