@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 38
+open_count: 39
 waived_count: 1
 fixed_count: 21
-total_count: 60
-last_updated: 2026-09-08T22:40:00.000Z
+total_count: 61
+last_updated: 2026-09-08T23:50:00.000Z
 ---
 
 # Broken Windows Ledger
@@ -75,6 +75,7 @@ last_updated: 2026-09-08T22:40:00.000Z
 | 58 | 04 | deviation | playstead-mac/PlaysteadUITests/SaveEndToEndTests.swift |  | CI GAP (fixed same day, cc7640d): the phase's only end-to-end save proof had never run on a hosted runner. SaveEndToEndTests resolved its fixture environment from ProcessInfo.processInfo.environment alone; the XCTest process inherits a PATH with no Elixir toolchain, so live-server.sh's 'mix playstead.mac_ci_fixture' died with 'mix: command not found' at provision-domain on every hosted run. The sibling LiveServerSnapshotTests already merged the runner-written live-server-runtime.json (which carries the real PATH) over the inherited environment and documented exactly this hazard; SaveEndToEndTests' doc comment claimed it reused that discipline 'verbatim' and did not. Invisible because the test was fail-open until e6316d5 and because live-server.sh discarded its own stderr until 266015e. Third seam-between-plans defect of this phase after #55 and #56. Guarded by scripts/ci/tests/live-server-env-resolution-test.sh, falsified against the real pre-fix source. | fixed |  | 2026-09-08T20:58:11.764Z | 2026-09-08T20:58:25.364Z |
 | 59 | 04 | deviation | playstead-mac/scripts/ci/run-mac-verification.sh |  | CI GAP (fixed same day, 266015e): the hosted UI layer's 1800s deadline sat 9% above its own observed runtime (1631s in the last green run, 50960ba), and run 34264338508 was SIGTERMed at exactly 1800s on a commit whose diff touched no file in the UI test plan. Raised to 2700s with four-layer-topology-test.sh's pinned expectation and ceiling moved with it. Recorded because the failure mode is a gate that reports red for reasons unrelated to the code under test, which trains readers to discount it. | fixed |  | 2026-09-08T20:58:18.772Z | 2026-09-08T20:58:25.464Z |
 | 60 | 04 | deviation | playstead-mac/Playstead/UITesting/UITestBootstrap.swift |  | CI GAP (fixed same day, 4903ec8): the save end-to-end harness swallowed every failure, on the stated grounds that the absent result file was itself the signal. It is a signal with no content -- a slow run and a broken upload both surface as 'result was never written within 60s'. Hosted run 34281587417 failed exactly this way one run after the test was promoted to required, and the evidence named only the polling assertion's file:line. Fixed by writing a sanitized reason to a sibling file (stateMismatch literals verbatim, any other error by type alone, matching live-server.sh's own diagnostic) and giving each known cause its own assertion site, since CI's evidence pipeline keeps file:line and discards messages. Deadline raised 60s -> 120s only alongside the diagnostic; alone it would have turned an unexplained failure into an unexplained pass. Root cause of the underlying timeout still unknown -- the next occurrence will name it. | fixed |  | 2026-09-08T22:40:00.000Z | 2026-09-08T22:40:00.000Z |
+| 61 | 04 | deviation | playstead-mac/PlaysteadUITests/SaveEndToEndTests.swift |  | SaveEndToEndTests failed once on hosted run 34281587417 (result file never written within 60s) and passed on 34285679092 with no change to any code the test exercises -- the only intervening commits were the harness diagnostic and docs. So the failure is intermittent and its cause is still unknown. Deliberately recorded as OPEN rather than closed by the green run: a test that fails one run in N is not fixed by the run where it passes. WINDOWS #60's failure channel and the 120s deadline mean the next occurrence will name which of the four harness steps (quiesce, pairing, upload, sync) actually failed, and whether it was slow or broken. Do not close this without that evidence. | open |  | 2026-09-08T23:50:00.000Z |  |
 
 ````json
 [
@@ -761,6 +762,18 @@ last_updated: 2026-09-08T22:40:00.000Z
     "reason": "",
     "recorded_at": "2026-09-08T18:34:29.543Z",
     "resolved_at": "2026-09-08T22:15:00.000Z"
+  },
+  {
+    "id": 61,
+    "kind": "deviation",
+    "phase": "04",
+    "file": "playstead-mac/PlaysteadUITests/SaveEndToEndTests.swift",
+    "line": null,
+    "description": "SaveEndToEndTests failed once on hosted run 34281587417 (result file never written within 60s) and passed on 34285679092 with no change to any code the test exercises. The failure is intermittent and its cause is still unknown. Recorded as OPEN rather than closed by the green run: a test that fails one run in N is not fixed by the run where it passes. WINDOWS #60's failure channel and the 120s deadline mean the next occurrence will name which of the four harness steps (quiesce, pairing, upload, sync) failed, and whether it was slow or broken. Do not close without that evidence.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T23:50:00.000Z",
+    "resolved_at": null
   },
   {
     "id": 60,
