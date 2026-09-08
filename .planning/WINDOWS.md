@@ -2,9 +2,9 @@
 schema_version: 1
 open_count: 39
 waived_count: 1
-fixed_count: 17
-total_count: 57
-last_updated: 2026-09-08T18:34:29.543Z
+fixed_count: 19
+total_count: 59
+last_updated: 2026-09-08T20:58:25.464Z
 ---
 
 # Broken Windows Ledger
@@ -72,6 +72,8 @@ last_updated: 2026-09-08T18:34:29.543Z
 | 55 | 04 | deviation | playstead-mac/Playstead/Saves/SaveUploadLane.swift |  | SHIPPED DEFECT: save uploads 404'd against every real server, so no captured revision has ever reached a server from the shipped app. APIClient.send does credential.baseURL.appendingPathComponent(path) and the paired credential's baseURL is the server ORIGIN, so callers own the whole path. SnapshotClient (/api/v1/snapshot) and ChangesClient (/api/v1/changes) spell it correctly; SaveUploadLane spelled 'saves/uploads/<id>' and 'saves/revisions' without the /api/v1 prefix, at both of its call sites. Server routes are PUT /api/v1/saves/uploads/:command_id and POST /api/v1/saves/revisions (router.ex:285,292). Observed on the owner's machine 2026-09-08: 'PUT /saves/uploads/... Sent 404' twice in the server log while POST /api/v1/play-sessions succeeded; two captured revisions sat at durability='queued' with 0 rows in the server's save_revisions. Capture, promotion and CAS commit all work -- only the upload half was broken. Fixed 2026-09-08 by prefixing both paths; guarded by scripts/ci/tests/api-path-prefix-test.sh, verified to reject the pre-fix source. WHY CI MISSED IT: SaveEndToEndTests guarded three fixture stages with bare 'guard try runFixture(...) else { return }', so a failing stage returned from the test having asserted nothing and XCTest recorded a pass -- the end-to-end proof of this exact path was fail-open. Seven such returns existed across SaveEndToEndTests and LiveServerSnapshotTests; all seven now XCTFail, and four-layer-topology-test.sh line 199 previously PINNED the fail-open shape as required. UAT tests 106 and 117 were marked pass on that evidence and are reverted to issue. | open |  | 2026-09-08T17:49:43.371Z |  |
 | 56 | 04 | deviation | playstead-server/lib/playstead_web/controllers/api/v1/saves_controller.ex |  | SHIPPED DEFECT (server): the streamed save-upload route replied on the ORIGINAL conn instead of the one advanced by reading the body. Plug.Conn is immutable and body_stream/1 threads its own conn through Stream.resource, so create_upload/2 responded 200 on a conn that still believed the request body was unread. The connection was then left mid-body, and the NEXT request on it stalled until Bandit's 15s read timeout, surfacing as 'Bandit.HTTPError Read timeout' on the upload's request_id and a 502 EOF at Caddy for the following request. Because SaveUploadLane does PUT bytes then immediately POST /api/v1/saves/revisions on the same connection, the metadata commit ALWAYS died: bytes landed in save_pending_uploads, no revision ever committed, and the client's revision stayed durability='queued' forever. Size-dependent, which is why it was never noticed: reproduced deterministically at 4096 bytes -> next request 0.004s, 65536 -> 15.010s, 131072 -> 15.010s. Fixed 2026-09-08 by capturing the drained conn from body_stream/1 and replying on it; re-verified 0.0017s at both previously-broken sizes. Not reachable by ConnTest (Phoenix.ConnTest never opens a real connection), which is why the 2 existing saves_controller tests pass either way; the live-server e2e test WOULD have caught it had it not been fail-open (WINDOWS #55). Full server suite green after the fix: 1037 tests, 0 failures. | open |  | 2026-09-08T18:22:12.727Z |  |
 | 57 | 04 | stub | playstead-mac/Playstead/Saves/SaveSessionCoordinator.swift |  | Capture provenance is never recorded: save_revision.adapter_id and adapter_version are empty on every revision produced by the real Play path, though both columns exist client-side and server-side and SaveUploadLane forwards them when present. Observed on the owner's machine 2026-09-08 across all three revisions captured through the shipped app (Advance Wars 65,536 bytes; Pokemon LeafGreen 131,072 x2) -- adapter_id '', adapter_version '', capture_method 'session'. Consequence: a stored revision cannot say which emulator or which pinned adapter version produced it, so a future adapter upgrade that changes save-format behaviour leaves no way to tell affected revisions from unaffected ones. CP7-SAVE-C's own how-to-verify asks the developer to record the adapter version alongside the observations, which the app itself cannot supply. Not blocking: capture, upload, restore and byte-identity are all proven correct without it. Low severity, but it is provenance for the one artifact class this phase exists to protect. | open |  | 2026-09-08T18:34:29.543Z |  |
+| 58 | 04 | deviation | playstead-mac/PlaysteadUITests/SaveEndToEndTests.swift |  | CI GAP (fixed same day, cc7640d): the phase's only end-to-end save proof had never run on a hosted runner. SaveEndToEndTests resolved its fixture environment from ProcessInfo.processInfo.environment alone; the XCTest process inherits a PATH with no Elixir toolchain, so live-server.sh's 'mix playstead.mac_ci_fixture' died with 'mix: command not found' at provision-domain on every hosted run. The sibling LiveServerSnapshotTests already merged the runner-written live-server-runtime.json (which carries the real PATH) over the inherited environment and documented exactly this hazard; SaveEndToEndTests' doc comment claimed it reused that discipline 'verbatim' and did not. Invisible because the test was fail-open until e6316d5 and because live-server.sh discarded its own stderr until 266015e. Third seam-between-plans defect of this phase after #55 and #56. Guarded by scripts/ci/tests/live-server-env-resolution-test.sh, falsified against the real pre-fix source. | fixed |  | 2026-09-08T20:58:11.764Z | 2026-09-08T20:58:25.364Z |
+| 59 | 04 | deviation | playstead-mac/scripts/ci/run-mac-verification.sh |  | CI GAP (fixed same day, 266015e): the hosted UI layer's 1800s deadline sat 9% above its own observed runtime (1631s in the last green run, 50960ba), and run 34264338508 was SIGTERMed at exactly 1800s on a commit whose diff touched no file in the UI test plan. Raised to 2700s with four-layer-topology-test.sh's pinned expectation and ceiling moved with it. Recorded because the failure mode is a gate that reports red for reasons unrelated to the code under test, which trains readers to discount it. | fixed |  | 2026-09-08T20:58:18.772Z | 2026-09-08T20:58:25.464Z |
 
 ````json
 [
@@ -758,6 +760,30 @@ last_updated: 2026-09-08T18:34:29.543Z
     "reason": "",
     "recorded_at": "2026-09-08T18:34:29.543Z",
     "resolved_at": null
+  },
+  {
+    "id": 58,
+    "kind": "deviation",
+    "phase": "04",
+    "file": "playstead-mac/PlaysteadUITests/SaveEndToEndTests.swift",
+    "line": null,
+    "description": "CI GAP (fixed same day, cc7640d): the phase's only end-to-end save proof had never run on a hosted runner. SaveEndToEndTests resolved its fixture environment from ProcessInfo.processInfo.environment alone; the XCTest process inherits a PATH with no Elixir toolchain, so live-server.sh's 'mix playstead.mac_ci_fixture' died with 'mix: command not found' at provision-domain on every hosted run. The sibling LiveServerSnapshotTests already merged the runner-written live-server-runtime.json (which carries the real PATH) over the inherited environment and documented exactly this hazard; SaveEndToEndTests' doc comment claimed it reused that discipline 'verbatim' and did not. Invisible because the test was fail-open until e6316d5 and because live-server.sh discarded its own stderr until 266015e. Third seam-between-plans defect of this phase after #55 and #56. Guarded by scripts/ci/tests/live-server-env-resolution-test.sh, falsified against the real pre-fix source.",
+    "status": "fixed",
+    "reason": "",
+    "recorded_at": "2026-09-08T20:58:11.764Z",
+    "resolved_at": "2026-09-08T20:58:25.364Z"
+  },
+  {
+    "id": 59,
+    "kind": "deviation",
+    "phase": "04",
+    "file": "playstead-mac/scripts/ci/run-mac-verification.sh",
+    "line": null,
+    "description": "CI GAP (fixed same day, 266015e): the hosted UI layer's 1800s deadline sat 9% above its own observed runtime (1631s in the last green run, 50960ba), and run 34264338508 was SIGTERMed at exactly 1800s on a commit whose diff touched no file in the UI test plan. Raised to 2700s with four-layer-topology-test.sh's pinned expectation and ceiling moved with it. Recorded because the failure mode is a gate that reports red for reasons unrelated to the code under test, which trains readers to discount it.",
+    "status": "fixed",
+    "reason": "",
+    "recorded_at": "2026-09-08T20:58:18.772Z",
+    "resolved_at": "2026-09-08T20:58:25.464Z"
   }
 ]
 ````
