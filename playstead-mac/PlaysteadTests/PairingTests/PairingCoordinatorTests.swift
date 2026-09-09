@@ -517,4 +517,113 @@ final class PairingCoordinatorTests: XCTestCase {
         XCTAssertEqual(written, seededBytes)
         XCTAssertEqual(store.loadCredential()?.deviceID, "device-9")
     }
+
+    // MARK: - Cancellation races
+
+    /// Lets a `StubURLProtocol.responder` block on the URL loading thread
+    /// (off the main actor — `StubURLProtocol.startLoading` invokes
+    /// `Self.responder` synchronously, `CacheTests/StubURLProtocol.swift:48-54`)
+    /// while the `@MainActor` test observes the request genuinely in
+    /// flight and calls `cancel()`.
+    ///
+    /// `waitForEntry` deliberately *polls* rather than calling a raw
+    /// blocking `DispatchSemaphore.wait()` on the calling thread: the
+    /// coordinator's poll/redeem work runs as a `Task` isolated to the
+    /// same `@MainActor` serial executor the test itself runs on. A
+    /// synchronous blocking wait there would never yield the executor
+    /// back to that `Task`, so it could never reach the point where it
+    /// invokes the gated responder in the first place — a self-deadlock,
+    /// not merely a slow test. Polling with a bounded `Task.sleep`
+    /// between checks (the same idiom `waitForTerminal` above already
+    /// uses) keeps the test cooperative with the coordinator's own work.
+    final class RequestGate {
+        private let entered = DispatchSemaphore(value: 0)
+        private let releaseSemaphore = DispatchSemaphore(value: 0)
+
+        /// Called from the responder (background thread) once invoked.
+        func signalEntered() { entered.signal() }
+
+        /// Called from `@MainActor` test code. Polls rather than blocking
+        /// the calling thread synchronously — see the type doc comment.
+        @discardableResult
+        func waitForEntry(timeout: TimeInterval = 3) async -> Bool {
+            let deadline = Date().addingTimeInterval(timeout)
+            while Date() < deadline {
+                if entered.wait(timeout: .now()) == .success { return true }
+                try? await Task.sleep(nanoseconds: 5_000_000)
+            }
+            return false
+        }
+
+        /// Called from the responder (background thread): blocks until
+        /// the test calls `release()`.
+        func awaitRelease(timeout: TimeInterval = 5) {
+            _ = releaseSemaphore.wait(timeout: .now() + timeout)
+        }
+
+        /// Called from the test to let a blocked responder proceed. Every
+        /// gated test calls this on every path (backstopped by `defer`),
+        /// because `StubURLProtocol.reset()` waits (bounded, 2s) on its
+        /// in-flight `DispatchGroup` in `setUp`/`tearDown` — a responder
+        /// left blocked here stalls the *next* test's setup.
+        func release() { releaseSemaphore.signal() }
+    }
+
+    /// With `client.redeem(...)` held genuinely in flight (not merely
+    /// `.pending`), `cancel()` must be authoritative: the server-issued
+    /// credential the in-flight call eventually returns is abandoned —
+    /// never stored, never pinned, never resurrecting `.paired`
+    /// (VERIFICATION gap 2 / CR-01).
+    func testCancellingDuringAnInFlightRedeemWritesNoCredentialAndStaysIdle() async throws {
+        let expires = Date(timeIntervalSinceNow: 300)
+        var pollCount = 0
+        let gate = RequestGate()
+        defer { gate.release() }
+        StubURLProtocol.responder = { request in
+            if Self.isCreate(request) {
+                return StubURLProtocol.Stub(
+                    statusCode: 201, headers: [:],
+                    body: Self.createBody(id: "req-1", displayCode: "ABC-123", pollInterval: 5, expiresAt: expires)
+                )
+            }
+            if Self.isPoll(request) {
+                pollCount += 1
+                let status = pollCount < 2 ? "pending" : "approved"
+                return StubURLProtocol.Stub(statusCode: 200, headers: [:], body: Self.statusBody(status))
+            }
+            if Self.isRedeem(request) {
+                gate.signalEntered()
+                gate.awaitRelease()
+                return StubURLProtocol.Stub(
+                    statusCode: 201, headers: [:],
+                    body: Self.redeemBody(deviceID: "device-9", credential: "cred-abc", fingerprintPrefix: "ab:cd")
+                )
+            }
+            return StubURLProtocol.Stub(statusCode: 500, headers: [:], body: Data())
+        }
+
+        let seededBytes = Data("der-anchor-bytes".utf8)
+        let coordinator = makeCoordinator(capturedCertificateData: seededBytes, pinsCertificate: true)
+        await coordinator.start(baseURLString: "https://127.0.0.1:4010")
+
+        let entered = await gate.waitForEntry(timeout: 3)
+        XCTAssertTrue(entered, "redeem should have been invoked and entered the gate")
+        coordinator.cancel()
+        XCTAssertEqual(coordinator.state, .idle)
+        gate.release()
+
+        // Bounded settle: let the now-cancelled, still-in-flight redeem()
+        // call resume and be refused from committing anything.
+        try? await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertEqual(coordinator.state, .idle, "a cancelled in-flight redeem must not resurrect .paired")
+        XCTAssertNil(store.loadCredential(), "a cancelled in-flight redeem must not write a credential")
+        guard let pinURL = pinnedCertificateURL else {
+            return XCTFail("expected makeCoordinator(pinsCertificate: true) to resolve a pin URL")
+        }
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: pinURL.path),
+            "a cancelled in-flight redeem must not write a pin"
+        )
+    }
 }

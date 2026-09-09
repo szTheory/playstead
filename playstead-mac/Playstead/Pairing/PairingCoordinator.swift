@@ -43,6 +43,18 @@ final class PairingCoordinator {
     private var deviceCode: String?
     private var baseURL: URL?
     private var requestID: String?
+    /// Monotonic ceremony generation. This — not `pollTask?.cancel()` — is
+    /// what makes `cancel()` authoritative: `pollTask?.cancel()` only sets
+    /// Swift's cooperative cancellation flag, but `start()`, `pollLoop()`
+    /// and `redeem()` are ordinary (non-weak) method-call frames, so an
+    /// in-flight `URLSession` call they are suspended in always completes
+    /// regardless of that flag. `cancel()` increments this first; every
+    /// commit point (a `state` assignment, a Keychain write, a pin write,
+    /// or starting a new poll loop) compares the generation it started
+    /// under against the current value immediately after its `await`
+    /// resumes, and abandons the result if they differ (VERIFICATION
+    /// gap 2 / CR-01).
+    private var generation = 0
 
     init(
         client: PairingClient,
@@ -106,17 +118,24 @@ final class PairingCoordinator {
         state = .requesting
         let code = deviceCodeGenerator()
         deviceCode = code
+        let myGeneration = generation
 
         do {
             let handle = try await client.createRequest(
                 baseURL: url, deviceCode: code, deviceName: deviceName, platform: platform, appVersion: appVersion
             )
+            // A cancelled ceremony must neither resurrect a state nor
+            // start an orphaned poll loop against a request nothing will
+            // ever redeem (VERIFICATION gap 2 / CR-01).
+            guard myGeneration == generation else { return }
             requestID = handle.id
             state = .awaitingApproval(displayCode: handle.displayCode, expiresAt: handle.expiresAt)
             startPolling(interval: handle.pollInterval)
         } catch let error as PairingError {
+            guard myGeneration == generation else { return }
             state = .failed(error)
         } catch {
+            guard myGeneration == generation else { return }
             state = .failed(.transport(error.localizedDescription))
         }
     }
@@ -125,6 +144,10 @@ final class PairingCoordinator {
     /// sheet, or starting over, must stop polling rather than let it run
     /// against a request nothing will ever redeem.
     func cancel() {
+        // First statement, always: every commit point compares against
+        // this value, so incrementing it here is what makes every
+        // in-flight `await` below abandon its result once it resumes.
+        generation += 1
         pollTask?.cancel()
         pollTask = nil
         state = .idle
@@ -141,10 +164,12 @@ final class PairingCoordinator {
     }
 
     private func pollLoop(initialInterval: TimeInterval) async {
+        let myGeneration = generation
         var interval = initialInterval
         while !Task.isCancelled {
             await sleep(interval)
             if Task.isCancelled { return }
+            guard myGeneration == generation else { return }
 
             guard case .awaitingApproval(_, let expiresAt) = state else { return }
             if now() >= expiresAt {
@@ -154,7 +179,13 @@ final class PairingCoordinator {
             guard let baseURL, let requestID else { return }
 
             do {
-                switch try await client.pollStatus(baseURL: baseURL, requestID: requestID) {
+                let status = try await client.pollStatus(baseURL: baseURL, requestID: requestID)
+                // A response for a cancelled ceremony must never commit
+                // anything — most importantly, an `.approved` result must
+                // never reach `redeem()` after `cancel()` has already run
+                // (VERIFICATION gap 2 / CR-01).
+                guard myGeneration == generation else { return }
+                switch status {
                 case .pending:
                     continue
                 case .approved:
@@ -165,6 +196,7 @@ final class PairingCoordinator {
                     return
                 }
             } catch PairingError.slowDown {
+                guard myGeneration == generation else { return }
                 // D-07/D-12: never retry immediately on a rate-limit
                 // refusal — double the interval for the next attempt,
                 // capped, so the ceremony backs off rather than tripping
@@ -172,9 +204,11 @@ final class PairingCoordinator {
                 interval = min(interval * 2, maxPollInterval)
                 continue
             } catch let error as PairingError {
+                guard myGeneration == generation else { return }
                 state = .failed(error)
                 return
             } catch {
+                guard myGeneration == generation else { return }
                 state = .failed(.transport(error.localizedDescription))
                 return
             }
@@ -186,9 +220,17 @@ final class PairingCoordinator {
             state = .failed(.invalidResponse)
             return
         }
+        let myGeneration = generation
         state = .redeeming
         do {
             let redeemed = try await client.redeem(baseURL: baseURL, requestID: requestID, deviceCode: deviceCode)
+            // The hardest window: cancel() may have already run while this
+            // call was in flight. If so, the server-issued credential is
+            // simply abandoned — never constructed into a stored
+            // credential, never written to the Keychain, never pinned,
+            // and no `state` assignment below runs (VERIFICATION gap 2 /
+            // CR-01).
+            guard myGeneration == generation else { return }
             let credential = PairingCredential(deviceID: redeemed.deviceID, baseURL: baseURL, token: redeemed.credential)
             switch keychain.storeCredential(credential) {
             case .success:
@@ -218,8 +260,10 @@ final class PairingCoordinator {
                 state = .failed(.keychainWriteFailed)
             }
         } catch let error as PairingError {
+            guard myGeneration == generation else { return }
             state = .failed(error)
         } catch {
+            guard myGeneration == generation else { return }
             state = .failed(.transport(error.localizedDescription))
         }
     }
