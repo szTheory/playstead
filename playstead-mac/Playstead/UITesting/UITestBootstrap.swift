@@ -40,6 +40,12 @@ enum UITestBootstrap {
     static let handoffKey = "PLAYSTEAD_UI_TEST_CREDENTIAL_HANDOFF"
     static let keychainKey = "PLAYSTEAD_UI_TEST_KEYCHAIN"
     static let keychainServiceKey = "PLAYSTEAD_UI_TEST_KEYCHAIN_SERVICE"
+    /// Plan 04.5-01: the live-server pairing ceremony proof starts with a
+    /// genuinely empty scoped Keychain and pairs it *through the real
+    /// `PairingView`*, so — unlike every other live-server session — no
+    /// pre-existing credential (handoff or otherwise) is required or
+    /// expected.
+    static let unpairedKey = "PLAYSTEAD_UI_TEST_LIVE_SERVER_UNPAIRED"
 
     static func isRequested(environment: [String: String] = ProcessInfo.processInfo.environment) -> Bool {
         environment[modeKey] == "1"
@@ -117,7 +123,8 @@ enum UITestBootstrap {
                 credentialWasConsumed = false
             }
         }
-        if !credentialWasConsumed, keychain.loadCredential() == nil {
+        let allowsUnpaired = environment[unpairedKey] == "1"
+        if !credentialWasConsumed, keychain.loadCredential() == nil, !allowsUnpaired {
             throw DeterministicProfileError.stateMismatch("scoped live credential is missing")
         }
 
@@ -126,7 +133,11 @@ enum UITestBootstrap {
         let appEnvironment = AppEnvironment(
             paths: paths,
             apiClient: APIClient(keychain: keychain),
-            reachability: Reachability(startOnline: true, monitorAutomatically: false)
+            reachability: Reachability(startOnline: true, monitorAutomatically: false),
+            // The pairing ceremony must write into the same scoped
+            // Keychain `apiClient` reads its credential from -- never the
+            // production default, which would be the real login Keychain.
+            pairingKeychain: keychain
         )
         maybeRunSaveEndToEnd(environment: environment, root: root, appEnvironment: appEnvironment)
         return UITestProfileSession(fixture: nil, environment: appEnvironment)

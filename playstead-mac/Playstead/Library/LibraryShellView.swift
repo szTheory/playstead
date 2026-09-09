@@ -41,6 +41,7 @@ struct LibraryShellView: View {
         case adapter
         case downloads
         case storage
+        case pairing
 
         var id: String { rawValue }
     }
@@ -58,6 +59,7 @@ struct LibraryShellView: View {
         case .adapter: return "Adapter"
         case .downloads: return "Downloads"
         case .storage: return "Storage"
+        case .pairing: return "Pairing"
         }
     }
 
@@ -66,6 +68,7 @@ struct LibraryShellView: View {
         case .adapter: return AccessibilityIdentifiers.Surface.adapter
         case .downloads: return AccessibilityIdentifiers.Surface.downloads
         case .storage: return AccessibilityIdentifiers.Surface.storage
+        case .pairing: return AccessibilityIdentifiers.Surface.pairing
         }
     }
 
@@ -172,6 +175,14 @@ struct LibraryShellView: View {
             environment.refreshCurationViewModels()
             await environment.syncNow()
         }
+        // The app menu's "Pair with Server…" command is the second
+        // reachable call site the ceremony needs — a user who is already
+        // paired must be able to re-pair against a new server, not only a
+        // fresh install seeing the empty-state action button.
+        .onReceive(NotificationCenter.default.publisher(for: .presentPairingSheetRequested)) { _ in
+            focusedShellControl = nil
+            presentedSurface = .pairing
+        }
     }
 
     /// A normal in-window command group avoids the unlabeled system Touch Bar
@@ -226,6 +237,10 @@ struct LibraryShellView: View {
         case .adapter: return AccessibilityIdentifiers.Control.openAdapter
         case .downloads: return AccessibilityIdentifiers.Control.openDownloads
         case .storage: return AccessibilityIdentifiers.Control.openStorage
+        // `.pairing` has no command-bar button (it is reachable from the
+        // empty-state action and the app menu instead) — this case exists
+        // only for switch exhaustiveness.
+        case .pairing: return AccessibilityIdentifiers.Control.openPairing
         }
     }
 
@@ -242,6 +257,9 @@ struct LibraryShellView: View {
         switch surface {
         case .adapter:
             AdapterSetupView()
+
+        case .pairing:
+            PairingView()
 
         case .downloads:
             // The queue path's counterpart to the row path's reclaim
@@ -468,11 +486,20 @@ struct LibraryShellView: View {
         .accessibilityIdentifier(AccessibilityIdentifiers.Surface.gameList)
         .overlay {
             if entries.isEmpty {
-                ContentUnavailableView(
-                    "No games yet",
-                    systemImage: "square.stack.3d.up",
-                    description: Text(refreshError ?? "Pair with your Playstead server to see your library.")
-                )
+                VStack(spacing: DesignTokens.Spacing.md) {
+                    ContentUnavailableView(
+                        "No games yet",
+                        systemImage: "square.stack.3d.up",
+                        description: Text(refreshError ?? "Pair with your Playstead server to see your library.")
+                    )
+                    // The string above has named this action since Phase 3
+                    // with nothing behind it to reach (WINDOWS #54) — this
+                    // button is what makes it real.
+                    if refreshError == nil {
+                        Button("Pair with Server…") { presentedSurface = .pairing }
+                            .accessibilityIdentifier(AccessibilityIdentifiers.Control.openPairing)
+                    }
+                }
             }
         }
     }

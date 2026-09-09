@@ -305,7 +305,7 @@ final class StorageShellWiringTests: XCTestCase {
         }
         XCTAssertEqual(
             Set(LibraryShellView.ShellSurface.allCases.map { LibraryShellView.title(for: $0) }),
-            ["Adapter", "Downloads", "Storage"]
+            ["Adapter", "Downloads", "Storage", "Pairing"]
         )
     }
 
