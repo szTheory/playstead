@@ -376,7 +376,101 @@ final class PairingCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.state, .failed(.invalidResponse))
     }
 
+    func testAnEmptyServerAddressFailsWithoutMakingARequest() async throws {
+        StubURLProtocol.responder = { _ in
+            XCTFail("no request should be made for an empty server address")
+            return StubURLProtocol.Stub(statusCode: 500, headers: [:], body: Data())
+        }
+        let coordinator = makeCoordinator()
+        await coordinator.start(baseURLString: "   ")
+        XCTAssertEqual(coordinator.state, .failed(.invalidResponse))
+        XCTAssertTrue(StubURLProtocol.requestLog.isEmpty)
+    }
+
     // MARK: - Fail-closed pinning (VERIFICATION gap 1 / CR-02)
+
+    /// planner-discipline-allow: http://127.0.0.1:4010
+    func testAPlaintextServerAddressIsRefusedBeforeAnyRequest() async throws {
+        StubURLProtocol.responder = { _ in
+            XCTFail("no request should be made for a plaintext server address")
+            return StubURLProtocol.Stub(statusCode: 500, headers: [:], body: Data())
+        }
+        let coordinator = makeCoordinator()
+        await coordinator.start(baseURLString: "http://127.0.0.1:4010")
+        XCTAssertEqual(coordinator.state, .failed(.insecureServerAddress))
+        XCTAssertTrue(StubURLProtocol.requestLog.isEmpty)
+    }
+
+    func testPairingFailsClosedAndRollsBackTheCredentialWhenTheAnchorCannotBePinned() async throws {
+        let expires = Date(timeIntervalSinceNow: 300)
+        var pollCount = 0
+        StubURLProtocol.responder = { request in
+            if Self.isCreate(request) {
+                return StubURLProtocol.Stub(
+                    statusCode: 201, headers: [:],
+                    body: Self.createBody(id: "req-1", displayCode: "ABC-123", pollInterval: 5, expiresAt: expires)
+                )
+            }
+            if Self.isPoll(request) {
+                pollCount += 1
+                let status = pollCount < 2 ? "pending" : "approved"
+                return StubURLProtocol.Stub(statusCode: 200, headers: [:], body: Self.statusBody(status))
+            }
+            if Self.isRedeem(request) {
+                return StubURLProtocol.Stub(
+                    statusCode: 201, headers: [:],
+                    body: Self.redeemBody(deviceID: "device-9", credential: "cred-abc", fingerprintPrefix: "ab:cd")
+                )
+            }
+            return StubURLProtocol.Stub(statusCode: 500, headers: [:], body: Data())
+        }
+
+        let coordinator = makeCoordinator(capturedCertificateData: nil, pinsCertificate: true)
+        await coordinator.start(baseURLString: "https://127.0.0.1:4010")
+        let final = await waitForTerminal(coordinator)
+
+        XCTAssertEqual(final, .failed(.certificatePinFailed))
+        XCTAssertNil(store.loadCredential(), "a failed pin must roll back the just-stored credential")
+        guard let pinURL = pinnedCertificateURL else {
+            return XCTFail("expected makeCoordinator(pinsCertificate: true) to resolve a pin URL")
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: pinURL.path))
+    }
+
+    func testStartingASecondCeremonyWhileOneIsAwaitingApprovalIsANoOp() async throws {
+        let expires = Date(timeIntervalSinceNow: 300)
+        var createCount = 0
+        StubURLProtocol.responder = { request in
+            if Self.isCreate(request) {
+                createCount += 1
+                return StubURLProtocol.Stub(
+                    statusCode: 201, headers: [:],
+                    body: Self.createBody(id: "req-1", displayCode: "ABC-123", pollInterval: 300, expiresAt: expires)
+                )
+            }
+            if Self.isPoll(request) {
+                return StubURLProtocol.Stub(statusCode: 200, headers: [:], body: Self.statusBody("pending"))
+            }
+            return StubURLProtocol.Stub(statusCode: 500, headers: [:], body: Data())
+        }
+
+        let coordinator = makeCoordinator()
+        await coordinator.start(baseURLString: "https://127.0.0.1:4010")
+        guard case .awaitingApproval(let firstCode, _) = coordinator.state else {
+            return XCTFail("expected .awaitingApproval, got \(coordinator.state)")
+        }
+        XCTAssertEqual(createCount, 1)
+
+        await coordinator.start(baseURLString: "https://127.0.0.1:4010")
+
+        XCTAssertEqual(createCount, 1, "a second start() while awaiting approval must not issue another create request")
+        guard case .awaitingApproval(let secondCode, _) = coordinator.state else {
+            return XCTFail("expected .awaitingApproval to persist, got \(coordinator.state)")
+        }
+        XCTAssertEqual(firstCode, secondCode)
+
+        coordinator.cancel()
+    }
 
     /// The tracer proof: a successful https ceremony with seeded capture
     /// bytes writes the server's trust anchor to `pinned-ca.der`, and
