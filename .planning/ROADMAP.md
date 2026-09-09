@@ -325,7 +325,7 @@ Plans:
   6. The whole ceremony is proven against the real Phoenix in the live-server CI layer — a UI test against a stub is not evidence that a human can pair.
 
 **Research / spike flags**: Certificate capture is the least-proven step; which anchor to persist depends on the deployment (Caddy internal CA vs. a public certificate). If it cannot be made reliable, ship the ceremony without it and record the pin as its own window rather than writing a file `APIClient` will then trust wrongly.
-**Plans**: 1/3 plans executed (1 executed; 2 gap-closure plans pending from verification)
+**Plans**: 3/3 plans executed (1 executed; 2 gap-closure plans pending from verification)
 
 Plans:
 **Wave 1**
@@ -338,7 +338,7 @@ Plans:
 
 **Gap closure — Wave 2**
 
-- [ ] 04.5-03-PLAN.md — monotonic generation token checked after every await, and tests that cancel with a request genuinely in flight (gap 2 / criterion 2)
+- [x] 04.5-03-PLAN.md — monotonic generation token checked after every await, and tests that cancel with a request genuinely in flight (gap 2 / criterion 2)
 
 ### Phase 5: Recovery and Release Proof
 

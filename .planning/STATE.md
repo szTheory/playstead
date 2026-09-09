@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 04.5
 current_phase_name: Mac Pairing Ceremony
 status: executing
-stopped_at: Completed 04.5-02-PLAN.md
-last_updated: "2026-09-09T13:52:17.019Z"
+stopped_at: Completed 04.5-03-PLAN.md
+last_updated: "2026-09-09T14:13:48.603Z"
 last_activity: 2026-09-09
 last_activity_desc: Phase 04.5 execution started
-state_head: 663d4726d7f98d75b57a44bd15c1034d5bbb1e47
+state_head: 8a945b73f90bf7900586dee2923f384e79663c49
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 66
-  completed_plans: 65
+  completed_plans: 66
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: `.planning/PROJECT.md` (updated 2026-08-30)
 ## Current Position
 
 Phase: 04.5 (Mac Pairing Ceremony) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-09-09 — Phase 04.5 execution started
 
@@ -117,6 +117,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 | Phase 04 P25 | 55min | 2 tasks | 2 files |
 | Phase 04.5 P01 | 95min | 6 tasks | 18 files |
 | Phase 04.5-mac-pairing-ceremony P2 | 42min | 3 tasks | 7 files |
+| Phase 04.5 P3 | 28min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -245,6 +246,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 - [Phase 04]: 04-24: id chosen as {recorded_at, id} tiebreaker for revision ordering (not a stored sequence column), following attention_source.ex precedent — recorded_at remains sole ordering semantics (D-15); id is immutable and reproducible, never exposed as causal order
 - [Phase 04.5]: Reused LibraryShellView's existing ShellSurface sheet mechanism for pairing rather than a new presentation path; added a CI-fixture-only approve-sole mix task instead of touching production pairing routes; AppEnvironment now threads a pairingKeychain matched to whichever Keychain apiClient reads from.
 - [Phase 04.5]: PROT-01 left in progress rather than re-marked complete: the live-server pairing proof has not genuinely executed against a real server in this session.
+- [Phase 04.5]: Task 3 generation token: waitForEntry() polls rather than blocking synchronously, since the coordinator's poll/redeem work is MainActor-isolated and a raw synchronous wait would starve it of its turn on the shared executor.
 
 ### Pending Todos
 
@@ -278,6 +280,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-09T13:52:16.796Z
-Stopped at: Completed 04.5-02-PLAN.md
+Last session: 2026-09-09T14:13:48.376Z
+Stopped at: Completed 04.5-03-PLAN.md
 Resume file: None
