@@ -325,12 +325,20 @@ Plans:
   6. The whole ceremony is proven against the real Phoenix in the live-server CI layer — a UI test against a stub is not evidence that a human can pair.
 
 **Research / spike flags**: Certificate capture is the least-proven step; which anchor to persist depends on the deployment (Caddy internal CA vs. a public certificate). If it cannot be made reliable, ship the ceremony without it and record the pin as its own window rather than writing a file `APIClient` will then trust wrongly.
-**Plans**: 1/1 plans executed
+**Plans**: 1/3 plans executed (1 executed; 2 gap-closure plans pending from verification)
 
 Plans:
 **Wave 1**
 
 - [x] 04.5-01-PLAN.md — `PairingClient`, `PairingCoordinator`, certificate capture, `PairingView` and its two call sites, tests at three levels
+
+**Gap closure — Wave 1**
+
+- [ ] 04.5-02-PLAN.md — https-only ceremony, fail-closed trust-anchor pinning with credential rollback, and the first test asserting `pinned-ca.der` exists (gap 1 / criterion 5)
+
+**Gap closure — Wave 2**
+
+- [ ] 04.5-03-PLAN.md — monotonic generation token checked after every await, and tests that cancel with a request genuinely in flight (gap 2 / criterion 2)
 
 ### Phase 5: Recovery and Release Proof
 
