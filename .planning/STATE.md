@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 current_phase: 04.5
-current_phase_name: mac-pairing-ceremony
+current_phase_name: Mac Pairing Ceremony
 status: executing
 stopped_at: Completed 04.5-03-PLAN.md
-last_updated: "2026-09-09T15:02:41.172Z"
+last_updated: "2026-09-09T15:10:45.077Z"
 last_activity: 2026-09-09
 last_activity_desc: Phase 04.5 execution started
-state_head: bc509fd168efd5c7d7bd68ceec8013ebee22cdce
+state_head: bfc977874654d0fd0ba9ce07c72a73f84be7752f
 progress:
   total_phases: 7
   completed_phases: 4
@@ -28,14 +28,25 @@ See: `.planning/PROJECT.md` (updated 2026-08-30)
 
 ## Current Position
 
-Phase: 04.5 (mac-pairing-ceremony) — READY TO EXECUTE
-Plan: 3 of 3
-Status: Ready to execute
+Phase: 04.5 (Mac Pairing Ceremony) — EXECUTING
+Plan: 1 of 5
+Status: Executing Phase 04.5
 Last activity: 2026-09-09 — Phase 04.5 execution started
 
 **Read `.planning/phases/03.5-mac-verification-automation/.continue-here.md` before resuming 03.5-09.**
 It carries the root-cause analysis, the prepared Task 3 sequence, three blocking
 anti-patterns, and the deviations to record in the SUMMARY.
+
+**04.5-04-PLAN.md is IN PROGRESS, not complete.** All non-sudo work for Tasks
+1-3 is authored, locally verified, and committed (mac-ci-tls.sh issue/
+fingerprint/trust/untrust; TLS-only mac_ci.exs; local-live-server.sh https
+wiring; the two new durable tests; live-server.sh moved to https; WR-01/WR-02
+closed with passing Unit-plan tests). What remains needs `sudo` or a TTY and
+was deliberately NOT run: `mac-ci-tls.sh trust`/`untrust`, and both
+`local-live-server.sh --xcuitest --only-testing PairingCeremonyTests` proof
+runs (Task 1's initial pass and Task 3's post-WR-01 re-run). No SUMMARY.md
+exists for 04.5-04 yet — resume by running those commands interactively,
+then create the SUMMARY quoting the required log lines.
 
 Progress: [█████████░] 90% (Phase 03.5)
 
