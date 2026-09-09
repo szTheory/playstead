@@ -17,6 +17,15 @@ import Security
 /// (enter a server URL, see a display code, have it approved, end up with
 /// a working credential) exercised end-to-end with no shell script and no
 /// hand-written Keychain item standing in for the app.
+///
+/// Precondition for whoever finally executes this against a hosted
+/// Phoenix: the fixture server MUST terminate TLS on port 4010. Since
+/// plan 04.5-02, `PairingCoordinator.start()` refuses any non-`https`
+/// scheme before a single network call, so the trust anchor this test
+/// asserts below can only ever be captured from a real TLS challenge.
+/// Until the hosted harness serves TLS on 4010, this test cannot pass —
+/// that gap is the remaining blocker on ROADMAP criterion 6, already
+/// tracked as deferred in 04.5-VERIFICATION.md.
 @MainActor
 final class PairingCeremonyTests: XCTestCase {
     private var app: XCUIApplication?
@@ -89,7 +98,7 @@ final class PairingCeremonyTests: XCTestCase {
         let serverURLField = launched.textFields["playstead.control.pairing-server-url"]
         XCTAssertTrue(serverURLField.waitForExistence(timeout: 10))
         serverURLField.click()
-        serverURLField.typeText("http://127.0.0.1:4010")
+        serverURLField.typeText("https://127.0.0.1:4010")
 
         let requestButton = launched.buttons["playstead.control.request-pairing"]
         XCTAssertTrue(requestButton.waitForExistence(timeout: 5))
@@ -109,6 +118,23 @@ final class PairingCeremonyTests: XCTestCase {
 
         let success = launched.descendants(matching: .any)["playstead.control.pairing-success"]
         XCTAssertTrue(success.waitForExistence(timeout: 20), "expected the ceremony to complete and report success")
+
+        // The trust anchor, not merely the confirmation: criterion 5
+        // (VERIFICATION gap 1) requires the server's certificate to have
+        // actually landed on disk at the exact path `APIClient` watches.
+        // `UITestBootstrap.makeLiveServerSession` builds `AppPaths(root:)`
+        // from `PLAYSTEAD_UI_TEST_LIVE_ROOT`, set to `runRoot` above, so
+        // that is the exact path the app writes.
+        let pinnedCertificateURL = runRoot.appendingPathComponent("pinned-ca.der")
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: pinnedCertificateURL.path),
+            "criterion 5: pinned-ca.der must exist after a successful pairing"
+        )
+        let pinnedCertificateData = try? Data(contentsOf: pinnedCertificateURL)
+        XCTAssertFalse(
+            (pinnedCertificateData ?? Data()).isEmpty,
+            "criterion 5: pinned-ca.der must be non-empty after a successful pairing"
+        )
 
         launched.buttons["playstead.control.done"].click()
 
