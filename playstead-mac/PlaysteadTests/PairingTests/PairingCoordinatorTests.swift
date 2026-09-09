@@ -337,6 +337,14 @@ final class PairingCoordinatorTests: XCTestCase {
 
     // MARK: - Cancellation
 
+    /// Cancels while the loop is idle *between* polls (no in-flight
+    /// network call to race — `pollCount` only ever sees `.pending`
+    /// responses that already returned before `cancel()` runs). The
+    /// three in-flight windows this test cannot reach are covered by
+    /// `testCancellingDuringTheCreateRequestDoesNotResurrectTheCeremony`,
+    /// `testAPollThatApprovesAfterCancellationNeverRedeems`, and
+    /// `testCancellingDuringAnInFlightRedeemWritesNoCredentialAndStaysIdle`
+    /// (VERIFICATION gap 2 / CR-01).
     func testCancellingStopsThePollLoop() async throws {
         let expires = Date(timeIntervalSinceNow: 300)
         var pollCount = 0
@@ -625,5 +633,124 @@ final class PairingCoordinatorTests: XCTestCase {
             FileManager.default.fileExists(atPath: pinURL.path),
             "a cancelled in-flight redeem must not write a pin"
         )
+    }
+
+    /// With `client.createRequest(...)` held genuinely in flight,
+    /// `cancel()` must prevent that call's eventual result from
+    /// resurrecting `.awaitingApproval` or starting an orphaned poll loop
+    /// against a request nothing will ever redeem (VERIFICATION gap 2 /
+    /// CR-01).
+    func testCancellingDuringTheCreateRequestDoesNotResurrectTheCeremony() async throws {
+        let gate = RequestGate()
+        defer { gate.release() }
+        StubURLProtocol.responder = { request in
+            if Self.isCreate(request) {
+                gate.signalEntered()
+                gate.awaitRelease()
+                return StubURLProtocol.Stub(
+                    statusCode: 201, headers: [:],
+                    body: Self.createBody(
+                        id: "req-1", displayCode: "ABC-123", pollInterval: 5,
+                        expiresAt: Date(timeIntervalSinceNow: 300)
+                    )
+                )
+            }
+            if Self.isPoll(request) {
+                XCTFail("no poll should ever be issued for a create request cancelled before it resolved")
+                return StubURLProtocol.Stub(statusCode: 500, headers: [:], body: Data())
+            }
+            return StubURLProtocol.Stub(statusCode: 500, headers: [:], body: Data())
+        }
+
+        let coordinator = makeCoordinator()
+        // start() suspends inside createRequest's await; run it
+        // concurrently so the @MainActor test body can still act (wait
+        // for gate entry, cancel) while it's suspended.
+        let startTask = Task { await coordinator.start(baseURLString: "https://127.0.0.1:4010") }
+
+        let entered = await gate.waitForEntry(timeout: 3)
+        XCTAssertTrue(entered, "create should have been invoked and entered the gate")
+        coordinator.cancel()
+        XCTAssertEqual(coordinator.state, .idle)
+        gate.release()
+        await startTask.value
+
+        // Bounded settle so the now-cancelled create's guard has time to
+        // run (and, if the guard were absent, so a poll loop would have
+        // time to start).
+        try? await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertEqual(coordinator.state, .idle, "a cancelled in-flight create must not resurrect .awaitingApproval")
+        XCTAssertEqual(StubURLProtocol.requestLog.count, 1, "no poll should have been started for a cancelled create")
+    }
+
+    /// A poll that resolves `.approved` after `cancel()` has already run
+    /// must never call `redeem()` (VERIFICATION gap 2 / CR-01).
+    func testAPollThatApprovesAfterCancellationNeverRedeems() async throws {
+        let expires = Date(timeIntervalSinceNow: 300)
+        let gate = RequestGate()
+        defer { gate.release() }
+        StubURLProtocol.responder = { request in
+            if Self.isCreate(request) {
+                return StubURLProtocol.Stub(
+                    statusCode: 201, headers: [:],
+                    body: Self.createBody(id: "req-1", displayCode: "ABC-123", pollInterval: 5, expiresAt: expires)
+                )
+            }
+            if Self.isPoll(request) {
+                gate.signalEntered()
+                gate.awaitRelease()
+                return StubURLProtocol.Stub(statusCode: 200, headers: [:], body: Self.statusBody("approved"))
+            }
+            if Self.isRedeem(request) {
+                XCTFail("an approved poll that arrives after cancel() must never redeem")
+                return StubURLProtocol.Stub(statusCode: 500, headers: [:], body: Data())
+            }
+            return StubURLProtocol.Stub(statusCode: 500, headers: [:], body: Data())
+        }
+
+        let coordinator = makeCoordinator()
+        await coordinator.start(baseURLString: "https://127.0.0.1:4010")
+        guard case .awaitingApproval = coordinator.state else {
+            return XCTFail("expected .awaitingApproval, got \(coordinator.state)")
+        }
+
+        let entered = await gate.waitForEntry(timeout: 3)
+        XCTAssertTrue(entered, "poll should have been invoked and entered the gate")
+        coordinator.cancel()
+        XCTAssertEqual(coordinator.state, .idle)
+        gate.release()
+
+        // Bounded settle so the now-cancelled poll's `.approved` result
+        // has time to resume and be refused before reaching redeem().
+        try? await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertEqual(coordinator.state, .idle, "a poll approved after cancel() must not resurrect any state")
+        XCTAssertNil(store.loadCredential(), "a poll approved after cancel() must never redeem or store a credential")
+        XCTAssertFalse(
+            StubURLProtocol.requestLog.contains { Self.isRedeem($0) },
+            "no redeem request should have been made for a cancelled ceremony"
+        )
+    }
+
+    /// `cancel()` must be idempotent and safe to call before a ceremony
+    /// ever started: calling it twice, or calling it from `.idle`, must
+    /// leave `.idle` and perform no Keychain or filesystem work
+    /// (VERIFICATION gap 2, must_haves edge).
+    func testCancellingIsIdempotentAndSafeFromIdle() async throws {
+        StubURLProtocol.responder = { _ in
+            XCTFail("no request should be made for a coordinator that was never started")
+            return StubURLProtocol.Stub(statusCode: 500, headers: [:], body: Data())
+        }
+        let coordinator = makeCoordinator()
+
+        coordinator.cancel()
+        XCTAssertEqual(coordinator.state, .idle)
+        XCTAssertNil(store.loadCredential())
+
+        coordinator.cancel()
+        XCTAssertEqual(coordinator.state, .idle)
+        XCTAssertNil(store.loadCredential())
+        XCTAssertTrue(StubURLProtocol.requestLog.isEmpty)
     }
 }
