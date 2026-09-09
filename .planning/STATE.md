@@ -1,19 +1,19 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.0
-current_phase: 04
-current_phase_name: Persistent Save Continuity
-status: shipped
-stopped_at: Phase 04 shipped (no PR: branching_strategy=none, work is already on main)
-last_updated: "2026-09-09T00:20:00.000Z"
+current_phase: 04.5
+current_phase_name: Mac Pairing Ceremony
+status: verifying
+stopped_at: Completed 04.5-01-PLAN.md
+last_updated: "2026-09-09T00:54:43.789Z"
 last_activity: 2026-09-09
-last_activity_desc: Phase 04 shipped — verification passed 5/5, security threats_open 0
-state_head: 50aafa52a2b79476956a6421fb339582d784be3d
+last_activity_desc: Phase 04.5 execution started
+state_head: cc728e8b51b75772cce08a21f2bc11bfa95dc22e
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 64
-  completed_plans: 63
+  completed_plans: 64
 milestone_name: milestone
 ---
 
@@ -24,14 +24,14 @@ milestone_name: milestone
 See: `.planning/PROJECT.md` (updated 2026-08-30)
 
 **Core value:** A locally available game and its progress remain effortless to play, safe, understandable, synchronized, and fully under the user's control.
-**Current focus:** Phase 04 — Persistent Save Continuity
+**Current focus:** Phase 04.5 — Mac Pairing Ceremony
 
 ## Current Position
 
-Phase: 04 (Persistent Save Continuity) — EXECUTING
-Plan: 3 of 25
-Status: Ready to execute
-Last activity: 2026-09-05 — Phase 04 execution started
+Phase: 04.5 (Mac Pairing Ceremony) — EXECUTING
+Plan: 1 of 1
+Status: Phase complete — ready for verification
+Last activity: 2026-09-08 — Phase 04.5 execution started
 
 **Read `.planning/phases/03.5-mac-verification-automation/.continue-here.md` before resuming 03.5-09.**
 It carries the root-cause analysis, the prepared Task 3 sequence, three blocking
@@ -115,6 +115,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 | Phase 04 P23 | 45 min | 3 tasks | 10 files |
 | Phase 04 P24 | 15min | 2 tasks | 7 files |
 | Phase 04 P25 | 55min | 2 tasks | 2 files |
+| Phase 04.5 P01 | 95min | 6 tasks | 18 files |
 
 ## Accumulated Context
 
@@ -241,6 +242,8 @@ Progress: [█████████░] 90% (Phase 03.5)
 - [Phase 04]: SaveCaptureBytesCommitter extracted from SaveSessionCoordinator and shared with SaveSessionRecovery so live and crash-recovery capture paths cannot drift apart — Two implementations of a content-addressed commit is how the two paths drifted apart in the first place (WINDOWS #52)
 - [Phase 04]: WINDOWS #32 closed as stale (resolved by plan 04-16 commit c223218 before the ledger entry was written), not as fixed-by-this-plan — 04-VERIFICATION confirmed the wiring directly in source; the ledger should record why it closed, not merely that it closed
 - [Phase 04]: 04-24: id chosen as {recorded_at, id} tiebreaker for revision ordering (not a stored sequence column), following attention_source.ex precedent — recorded_at remains sole ordering semantics (D-15); id is immutable and reproducible, never exposed as causal order
+- [Phase 04.5]: Reused LibraryShellView's existing ShellSurface sheet mechanism for pairing rather than a new presentation path; added a CI-fixture-only approve-sole mix task instead of touching production pairing routes; AppEnvironment now threads a pairingKeychain matched to whichever Keychain apiClient reads from.
+- [Phase 04.5]: PROT-01 left in progress rather than re-marked complete: the live-server pairing proof has not genuinely executed against a real server in this session.
 
 ### Pending Todos
 
@@ -274,6 +277,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-06T03:32:18.726Z
-Stopped at: Completed 04-24-PLAN.md
+Last session: 2026-09-09T00:54:43.557Z
+Stopped at: Completed 04.5-01-PLAN.md
 Resume file: None
