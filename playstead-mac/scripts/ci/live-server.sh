@@ -113,9 +113,10 @@ case "$action" in
 
     enter_stage "request-pairing"
     python3 - "$request" "$device_code" <<'PY'
-import json, os, pathlib, secrets, sys, urllib.request
+import json, os, pathlib, secrets, ssl, sys, urllib.request
 request_path, code_path = map(pathlib.Path, sys.argv[1:])
 device_code = secrets.token_urlsafe(32)
+context = ssl.create_default_context(cafile=os.environ["PLAYSTEAD_MAC_CI_ROOT"] + "/tls/ca.pem")
 body = json.dumps({
     "device_code": device_code,
     "device_name": "Playstead Hosted Mac",
@@ -123,8 +124,8 @@ body = json.dumps({
     "app_version": "1",
     "capabilities": {},
 }).encode()
-req = urllib.request.Request("http://127.0.0.1:4010/api/v1/device-pairing/requests", data=body, headers={"Content-Type": "application/json"})
-with urllib.request.urlopen(req, timeout=10) as response:
+req = urllib.request.Request("https://127.0.0.1:4010/api/v1/device-pairing/requests", data=body, headers={"Content-Type": "application/json"})
+with urllib.request.urlopen(req, timeout=10, context=context) as response:
     payload = response.read()
 if len(payload) > 4096:
     raise SystemExit("pairing response exceeded bound")
@@ -141,18 +142,19 @@ PY
 
     enter_stage "redeem-pairing"
     python3 - "$request" "$device_code" "$handoff" <<'PY'
-import json, os, pathlib, sys, urllib.request
+import json, os, pathlib, ssl, sys, urllib.request
 request_path, code_path, handoff_path = map(pathlib.Path, sys.argv[1:])
 request_id = json.loads(request_path.read_text())["id"]
+context = ssl.create_default_context(cafile=os.environ["PLAYSTEAD_MAC_CI_ROOT"] + "/tls/ca.pem")
 body = json.dumps({"device_code": code_path.read_text()}).encode()
-url = f"http://127.0.0.1:4010/api/v1/device-pairing/requests/{request_id}/redeem"
+url = f"https://127.0.0.1:4010/api/v1/device-pairing/requests/{request_id}/redeem"
 req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
-with urllib.request.urlopen(req, timeout=10) as response:
+with urllib.request.urlopen(req, timeout=10, context=context) as response:
     redeemed = json.loads(response.read())
 handoff = {
     "device_id": redeemed["device_id"],
     "credential": redeemed["credential"],
-    "base_url": "http://127.0.0.1:4010",
+    "base_url": "https://127.0.0.1:4010",
 }
 handoff_path.write_text(json.dumps(handoff), encoding="utf-8")
 os.chmod(handoff_path, 0o600)
