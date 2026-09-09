@@ -334,7 +334,7 @@ Plans:
 
 **Gap closure — Wave 1**
 
-- [ ] 04.5-02-PLAN.md — https-only ceremony, fail-closed trust-anchor pinning with credential rollback, and the first test asserting `pinned-ca.der` exists (gap 1 / criterion 5)
+- [x] 04.5-02-PLAN.md — https-only ceremony, fail-closed trust-anchor pinning with credential rollback, and the first test asserting `pinned-ca.der` exists (gap 1 / criterion 5)
 
 **Gap closure — Wave 2**
 
