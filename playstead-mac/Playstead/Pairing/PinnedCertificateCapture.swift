@@ -17,6 +17,17 @@ final class PinnedCertificateCapture: NSObject, URLSessionDelegate, @unchecked S
     private let lock = NSLock()
     private var _capturedCertificateData: Data?
 
+    /// Seams a test uses to stand in for a real TLS handshake. The default
+    /// argument (`nil`) keeps every production call site
+    /// (`PinnedCertificateCapture()` in `PlaysteadApp.makePairingCoordinator()`)
+    /// unchanged — production always constructs with nothing pre-seeded and
+    /// relies on `urlSession(_:didReceive:)` to populate it from a real
+    /// challenge.
+    init(capturedCertificateData: Data? = nil) {
+        self._capturedCertificateData = capturedCertificateData
+        super.init()
+    }
+
     /// The DER bytes of the trust anchor captured from the most recent
     /// server-trust challenge, if any. `nil` until a handshake has
     /// actually occurred.

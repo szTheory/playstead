@@ -91,6 +91,17 @@ final class PairingCoordinator {
             return
         }
 
+        // Refuse every non-https scheme before a device code is generated
+        // or a single network call is made: a downgraded ceremony must
+        // never send the self-generated `device_code` over a channel it
+        // cannot pin, and a plaintext handshake never triggers the TLS
+        // challenge `PinnedCertificateCapture` depends on
+        // (VERIFICATION gap 1 / CR-02).
+        guard url.scheme?.lowercased() == "https" else {
+            state = .failed(.insecureServerAddress)
+            return
+        }
+
         baseURL = url
         state = .requesting
         let code = deviceCodeGenerator()
@@ -184,8 +195,23 @@ final class PairingCoordinator {
                 // Written strictly after the credential is durable: a
                 // failed pairing must never leave a pin behind that would
                 // break a later attempt against a re-issued certificate.
+                //
+                // When both `certificateCapture` and `pinnedCertificateURL`
+                // are configured (always true in production —
+                // `makePairingCoordinator()` supplies both), the pin write
+                // gates success: a false return means the trust anchor
+                // never landed on disk, so the credential just stored is
+                // rolled back and the ceremony ends terminal rather than
+                // reporting `.paired` with no pin (VERIFICATION gap 1 /
+                // CR-02). When either is `nil` the coordinator was
+                // constructed with no pinning configured — a test-only
+                // configuration — so pairing proceeds unpinned.
                 if let certificateCapture, let pinnedCertificateURL {
-                    certificateCapture.writeCapturedCertificate(to: pinnedCertificateURL)
+                    guard certificateCapture.writeCapturedCertificate(to: pinnedCertificateURL) else {
+                        keychain.deleteCredential()
+                        state = .failed(.certificatePinFailed)
+                        return
+                    }
                 }
                 state = .paired(deviceID: redeemed.deviceID)
             case .failure:

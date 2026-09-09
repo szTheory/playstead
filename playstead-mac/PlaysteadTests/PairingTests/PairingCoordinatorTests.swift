@@ -48,15 +48,30 @@ final class PairingCoordinatorTests: XCTestCase {
 
     // MARK: - Fixture construction
 
+    /// The pin URL most recently resolved by `makeCoordinator(pinsCertificate: true)`,
+    /// so tests can stat it without recomputing the path.
+    private var pinnedCertificateURL: URL?
+
     private func makeCoordinator(
         deviceCode: String = "fixed-device-code",
         now: @escaping () -> Date = Date.init,
-        recordedSleeps: SleepRecorder? = nil
+        recordedSleeps: SleepRecorder? = nil,
+        capturedCertificateData: Data? = nil,
+        pinsCertificate: Bool = false
     ) -> PairingCoordinator {
         let client = PairingClient(session: StubURLProtocol.makeSession())
+        var certificateCapture: PinnedCertificateCapture?
+        var pinURL: URL?
+        if pinsCertificate {
+            certificateCapture = PinnedCertificateCapture(capturedCertificateData: capturedCertificateData)
+            pinURL = AppPaths(root: tempRoot).root.appendingPathComponent("pinned-ca.der")
+            pinnedCertificateURL = pinURL
+        }
         return PairingCoordinator(
             client: client,
             keychain: store,
+            certificateCapture: certificateCapture,
+            pinnedCertificateURL: pinURL,
             deviceName: "Test Mac",
             platform: "macOS",
             appVersion: "1.0",
@@ -130,7 +145,7 @@ final class PairingCoordinatorTests: XCTestCase {
             )
         }
         let coordinator = makeCoordinator()
-        await coordinator.start(baseURLString: "http://127.0.0.1:4010")
+        await coordinator.start(baseURLString: "https://127.0.0.1:4010")
 
         guard case .awaitingApproval(let displayCode, let expiresAt) = coordinator.state else {
             return XCTFail("expected .awaitingApproval, got \(coordinator.state)")
@@ -169,7 +184,7 @@ final class PairingCoordinatorTests: XCTestCase {
         }
 
         let coordinator = makeCoordinator()
-        await coordinator.start(baseURLString: "http://127.0.0.1:4010")
+        await coordinator.start(baseURLString: "https://127.0.0.1:4010")
         let final = await waitForTerminal(coordinator)
 
         guard case .paired(let deviceID) = final else {
@@ -180,7 +195,7 @@ final class PairingCoordinatorTests: XCTestCase {
         let credential = store.loadCredential()
         XCTAssertEqual(credential?.deviceID, "device-9")
         XCTAssertEqual(credential?.token, "cred-abc")
-        XCTAssertEqual(credential?.baseURL, URL(string: "http://127.0.0.1:4010"))
+        XCTAssertEqual(credential?.baseURL, URL(string: "https://127.0.0.1:4010"))
 
         let redeemCalls = StubURLProtocol.requestLog.filter { $0.url?.path.hasSuffix("/redeem") == true }
         XCTAssertEqual(redeemCalls.count, 1, "redeem must happen exactly once per approved ceremony")
@@ -219,7 +234,7 @@ final class PairingCoordinatorTests: XCTestCase {
         }
 
         let coordinator = makeCoordinator()
-        await coordinator.start(baseURLString: "http://127.0.0.1:4010")
+        await coordinator.start(baseURLString: "https://127.0.0.1:4010")
         let final = await waitForTerminal(coordinator)
         XCTAssertEqual(final, .failed(expected))
         XCTAssertNil(store.loadCredential(), "a failed redeem must never leave a credential behind")
@@ -242,7 +257,7 @@ final class PairingCoordinatorTests: XCTestCase {
             return StubURLProtocol.Stub(statusCode: 500, headers: [:], body: Data())
         }
         let coordinator = makeCoordinator()
-        await coordinator.start(baseURLString: "http://127.0.0.1:4010")
+        await coordinator.start(baseURLString: "https://127.0.0.1:4010")
         let final = await waitForTerminal(coordinator)
         XCTAssertEqual(final, .failed(.denied))
     }
@@ -280,7 +295,7 @@ final class PairingCoordinatorTests: XCTestCase {
 
         let recorder = SleepRecorder()
         let coordinator = makeCoordinator(recordedSleeps: recorder)
-        await coordinator.start(baseURLString: "http://127.0.0.1:4010")
+        await coordinator.start(baseURLString: "https://127.0.0.1:4010")
         let final = await waitForTerminal(coordinator)
 
         guard case .paired = final else { return XCTFail("expected .paired after backing off, got \(final)") }
@@ -313,7 +328,7 @@ final class PairingCoordinatorTests: XCTestCase {
         // `now` always reports past the request's expiry, so the very first
         // loop iteration must stop rather than poll.
         let coordinator = makeCoordinator(now: { Date.distantFuture })
-        await coordinator.start(baseURLString: "http://127.0.0.1:4010")
+        await coordinator.start(baseURLString: "https://127.0.0.1:4010")
         let final = await waitForTerminal(coordinator)
 
         XCTAssertEqual(final, .failed(.expired))
@@ -340,7 +355,7 @@ final class PairingCoordinatorTests: XCTestCase {
         }
 
         let coordinator = makeCoordinator()
-        await coordinator.start(baseURLString: "http://127.0.0.1:4010")
+        await coordinator.start(baseURLString: "https://127.0.0.1:4010")
         coordinator.cancel()
         XCTAssertEqual(coordinator.state, .idle)
 
@@ -359,5 +374,53 @@ final class PairingCoordinatorTests: XCTestCase {
         let coordinator = makeCoordinator()
         await coordinator.start(baseURLString: "not a url")
         XCTAssertEqual(coordinator.state, .failed(.invalidResponse))
+    }
+
+    // MARK: - Fail-closed pinning (VERIFICATION gap 1 / CR-02)
+
+    /// The tracer proof: a successful https ceremony with seeded capture
+    /// bytes writes the server's trust anchor to `pinned-ca.der`, and
+    /// `.paired` is reached only after both the credential and the pin
+    /// are durable.
+    func testASuccessfulPairingWritesTheServersTrustAnchorToPinnedCADer() async throws {
+        let expires = Date(timeIntervalSinceNow: 300)
+        var pollCount = 0
+        StubURLProtocol.responder = { request in
+            if Self.isCreate(request) {
+                return StubURLProtocol.Stub(
+                    statusCode: 201, headers: [:],
+                    body: Self.createBody(id: "req-1", displayCode: "ABC-123", pollInterval: 5, expiresAt: expires)
+                )
+            }
+            if Self.isPoll(request) {
+                pollCount += 1
+                let status = pollCount < 2 ? "pending" : "approved"
+                return StubURLProtocol.Stub(statusCode: 200, headers: [:], body: Self.statusBody(status))
+            }
+            if Self.isRedeem(request) {
+                return StubURLProtocol.Stub(
+                    statusCode: 201, headers: [:],
+                    body: Self.redeemBody(deviceID: "device-9", credential: "cred-abc", fingerprintPrefix: "ab:cd")
+                )
+            }
+            return StubURLProtocol.Stub(statusCode: 500, headers: [:], body: Data())
+        }
+
+        let seededBytes = Data("der-anchor-bytes".utf8)
+        let coordinator = makeCoordinator(capturedCertificateData: seededBytes, pinsCertificate: true)
+        await coordinator.start(baseURLString: "https://127.0.0.1:4010")
+        let final = await waitForTerminal(coordinator)
+
+        guard case .paired = final else {
+            return XCTFail("expected .paired, got \(final)")
+        }
+        guard let pinURL = pinnedCertificateURL else {
+            return XCTFail("expected makeCoordinator(pinsCertificate: true) to resolve a pin URL")
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: pinURL.path))
+        let written = try Data(contentsOf: pinURL)
+        XCTAssertFalse(written.isEmpty)
+        XCTAssertEqual(written, seededBytes)
+        XCTAssertEqual(store.loadCredential()?.deviceID, "device-9")
     }
 }

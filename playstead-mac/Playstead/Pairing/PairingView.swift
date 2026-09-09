@@ -122,6 +122,10 @@ struct PairingView: View {
             return "The server address is not valid, or it sent an unexpected response."
         case .transport:
             return "Could not reach the server. Check the address and your connection."
+        case .insecureServerAddress:
+            return "The server address must start with https:// so this Mac can verify the server's certificate."
+        case .certificatePinFailed:
+            return "Pairing was undone because the server's certificate could not be saved. Try again."
         }
     }
 }

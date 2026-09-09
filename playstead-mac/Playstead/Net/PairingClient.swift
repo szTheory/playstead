@@ -31,6 +31,16 @@ enum PairingError: Error, Equatable {
     /// `localizedDescription` — never the request body, which may still
     /// hold the plaintext `device_code`.
     case transport(String)
+    /// The address the user entered is not `https`, so the ceremony
+    /// refused to send a self-generated `device_code` over a channel it
+    /// cannot pin. Set by `PairingCoordinator.start(baseURLString:)`
+    /// before any network call is made.
+    case insecureServerAddress
+    /// Pairing completed on the wire but the server's trust anchor could
+    /// not be written to `AppPaths.root/pinned-ca.der`, so the ceremony
+    /// refuses to report success — the just-stored credential is rolled
+    /// back rather than left behind with no pin (VERIFICATION gap 1 / CR-02).
+    case certificatePinFailed
 }
 
 /// The `POST /api/v1/device-pairing/requests` response (D-07): the
