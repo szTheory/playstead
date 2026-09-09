@@ -102,7 +102,12 @@ struct PairingView: View {
 
     /// Every server refusal is a distinct, actionable message — never a
     /// generic "pairing failed" (PROT-01/ceremony-failure).
-    private static func describe(_ error: PairingError) -> String {
+    ///
+    /// `static`, not `private static` (WR-02): asserted directly by
+    /// `PairingReachabilityTests` so the copy for a shared state stays true
+    /// on every path that can reach it, not just the one this view happened
+    /// to name in the switch statement.
+    static func describe(_ error: PairingError) -> String {
         switch error {
         case .expired:
             return "This pairing request expired. Request a new code."
@@ -111,7 +116,12 @@ struct PairingView: View {
         case .notApproved:
             return "This pairing request has not been approved yet. Approve it in the server's devices console."
         case .slowDown:
-            return "Polling too fast — slowing down automatically."
+            // WR-02: this state is reached from three distinct paths -- the
+            // automatic poll backoff, and a 429 on the request and redeem
+            // calls, where nothing is polling. The copy must stay true on
+            // all three, so it names the server's ask and the app's retry
+            // rather than a polling cadence specific to only one path.
+            return "The server asked this Mac to wait a moment. Playstead will retry shortly."
         case .notFound:
             return "This pairing request could not be found. Request a new code."
         case .denied:

@@ -73,4 +73,16 @@ final class PairingReachabilityTests: XCTestCase {
         }
         XCTAssertTrue(LibraryShellView.ShellSurface.allCases.contains(.pairing))
     }
+
+    /// WR-02: `.slowDown` is reached from three paths (automatic poll
+    /// backoff, and a 429 on the request/redeem calls, where nothing is
+    /// polling), so its copy must be true on all of them and must not name
+    /// a polling cadence specific to only one path.
+    func testSlowDownCopyIsDistinctAndDoesNotNameAPollingCadence() {
+        let slowDown = PairingView.describe(.slowDown)
+        XCTAssertFalse(slowDown.isEmpty)
+        XCTAssertNotEqual(slowDown, PairingView.describe(.notApproved))
+        XCTAssertNotEqual(slowDown, PairingView.describe(.expired))
+        XCTAssertFalse(slowDown.lowercased().contains("polling"))
+    }
 }

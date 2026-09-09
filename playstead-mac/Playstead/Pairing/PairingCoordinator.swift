@@ -271,7 +271,20 @@ final class PairingCoordinator {
     // MARK: - Defaults
 
     nonisolated static func defaultDeviceName() -> String {
-        ProcessInfo.processInfo.environment["PLAYSTEAD_UI_TEST_PAIRING_DEVICE_NAME"] ?? Host.current().localizedName ?? "Mac"
+        // WR-01: the UI-test device-name override is a confused-deputy vector
+        // if it is reachable from a Release build -- any process could set
+        // this environment variable and steer what name a Release Mac pairs
+        // under. Gated to DEBUG so the override stays available to the
+        // Debug-configuration UI test target (PairingCeremonyTests sets this
+        // exact key) while a Release binary reads only the real host name.
+        #if DEBUG
+        if let override = ProcessInfo.processInfo.environment["PLAYSTEAD_UI_TEST_PAIRING_DEVICE_NAME"] {
+            return override
+        }
+        return Host.current().localizedName ?? "Mac"
+        #else
+        return Host.current().localizedName ?? "Mac"
+        #endif
     }
 
     nonisolated static func defaultAppVersion() -> String {
