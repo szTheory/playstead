@@ -16,7 +16,7 @@ Requirements for the first complete Mac-to-server custody and continuity release
 
 ### Pairing and Durable Protocol
 
-- [x] **PROT-01**: An authenticated owner can approve a Mac device-pairing request and the Mac client stores the resulting scoped credential in Keychain.
+- [ ] **PROT-01**: An authenticated owner can approve a Mac device-pairing request and the Mac client stores the resulting scoped credential in Keychain. (Phase 04.5: client ceremony shipped; live-server proof registered but not yet executed against a real server — see 04.5-01-SUMMARY.md.)
 - [x] **PROT-02**: An authenticated owner can review paired devices and revoke one without invalidating other devices.
 - [x] **PROT-03**: A client can declare protocol, application, cache, transfer, emulator-adapter, and save capabilities and receive an actionable incompatibility response when the server cannot support them.
 - [x] **PROT-04**: A disconnected client can safely retry a mutation and receive the original durable receipt instead of creating a duplicate effect.
@@ -119,7 +119,7 @@ Which phases cover which requirements. This table is populated by roadmap creati
 | OPER-02 | Phase 1 | Complete |
 | OPER-03 | Phase 5 | Pending |
 | OPER-04 | Phase 5 | Pending |
-| PROT-01 | Phase 1 | Complete |
+| PROT-01 | Phase 1 / 04.5 | In Progress (client shipped, live-server proof unexecuted) |
 | PROT-02 | Phase 1 | Complete |
 | PROT-03 | Phase 1 | Complete |
 | PROT-04 | Phase 1 | Complete |
