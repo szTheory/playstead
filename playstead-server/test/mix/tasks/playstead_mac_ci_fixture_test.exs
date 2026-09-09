@@ -93,6 +93,44 @@ defmodule Mix.Tasks.Playstead.MacCiFixtureTest do
     end
   end
 
+  test "approve-sole approves the sole pending request by display code and device label alone" do
+    fixture = MacCiFixture.provision!()
+    {:ok, request} = pairing_request("sole-approval-device-code")
+
+    approved =
+      MacCiFixture.approve_sole!(fixture.owner, %{
+        display_code: request.display_code,
+        device_label: MacCiFixture.device_label()
+      })
+
+    assert approved.id == request.id
+    assert approved.status == "approved"
+    assert Pairing.list_pending_requests(Scope.for_user(fixture.owner)) == []
+  end
+
+  test "approve-sole fails closed on a display code mismatch or a non-sole queue" do
+    fixture = MacCiFixture.provision!()
+    owner = fixture.owner
+
+    {:ok, _request} = pairing_request("sole-mismatch-device-code")
+
+    assert_raise ArgumentError, ~r/display code/, fn ->
+      MacCiFixture.approve_sole!(owner, %{
+        display_code: "WRONG",
+        device_label: MacCiFixture.device_label()
+      })
+    end
+
+    {:ok, _second} = pairing_request("sole-second-device-code")
+
+    assert_raise ArgumentError, ~r/sole pending/, fn ->
+      MacCiFixture.approve_sole!(owner, %{
+        display_code: "WRONG",
+        device_label: MacCiFixture.device_label()
+      })
+    end
+  end
+
   test "adds a distinct second sentinel without replacing the first" do
     fixture = MacCiFixture.provision!()
     second = MacCiFixture.add_second_sentinel!(fixture.owner)

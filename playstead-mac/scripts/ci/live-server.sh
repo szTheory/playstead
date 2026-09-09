@@ -160,6 +160,30 @@ request_path.unlink()
 code_path.unlink()
 PY
     ;;
+  pair-provision)
+    # Plan 04.5-01: the live-server pairing ceremony proof drives the real
+    # `PairingView` end-to-end -- the pairing *request* is created by the
+    # app under test, never by this fixture. This action only provisions
+    # the owner (and the harmless first sentinel `provision!` also
+    # creates), then stops; `pair-approve` runs later, once the running
+    # app has actually created a pending request.
+    server_first="$server_control/first-sentinel.json"
+    enter_stage "provision-domain"
+    (cd "$server_root" && PLAYSTEAD_MAC_CI_TASK=1 mix playstead.mac_ci_fixture provision --output "$server_first") >/dev/null
+    rm -f "$server_first"
+    ;;
+  pair-approve)
+    # Approves the sole pending pairing request -- the one the app under
+    # test just created through its own real `PairingCoordinator` -- by
+    # display code alone, since the server-generated request id is never
+    # surfaced to a human or to this fixture (D-08). The device label must
+    # match `PairingCoordinator`'s `PLAYSTEAD_UI_TEST_PAIRING_DEVICE_NAME`
+    # override, which the driving XCTest sets to this exact literal.
+    display_code="${4:-}"
+    [ -n "$display_code" ] || die
+    enter_stage "approve-pairing"
+    (cd "$server_root" && PLAYSTEAD_MAC_CI_TASK=1 mix playstead.mac_ci_fixture approve-sole --display-code "$display_code" --device-label "Playstead Hosted Mac") >/dev/null
+    ;;
   second)
     enter_stage "add-second-sentinel"
     server_second="$server_control/second-sentinel.json"
