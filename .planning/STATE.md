@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 03
 current_phase_name: Mac Offline Play Vertical Slice
 status: executing
-stopped_at: Phase 04.5 complete, ready to plan Phase 3
-last_updated: "2026-09-10T15:18:56.612Z"
+stopped_at: "Completed 03-11-PLAN.md (Gap A: BIOS reference wiring)"
+last_updated: "2026-09-10T19:26:47.992Z"
 last_activity: 2026-09-10
-last_activity_desc: Phase 04.5 complete, transitioned to Phase 3
-state_head: 9baa1360b6c6eabec006553d9a7d97f3b333fea4
+last_activity_desc: Phase 03 execution started
+state_head: 1d34282288cfa5b36c354a30336acaf23c7f9d44
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 71
-  completed_plans: 69
+  completed_plans: 70
 milestone_name: milestone
 ---
 
@@ -24,14 +24,29 @@ milestone_name: milestone
 See: `.planning/PROJECT.md` (updated 2026-08-30)
 
 **Core value:** A locally available game and its progress remain effortless to play, safe, understandable, synchronized, and fully under the user's control.
-**Current focus:** Phase 04.5 — Mac Pairing Ceremony
+**Current focus:** Phase 03 — Mac Offline Play Vertical Slice
 
 ## Current Position
 
-Phase: 03 (Mac Offline Play Vertical Slice) — READY TO EXECUTE
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-09-10 — Phase 04.5 complete, transitioned to Phase 3
+Phase: 03 (Mac Offline Play Vertical Slice) — EXECUTING
+Plan: 11 of 12 (gap-closure plan, executed out of sequence)
+Status: Executing Phase 03 gap-closure plans
+Last activity: 2026-09-10 — 03-11-PLAN.md complete (Gap A: BIOS reference wiring)
+
+**03-11-PLAN.md is COMPLETE.** Sourced and pinned a real, three-source-cited
+BIOS reference (gba, 16384 bytes, SHA-256
+`fd2547724b505f487e6dcb29ec2ecff3af35a841a77ab2e85fd87350abd36570`) in
+`03-BIOS-PIN.json`, wired it into `PlaysteadApp`'s composition root via
+`BiosReferences.production` (genuine RED-then-GREEN commit pair), hardened
+`BiosStore.validateAndAccept` to be all-or-nothing under interruption and
+concurrency, and closed `03-VERIFICATION.md`'s first `gaps:` entry as
+`status: resolved`. See
+`.planning/phases/03-mac-offline-play-vertical-slice/03-11-SUMMARY.md`.
+Acceptance of real, legally-owned BIOS bytes remains operator-verified via
+`scripts/verify-bios-reference.sh` (`03-UAT.md` item 13 stays `partial`, not
+`pass`). `03-12-PLAN.md` (notarization gap) remains open in this phase; the
+04.5-04 note below is retained from a prior phase and does not describe
+current work.
 
 **04.5-04-PLAN.md is COMPLETE.** The operator ran the sudo-gated ceremony
 proof (`prove-pairing-ceremony.sh`) at a real terminal; `PairingCeremonyTests`
@@ -129,6 +144,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 | Phase 04.5 P3 | 28min | 2 tasks | 3 files |
 | Phase 04.5 P05 | 35min | 3 tasks | 3 files |
 | Phase 04.5 P06 | 25min | 3 tasks | 8 files |
+| Phase 03 P11 | 50min | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -260,6 +276,8 @@ Progress: [█████████░] 90% (Phase 03.5)
 - [Phase 04.5]: Task 3 generation token: waitForEntry() polls rather than blocking synchronously, since the coordinator's poll/redeem work is MainActor-isolated and a raw synchronous wait would starve it of its turn on the shared executor.
 - [Phase 04.5]: 04.5-04: https promoted (not add-alongside) as the sole mac_ci scheme; SaveEndToEndTests A/B'd and filed as a pre-existing, transport-independent bug rather than treated as caused by TLS or silently dropped.
 - [Phase 04.5]: 04.5-06: pinned trust wired at both real APIClient construction sites via AppPaths.pinnedCertificate; secure-by-default parameter instead of non-optional to avoid churning ~18 stub-backed unit tests.
+- [Phase 03]: [Phase 03]: Closed Gap A (BIOS reference wiring) via 03-11-PLAN.md: pinned a real, three-source-cited gba BIOS reference (16384 bytes, SHA-256 fd254772...) into BiosReferences.production and wired it at PlaysteadApp's composition root; a correctly-sized non-matching candidate is now refused for its contents, not for having no reference at all.
+- [Phase 03]: [Phase 03]: BiosStore.validateAndAccept hardened to be all-or-nothing under interruption and concurrency (03-11): a shared incomingPrefix constant backs both the temp-file writer and a new init-time sweep, and the managed-file move race is closed so concurrent identical drops converge on exactly one managed file and one bios_files row.
 
 ### Pending Todos
 
@@ -293,6 +311,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-10T03:22:38.424Z
-Stopped at: Phase 04.5 complete, ready to plan Phase 3
+Last session: 2026-09-10T19:26:47.596Z
+Stopped at: Completed 03-11-PLAN.md (Gap A: BIOS reference wiring)
 Resume file: None
