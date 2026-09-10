@@ -321,11 +321,11 @@ Plans:
   2. The ceremony lives in a `PairingCoordinator` a test constructs directly — no step of it inline in a SwiftUI view, the WINDOWS #37/#45 rule.
   3. The empty state that already says "Pair with your Playstead server" offers the action it names.
   4. Each of the server's four refusals (expired, already redeemed, not approved, slow down) is a distinct actionable state, not one generic failure.
-  5. A successful pairing captures the trust anchor to `AppPaths.root/pinned-ca.der`, which `APIClient` already watches for and already switches to pinned evaluation on.
+  5. A successful pairing captures the trust anchor to `AppPaths.root/pinned-ca.der` (derived once via `AppPaths.pinnedCertificate`), which APIClient evaluates pinned trust against at every request.
   6. The whole ceremony is proven against the real Phoenix in the live-server CI layer — a UI test against a stub is not evidence that a human can pair.
 
 **Research / spike flags**: Certificate capture is the least-proven step; which anchor to persist depends on the deployment (Caddy internal CA vs. a public certificate). If it cannot be made reliable, ship the ceremony without it and record the pin as its own window rather than writing a file `APIClient` will then trust wrongly.
-**Plans**: 5/6 plans executed (1 gap-closure plan pending from the criterion-5 re-verification)
+**Plans**: 6/6 plans executed
 
 Plans:
 **Wave 1**
@@ -350,7 +350,7 @@ Plans:
 
 **Gap closure — Wave 5**
 
-- [ ] 04.5-06-PLAN.md — the captured anchor wired into `APIClient` at both real construction sites, one `AppPaths`-derived pinned path, a live-object key-link test, and a `PinningDelegate` unit test proving pinned-vs-default trust divergence (criterion 5)
+- [x] 04.5-06-PLAN.md — the captured anchor wired into `APIClient` at both real construction sites, one `AppPaths`-derived pinned path, a live-object key-link test, and a `PinningDelegate` unit test proving pinned-vs-default trust divergence (criterion 5)
 
 ### Phase 5: Recovery and Release Proof
 

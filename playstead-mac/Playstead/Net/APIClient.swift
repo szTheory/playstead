@@ -53,15 +53,18 @@ struct APIResponse {
 /// attaches `Authorization: Bearer <token>`; the credential itself never
 /// appears in a URL or a log line.
 ///
-/// Server-trust evaluation: Phase 1 pins the pairing-time root CA via a
-/// `URLSessionDelegate`. This tracer plan does not yet ship the pairing
-/// ceremony that captures that pinned certificate, so `APIClient` uses
-/// the platform's default trust evaluation when no pinned certificate is
-/// present on disk, and switches to pinned evaluation automatically once
-/// one is (`AppPaths.root/pinned-ca.der`, written by a future pairing
-/// plan). This keeps the client usable against a Caddy-internal-CA
-/// deployment today without silently downgrading trust once pairing
-/// ships its certificate capture.
+/// Server-trust evaluation: `pinnedCertificateURL` defaults to
+/// `AppPaths.defaultPinnedCertificateURL()` and is passed explicitly by
+/// both real construction sites -- `AppEnvironment`'s convenience init
+/// and the live-server `UITestBootstrap` session -- both derived from
+/// `AppPaths.pinnedCertificate`, the same URL `PairingCoordinator.redeem()`
+/// writes the pairing-time trust anchor to. `PinningDelegate` evaluates
+/// anchors-only against that file once it exists; when no file exists at
+/// that URL (before pairing, or in a test configured with no pinning),
+/// evaluation falls back to the platform's default trust handling. See
+/// `PinnedTrustWiringTests` for proof the write target and the read
+/// target are the same URL, and `PinnedTrustEvaluationTests` for proof
+/// pinned evaluation actually diverges from default evaluation.
 actor APIClient: NSObject {
     private enum CredentialSource {
         case keychain(KeychainStore)
