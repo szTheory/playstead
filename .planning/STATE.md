@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 current_phase: 04.5
-current_phase_name: mac-pairing-ceremony
+current_phase_name: Mac Pairing Ceremony
 status: executing
-stopped_at: Completed 04.5-05-PLAN.md
-last_updated: "2026-09-10T02:49:22.103Z"
+stopped_at: Completed 04.5-06-PLAN.md
+last_updated: "2026-09-10T03:22:38.708Z"
 last_activity: 2026-09-09
 last_activity_desc: Phase 04.5 execution started
-state_head: f6a428bbaf9d440573b712371ce3ba6aaa0f8b0c
+state_head: c7b3e236afb45b755579bf0cb2e1e847b55b464f
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 69
-  completed_plans: 68
+  completed_plans: 69
 milestone_name: milestone
 ---
 
@@ -28,10 +28,10 @@ See: `.planning/PROJECT.md` (updated 2026-08-30)
 
 ## Current Position
 
-Phase: 04.5 (mac-pairing-ceremony) — READY TO EXECUTE
-Plan: 5 of 5
+Phase: 04.5 (Mac Pairing Ceremony) — EXECUTING
+Plan: 2 of 6
 Status: Ready to execute
-Last activity: 2026-09-09 — 04.5-04 closed out with operator-run ceremony proof
+Last activity: 2026-09-09 — Phase 04.5 execution started
 
 **04.5-04-PLAN.md is COMPLETE.** The operator ran the sudo-gated ceremony
 proof (`prove-pairing-ceremony.sh`) at a real terminal; `PairingCeremonyTests`
@@ -127,6 +127,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 | Phase 04.5-mac-pairing-ceremony P2 | 42min | 3 tasks | 7 files |
 | Phase 04.5 P3 | 28min | 2 tasks | 3 files |
 | Phase 04.5 P05 | 35min | 3 tasks | 3 files |
+| Phase 04.5 P06 | 25min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -257,6 +258,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 - [Phase 04.5]: PROT-01 left in progress rather than re-marked complete: the live-server pairing proof has not genuinely executed against a real server in this session.
 - [Phase 04.5]: Task 3 generation token: waitForEntry() polls rather than blocking synchronously, since the coordinator's poll/redeem work is MainActor-isolated and a raw synchronous wait would starve it of its turn on the shared executor.
 - [Phase 04.5]: 04.5-04: https promoted (not add-alongside) as the sole mac_ci scheme; SaveEndToEndTests A/B'd and filed as a pre-existing, transport-independent bug rather than treated as caused by TLS or silently dropped.
+- [Phase 04.5]: 04.5-06: pinned trust wired at both real APIClient construction sites via AppPaths.pinnedCertificate; secure-by-default parameter instead of non-optional to avoid churning ~18 stub-backed unit tests.
 
 ### Pending Todos
 
@@ -290,6 +292,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-10T01:52:33.849Z
-Stopped at: Completed 04.5-05-PLAN.md
+Last session: 2026-09-10T03:22:38.424Z
+Stopped at: Completed 04.5-06-PLAN.md
 Resume file: None
