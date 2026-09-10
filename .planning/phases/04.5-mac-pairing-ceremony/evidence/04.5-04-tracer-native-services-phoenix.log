@@ -1,0 +1,23 @@
+21:29:13.200 [info] Running PlaysteadWeb.Endpoint with Bandit 1.12.5 at 0.0.0.0:4010 (http)
+21:29:13.244 [info] Running PlaysteadWeb.Endpoint with Bandit 1.12.5 at 127.0.0.1:4010 (https)
+21:29:13.244 [info] Access PlaysteadWeb.Endpoint at https://127.0.0.1:4010
+
+============================================================
+Playstead setup token (use once, in the setup wizard at /setup):
+
+Ou2A04JWOYb66fRXsPaOj-NmFTFMKTsfJdo58yc1Du8
+
+============================================================
+
+21:29:13.632 request_id=GNPRb3UTG_4pkEEAAB2F [info] GET /healthz
+21:29:13.647 request_id=GNPRb3UTG_4pkEEAAB2F [info] Sent 200 in 15ms
+21:29:50.847 request_id=GNPReB9NSLfiIAUAAAAN [info] POST /api/v1/device-pairing/requests
+21:29:50.872 request_id=GNPReB9NSLfiIAUAAAAN [info] Sent 201 in 24ms
+21:29:55.933 request_id=GNPReU5zDlqcx38AAABN [info] GET /api/v1/device-pairing/requests/eb0de544-3675-43b5-b283-5350cef3838f
+21:29:55.938 request_id=GNPReU5zDlqcx38AAABN [info] Sent 200 in 4ms
+21:29:55.940 request_id=GNPReU7W63VY_RUAAAFC [info] POST /api/v1/device-pairing/requests/eb0de544-3675-43b5-b283-5350cef3838f/redeem
+21:29:55.967 request_id=GNPReU7W63VY_RUAAAFC [info] Sent 201 in 27ms
+21:29:58.635 request_id=GNPRee-CfHLduOkAAADN [info] GET /api/v1/snapshot
+21:29:58.704 request_id=GNPRee-CfHLduOkAAADN [info] Sent 200 in 68ms
+21:30:11.421 [notice] SIGTERM received - shutting down
+
