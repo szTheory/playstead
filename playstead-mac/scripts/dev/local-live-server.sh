@@ -49,7 +49,11 @@ CLIENT_ROOT="$WORK/client"
 PG_CONTAINER="playstead-local-live-pg-$$"
 
 cleanup() {
-  if [ -d "$SERVER_ROOT/tls" ]; then
+  # Only attempt untrust if trust actually succeeded. Guarding on the existence
+  # of tls/ instead meant a run that died AT the trust step -- nothing ever
+  # installed -- still printed "a trusted root may remain in the System
+  # keychain". That warning has to stay rare and true to be worth reading.
+  if [ "${CA_TRUSTED:-false}" = true ]; then
     "$REPO/playstead-mac/scripts/ci/mac-ci-tls.sh" untrust "$SERVER_ROOT" || \
       echo "== warning: mac-ci-tls untrust failed -- a trusted root may remain in the System keychain"
   fi
@@ -64,6 +68,12 @@ cleanup() {
 trap cleanup EXIT
 
 echo "== work dir: $WORK"
+# An explicitly-passed work dir is not required to exist yet: every documented
+# invocation is `rm -rf <dir> && local-live-server.sh ... <dir>`, which hands us
+# a path we then have to create. Only $WORK is created recursively; $NATIVE_ROOT
+# below stays a non-recursive mkdir on purpose, so a second run against the same
+# root fails closed instead of silently reusing another run's TLS material.
+mkdir -p "$WORK"
 # Same layout the hosted runner builds: the runner owns the root and creates
 # mac-client-control, so the fixture only ever writes files into it.
 mkdir -m 0700 "$NATIVE_ROOT"
@@ -76,6 +86,9 @@ echo "== issue run-scoped TLS material"
 "$REPO/playstead-mac/scripts/ci/mac-ci-tls.sh" issue "$SERVER_ROOT"
 echo "== trust run-scoped CA"
 "$REPO/playstead-mac/scripts/ci/mac-ci-tls.sh" trust "$SERVER_ROOT"
+# Set only after trust returns 0, so cleanup() knows there is really something
+# to remove. `set -e` means we never reach this line on a failed trust.
+CA_TRUSTED=true
 
 start_postgres_docker() {
   # One pinned Postgres version for the whole repo: read it off the compose file

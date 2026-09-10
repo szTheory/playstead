@@ -35,6 +35,24 @@ done
 
 [ -x "$HARNESS" ] || { echo "FATAL: $HARNESS is missing or not executable" >&2; exit 1; }
 
+# Never run the whole thing as root. Only the two `security` calls inside
+# mac-ci-tls.sh need privilege, and they ask for it themselves. Running the
+# driver under sudo would build and test as root, leaving root-owned
+# DerivedData and client state behind that your normal user then cannot write.
+if [ "$(id -u)" -eq 0 ]; then
+  cat >&2 <<'ASROOT'
+FATAL: do not run this script with sudo.
+
+Run it as your normal user:
+  playstead-mac/scripts/dev/prove-pairing-ceremony.sh
+
+It prompts for your password once and elevates only the two `security`
+add/remove-trusted-cert calls that genuinely need root. Running the whole
+driver as root builds and tests as root and leaves root-owned files behind.
+ASROOT
+  exit 1
+fi
+
 FAILURES=0
 EVIDENCE="$OUT/EVIDENCE.md"
 
@@ -78,10 +96,27 @@ mkdir -p "$OUT"
 
 note() { printf '%s\n' "$*" >>"$EVIDENCE"; }
 
+# require_log <label> <file>
+# A missing log file must FAIL every check that reads it. Without this, a
+# "count == 0" assertion is satisfied by a log that was never written -- the run
+# crashed before producing it -- and a red run reports as clean. Absence of
+# evidence is not evidence of a pass.
+require_log() {
+  local label="$1" file="$2"
+  if [ -f "$file" ]; then
+    return 0
+  fi
+  echo "  FAIL  $label (log missing: $file)"
+  note "- **FAIL** ${label} — log file \`${file}\` does not exist, so this check could not be evaluated."
+  FAILURES=$((FAILURES + 1))
+  return 1
+}
+
 # assert_match <label> <file> <extended-regex>
 # Records the first matching line verbatim, or marks the check failed.
 assert_match() {
   local label="$1" file="$2" pattern="$3" line
+  require_log "$label" "$file" || return 0
   line=$(grep -aEm1 "$pattern" "$file" 2>/dev/null)
   if [ -n "$line" ]; then
     echo "  PASS  $label"
@@ -99,6 +134,7 @@ assert_match() {
 # assert_count <label> <file> <extended-regex> <expected-count-or-min:N>
 assert_count() {
   local label="$1" file="$2" pattern="$3" expect="$4" actual
+  require_log "$label" "$file" || return 0
   actual=$(grep -acE "$pattern" "$file" 2>/dev/null)
   [ -n "$actual" ] || actual=0
   local ok=false
@@ -123,6 +159,9 @@ run_harness() {
   local id
   for id in "$@"; do only+=(--only-testing "$id"); done
   rm -rf "$work"
+  # The harness creates $WORK itself now, but create it here too so this driver
+  # still works against an older harness that expects the dir to pre-exist.
+  mkdir -p "$work"
   echo "== run '$slug': $*"
   # Harness stdout carries the `== tls handshake verified` proof; the xcodebuild
   # and Phoenix logs land under $work/native-services/.
