@@ -132,7 +132,7 @@ enum UITestBootstrap {
         let localStore = try LocalStore(paths: paths)
         let appEnvironment = AppEnvironment(
             paths: paths,
-            apiClient: APIClient(keychain: keychain),
+            apiClient: APIClient(keychain: keychain, pinnedCertificateURL: paths.pinnedCertificate),
             reachability: Reachability(startOnline: true, monitorAutomatically: false),
             // The pairing ceremony must write into the same scoped
             // Keychain `apiClient` reads its credential from -- never the

@@ -74,7 +74,11 @@ actor APIClient: NSObject {
         return URLSession(configuration: config, delegate: PinningDelegate(pinnedCertificateURL: pinnedCertificateURL), delegateQueue: nil)
     }()
     private let sessionOverride: URLSession?
-    private let pinnedCertificateURL: URL?
+    /// Internal and `nonisolated` (not `private`) so `PinnedTrustWiringTests`
+    /// can read it synchronously off the actor without going through async
+    /// API — it is an immutable `Sendable let` assigned once in `init`, so
+    /// `nonisolated` adds no data-race risk.
+    nonisolated let pinnedCertificateURL: URL?
     /// A fixed credential a test can inject instead of `keychain`. Real
     /// macOS Keychain access can fail with `errSecInDarkWake` in a
     /// headless/sandboxed test run (see plan 03-03's SUMMARY) — this
@@ -84,7 +88,7 @@ actor APIClient: NSObject {
 
     init(
         keychain: KeychainStore,
-        pinnedCertificateURL: URL? = nil,
+        pinnedCertificateURL: URL? = AppPaths.defaultPinnedCertificateURL(),
         session: URLSession? = nil,
         credential: PairingCredential? = nil
     ) {
@@ -111,7 +115,10 @@ actor APIClient: NSObject {
     /// Constructing a real `KeychainStore` in a UI profile is what triggers
     /// the login-Keychain authorization prompt that
     /// `PLAYSTEAD_HUMAN_APPROVED_LOCAL_APP_LAUNCH` exists to gate, so paired
-    /// world state must never be a reason to reach for one.
+    /// world state must never be a reason to reach for one. The
+    /// deterministic UI profile also deliberately opts out of pinning
+    /// (`pinnedCertificateURL` stays `nil` below) because it never
+    /// contacts a real server.
     static func pairedForUITesting(_ credential: PairingCredential) -> APIClient {
         APIClient(credentialSource: .fixed(credential))
     }

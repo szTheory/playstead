@@ -28,7 +28,10 @@ final class PairingCoordinator {
     private let client: PairingClient
     private let keychain: KeychainStore
     private let certificateCapture: PinnedCertificateCapture?
-    private let pinnedCertificateURL: URL?
+    /// Internal (not `private`) so `PinnedTrustWiringTests` can compare
+    /// this write target against `APIClient.pinnedCertificateURL`'s read
+    /// target by live-object equality.
+    let pinnedCertificateURL: URL?
     private let deviceName: String
     private let platform: String
     private let appVersion: String

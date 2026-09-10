@@ -414,7 +414,7 @@ final class AppEnvironment {
     ) {
         let store = (try? LocalStore(paths: paths)) ?? LocalStore.inMemoryFallback()
         let keychain = pairingKeychain ?? KeychainStore()
-        let client = apiClient ?? APIClient(keychain: keychain)
+        let client = apiClient ?? APIClient(keychain: keychain, pinnedCertificateURL: paths.pinnedCertificate)
         self.init(
             paths: paths,
             openedStore: store,
@@ -914,7 +914,7 @@ final class AppEnvironment {
             client: PairingClient(session: session),
             keychain: pairingKeychain,
             certificateCapture: capture,
-            pinnedCertificateURL: appPaths.root.appendingPathComponent("pinned-ca.der")
+            pinnedCertificateURL: appPaths.pinnedCertificate
         )
     }
 
