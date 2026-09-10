@@ -103,33 +103,46 @@ cmd_trust() {
 }
 
 cmd_untrust() {
-  local fp
+  local fp remaining
   fp="$(fingerprint_of 2>/dev/null || true)"
   sudo -n true 2>/dev/null || { printf 'mac-ci-tls: passwordless sudo unavailable\n' >&2; exit 1; }
 
-  # Treat an already-absent certificate as success; never swallow a real
-  # removal failure -- a leftover trusted root is the worst outcome here.
-  if sudo -n security remove-trusted-cert -d "$tls_root/ca.pem" 2>/dev/null; then
-    :
-  else
-    if [ -n "$fp" ] && sudo -n security find-certificate -Z -c "Playstead Mac CI Root" \
-        /Library/Keychains/System.keychain 2>/dev/null | grep -qi "$fp"; then
-      printf 'mac-ci-tls: UNTRUST FAILED %s\n' "$fp" >&2
-      exit 1
-    fi
+  # Removal is best-effort; the VERIFICATION below is what decides the exit
+  # status. Structuring it the other way round is how an empty $fp used to
+  # skip every check and still report success (WR-01): when `ca.pem` was gone
+  # at untrust time, `[ -n "$fp" ]` was false, both guarded branches were
+  # skipped, and the function printed "untrusted" and returned 0 while the
+  # anchor was still installed -- the exact outcome the header forbids.
+  sudo -n security remove-trusted-cert -d "$tls_root/ca.pem" 2>/dev/null || true
+  if [ -n "$fp" ]; then
+    sudo -n security delete-certificate -Z "$fp" /Library/Keychains/System.keychain 2>/dev/null || true
   fi
+
+  # Unconditional: always ask the keychain what actually survived.
+  remaining="$(sudo -n security find-certificate -a -Z -c "Playstead Mac CI Root" \
+    /Library/Keychains/System.keychain 2>/dev/null || true)"
 
   if [ -n "$fp" ]; then
-    if sudo -n security delete-certificate -Z "$fp" /Library/Keychains/System.keychain 2>/dev/null; then
-      :
-    elif sudo -n security find-certificate -Z -c "Playstead Mac CI Root" \
-        /Library/Keychains/System.keychain 2>/dev/null | grep -qi "$fp"; then
+    if printf '%s' "$remaining" | grep -qi "$fp"; then
       printf 'mac-ci-tls: UNTRUST FAILED %s\n' "$fp" >&2
       exit 1
     fi
+    printf 'mac-ci-tls: untrusted %s\n' "$fp"
+    return 0
   fi
 
-  printf 'mac-ci-tls: untrusted %s\n' "$fp"
+  # No fingerprint: `ca.pem` is missing or unreadable, so this run's anchor
+  # cannot be targeted by -Z. Deleting every "Playstead Mac CI Root" by common
+  # name would clobber a concurrent run's anchor, so refuse to guess -- a
+  # surviving root fails loudly and names the manual remedy. A guard that
+  # cannot verify must not answer "safe".
+  if [ -n "$remaining" ]; then
+    printf 'mac-ci-tls: UNTRUST FAILED (no fingerprint -- %s/ca.pem missing or unreadable)\n' "$tls_root" >&2
+    printf 'mac-ci-tls: a Playstead Mac CI Root is still trusted; remove it with:\n' >&2
+    printf '  sudo security delete-certificate -c "Playstead Mac CI Root" /Library/Keychains/System.keychain\n' >&2
+    exit 1
+  fi
+  printf 'mac-ci-tls: untrusted (no Playstead Mac CI Root present)\n'
 }
 
 case "$action" in

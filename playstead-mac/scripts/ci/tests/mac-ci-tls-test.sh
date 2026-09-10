@@ -49,4 +49,39 @@ if "$TLS_SCRIPT" issue "$ROOT" 2>/dev/null; then
   exit 1
 fi
 
+# WR-01: `untrust` must never report success when it could not verify removal.
+# With `ca.pem` deleted there is no fingerprint, so this run's anchor cannot be
+# targeted by -Z; if any "Playstead Mac CI Root" is still trusted the command
+# must exit non-zero rather than print "untrusted" and return 0.
+#
+# This needs real sudo to reach the logic (`untrust` dies at its own `sudo -n`
+# check first), so it SKIPS without sudo and runs for real on the hosted runner,
+# which has passwordless sudo. A skip prints why -- it must never read as a pass.
+untrust_root="$(mktemp -d "${TMPDIR:-/tmp}/mac-ci-tls-untrust.XXXXXX")"
+rmdir "$untrust_root"
+if ! sudo -n true 2>/dev/null; then
+  printf 'mac-ci-tls contract: SKIPPED the untrust fail-closed check (no passwordless sudo; it runs on the hosted runner)\n'
+else
+  "$TLS_SCRIPT" issue "$untrust_root" >/dev/null 2>&1 ||
+    { printf 'could not issue TLS material for the untrust check\n' >&2; exit 1; }
+  "$TLS_SCRIPT" trust "$untrust_root" >/dev/null 2>&1 ||
+    { printf 'could not trust the CA for the untrust check\n' >&2; exit 1; }
+  # Destroy the fingerprint source while the anchor is still installed.
+  rm -f "$untrust_root/tls/ca.pem"
+  if "$TLS_SCRIPT" untrust "$untrust_root" >/dev/null 2>&1; then
+    # Fail-open: it claimed success. Clean up the anchor we just stranded
+    # before failing, so the test never leaves a trusted root behind.
+    sudo -n security delete-certificate -c "Playstead Mac CI Root" \
+      /Library/Keychains/System.keychain >/dev/null 2>&1 || true
+    rm -rf "$untrust_root"
+    printf 'untrust reported success with no fingerprint while a root was still trusted (WR-01 fail-open)\n' >&2
+    exit 1
+  fi
+  # It correctly refused. Remove the anchor by common name -- the remedy the
+  # command itself prints -- so this test leaves the keychain as it found it.
+  sudo -n security delete-certificate -c "Playstead Mac CI Root" \
+    /Library/Keychains/System.keychain >/dev/null 2>&1 || true
+  rm -rf "$untrust_root"
+fi
+
 printf 'mac-ci-tls contract: passed\n'
