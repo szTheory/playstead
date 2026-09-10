@@ -489,13 +489,17 @@ for layer in layers:
             raise SystemExit(f"required test did not execute exactly once and pass: {layer['layer']}")
 
 required_exact = {
-    "ui": "PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit",
-    "live-server": "PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch",
+    "ui": ["PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit"],
+    "live-server": [
+        "PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch",
+        "PlaysteadUITests.PairingCeremonyTests/testAHumanCanPairAFreshMacEntirelyFromInsideTheAppAgainstTheRealServer",
+    ],
 }
-for layer_name, identifier in required_exact.items():
+for layer_name, identifiers_expected in required_exact.items():
     identifiers = {test.get("identifier") for test in by_layer[layer_name]["required_tests"]}
-    if identifier not in identifiers:
-        raise SystemExit(f"complete evidence exact test missing: {identifier}")
+    for identifier in identifiers_expected:
+        if identifier not in identifiers:
+            raise SystemExit(f"complete evidence exact test missing: {identifier}")
 
 for forbidden in ("authorization", "credential", "token", "database_url", "raw_log", "keychain_path"):
     if f'"{forbidden}"' in json.dumps(manifest).lower():
@@ -1349,7 +1353,8 @@ PY
     --required-test PlaysteadUITests.HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner \
     --required-test PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch \
     --required-test PlaysteadUITests.SaveRestoreProofTests/testCapturedRevisionRestoresToByteIdenticalArtifactInLaunchDir \
-    --required-test PlaysteadUITests.SaveEndToEndTests/testOneSaveRoundTripsCaptureUploadAndJournalReturn
+    --required-test PlaysteadUITests.SaveEndToEndTests/testOneSaveRoundTripsCaptureUploadAndJournalReturn \
+    --required-test PlaysteadUITests.PairingCeremonyTests/testAHumanCanPairAFreshMacEntirelyFromInsideTheAppAgainstTheRealServer
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
   restore_live_server_xctestrun
   cleanup_live_server_runtime_config
@@ -1757,7 +1762,7 @@ base_manifest = {
         {"layer": "unit", "executed_test_count": 1, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadTests.PlaySessionTests/test_launchSucceedsIndependentlyOfPlaySessionRecording")]},
         {"layer": "rendering", "executed_test_count": 1, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadTests.LibraryContractSnapshotTests/testCardAndStatusVisualContract")]},
         {"layer": "ui", "executed_test_count": 1, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit")]},
-        {"layer": "live-server", "executed_test_count": 1, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch")]},
+        {"layer": "live-server", "executed_test_count": 2, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch"), required("PlaysteadUITests.PairingCeremonyTests/testAHumanCanPairAFreshMacEntirelyFromInsideTheAppAgainstTheRealServer")]},
     ],
 }
 
@@ -1821,6 +1826,7 @@ required = [
     "PlaysteadTests.PlaySessionTests/test_userDeletion_enqueuesDeleteIntentAndRemovesFromRecent",
     "PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit",
     "PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch",
+    "PlaysteadUITests.PairingCeremonyTests/testAHumanCanPairAFreshMacEntirelyFromInsideTheAppAgainstTheRealServer",
 ]
 missing = [identifier for identifier in required if f"--required-test {identifier}" not in source]
 if missing:
