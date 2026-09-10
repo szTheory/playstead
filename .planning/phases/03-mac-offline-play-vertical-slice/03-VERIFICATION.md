@@ -2,7 +2,7 @@
 phase: 03-mac-offline-play-vertical-slice
 verified: 2026-08-30T23:59:00Z
 status: gaps_found
-score: 3/5 roadmap truths verified
+score: 3/5 roadmap truths verified (re-checked 2026-09-10: 1 of 3 gaps resolved)
 behavior_unverified: 0
 overrides_applied: 0
 gaps:
@@ -23,15 +23,18 @@ gaps:
     missing:
       - "A real notarized build run and the Gatekeeper-acceptance / relaunch-after-restart proof against it, once the owner enrolls in the Apple Developer Program (already an explicit action item recorded across 03-01/03-03/03-10 SUMMARYs)"
   - truth: "Two CRITICAL path-traversal defects (CR-01, CR-02) identified in 03-REVIEW.md remain unpatched in the codebase."
-    status: failed
-    reason: "03-REVIEW.md (committed after all 10 plans completed) found that a server-declared, unvalidated `member.declaredName` (LaunchMaterializer.swift:49) and a server-declared, unvalidated `sha256` string (AppPaths.swift objectURL/partialURL) are both spliced directly into filesystem paths with no traversal/format validation, in a non-sandboxed app, allowing a compromised/spoofed paired server to write attacker-chosen bytes to an attacker-chosen path on disk. Verified directly against the current source: LaunchMaterializer.swift:49 still does `directory.appendingPathComponent(member.declaredName)` with no `safeFilename` guard, and AppPaths.swift's `objectURL(for:)`/`partialURL(for:)` still splice `sha256` into path components with no hex-digest format check. No commit after the review (`f12e4c4`, the last commit in the repo) addresses either finding."
+    status: resolved
+    resolved_at: 2026-09-10
+    resolved_by: "03-REVIEW-FIX.md (2026-08-31), which landed after this verification was written on 2026-08-30 — this entry was stale, not a live gap."
+    reason: "RESOLVED. Re-verified directly against current source on 2026-09-10. `playstead-mac/Playstead/App/PathSafety.swift` is now the single validation point for every server-supplied string that becomes a path component, and it is enforced at both layers the original finding demanded: at ingest (CatalogueEntry's decoder drops members whose digest or name fails validation) and at path construction (`AppPaths.objectURL(for:)` and `partialURL(for:)` call `PathSafety.validatedDigest` and throw; `LaunchMaterializer.materialize` calls `PathSafety.validatedFilename` and refuses launch with `MaterializationError.unsafeMember` rather than materializing a sanitized path). `isValidDigest` is a 64-char lowercase-hex allowlist and `isSafeFilename` rejects empty/./../separators/NUL/>255 bytes and any name whose own lastPathComponent differs from itself — allowlists, so traversal, encoding tricks and Unicode look-alikes are ruled out by construction rather than blocklisted."
     artifacts:
+      - path: "playstead-mac/Playstead/App/PathSafety.swift"
+        issue: "None — this file is the fix. Typed `PathSafetyError` cases (`invalidDigest`, `unsafeFilename`), allowlist validators, and a non-silent `logRejection` for ingest-time drops."
       - path: "playstead-mac/Playstead/Cache/LaunchMaterializer.swift"
-        issue: "Line 49: appendingPathComponent(member.declaredName) with zero path-traversal validation"
+        issue: "None — line 60 now does `try PathSafety.validatedFilename(member.declaredName)` and throws `unsafeMember` instead of appending the raw value."
       - path: "playstead-mac/Playstead/App/AppPaths.swift"
-        issue: "objectURL(for:)/partialURL(for:) splice unvalidated sha256 string directly into path components"
-    missing:
-      - "The two fixes 03-REVIEW.md already specifies (a safeFilename guard rejecting non-bare-filename declaredName values; a hex-digest format guard on sha256 before it is ever used as a path component), applied at decode/ingest time so an invalid value never reaches the cache/materialization layer"
+        issue: "None — `objectURL(for:)` (line 117) and `partialURL(for:)` (line 128) both `try PathSafety.validatedDigest(sha256)` before any path component is built."
+    missing: []
 human_verification:
   - test: "Physical game controller connect/disconnect/reconnect recovery, live input test, remap, and reset on real hardware"
     expected: "Controller lifecycle logic (ControllerHost, tested against an injectable ControllerInputSource) behaves identically against a real device — connect is detected, disconnect shows the non-modal recovery banner without stranding keyboard/pointer input, and reconnect restores input without a relaunch"
