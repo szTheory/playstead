@@ -48,6 +48,14 @@ final class BiosStore {
         let knownSHA256Digests: Set<String>
     }
 
+    /// Prefix for a private, not-yet-validated temp copy written into
+    /// `managedDirectory` mid-`validateAndAccept`. Shared between the
+    /// writer and the init-time sweeper below so the two names can never
+    /// drift apart — a 64-hex managed filename never starts with this
+    /// prefix, so the sweep can never delete an accepted file.
+    private static let incomingPrefix = ".incoming-"
+    private static let managedFilenamePattern = try! NSRegularExpression(pattern: "^[0-9a-f]{64}$")
+
     private let localStore: LocalStore
     private let managedDirectory: URL
     private let references: [Reference]
@@ -64,6 +72,26 @@ final class BiosStore {
         self.references = references
         self.now = now
         try? FileManager.default.createDirectory(at: managedDirectory, withIntermediateDirectories: true)
+        Self.sweepStaleIncomingTempFiles(in: managedDirectory)
+    }
+
+    /// Removes any leftover incoming-temp file from a previous
+    /// interrupted `validateAndAccept` run. Runs once, at construction —
+    /// the only place a stale temp file could otherwise persist forever,
+    /// since `validateAndAccept` itself always removes its own temp file
+    /// on every exit path. Never touches a 64-hex managed filename, even
+    /// defensively: a name beginning with `incomingPrefix` cannot also
+    /// match the 64-hex pattern, so the two conditions are mutually
+    /// exclusive by construction, not merely by convention.
+    private static func sweepStaleIncomingTempFiles(in directory: URL) {
+        let fm = FileManager.default
+        guard let entries = try? fm.contentsOfDirectory(atPath: directory.path) else { return }
+        for name in entries {
+            guard name.hasPrefix(incomingPrefix) else { continue }
+            let range = NSRange(name.startIndex..., in: name)
+            guard managedFilenamePattern.firstMatch(in: name, range: range) == nil else { continue }
+            try? fm.removeItem(at: directory.appendingPathComponent(name))
+        }
     }
 
     /// The reference set this store was actually constructed with — a
@@ -120,7 +148,7 @@ final class BiosStore {
         // so the bytes actually stored under the trusted digest name
         // would not be guaranteed to be the bytes that were hashed
         // (P2-WR-002).
-        let tempURL = managedDirectory.appendingPathComponent(".incoming-\(UUID().uuidString)")
+        let tempURL = managedDirectory.appendingPathComponent("\(Self.incomingPrefix)\(UUID().uuidString)")
         try fm.copyItem(at: candidateURL, to: tempURL)
         let digest: String
         do {
@@ -138,7 +166,26 @@ final class BiosStore {
         if fm.fileExists(atPath: managedURL.path) {
             try? fm.removeItem(at: tempURL)
         } else {
-            try fm.moveItem(at: tempURL, to: managedURL)
+            do {
+                try fm.moveItem(at: tempURL, to: managedURL)
+            } catch {
+                // Two concurrent validations of identical accepted bytes
+                // can both observe the destination absent (the fileExists
+                // check above is not atomic with the move) and race to
+                // move into the same managedURL — exactly one move wins.
+                // If the destination now exists, a sibling call already
+                // won this race with the same bytes under the same
+                // digest-derived name, so this call's own temp copy is
+                // redundant, not a failure: clean it up and continue to
+                // the (already idempotent, ON CONFLICT DO NOTHING) insert
+                // as a success. Any other failure is genuine and rethrown.
+                if fm.fileExists(atPath: managedURL.path) {
+                    try? fm.removeItem(at: tempURL)
+                } else {
+                    try? fm.removeItem(at: tempURL)
+                    throw error
+                }
+            }
         }
 
         let timestamp = now()

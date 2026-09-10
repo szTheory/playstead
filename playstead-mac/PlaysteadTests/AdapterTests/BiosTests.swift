@@ -15,6 +15,10 @@ final class BiosTests: XCTestCase {
     /// embed (see `BiosStore`'s own doc comment).
     private static let referenceLength = 16
     private static let referenceBytes = Data(repeating: 0xAB, count: referenceLength)
+    /// A second, distinct valid reference pattern — used only by the
+    /// concurrency tests, which need two genuinely different accepted
+    /// digests to prove distinct concurrent drops don't interfere.
+    private static let referenceBytesAlt = Data(repeating: 0xCC, count: referenceLength)
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -23,7 +27,9 @@ final class BiosTests: XCTestCase {
         let paths = AppPaths(root: tempRoot.appendingPathComponent("appsupport", isDirectory: true))
         localStore = try LocalStore(paths: paths)
         let reference = BiosStore.Reference(
-            system: "gba", expectedByteLength: Self.referenceLength, knownSHA256Digests: [sha256Hex(Self.referenceBytes)]
+            system: "gba",
+            expectedByteLength: Self.referenceLength,
+            knownSHA256Digests: [sha256Hex(Self.referenceBytes), sha256Hex(Self.referenceBytesAlt)]
         )
         store = BiosStore(localStore: localStore, managedDirectory: managedDirectory, references: [reference])
         try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
@@ -215,6 +221,98 @@ final class BiosTests: XCTestCase {
         XCTAssertEqual(rowCount, 1)
         let managedFiles = try FileManager.default.contentsOfDirectory(atPath: managedDirectory.path)
         XCTAssertEqual(managedFiles.count, 1)
+    }
+
+    // MARK: - Concurrency: identical accepted bytes converge on one file and one row
+
+    func testConcurrentIdenticalDropsYieldOneManagedFileAndOneRow() throws {
+        let candidateA = try writeFile(named: "candidate-a.bin", contents: Self.referenceBytes)
+        let candidateB = try writeFile(named: "candidate-b.bin", contents: Self.referenceBytes)
+        let candidates = [candidateA, candidateB]
+
+        var thrownErrors: [Error] = []
+        let lock = NSLock()
+        DispatchQueue.concurrentPerform(iterations: 2) { index in
+            do {
+                _ = try store.validateAndAccept(candidateURL: candidates[index], system: "gba")
+            } catch {
+                lock.lock()
+                thrownErrors.append(error)
+                lock.unlock()
+            }
+        }
+
+        XCTAssertTrue(thrownErrors.isEmpty, "expected both concurrent identical drops to succeed, got \(thrownErrors)")
+        let managedFiles = try FileManager.default.contentsOfDirectory(atPath: managedDirectory.path)
+        XCTAssertEqual(managedFiles.count, 1)
+        let rowCount = (try? localStore.connection.query("SELECT COUNT(*) FROM bios_files;") { $0.int(0) ?? 0 })?.first ?? -1
+        XCTAssertEqual(rowCount, 1)
+    }
+
+    // MARK: - Concurrency: distinct accepted candidates don't interfere
+
+    func testConcurrentDistinctDropsBothSucceed() throws {
+        let candidateA = try writeFile(named: "candidate-a.bin", contents: Self.referenceBytes)
+        let candidateB = try writeFile(named: "candidate-b.bin", contents: Self.referenceBytesAlt)
+        let candidates = [candidateA, candidateB]
+
+        var thrownErrors: [Error] = []
+        let lock = NSLock()
+        DispatchQueue.concurrentPerform(iterations: 2) { index in
+            do {
+                _ = try store.validateAndAccept(candidateURL: candidates[index], system: "gba")
+            } catch {
+                lock.lock()
+                thrownErrors.append(error)
+                lock.unlock()
+            }
+        }
+
+        XCTAssertTrue(thrownErrors.isEmpty, "expected both concurrent distinct drops to succeed, got \(thrownErrors)")
+        let managedFiles = try FileManager.default.contentsOfDirectory(atPath: managedDirectory.path)
+        XCTAssertEqual(Set(managedFiles), [sha256Hex(Self.referenceBytes), sha256Hex(Self.referenceBytesAlt)])
+        let rowCount = (try? localStore.connection.query("SELECT COUNT(*) FROM bios_files;") { $0.int(0) ?? 0 })?.first ?? -1
+        XCTAssertEqual(rowCount, 2)
+    }
+
+    // MARK: - A stale incoming temp file is swept on the next init; managed files survive
+
+    func testStaleIncomingTempIsSweptOnNextInitAndManagedFilesSurvive() throws {
+        // Plant a leftover temp file (as if a previous run was
+        // interrupted mid-`validateAndAccept`) and a genuine managed
+        // (64-hex-named) file directly in the managed directory.
+        let staleTempName = ".incoming-\(UUID().uuidString)"
+        let staleTempURL = managedDirectory.appendingPathComponent(staleTempName)
+        try Data("stale-partial-write".utf8).write(to: staleTempURL)
+
+        let managedDigest = sha256Hex(Self.referenceBytes)
+        let managedURL = managedDirectory.appendingPathComponent(managedDigest)
+        try Self.referenceBytes.write(to: managedURL)
+
+        // Constructing a new BiosStore over the same managed directory
+        // runs the init-time sweep.
+        _ = BiosStore(localStore: localStore, managedDirectory: managedDirectory, references: [])
+
+        let remaining = try FileManager.default.contentsOfDirectory(atPath: managedDirectory.path)
+        XCTAssertFalse(remaining.contains(staleTempName), "stale incoming temp file should have been swept")
+        XCTAssertTrue(remaining.contains(managedDigest), "the managed file must survive the sweep")
+    }
+
+    // MARK: - A rejected candidate leaves the managed directory byte-identical to before
+
+    func testRejectedCandidateLeavesManagedDirectoryUnchanged() throws {
+        // Seed one genuinely accepted file so the "before" snapshot is
+        // non-empty, making an accidental sweep or deletion observable.
+        let accepted = try writeFile(named: "accepted.bin", contents: Self.referenceBytes)
+        _ = try store.validateAndAccept(candidateURL: accepted, system: "gba")
+        let before = try FileManager.default.contentsOfDirectory(atPath: managedDirectory.path).sorted()
+
+        let wrongContents = Data(repeating: 0xEF, count: Self.referenceLength)
+        let rejectedCandidate = try writeFile(named: "rejected.bin", contents: wrongContents)
+        XCTAssertThrowsError(try store.validateAndAccept(candidateURL: rejectedCandidate, system: "gba"))
+
+        let after = try FileManager.default.contentsOfDirectory(atPath: managedDirectory.path).sorted()
+        XCTAssertEqual(before, after)
     }
 
     // MARK: - Managed filename derived from digest, never the dropped filename

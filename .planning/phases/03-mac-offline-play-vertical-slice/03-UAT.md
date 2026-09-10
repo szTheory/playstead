@@ -184,10 +184,27 @@ evidence: |
 coverage_id: 03-05/D8
 
 ### 13. Drag-in BIOS validation with managed storage
-expected: Dragging a BIOS file in validates it against a real reference digest, stores it in managed storage, and no acquisition path is offered anywhere in the UI. (BiosStore's reference digest set is empty by production default — confirm the wiring once a real digest is sourced.)
-result: blocked
-blocked_by: third-party
-reason: "BiosStore's known-reference digest set is empty by production default. Blocked on sourcing a real reference digest; fully automatable once one exists."
+expected: Dragging a BIOS file in validates it against a real reference digest, stores it in managed storage, and no acquisition path is offered anywhere in the UI.
+result: partial
+source: automated
+evidence: |
+  Gap A from 03-VERIFICATION.md closed by 03-11-PLAN.md. A real, two-source-cited
+  reference for the pinned gba system (16384-byte length, SHA-256
+  fd2547724b505f487e6dcb29ec2ecff3af35a841a77ab2e85fd87350abd36570) is pinned at
+  .planning/phases/03-mac-offline-play-vertical-slice/03-BIOS-PIN.json and wired
+  into PlaysteadApp's composition root via BiosReferences.production. The wiring
+  and the rejection-discrimination half of this item are proven automatically:
+  BiosProductionReferenceTests (3/3 passing) —
+  - testProductionReferenceSetIsNonEmptyAndWellFormed
+  - testProductionLiteralsMatchThePinFile
+  - testStoreBuiltFromProductionReferencesReachesTheDigestComparison
+  Run summary: "Test Suite 'BiosProductionReferenceTests' passed ... Executed 3
+  tests, with 0 failures (0 unexpected)". BiosTests (22/22 passing, including the
+  new discriminator, concurrency, and interruption-safety tests added by
+  03-11-PLAN.md Tasks 2 and 3) confirms no regression.
+  Remaining operator step: acceptance of real, legally-owned BIOS bytes has not
+  been exercised in this environment. Cross-check a real file in one command via
+  scripts/verify-bios-reference.sh <path> once you have one.
 coverage_id: 03-09/D2
 
 ### 14. Dev-signed release pipeline, relaunch, and orphan prevention
