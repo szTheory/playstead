@@ -234,29 +234,31 @@ actor APIClient: NSObject {
 
 /// Pins server-trust evaluation to a captured root CA certificate when
 /// one is present on disk; otherwise defers to the platform's default
-/// evaluation. See the `APIClient` doc comment for why both paths exist
-/// in this tracer plan.
-private final class PinningDelegate: NSObject, URLSessionDelegate {
+/// evaluation. See the `APIClient` doc comment for why both paths exist.
+///
+/// Internal (not `private`) so `PinnedTrustEvaluationTests` can construct
+/// it directly under `@testable import Playstead` and exercise
+/// `disposition(for:)` without any `URLSession`/`URLProtectionSpace`
+/// transport — the whole point of that test is that a system-trusted CI
+/// CA cannot make it pass vacuously.
+final class PinningDelegate: NSObject, URLSessionDelegate {
     let pinnedCertificateURL: URL?
 
     init(pinnedCertificateURL: URL?) {
         self.pinnedCertificateURL = pinnedCertificateURL
     }
 
-    func urlSession(
-        _ session: URLSession,
-        didReceive challenge: URLAuthenticationChallenge,
-        completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
-    ) {
+    /// The one decision function both the `URLSessionDelegate` callback
+    /// and `PinnedTrustEvaluationTests` execute — no second copy of this
+    /// logic exists anywhere else.
+    func disposition(for serverTrust: SecTrust?) -> URLSession.AuthChallengeDisposition {
         guard
-            challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
-            let serverTrust = challenge.protectionSpace.serverTrust,
+            let serverTrust,
             let pinnedCertificateURL,
             let pinnedData = try? Data(contentsOf: pinnedCertificateURL),
             let pinnedCertificate = SecCertificateCreateWithData(nil, pinnedData as CFData)
         else {
-            completionHandler(.performDefaultHandling, nil)
-            return
+            return .performDefaultHandling
         }
 
         SecTrustSetAnchorCertificates(serverTrust, [pinnedCertificate] as CFArray)
@@ -264,8 +266,29 @@ private final class PinningDelegate: NSObject, URLSessionDelegate {
 
         var error: CFError?
         if SecTrustEvaluateWithError(serverTrust, &error) {
-            completionHandler(.useCredential, URLCredential(trust: serverTrust))
+            return .useCredential
         } else {
+            return .cancelAuthenticationChallenge
+        }
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        didReceive challenge: URLAuthenticationChallenge,
+        completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+    ) {
+        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust else {
+            completionHandler(.performDefaultHandling, nil)
+            return
+        }
+
+        let serverTrust = challenge.protectionSpace.serverTrust
+        switch disposition(for: serverTrust) {
+        case .useCredential:
+            completionHandler(.useCredential, serverTrust.map(URLCredential.init(trust:)))
+        case .performDefaultHandling:
+            completionHandler(.performDefaultHandling, nil)
+        default:
             completionHandler(.cancelAuthenticationChallenge, nil)
         }
     }
