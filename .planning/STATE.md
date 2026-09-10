@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 04.5
 current_phase_name: Mac Pairing Ceremony
 status: executing
-stopped_at: Completed 04.5-03-PLAN.md
-last_updated: "2026-09-09T15:10:45.077Z"
+stopped_at: Completed 04.5-04-PLAN.md
+last_updated: "2026-09-10T01:46:15.262Z"
 last_activity: 2026-09-09
 last_activity_desc: Phase 04.5 execution started
-state_head: bfc977874654d0fd0ba9ce07c72a73f84be7752f
+state_head: b475cbf81c926232b33e82327a4b0925b580ef43
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 68
-  completed_plans: 66
+  completed_plans: 67
 milestone_name: milestone
 ---
 
@@ -29,24 +29,21 @@ See: `.planning/PROJECT.md` (updated 2026-08-30)
 ## Current Position
 
 Phase: 04.5 (Mac Pairing Ceremony) — EXECUTING
-Plan: 1 of 5
+Plan: 5 of 5
 Status: Executing Phase 04.5
-Last activity: 2026-09-09 — Phase 04.5 execution started
+Last activity: 2026-09-09 — 04.5-04 closed out with operator-run ceremony proof
 
-**Read `.planning/phases/03.5-mac-verification-automation/.continue-here.md` before resuming 03.5-09.**
-It carries the root-cause analysis, the prepared Task 3 sequence, three blocking
-anti-patterns, and the deviations to record in the SUMMARY.
-
-**04.5-04-PLAN.md is IN PROGRESS, not complete.** All non-sudo work for Tasks
-1-3 is authored, locally verified, and committed (mac-ci-tls.sh issue/
-fingerprint/trust/untrust; TLS-only mac_ci.exs; local-live-server.sh https
-wiring; the two new durable tests; live-server.sh moved to https; WR-01/WR-02
-closed with passing Unit-plan tests). What remains needs `sudo` or a TTY and
-was deliberately NOT run: `mac-ci-tls.sh trust`/`untrust`, and both
-`local-live-server.sh --xcuitest --only-testing PairingCeremonyTests` proof
-runs (Task 1's initial pass and Task 3's post-WR-01 re-run). No SUMMARY.md
-exists for 04.5-04 yet — resume by running those commands interactively,
-then create the SUMMARY quoting the required log lines.
+**04.5-04-PLAN.md is COMPLETE.** The operator ran the sudo-gated ceremony
+proof (`prove-pairing-ceremony.sh`) at a real terminal; `PairingCeremonyTests`
+passed twice against the real TLS-terminating mac_ci Phoenix (Task 1 and the
+post-WR-01 re-run at Task 3), WR-01/WR-02 are closed, and the evidence is
+quoted verbatim in `.planning/phases/04.5-mac-pairing-ceremony/04.5-04-SUMMARY.md`.
+One must-have is recorded as partially met, not silently passed:
+`SaveEndToEndTests` stays red over https, proven by A/B to be pre-existing and
+transport-independent, and filed at
+`.planning/todos/pending/save-e2e-duplicate-revision-409.md`. `PROT-01` is
+intentionally left unmarked in REQUIREMENTS.md — that belongs to 04.5-05.
+Only 04.5-05-PLAN.md remains in this phase.
 
 Progress: [█████████░] 90% (Phase 03.5)
 
@@ -258,6 +255,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 - [Phase 04.5]: Reused LibraryShellView's existing ShellSurface sheet mechanism for pairing rather than a new presentation path; added a CI-fixture-only approve-sole mix task instead of touching production pairing routes; AppEnvironment now threads a pairingKeychain matched to whichever Keychain apiClient reads from.
 - [Phase 04.5]: PROT-01 left in progress rather than re-marked complete: the live-server pairing proof has not genuinely executed against a real server in this session.
 - [Phase 04.5]: Task 3 generation token: waitForEntry() polls rather than blocking synchronously, since the coordinator's poll/redeem work is MainActor-isolated and a raw synchronous wait would starve it of its turn on the shared executor.
+- [Phase 04.5]: 04.5-04: https promoted (not add-alongside) as the sole mac_ci scheme; SaveEndToEndTests A/B'd and filed as a pre-existing, transport-independent bug rather than treated as caused by TLS or silently dropped.
 
 ### Pending Todos
 
@@ -291,6 +289,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-09T14:13:48.376Z
-Stopped at: Completed 04.5-03-PLAN.md
+Last session: 2026-09-10T01:46:14.631Z
+Stopped at: Completed 04.5-04-PLAN.md
 Resume file: None
