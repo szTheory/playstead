@@ -495,7 +495,7 @@ final class AppEnvironment {
         self.downloadSessionOverride = downloadSession
         self.localStore = store
         self.controllerMappingStore = ControllerMappingStore(localStore: store)
-        self.biosStore = BiosStore(localStore: store, managedDirectory: paths.bios, references: [])
+        self.biosStore = BiosStore(localStore: store, managedDirectory: paths.bios, references: BiosReferences.production)
         let client = apiClient
         self.apiClient = client
         self.pairingKeychain = pairingKeychain

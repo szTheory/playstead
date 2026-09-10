@@ -28,15 +28,13 @@ struct BiosRecord: Equatable {
 /// confidence, whereas a length and a digest are exactly as much as
 /// anyone can honestly assert.
 ///
-/// `references` carries no built-in default: this client has never had
-/// an opportunity to empirically confirm a real reference digest (the
-/// plan 03-01 spike explicitly recorded its BIOS probe as
-/// not-run/no-fixture-available, never faked — see 03-SPIKE-REPORT.md),
-/// so fabricating one here would silently misrepresent evidence this
-/// project has not actually gathered. A caller with a confirmed
-/// reference digest supplies it; until then this store correctly and
-/// honestly rejects every candidate, which is the safe default for
-/// content this product never verifies or acquires on its own.
+/// `references` carries no built-in default of its own — the type
+/// itself never fabricates a reference. The production composition root
+/// supplies `BiosReferences.production` (see that type's doc comment
+/// for the cited provenance behind the pinned `gba` digest); a caller
+/// with no confirmed reference for a system correctly and honestly gets
+/// every candidate for that system rejected, which is the safe default
+/// for content this product never verifies or acquires on its own.
 ///
 /// This type never provides a source, a hint, or any way to acquire the
 /// content it validates — the user either already has the file or does
@@ -66,6 +64,13 @@ final class BiosStore {
         self.references = references
         self.now = now
         try? FileManager.default.createDirectory(at: managedDirectory, withIntermediateDirectories: true)
+    }
+
+    /// The reference set this store was actually constructed with — a
+    /// read seam so tests and readiness copy can observe what backs
+    /// validation, without touching validation behavior itself.
+    var knownReferences: [Reference] {
+        references
     }
 
     /// Validates `candidateURL` and, on acceptance, copies its bytes —
