@@ -116,6 +116,64 @@ final class BiosTests: XCTestCase {
         }
     }
 
+    // MARK: - Discriminator guard: empty reference set vs. a real, non-matching one
+
+    func testEmptyReferenceSetRejectsWithTheNoKnownReferenceReason() throws {
+        let emptyStore = BiosStore(localStore: localStore, managedDirectory: managedDirectory, references: [])
+        let candidate = try writeFile(named: "candidate.bin", contents: Self.referenceBytes)
+
+        XCTAssertThrowsError(try emptyStore.validateAndAccept(candidateURL: candidate, system: "gba")) { error in
+            guard case BiosStoreError.invalidCandidate(let reason) = error else {
+                return XCTFail("expected invalidCandidate, got \(error)")
+            }
+            XCTAssertEqual(reason, "no known reference for this system yet")
+        }
+    }
+
+    // MARK: - Wrong length is rejected before any digest comparison, naming both lengths
+
+    func testWrongLengthCandidateIsRejectedBeforeAnyDigestComparison() throws {
+        let shortContents = Data(repeating: 0xAB, count: Self.referenceLength - 1)
+        let candidate = try writeFile(named: "candidate.bin", contents: shortContents)
+
+        XCTAssertThrowsError(try store.validateAndAccept(candidateURL: candidate, system: "gba")) { error in
+            guard case BiosStoreError.invalidCandidate(let reason) = error else {
+                return XCTFail("expected invalidCandidate, got \(error)")
+            }
+            XCTAssertEqual(
+                reason,
+                "wrong size (expected \(Self.referenceLength) bytes, got \(Self.referenceLength - 1))"
+            )
+        }
+    }
+
+    // MARK: - A symlink to a valid candidate, and a directory, are both refused with their own reasons
+
+    func testSymbolicLinkAndDirectoryAreBothRefused() throws {
+        let validCandidate = try writeFile(named: "valid-candidate.bin", contents: Self.referenceBytes)
+        let linkURL = tempRoot.appendingPathComponent("link-to-valid-candidate")
+        try FileManager.default.createSymbolicLink(at: linkURL, withDestinationURL: validCandidate)
+
+        XCTAssertThrowsError(try store.validateAndAccept(candidateURL: linkURL, system: "gba")) { error in
+            guard case BiosStoreError.invalidCandidate(let reason) = error else {
+                return XCTFail("expected invalidCandidate, got \(error)")
+            }
+            XCTAssertEqual(reason, "symbolic links are not accepted")
+        }
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: managedDirectory.path).isEmpty)
+
+        let dirURL = tempRoot.appendingPathComponent("a-refused-directory", isDirectory: true)
+        try FileManager.default.createDirectory(at: dirURL, withIntermediateDirectories: true)
+
+        XCTAssertThrowsError(try store.validateAndAccept(candidateURL: dirURL, system: "gba")) { error in
+            guard case BiosStoreError.invalidCandidate(let reason) = error else {
+                return XCTFail("expected invalidCandidate, got \(error)")
+            }
+            XCTAssertEqual(reason, "only a single regular file is accepted")
+        }
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: managedDirectory.path).isEmpty)
+    }
+
     // MARK: - Original file is never modified, on acceptance or rejection
 
     func testOriginalFileDigestAndModificationTimeUnchangedAfterAcceptance() throws {
