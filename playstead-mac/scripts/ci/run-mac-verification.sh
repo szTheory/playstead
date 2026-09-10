@@ -1432,6 +1432,19 @@ PHOENIX_PID=""
 cleanup_native_services() {
   trap - EXIT
   local cleanup_ok=true
+  local server_root=""
+  [ -z "$NATIVE_ROOT" ] || server_root="$NATIVE_ROOT/app"
+  # Untrust runs before the rest of teardown, and before $NATIVE_ROOT is
+  # removed below -- mac-ci-tls.sh reads the CA out of <server_root>/tls, so
+  # this must be the first thing cleanup does with that directory still
+  # present. Reached through the already-armed EXIT trap on every failure
+  # path, not only the happy one (T-04.5-08).
+  if [ -n "$server_root" ] && [ -d "$server_root/tls" ]; then
+    if ! "${SCRIPT_DIR}/mac-ci-tls.sh" untrust "$server_root"; then
+      printf 'cleanup_native_services: mac-ci-tls untrust failed -- a trusted root may remain in the System keychain\n' >&2
+      cleanup_ok=false
+    fi
+  fi
   if [ -n "$PHOENIX_PID" ] && kill -0 "$PHOENIX_PID" 2>/dev/null; then
     kill "$PHOENIX_PID" 2>/dev/null || cleanup_ok=false
     wait "$PHOENIX_PID" 2>/dev/null || true
@@ -1479,6 +1492,13 @@ start_native_services() {
     "$server_root/mac-client-control"
   chmod 0700 "$NATIVE_ROOT" "$server_root" "$server_root/mac-client-control"
 
+  # Provision and trust this run's own TLS material before Phoenix ever binds
+  # 4010 -- there must be no window in which the runner could serve plaintext.
+  # Each call gets its own die message so a hosted failure names which of the
+  # two steps died (issue vs. trust) rather than a shared, ambiguous line.
+  "${SCRIPT_DIR}/mac-ci-tls.sh" issue "$server_root" || die "mac-ci-tls issue failed"
+  "${SCRIPT_DIR}/mac-ci-tls.sh" trust "$server_root" || die "mac-ci-tls trust failed"
+
   "$pg_bin/initdb" -D "$PGDATA" --auth=trust --no-locale --encoding=UTF8 >/dev/null
   "$PG_CTL" -D "$PGDATA" -l "$NATIVE_ROOT/postgres.log" \
     -o "-h 127.0.0.1 -p $pg_port" -w start >/dev/null
@@ -1511,7 +1531,13 @@ start_native_services() {
 
   local ready=false
   for _ in $(seq 1 60); do
-    if python3 -c 'import urllib.request; r=urllib.request.urlopen("http://127.0.0.1:4010/healthz", timeout=1); raise SystemExit(0 if r.status == 200 else 1)' 2>/dev/null; then
+    # No plaintext fallback: this probe validates against the run's own CA, so
+    # a TLS misconfiguration surfaces through the existing deadline/exited
+    # exit paths below rather than a python try/except swallowing it forever.
+    if python3 -c 'import ssl, sys, urllib.request
+context = ssl.create_default_context(cafile=sys.argv[1])
+r = urllib.request.urlopen("https://127.0.0.1:4010/healthz", timeout=1, context=context)
+raise SystemExit(0 if r.status == 200 else 1)' "$server_root/tls/ca.pem" 2>/dev/null; then
       ready=true
       break
     fi
