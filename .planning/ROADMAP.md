@@ -145,7 +145,7 @@ Plans:
   5. A user can connect, test, assign, remap, reset, and recover a controller while retaining keyboard, pointer, screen-reader, focus, and reduced-motion fallbacks; from a signed/notarized build they can launch, exit, and relaunch one legally testable game after app or server restart.
 
 **Research / spike flags**: Required Mac adapter gate before commitment: empirically choose the first system/emulator and direct-notarized versus sandboxed distribution posture using legal homebrew content. Demonstrate Keychain, external-process launch/recovery, controller recovery, BIOS handling, and safe persistent-save location/flush; do not promise the current GBA/mGBA hypothesis until this passes.
-**Plans**: 10/10 plans executed
+**Plans**: 10/12 plans executed (10 executed, 2 gap-closure plans pending from 03-VERIFICATION.md)
 
 Plans:
 **Wave 1**
@@ -175,6 +175,11 @@ Plans:
 **Wave 6** *(blocked on Wave 5)*
 
 - [x] 03-10-PLAN.md — Controller lifecycle with non-stranding keyboard and pointer fallbacks, the accessibility and motion floor, the notarized release, launch-exit-relaunch proof, and the honest support matrix
+
+**Wave 7 — gap closure** *(from 03-VERIFICATION.md; CR-01/CR-02 already resolved by 03-REVIEW-FIX.md and need no plan)*
+
+- [ ] 03-11-PLAN.md — PLAY-03 gap A: source and pin a cited BIOS reference, wire it through the composition root, and make a drop all-or-nothing under interruption and concurrency
+- [ ] 03-12-PLAN.md — PLAY-05 gap B: one end-to-end release proof that refuses to certify an unnotarized build, behind a blocking Apple Developer Program enrolment checkpoint
 
 **UI hint**: yes
 
