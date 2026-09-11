@@ -402,4 +402,95 @@ final class OutboxTests: XCTestCase {
         )
         XCTAssertEqual(failing.listPending().count, 2, "both entries stay pending, in order, for the next pass")
     }
+
+    // MARK: - WR-05 (plan 03-16, gap closure): only the newest
+    // full-replacement availability report is ever delivered.
+
+    private func makeReport(assetSetID: String, id: String) -> CurationIntent {
+        .availabilityReport(id: id, entries: [AvailabilityReportEntry(assetSetID: assetSetID)])
+    }
+
+    func test_secondAvailabilityReport_supersedesThePendingFirstOne() throws {
+        try outbox.enqueue(makeReport(assetSetID: "asset-1", id: "report-1"))
+        try outbox.enqueue(makeReport(assetSetID: "asset-2", id: "report-2"))
+
+        let pending = outbox.listPending()
+        XCTAssertEqual(pending.count, 1, "the earlier pending report row must be superseded, not merely joined")
+        XCTAssertEqual(pending.first?.intent, makeReport(assetSetID: "asset-2", id: "report-2"))
+    }
+
+    func test_secondAvailabilityReport_supersedesABackedOffFirstOne() throws {
+        let first = try outbox.enqueue(makeReport(assetSetID: "asset-1", id: "report-1"))
+        // Drive the real backoff path (not a hand-written timestamp) so
+        // the first row genuinely has a future next_retry_at.
+        try outbox.markPendingForRetry(first, at: Date(timeIntervalSince1970: 1))
+
+        try outbox.enqueue(makeReport(assetSetID: "asset-2", id: "report-2"))
+
+        let all = outbox.listAll()
+        XCTAssertEqual(all.count, 1, "the backed-off first report must not survive to be delivered later")
+        XCTAssertEqual(all.first?.intent, makeReport(assetSetID: "asset-2", id: "report-2"))
+
+        // Advance past the backoff window: even once it would have been
+        // due, the row is gone, not merely skipped.
+        let farFuture = Date(timeIntervalSince1970: 1_000_000)
+        XCTAssertEqual(outbox.listPending(at: farFuture).count, 1)
+        XCTAssertEqual(outbox.listPending(at: farFuture).first?.intent, makeReport(assetSetID: "asset-2", id: "report-2"))
+    }
+
+    func test_secondAvailabilityReport_leavesAnInFlightFirstOneAlone() throws {
+        let first = try outbox.enqueue(makeReport(assetSetID: "asset-1", id: "report-1"))
+        try outbox.markInFlight(first.id)
+
+        try outbox.enqueue(makeReport(assetSetID: "asset-2", id: "report-2"))
+
+        let all = outbox.listAll()
+        XCTAssertEqual(all.count, 2, "a request already on the wire cannot be recalled and must never be superseded")
+        XCTAssertTrue(all.contains { $0.id == first.id && $0.state == .inFlight })
+    }
+
+    func test_secondFavoriteIntent_isNotSupersededBecauseOnlyReportsAreNewestWins() throws {
+        try outbox.enqueue(.favoriteAdd(id: "fav-1", assetSetID: "asset-1"))
+        try outbox.enqueue(.favoriteAdd(id: "fav-2", assetSetID: "asset-2"))
+
+        XCTAssertEqual(outbox.listAll().count, 2, "superseding is scoped to the one kind for which newest-wins is true")
+    }
+
+    func test_drainAfterSupersede_sendsOnlyTheNewerReportBody() async throws {
+        try outbox.enqueue(makeReport(assetSetID: "asset-1", id: "report-1"))
+        try outbox.enqueue(makeReport(assetSetID: "asset-2", id: "report-2"))
+
+        var sentBodies: [Data] = []
+        StubURLProtocol.responder = { request in
+            // URLSession delivers a URLRequest's body to URLProtocol as
+            // an `httpBodyStream`, not `httpBody`, once it has gone
+            // through `session.data(for:)` -- read whichever is present.
+            if let body = request.httpBody {
+                sentBodies.append(body)
+            } else if let stream = request.httpBodyStream {
+                stream.open()
+                defer { stream.close() }
+                var data = Data()
+                let bufferSize = 4096
+                var buffer = [UInt8](repeating: 0, count: bufferSize)
+                while stream.hasBytesAvailable {
+                    let read = stream.read(&buffer, maxLength: bufferSize)
+                    if read > 0 { data.append(buffer, count: read) } else { break }
+                }
+                sentBodies.append(data)
+            }
+            return StubURLProtocol.Stub(statusCode: 200, headers: [:], body: Data("{}".utf8))
+        }
+
+        let result = await makeWorker().drainOnce()
+
+        XCTAssertEqual(result.sent, 1, "only the surviving newer report is drained")
+        XCTAssertEqual(sentBodies.count, 1)
+        let sentString = sentBodies.first.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        XCTAssertTrue(
+            sentString.contains("asset-2"),
+            "the body actually sent must be the newer report's, not merely the row count"
+        )
+        XCTAssertFalse(sentString.contains("asset-1"))
+    }
 }

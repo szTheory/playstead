@@ -91,6 +91,8 @@ defmodule PlaysteadWeb.LibraryLive do
       assets: assets,
       assets_by_id: assets_by_id,
       attention_count: Playstead.Attention.count(user_id),
+      attention_asset_set_ids: attention_asset_set_ids(user_id),
+      availability_facts: Playstead.Availability.facts_for_user(user_id),
       favorites: favorites,
       favorite_ids: favorite_ids,
       favorite_assets: pick_entries(assets_by_id, favorites, & &1.asset_set_id),
@@ -107,6 +109,18 @@ defmodule PlaysteadWeb.LibraryLive do
       has_unidentified: has_unidentified
     )
     |> stream_filtered_assets(reset: true)
+  end
+
+  # `needs_attention` is derived server-side (plan 03-13): `Attention.Item`
+  # already carries `asset_set_id`, so this fact needs no device report.
+  # Folded into the same status map so the ladder stays one implementation.
+  defp attention_asset_set_ids(user_id) do
+    Playstead.Attention.list_items(user_id)
+    |> Map.values()
+    |> List.flatten()
+    |> Enum.map(& &1.asset_set_id)
+    |> Enum.reject(&is_nil/1)
+    |> MapSet.new()
   end
 
   # The full-library browse section: search, system/availability filter
@@ -131,13 +145,19 @@ defmodule PlaysteadWeb.LibraryLive do
     search = String.trim(socket.assigns[:search] || "")
     filter_system = socket.assigns[:filter_system]
     filter_availability = socket.assigns[:filter_availability]
-    queue_ids = socket.assigns.queue_ids
+    assigns = socket.assigns
 
     socket.assigns.assets
     |> Enum.filter(&matches_search?(&1, search))
     |> Enum.filter(&matches_system?(&1, filter_system))
-    |> Enum.filter(&matches_availability?(&1, filter_availability, queue_ids))
+    |> Enum.filter(&matches_availability?(&1, filter_availability, assigns))
     |> sort_assets(socket.assigns[:sort] || "title")
+  end
+
+  defp narrowing_active?(assigns) do
+    String.trim(assigns[:search] || "") != "" or
+      assigns[:filter_system] not in [nil, ""] or
+      assigns[:filter_availability] not in [nil, ""]
   end
 
   defp matches_search?(_entry, ""), do: true
@@ -154,16 +174,47 @@ defmodule PlaysteadWeb.LibraryLive do
   defp matches_system?(_entry, system) when system in [nil, ""], do: true
   defp matches_system?(%{asset_set: set}, system), do: set.system_id == system
 
-  defp matches_availability?(_entry, availability, _queue_ids) when availability in [nil, ""],
+  # Plan 03-13: every value in `Playstead.AvailabilityVocabulary` gets its
+  # own clause comparing `StatusSlot.describe/2`'s returned rank — no
+  # value reaches a pass-through. The unconditional
+  # `matches_availability?(_entry, _other, _queue_ids), do: true` clause
+  # this replaces was the exact defect `03-VERIFICATION.md` recorded.
+  defp matches_availability?(_entry, availability, _assigns) when availability in [nil, ""],
     do: true
 
-  defp matches_availability?(%{asset_set: set}, "queued", queue_ids),
-    do: MapSet.member?(queue_ids, set.id)
+  defp matches_availability?(%{asset_set: set}, "needs_attention", assigns),
+    do: rank_for(set, assigns) == :needs_attention
 
-  defp matches_availability?(%{asset_set: set}, "server_only", queue_ids),
-    do: not MapSet.member?(queue_ids, set.id)
+  defp matches_availability?(%{asset_set: set}, "missing_dependency", assigns),
+    do: rank_for(set, assigns) == :missing_dependency
 
-  defp matches_availability?(_entry, _other, _queue_ids), do: true
+  defp matches_availability?(%{asset_set: set}, "downloading", assigns),
+    do: rank_for(set, assigns) == :downloading
+
+  defp matches_availability?(%{asset_set: set}, "queued", assigns),
+    do: rank_for(set, assigns) == :queued
+
+  defp matches_availability?(%{asset_set: set}, "ready_offline", assigns),
+    do: rank_for(set, assigns) in [:pinned, :verified]
+
+  defp matches_availability?(%{asset_set: set}, "server_only", assigns),
+    do: rank_for(set, assigns) == :server_only
+
+  # Defence in depth only (T-03-13-01): `handle_event/3` already rejects
+  # any value that fails `AvailabilityVocabulary.valid?/1` before it
+  # reaches this assign, so this clause is unreachable from the UI. It
+  # exists so a directly-driven invalid event payload still falls
+  # through to "no filter" instead of raising a FunctionClauseError.
+  defp matches_availability?(_entry, other, _assigns) do
+    not Playstead.AvailabilityVocabulary.valid?(other)
+  end
+
+  defp rank_for(asset_set, assigns) do
+    {rank, _sentence} =
+      StatusSlot.describe(status_for(asset_set, assigns), asset_set.display_title)
+
+    rank
+  end
 
   defp sort_assets(entries, "system") do
     Enum.sort_by(entries, fn %{asset_set: s} -> {s.system_id || "zzzz", title_key(s)} end)
@@ -234,9 +285,15 @@ defmodule PlaysteadWeb.LibraryLive do
   end
 
   def handle_event("filter-availability", %{"availability" => availability}, socket) do
-    new_value = if socket.assigns.filter_availability == availability, do: nil, else: availability
-    socket = assign(socket, :filter_availability, new_value)
-    {:noreply, stream_filtered_assets(socket, reset: true)}
+    if Playstead.AvailabilityVocabulary.valid?(availability) do
+      new_value =
+        if socket.assigns.filter_availability == availability, do: nil, else: availability
+
+      socket = assign(socket, :filter_availability, new_value)
+      {:noreply, stream_filtered_assets(socket, reset: true)}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event("sort", %{"sort" => sort}, socket) do
@@ -256,8 +313,11 @@ defmodule PlaysteadWeb.LibraryLive do
     {:noreply, stream_filtered_assets(socket, reset: true)}
   end
 
-  def handle_event("clear-search", _params, socket) do
-    socket = assign(socket, :search, "")
+  # Plan 03-13: clears whichever narrowing (search text, system chip, or
+  # availability chip) is active — the single control the filtered-to-zero
+  # empty state offers back to the unfiltered library.
+  def handle_event("clear-narrowing", _params, socket) do
+    socket = assign(socket, search: "", filter_system: nil, filter_availability: nil)
     {:noreply, stream_filtered_assets(socket, reset: true)}
   end
 
@@ -356,14 +416,32 @@ defmodule PlaysteadWeb.LibraryLive do
     "Something went wrong on the server. Your data is safe — nothing was changed."
   end
 
-  # Status facts computable server-side for this plan: whether the game
-  # is in the play queue. Local-download state (verified/pinned/
-  # downloading/missing-dependency/needs-attention) is Mac-client-local
-  # (D-21) and is not tracked here — every card that isn't queued is
-  # honestly `server_only` until a later plan wires that read model in.
+  # Status facts for the console's ladder (plan 03-13): queue membership
+  # (always server-side), `needs_attention` (server-derived from
+  # Attention.Item, D-31), and the device-reported facts
+  # (downloading/download_percent/verified/pinned/missing_dependency)
+  # merged across a user's paired devices by `Availability.facts_for_user/1`.
+  # A user whose devices have reported nothing sees exactly the
+  # pre-report behaviour: every non-queued, non-attention card is
+  # honestly `server_only`.
   defp status_for(asset_set, assigns) do
     queue_ids = Map.get(assigns, :queue_ids, MapSet.new())
-    %{queued: MapSet.member?(queue_ids, asset_set.id)}
+    attention_ids = Map.get(assigns, :attention_asset_set_ids, MapSet.new())
+    facts = Map.get(assigns, :availability_facts, %{})
+
+    device_facts =
+      Map.get(facts, asset_set.id, %{
+        downloading: false,
+        download_percent: 0,
+        verified: false,
+        pinned: false,
+        missing_dependency: false
+      })
+
+    Map.merge(device_facts, %{
+      queued: MapSet.member?(queue_ids, asset_set.id),
+      needs_attention: MapSet.member?(attention_ids, asset_set.id)
+    })
   end
 
   @impl true
@@ -630,24 +708,16 @@ defmodule PlaysteadWeb.LibraryLive do
 
             <div class="flex flex-wrap gap-2" role="group" aria-label="Filter by availability">
               <button
+                :for={value <- Playstead.AvailabilityVocabulary.values()}
                 type="button"
-                id="filter-chip-availability-queued"
+                id={"filter-chip-availability-#{value}"}
                 phx-click="filter-availability"
-                phx-value-availability="queued"
-                aria-pressed={to_string(@filter_availability == "queued")}
-                class="filter-chip rounded-full border border-[#334155] px-3 py-1 text-label text-[#94A3B8]"
+                phx-value-availability={value}
+                aria-pressed={to_string(@filter_availability == value)}
+                aria-label={Playstead.AvailabilityVocabulary.accessible_name(value)}
+                class="filter-chip min-h-11 min-w-11 rounded-full border border-[#334155] px-3 py-1 text-label text-[#94A3B8]"
               >
-                Queued
-              </button>
-              <button
-                type="button"
-                id="filter-chip-availability-server-only"
-                phx-click="filter-availability"
-                phx-value-availability="server_only"
-                aria-pressed={to_string(@filter_availability == "server_only")}
-                class="filter-chip rounded-full border border-[#334155] px-3 py-1 text-label text-[#94A3B8]"
-              >
-                On server
+                {Playstead.AvailabilityVocabulary.label(value)}
               </button>
             </div>
 
@@ -669,18 +739,24 @@ defmodule PlaysteadWeb.LibraryLive do
               </select>
             </form>
 
-            <div :if={@browse_empty? and @search != ""} id="library-search-empty">
-              <p class="text-heading font-semibold text-[#F1F5F9]">No matches for “{@search}”</p>
+            <div :if={@browse_empty? and narrowing_active?(assigns)} id="library-search-empty">
+              <p class="text-heading font-semibold text-[#F1F5F9]">
+                {if @search != "",
+                  do: "No matches for “#{@search}”",
+                  else: "No games match this filter"}
+              </p>
               <p class="mt-1 text-base text-[#94A3B8]">
-                Check the spelling, or clear your search to see everything.
+                {if @search != "",
+                  do: "Check the spelling, or clear your search to see everything.",
+                  else: "Clear the filter to see everything in your library."}
               </p>
               <button
                 type="button"
-                id="clear-search"
-                phx-click="clear-search"
+                id="clear-narrowing"
+                phx-click="clear-narrowing"
                 class="mt-2 text-sm font-semibold text-[#F1F5F9] hover:underline"
               >
-                Clear search
+                {if @search != "", do: "Clear search", else: "Clear filter"}
               </button>
             </div>
 
@@ -738,11 +814,10 @@ defmodule PlaysteadWeb.LibraryLive do
                   <span class="text-label text-[#94A3B8]">
                     {GameCard.system_display_name(entry.asset_set.system_id)}
                   </span>
-                  <.status_slot
+                  <.list_status_slot
                     id={"#{dom_id}-status"}
                     title={entry.asset_set.display_title}
-                    variant={:list}
-                    queued={Map.get(status_for(entry.asset_set, assigns), :queued, false)}
+                    status={status_for(entry.asset_set, assigns)}
                   />
                   <.asset_actions
                     asset_set={entry.asset_set}
@@ -797,6 +872,35 @@ defmodule PlaysteadWeb.LibraryLive do
         {if @queued?, do: "Remove from Queue", else: "Add to Queue"}
       </button>
     </div>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :title, :string, required: true
+  attr :status, :map, required: true
+
+  # The list row's status indicator. It must carry the SAME ladder facts
+  # the grid card carries. Passing only `queued` here made every
+  # higher-ranking state unreachable in list view -- including
+  # `downloading`, the one state that owns the
+  # determinate percent D-16 requires be retained. The row's own
+  # `aria-label` already went through `StatusSlot.describe/2` with the
+  # full status, so a downloading row announced "is downloading, 42
+  # percent complete" while its visible badge read "On server".
+  defp list_status_slot(assigns) do
+    ~H"""
+    <.status_slot
+      id={@id}
+      title={@title}
+      variant={:list}
+      needs_attention={Map.get(@status, :needs_attention, false)}
+      missing_dependency={Map.get(@status, :missing_dependency, false)}
+      downloading={Map.get(@status, :downloading, false)}
+      download_percent={Map.get(@status, :download_percent, 0)}
+      queued={Map.get(@status, :queued, false)}
+      pinned={Map.get(@status, :pinned, false)}
+      verified={Map.get(@status, :verified, false)}
+    />
     """
   end
 

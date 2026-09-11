@@ -41,7 +41,20 @@ AUTOMATED_MAPPINGS = {
         "PlaySessionTests/test_userDeletion_enqueuesDeleteIntentAndRemovesFromRecent",
     ),
 }
-BLOCKED_CHECKPOINTS = (4, 7, 8, 9, 14, 15)
+# Checkpoints that must still read `result: blocked`. Items 4, 14 and 15
+# used to be listed here and are not any more: plan 03-12 closed 14/15/16 against
+# a genuinely notarized artifact (submission 8465f74d-5468-4b73-9885-fb0ea1dafcdd,
+# `spctl` reporting source=Notarized Developer ID) and plan 03-14 closed 4 with
+# the LIBR-02 availability-search gap closure. Both flips landed on main; this
+# table was simply never updated alongside them, and CI had not run since
+# 2026-09-08, so nothing observed the drift until it blocked an unrelated PR.
+#
+# They moved to RESOLVED_CHECKPOINTS rather than being deleted: a closed
+# checkpoint still must not decay into a bare `result: pass` with no automated
+# source and no evidence block, which is the rounding-up this validator exists
+# to prevent.
+BLOCKED_CHECKPOINTS = (7, 8, 9)
+RESOLVED_CHECKPOINTS = (4, 14, 15)
 ROADMAP_CRITERION = (
     "Linux `compose-smoke` proves deployment topology; native PostgreSQL 17 plus Phoenix "
     "beside XCUITest proves Mac client/server behavior."
@@ -128,7 +141,7 @@ def validate_checkpoint_10(section):
 def validate_uat(document):
     require(frontmatter(document).get("status") == "partial", "Phase 3 UAT status must remain partial")
     sections = numbered_sections(document)
-    for number in (*AUTOMATED_MAPPINGS, *BLOCKED_CHECKPOINTS, 10):
+    for number in (*AUTOMATED_MAPPINGS, *BLOCKED_CHECKPOINTS, *RESOLVED_CHECKPOINTS, 10):
         require(number in sections, f"checkpoint section missing: {number}")
     for number in AUTOMATED_MAPPINGS:
         validate_automated_checkpoint(number, sections[number])
@@ -137,6 +150,20 @@ def validate_uat(document):
         require(re.search(r"(?m)^result: blocked\s*$", section) is not None, f"checkpoint {number} must remain blocked")
         require(re.search(r"(?m)^blocked_by: .+$", section) is not None, f"checkpoint {number} blocked_by missing")
         require("source: automated" not in section, f"checkpoint {number} must not claim automated source")
+    for number in RESOLVED_CHECKPOINTS:
+        section = sections[number]
+        require(
+            re.search(r"(?m)^result: pass\s*$", section) is not None,
+            f"checkpoint {number} was closed by an earlier plan and must still pass",
+        )
+        require(
+            section.count("source: automated") == 1,
+            f"checkpoint {number} needs exactly one automated source",
+        )
+        require(
+            re.search(r"(?m)^evidence: \|\s*$", section) is not None,
+            f"checkpoint {number} must keep its evidence block",
+        )
     validate_checkpoint_10(sections[10])
 
 

@@ -21,6 +21,16 @@ defmodule Playstead.Protocol.Capabilities do
   `1.1.0` negotiates `compatible_with_limits` (never `incompatible`)
   and must fall back to whole-file downloads — the intended
   version-skew behaviour.
+
+  ## cache 1.1.0 (plan 03-13, LIBR-02 gap closure)
+
+  `cache` advertises `availability-report` support the same additive
+  way: max `"1.1.0"` means `PUT /api/v1/devices/me/availability` is
+  available for a device to report its own per-asset-set availability
+  facts. `cache` is not in `@required_namespaces`, so a client
+  declaring a cache max below `1.1.0` still negotiates
+  `compatible_with_limits` and simply never reports — the console's
+  `server_only`/`queued` values stay usable either way.
   """
 
   @protocol_major 1
@@ -35,7 +45,8 @@ defmodule Playstead.Protocol.Capabilities do
   # to advertise a newer feature version within an existing namespace,
   # never a change to envelope/0's frozen key shape.
   @namespace_ranges %{
-    transfer: {"1.0.0", "1.1.0"}
+    transfer: {"1.0.0", "1.1.0"},
+    cache: {"1.0.0", "1.1.0"}
   }
 
   # D-19: `protocol` is the only namespace whose overlap is mandatory —

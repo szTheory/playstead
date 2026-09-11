@@ -489,13 +489,17 @@ for layer in layers:
             raise SystemExit(f"required test did not execute exactly once and pass: {layer['layer']}")
 
 required_exact = {
-    "ui": "PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit",
-    "live-server": "PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch",
+    "ui": ["PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit"],
+    "live-server": [
+        "PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch",
+        "PlaysteadUITests.PairingCeremonyTests/testAHumanCanPairAFreshMacEntirelyFromInsideTheAppAgainstTheRealServer",
+    ],
 }
-for layer_name, identifier in required_exact.items():
+for layer_name, identifiers_expected in required_exact.items():
     identifiers = {test.get("identifier") for test in by_layer[layer_name]["required_tests"]}
-    if identifier not in identifiers:
-        raise SystemExit(f"complete evidence exact test missing: {identifier}")
+    for identifier in identifiers_expected:
+        if identifier not in identifiers:
+            raise SystemExit(f"complete evidence exact test missing: {identifier}")
 
 for forbidden in ("authorization", "credential", "token", "database_url", "raw_log", "keychain_path"):
     if f'"{forbidden}"' in json.dumps(manifest).lower():
@@ -1264,7 +1268,32 @@ PY
     --required-test PlaysteadTests.PlaySessionTests/test_launchSucceedsIndependentlyOfPlaySessionRecording \
     --required-test PlaysteadTests.PlaySessionTests/test_offlineSession_isDeliveredAfterReachabilityReturns \
     --required-test PlaysteadTests.PlaySessionTests/test_sameSessionIdentifierPostedTwice_resultsInOneServerSideEffect \
-    --required-test PlaysteadTests.PlaySessionTests/test_userDeletion_enqueuesDeleteIntentAndRemovesFromRecent
+    --required-test PlaysteadTests.PlaySessionTests/test_userDeletion_enqueuesDeleteIntentAndRemovesFromRecent \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_allRequiredMembersCachedAndPinned_emitsVerifiedAndPinnedTrue \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_activeTransfer_emitsDownloadingTrueWithPercentInRange \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_noLocalBytesAndNoQueueRow_emitsAllFactsFalseNeverOmitted \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_sameReportRetried_carriesSameIdempotencyKeyAndOneServerEffect \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_offlineReport_isEnqueuedAndDrainedLaterWithNoSurfacedError \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_requiredMemberAbsentWithNoQueueRow_reportsMissingDependencyTrue \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_pinnedGameWithEvictedRequiredMember_reportsMissingDependencyTrue \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_absentMemberWithWaitingQueueRow_reportsMissingDependencyFalse \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_absentMemberWithPausedQueueRow_reportsMissingDependencyFalse \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_absentMemberWithOnlyCancelledQueueRow_reportsMissingDependencyTrue \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_untouchedGame_reportsMissingDependencyFalseSoServerOnlyStaysReachable \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_emptyRequiredMemberList_reportsMissingDependencyFalse \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_orphanedMemberDuringActiveTransfer_reportsBothMissingDependencyAndDownloadingTrue \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_buildEntriesOutputEncodesByteIdenticallyToSharedReportFixture \
+    --required-test PlaysteadTests.AvailabilityVocabularyContractTests/testJSONVocabularyExactlyMatchesShippedSwiftConstants \
+    --required-test PlaysteadTests.AvailabilityVocabularyContractTests/testKeyRemovedFromVocabularyButStillEmittedWouldBeCaught \
+    --required-test PlaysteadTests.OutboxTests/test_secondAvailabilityReport_supersedesThePendingFirstOne \
+    --required-test PlaysteadTests.OutboxTests/test_secondAvailabilityReport_supersedesABackedOffFirstOne \
+    --required-test PlaysteadTests.OutboxTests/test_secondAvailabilityReport_leavesAnInFlightFirstOneAlone \
+    --required-test PlaysteadTests.OutboxTests/test_secondFavoriteIntent_isNotSupersededBecauseOnlyReportsAreNewestWins \
+    --required-test PlaysteadTests.OutboxTests/test_drainAfterSupersede_sendsOnlyTheNewerReportBody \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_secondPassOverUnchangedState_enqueuesAgainRatherThanShortCircuiting \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_unchangedSecondPassEncodesToTheSamePayloadAsTheFirst \
+    --required-test PlaysteadTests.BiosTests/testRejectionMessageQuotesTheStoreReasonVerbatim \
+    --required-test PlaysteadTests.BiosTests/testEveryRejectionIsDistinguishableAndNoneIsTheGenericFallback
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
 
   run_test_layer rendering Rendering 600 \
@@ -1333,6 +1362,8 @@ PY
     --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventoryConfirmMutationRemovesOnlyEligibleCopy \
     --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventoryPostMutationPreservesCanonicalRows \
     --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventoryProtectsPinnedCopy \
+    --required-test PlaysteadUITests.BiosRejectionCopyTests/testRejectedDropRendersTheStoresExactReasonAsVisibleCopy \
+    --required-test PlaysteadUITests.BiosRejectionCopyTests/testAnUnusableCandidatePathLeavesTheSurfaceUntouchedRatherThanShowingAGenericFailure \
     --required-test PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit \
     --required-test PlaysteadUITests.ZeroNetworkPlayFlowTests/testWholePlayFlowRecordsZeroHTTPRequests
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
@@ -1349,7 +1380,8 @@ PY
     --required-test PlaysteadUITests.HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner \
     --required-test PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch \
     --required-test PlaysteadUITests.SaveRestoreProofTests/testCapturedRevisionRestoresToByteIdenticalArtifactInLaunchDir \
-    --required-test PlaysteadUITests.SaveEndToEndTests/testOneSaveRoundTripsCaptureUploadAndJournalReturn
+    --required-test PlaysteadUITests.SaveEndToEndTests/testOneSaveRoundTripsCaptureUploadAndJournalReturn \
+    --required-test PlaysteadUITests.PairingCeremonyTests/testAHumanCanPairAFreshMacEntirelyFromInsideTheAppAgainstTheRealServer
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
   restore_live_server_xctestrun
   cleanup_live_server_runtime_config
@@ -1432,6 +1464,19 @@ PHOENIX_PID=""
 cleanup_native_services() {
   trap - EXIT
   local cleanup_ok=true
+  local server_root=""
+  [ -z "$NATIVE_ROOT" ] || server_root="$NATIVE_ROOT/app"
+  # Untrust runs before the rest of teardown, and before $NATIVE_ROOT is
+  # removed below -- mac-ci-tls.sh reads the CA out of <server_root>/tls, so
+  # this must be the first thing cleanup does with that directory still
+  # present. Reached through the already-armed EXIT trap on every failure
+  # path, not only the happy one (T-04.5-08).
+  if [ -n "$server_root" ] && [ -d "$server_root/tls" ]; then
+    if ! "${SCRIPT_DIR}/mac-ci-tls.sh" untrust "$server_root"; then
+      printf 'cleanup_native_services: mac-ci-tls untrust failed -- a trusted root may remain in the System keychain\n' >&2
+      cleanup_ok=false
+    fi
+  fi
   if [ -n "$PHOENIX_PID" ] && kill -0 "$PHOENIX_PID" 2>/dev/null; then
     kill "$PHOENIX_PID" 2>/dev/null || cleanup_ok=false
     wait "$PHOENIX_PID" 2>/dev/null || true
@@ -1479,6 +1524,13 @@ start_native_services() {
     "$server_root/mac-client-control"
   chmod 0700 "$NATIVE_ROOT" "$server_root" "$server_root/mac-client-control"
 
+  # Provision and trust this run's own TLS material before Phoenix ever binds
+  # 4010 -- there must be no window in which the runner could serve plaintext.
+  # Each call gets its own die message so a hosted failure names which of the
+  # two steps died (issue vs. trust) rather than a shared, ambiguous line.
+  "${SCRIPT_DIR}/mac-ci-tls.sh" issue "$server_root" || die "mac-ci-tls issue failed"
+  "${SCRIPT_DIR}/mac-ci-tls.sh" trust "$server_root" || die "mac-ci-tls trust failed"
+
   "$pg_bin/initdb" -D "$PGDATA" --auth=trust --no-locale --encoding=UTF8 >/dev/null
   "$PG_CTL" -D "$PGDATA" -l "$NATIVE_ROOT/postgres.log" \
     -o "-h 127.0.0.1 -p $pg_port" -w start >/dev/null
@@ -1511,7 +1563,13 @@ start_native_services() {
 
   local ready=false
   for _ in $(seq 1 60); do
-    if python3 -c 'import urllib.request; r=urllib.request.urlopen("http://127.0.0.1:4010/healthz", timeout=1); raise SystemExit(0 if r.status == 200 else 1)' 2>/dev/null; then
+    # No plaintext fallback: this probe validates against the run's own CA, so
+    # a TLS misconfiguration surfaces through the existing deadline/exited
+    # exit paths below rather than a python try/except swallowing it forever.
+    if python3 -c 'import ssl, sys, urllib.request
+context = ssl.create_default_context(cafile=sys.argv[1])
+r = urllib.request.urlopen("https://127.0.0.1:4010/healthz", timeout=1, context=context)
+raise SystemExit(0 if r.status == 200 else 1)' "$server_root/tls/ca.pem" 2>/dev/null; then
       ready=true
       break
     fi
@@ -1731,7 +1789,7 @@ base_manifest = {
         {"layer": "unit", "executed_test_count": 1, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadTests.PlaySessionTests/test_launchSucceedsIndependentlyOfPlaySessionRecording")]},
         {"layer": "rendering", "executed_test_count": 1, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadTests.LibraryContractSnapshotTests/testCardAndStatusVisualContract")]},
         {"layer": "ui", "executed_test_count": 1, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit")]},
-        {"layer": "live-server", "executed_test_count": 1, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch")]},
+        {"layer": "live-server", "executed_test_count": 2, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch"), required("PlaysteadUITests.PairingCeremonyTests/testAHumanCanPairAFreshMacEntirelyFromInsideTheAppAgainstTheRealServer")]},
     ],
 }
 
@@ -1795,6 +1853,7 @@ required = [
     "PlaysteadTests.PlaySessionTests/test_userDeletion_enqueuesDeleteIntentAndRemovesFromRecent",
     "PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit",
     "PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch",
+    "PlaysteadUITests.PairingCeremonyTests/testAHumanCanPairAFreshMacEntirelyFromInsideTheAppAgainstTheRealServer",
 ]
 missing = [identifier for identifier in required if f"--required-test {identifier}" not in source]
 if missing:

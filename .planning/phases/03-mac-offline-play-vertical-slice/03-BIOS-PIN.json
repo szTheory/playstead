@@ -1,0 +1,30 @@
+{
+  "system": "gba",
+  "expected_byte_length": 16384,
+  "known_sha256_digests": [
+    "fd2547724b505f487e6dcb29ec2ecff3af35a841a77ab2e85fd87350abd36570"
+  ],
+  "provenance": [
+    {
+      "source": "higan emulator official documentation",
+      "url": "https://higan.readthedocs.io/en/stable/install/general/",
+      "retrieved": "2026-09-10",
+      "asserts": "byte_length and sha256_digest - verbatim: \"The correct GBA BIOS file is exactly 16384 bytes long, and has the SHA256 hash fd2547724b505f487e6dcb29ec2ecff3af35a841a77ab2e85fd87350abd36570.\""
+    },
+    {
+      "source": "DS-Homebrew Wiki, \"GBA BIOS Info\"",
+      "url": "https://wiki.ds-homebrew.com/gbarunner2/bios",
+      "retrieved": "2026-09-10",
+      "asserts": "sha256_digest - lists SHA-256 fd2547724b505f487e6dcb29ec2ecff3af35a841a77ab2e85fd87350abd36570 for the standard GBA / GBA SP / Game Boy Micro / Game Boy Player BIOS, alongside SHA-1, MD5, and CRC-32. Hosts no BIOS file."
+    },
+    {
+      "source": "GBATEK (Martin Korth), canonical GBA technical reference",
+      "url": "https://problemkaputt.de/gbatek.htm",
+      "retrieved": "2026-09-10",
+      "asserts": "byte_length - states the BIOS ROM is 16 KBytes, address range 00000000-00003FFF (= 16384 bytes)"
+    }
+  ],
+  "acquisition_path": "none - this product never sources, links to, mirrors, or distributes BIOS content",
+  "open_replacement_declared": false,
+  "open_replacement_reason": "Open BIOS replacements are a Deferred Idea per 03-CONTEXT.md D-06 (\"Open BIOS replacement declarations (e.g. Cult-of-GBA) - v1 ships HLE default; per-system legal review later\") and are out of scope for this plan."
+}

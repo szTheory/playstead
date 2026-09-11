@@ -28,15 +28,13 @@ struct BiosRecord: Equatable {
 /// confidence, whereas a length and a digest are exactly as much as
 /// anyone can honestly assert.
 ///
-/// `references` carries no built-in default: this client has never had
-/// an opportunity to empirically confirm a real reference digest (the
-/// plan 03-01 spike explicitly recorded its BIOS probe as
-/// not-run/no-fixture-available, never faked — see 03-SPIKE-REPORT.md),
-/// so fabricating one here would silently misrepresent evidence this
-/// project has not actually gathered. A caller with a confirmed
-/// reference digest supplies it; until then this store correctly and
-/// honestly rejects every candidate, which is the safe default for
-/// content this product never verifies or acquires on its own.
+/// `references` carries no built-in default of its own — the type
+/// itself never fabricates a reference. The production composition root
+/// supplies `BiosReferences.production` (see that type's doc comment
+/// for the cited provenance behind the pinned `gba` digest); a caller
+/// with no confirmed reference for a system correctly and honestly gets
+/// every candidate for that system rejected, which is the safe default
+/// for content this product never verifies or acquires on its own.
 ///
 /// This type never provides a source, a hint, or any way to acquire the
 /// content it validates — the user either already has the file or does
@@ -49,6 +47,14 @@ final class BiosStore {
         let expectedByteLength: Int
         let knownSHA256Digests: Set<String>
     }
+
+    /// Prefix for a private, not-yet-validated temp copy written into
+    /// `managedDirectory` mid-`validateAndAccept`. Shared between the
+    /// writer and the init-time sweeper below so the two names can never
+    /// drift apart — a 64-hex managed filename never starts with this
+    /// prefix, so the sweep can never delete an accepted file.
+    private static let incomingPrefix = ".incoming-"
+    private static let managedFilenamePattern = try! NSRegularExpression(pattern: "^[0-9a-f]{64}$")
 
     private let localStore: LocalStore
     private let managedDirectory: URL
@@ -66,6 +72,33 @@ final class BiosStore {
         self.references = references
         self.now = now
         try? FileManager.default.createDirectory(at: managedDirectory, withIntermediateDirectories: true)
+        Self.sweepStaleIncomingTempFiles(in: managedDirectory)
+    }
+
+    /// Removes any leftover incoming-temp file from a previous
+    /// interrupted `validateAndAccept` run. Runs once, at construction —
+    /// the only place a stale temp file could otherwise persist forever,
+    /// since `validateAndAccept` itself always removes its own temp file
+    /// on every exit path. Never touches a 64-hex managed filename, even
+    /// defensively: a name beginning with `incomingPrefix` cannot also
+    /// match the 64-hex pattern, so the two conditions are mutually
+    /// exclusive by construction, not merely by convention.
+    private static func sweepStaleIncomingTempFiles(in directory: URL) {
+        let fm = FileManager.default
+        guard let entries = try? fm.contentsOfDirectory(atPath: directory.path) else { return }
+        for name in entries {
+            guard name.hasPrefix(incomingPrefix) else { continue }
+            let range = NSRange(name.startIndex..., in: name)
+            guard managedFilenamePattern.firstMatch(in: name, range: range) == nil else { continue }
+            try? fm.removeItem(at: directory.appendingPathComponent(name))
+        }
+    }
+
+    /// The reference set this store was actually constructed with — a
+    /// read seam so tests and readiness copy can observe what backs
+    /// validation, without touching validation behavior itself.
+    var knownReferences: [Reference] {
+        references
     }
 
     /// Validates `candidateURL` and, on acceptance, copies its bytes —
@@ -115,7 +148,7 @@ final class BiosStore {
         // so the bytes actually stored under the trusted digest name
         // would not be guaranteed to be the bytes that were hashed
         // (P2-WR-002).
-        let tempURL = managedDirectory.appendingPathComponent(".incoming-\(UUID().uuidString)")
+        let tempURL = managedDirectory.appendingPathComponent("\(Self.incomingPrefix)\(UUID().uuidString)")
         try fm.copyItem(at: candidateURL, to: tempURL)
         let digest: String
         do {
@@ -133,7 +166,26 @@ final class BiosStore {
         if fm.fileExists(atPath: managedURL.path) {
             try? fm.removeItem(at: tempURL)
         } else {
-            try fm.moveItem(at: tempURL, to: managedURL)
+            do {
+                try fm.moveItem(at: tempURL, to: managedURL)
+            } catch {
+                // Two concurrent validations of identical accepted bytes
+                // can both observe the destination absent (the fileExists
+                // check above is not atomic with the move) and race to
+                // move into the same managedURL — exactly one move wins.
+                // If the destination now exists, a sibling call already
+                // won this race with the same bytes under the same
+                // digest-derived name, so this call's own temp copy is
+                // redundant, not a failure: clean it up and continue to
+                // the (already idempotent, ON CONFLICT DO NOTHING) insert
+                // as a success. Any other failure is genuine and rethrown.
+                if fm.fileExists(atPath: managedURL.path) {
+                    try? fm.removeItem(at: tempURL)
+                } else {
+                    try? fm.removeItem(at: tempURL)
+                    throw error
+                }
+            }
         }
 
         let timestamp = now()

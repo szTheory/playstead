@@ -90,7 +90,13 @@ final class LiveServerSnapshotTests: XCTestCase {
         }
         XCTAssertFalse(try storedCursor(root: runRoot).isEmpty)
         try assertNoGameBytes(root: runRoot)
-        guard try runFixture("verify", root: runRoot) else {
+        // This test is the one that owns the two-snapshot claim: one render
+        // of the fresh mirror before any blob download, one more after the
+        // Keychain-backed relaunch. The count is cumulative over the layer's
+        // shared phoenix.log, so it is only sound while this runs first --
+        // stated explicitly here so a future reordering fails loudly instead
+        // of drifting into some other test's failure.
+        guard try runFixture("verify", root: runRoot, extraArguments: ["2"]) else {
             return XCTFail("live fixture stage 'verify' failed")
         }
     }
@@ -277,7 +283,7 @@ final class LiveServerSnapshotTests: XCTestCase {
         return nil
     }
 
-    private func runFixture(_ action: String, root: URL) throws -> Bool {
+    private func runFixture(_ action: String, root: URL, extraArguments: [String] = []) throws -> Bool {
         seedFixtureStageBestEffort(for: action)
         let script = fixtureScriptURL()
         guard let environment = fixtureEnvironment,
@@ -287,7 +293,7 @@ final class LiveServerSnapshotTests: XCTestCase {
         }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = [script.path, action, root.path, serverRoot]
+        process.arguments = [script.path, action, root.path, serverRoot] + extraArguments
         process.environment = environment
         let diagnostics = Pipe()
         process.standardOutput = FileHandle.nullDevice

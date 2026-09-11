@@ -13,36 +13,40 @@ this project's constraints forbid.
 | Pinned version | 0.10.5 |
 | Pinned SHA-256 digest | `443b490ec728293dfcde1cb9db160f73d94c457cb1864f3ce0407e60e174b09c` |
 | Accepted content | `.gba` ROM files only |
-| BIOS posture | Optional. mGBA's own built-in high-level implementation launches without a BIOS; a validated BIOS file is a fidelity upgrade, never a launch requirement. |
+| BIOS posture | Optional. mGBA's own built-in high-level implementation launches without a BIOS; a validated BIOS file is a fidelity upgrade, never a launch requirement. A production reference for the pinned `gba` system is now pinned at `.planning/phases/03-mac-offline-play-vertical-slice/03-BIOS-PIN.json`, with its provenance recorded in that file's `provenance` array. This product offers no acquisition path for BIOS content — the pin file's own `acquisition_path` field states that explicitly. Open BIOS replacements remain undeclared in v1 (03-CONTEXT.md D-06). What is proven automatically: the reference is wired all the way from the pin file through `BiosReferences.production` into the app's composition root (`BiosProductionReferenceTests`), and a correctly-sized non-matching candidate is refused for its contents rather than for having no reference at all. What still needs an operator with a real, legally-owned file: acceptance of genuine BIOS bytes, checkable in one command via `scripts/verify-bios-reference.sh <path>`. |
 | Persistent save support | `.sav` files under the app-managed save directory. The emulator flushes periodically during play (observed roughly every 24 seconds) and does **not** distinguish a graceful `SIGTERM`-based quit from a crash — the shipping adapter host never assumes a clean-quit save flush beyond what periodic flushing already provides. |
 | Worst-case save-loss window | 24 seconds — the observed periodic-flush interval. There is no on-demand flush command this adapter exposes. |
 | macOS build tested | 26.6.2 (25G83) |
 
 ## Signing and distribution posture
 
-**Notarization is DEFERRED — requires paid Apple Developer Program
-enrollment (owner decision, 2026-08-30).** This installation has no
-Developer ID Application certificate and no `notarytool` credential
-profile. Every build produced in this environment is dev-signed
-(`Apple Development: REPLACE_WITH_YOUR_APPLE_ID (REPLACE_WITH_YOUR_CERT_ID)`, team
-`REPLACE_WITH_YOUR_TEAM_ID`) with the hardened runtime enabled and is **not**
-notarized. The following criteria this plan's own `must_haves` name are
-therefore recorded honestly as unproven in this environment, not
-faked:
+**Notarized as of 2026-09-11.** The Apple Developer Program enrollment
+deferred on 2026-08-30 was lifted once the owner enrolled and installed a
+Developer ID Application certificate and a `notarytool` credential
+profile (`playstead-notary`). The build is signed with `Developer ID
+Application: Johnathan Bryan (6CH9Y797RU)`, submitted to and accepted by
+Apple's notary service (submission `8465f74d-5468-4b73-9885-fb0ea1dafcdd`,
+status `Accepted`), and the notarization ticket is stapled into the
+exported bundle. Gatekeeper accepts the notarized artifact with **no user
+interaction**:
 
-- Gatekeeper accepting the distributed build with no additional user
-  interaction (`spctl --assess` reporting a `Notarized Developer ID`
-  source).
-- A signed-and-notarized build's launch/exit/relaunch cycle, run from
-  an actual notarized artifact.
+```
+build/Release/Playstead.app: accepted
+source=Notarized Developer ID
+```
 
-Everything that does not depend on notarization — the dev-signed build,
-its hardened-runtime and non-sandboxed entitlements, the absence of a
-nested application bundle, and the full relaunch-after-restart proof
-(`RelaunchTests`, exercised against `LocalStore`/`CASManager` directly,
-independent of code signing) — is proven and covered by automated
-tests. See `docs/RELEASE.md` for the exact commands and the paid-membership
-path this posture will convert to once available.
+Verbatim tool output — the notarytool submission log, the stapler
+validation, three independent `spctl --assess` confirmations, the
+`codesign -dvvv` signature detail, and the `RelaunchTests` run against
+this exact notarized artifact — is recorded in
+`.planning/phases/03-mac-offline-play-vertical-slice/03-NOTARIZATION-EVIDENCE.md`.
+
+The full relaunch-after-restart proof (`RelaunchTests`, exercised against
+`LocalStore`/`CASManager` directly and, in this run, against the
+notarized/stapled exported `.app`) and the hardened-runtime,
+non-sandboxed, no-nested-bundle assertions all pass. See
+`docs/RELEASE.md` for the one-command release proof
+(`scripts/verify-notarized-release.sh`).
 
 ## Save restore support
 

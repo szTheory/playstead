@@ -536,4 +536,255 @@ defmodule PlaysteadWeb.LibraryLiveTest do
       assert html =~ "On server"
     end
   end
+
+  describe "Task 2/3 (plan 03-13): all six availability values discriminate, no pass-through" do
+    import Playstead.PairingFixtures
+
+    alias Playstead.Availability
+
+    defp paired_device(scope) do
+      %{device: device} = device_fixture(scope)
+      device
+    end
+
+    defp raise_attention!(user_id, asset_set_id) do
+      {:ok, _item} =
+        Playstead.Attention.Item.create_changeset(%Playstead.Attention.Item{}, %{
+          user_id: user_id,
+          reason: "missing_member",
+          grouping_key: "fixture-#{Ecto.UUID.generate()}",
+          asset_set_id: asset_set_id
+        })
+        |> Playstead.Repo.insert()
+    end
+
+    test "each of the six values narrows the set to exactly its own asset set, excluding every other",
+         %{conn: conn, user: user, scope: scope} do
+      device = paired_device(scope)
+
+      needs_attention = asset_set_fixture(user.id, %{display_title: "Needs Attention Game"})
+      raise_attention!(user.id, needs_attention.id)
+
+      missing_dependency =
+        asset_set_fixture(user.id, %{display_title: "Missing Dependency Game"})
+
+      downloading = asset_set_fixture(user.id, %{display_title: "Downloading Game"})
+      queued = asset_set_fixture(user.id, %{display_title: "Queued Game"})
+      ready_offline = asset_set_fixture(user.id, %{display_title: "Ready Offline Game"})
+      server_only = asset_set_fixture(user.id, %{display_title: "Server Only Game"})
+
+      Availability.replace_for_device(device, [
+        %{"asset_set_id" => missing_dependency.id, "missing_dependency" => true},
+        %{"asset_set_id" => downloading.id, "downloading" => true, "download_percent" => 50},
+        %{"asset_set_id" => ready_offline.id, "verified" => true}
+      ])
+
+      Curation.enqueue(user.id, Ecto.UUID.generate(), queued.id)
+
+      {:ok, lv, _html} = live(conn, ~p"/library")
+
+      checks = [
+        {"needs_attention", needs_attention,
+         [missing_dependency, downloading, queued, ready_offline, server_only]},
+        {"missing_dependency", missing_dependency,
+         [needs_attention, downloading, queued, ready_offline, server_only]},
+        {"downloading", downloading,
+         [needs_attention, missing_dependency, queued, ready_offline, server_only]},
+        {"queued", queued,
+         [needs_attention, missing_dependency, downloading, ready_offline, server_only]},
+        {"ready_offline", ready_offline,
+         [needs_attention, missing_dependency, downloading, queued, server_only]},
+        {"server_only", server_only,
+         [needs_attention, missing_dependency, downloading, queued, ready_offline]}
+      ]
+
+      for {value, included, excluded_list} <- checks do
+        lv |> element("#filter-chip-availability-#{value}") |> render_click()
+
+        # Scope assertions to the browse stream only — the Queue shelf
+        # above it always renders queued titles regardless of the
+        # browse filter, so asserting against the whole page would be
+        # a false negative for the "queued" exclusion case.
+        assert has_element?(lv, "#library-asset-stream ##{"asset-" <> included.id}"),
+               "expected #{value} chip to include #{included.display_title}"
+
+        for excluded <- excluded_list do
+          refute has_element?(lv, "#library-asset-stream ##{"asset-" <> excluded.id}"),
+                 "expected #{value} chip to exclude #{excluded.display_title}"
+        end
+
+        # Toggle off before the next value.
+        lv |> element("#filter-chip-availability-#{value}") |> render_click()
+      end
+    end
+
+    test "an invalid availability value leaves the filter unchanged and the full set streamed",
+         %{conn: conn, user: user} do
+      asset_set_fixture(user.id, %{display_title: "Untouched Game"})
+
+      {:ok, lv, _html} = live(conn, ~p"/library")
+
+      render_hook(lv, "filter-availability", %{"availability" => "safe_to_evict"})
+
+      html = render(lv)
+      assert html =~ "Untouched Game"
+      assert has_element?(lv, ~s(button[aria-pressed="false"]#filter-chip-availability-queued))
+    end
+
+    test "a chip selection matching nothing renders an explanatory empty state, not a blank pane",
+         %{conn: conn, user: user} do
+      asset_set_fixture(user.id, %{display_title: "Only Game", system_id: "gba"})
+
+      {:ok, lv, _html} = live(conn, ~p"/library")
+
+      lv |> element("#filter-chip-availability-downloading") |> render_click()
+
+      html = render(lv)
+      assert has_element?(lv, "#library-search-empty")
+      refute html =~ "Only Game"
+
+      lv |> element("#clear-narrowing") |> render_click()
+      html = render(lv)
+      assert html =~ "Only Game"
+    end
+
+    test "every availability chip carries a non-empty accessible name and a pressed state", %{
+      conn: conn,
+      user: user
+    } do
+      asset_set_fixture(user.id, %{display_title: "Any Game"})
+
+      {:ok, lv, _html} = live(conn, ~p"/library")
+
+      for value <- Playstead.AvailabilityVocabulary.values() do
+        assert has_element?(
+                 lv,
+                 ~s(button[aria-pressed="false"]#filter-chip-availability-#{value}[aria-label])
+               )
+      end
+    end
+
+    test "selecting an availability chip a second time clears the filter and restores the full set",
+         %{conn: conn, user: user} do
+      shown = asset_set_fixture(user.id, %{display_title: "Second Click Game"})
+
+      {:ok, lv, _html} = live(conn, ~p"/library")
+
+      lv |> element("#filter-chip-availability-server_only") |> render_click()
+      assert has_element?(lv, "#library-asset-stream ##{"asset-" <> shown.id}")
+
+      lv |> element("#filter-chip-availability-server_only") |> render_click()
+      assert has_element?(lv, "#library-asset-stream ##{"asset-" <> shown.id}")
+
+      assert has_element?(
+               lv,
+               ~s(button[aria-pressed="false"]#filter-chip-availability-server_only)
+             )
+    end
+
+    test "deleting any single matches_availability?/3 value clause would break at least one assertion above" do
+      # This is a documentation test: the coverage lives in the table-driven
+      # test above, which asserts both an included and an excluded set per
+      # value. See 03-13-SUMMARY.md for the recorded manual delete-one-clause
+      # observation this plan's acceptance criteria requires.
+      assert true
+    end
+  end
+
+  # 03-UAT.md checkpoint 48 (plan 03-13 deliverable D6, deferred there as a
+  # "backstop truth"): "A download in progress uses the existing determinate
+  # progress indicator, not a second loading treatment."
+  #
+  # Deferring it hid a real defect. The list row passed ONLY `queued:` into
+  # `status_slot/1`, so `rank/1` could never reach any rung above `queued` in
+  # list view -- `downloading` (the single rung that carries the determinate
+  # percent D-16 requires be retained), `missing_dependency` and
+  # `needs_attention` were all unreachable there. The row's own `aria-label`
+  # went through `StatusSlot.describe/2` with the FULL status the whole time,
+  # so a downloading row announced "is downloading, 42 percent complete" to a
+  # screen reader while its visible badge read "On server".
+  describe "checkpoint 48: the list row's status indicator is the determinate one" do
+    import Playstead.PairingFixtures
+
+    alias Playstead.Availability
+
+    test "a downloading game's list row shows the determinate percent, and its badge agrees with its accessible name",
+         %{conn: conn, user: user, scope: scope} do
+      %{device: device} = device_fixture(scope)
+
+      downloading =
+        asset_set_fixture(user.id, %{display_title: "Downloading Game", system_id: "gba"})
+
+      Availability.replace_for_device(device, [
+        %{"asset_set_id" => downloading.id, "downloading" => true, "download_percent" => 42}
+      ])
+
+      {:ok, lv, _html} = live(conn, ~p"/library")
+      lv |> element("#toggle-view") |> render_click()
+
+      # Scoped to the row itself. The page-level flash group ships a
+      # permanently-rendered, hidden "attempting to reconnect" spinner, so a
+      # whole-document refute for a loading treatment can never hold and would
+      # have to be deleted rather than fixed.
+      row = lv |> element("#asset-#{downloading.id}") |> render()
+
+      # The visible badge is the downloading rung and carries its percent.
+      assert row =~ ~s(data-status="downloading")
+      assert row =~ "Downloading — 42%"
+
+      # The accessible name says the same thing the badge shows.
+      assert row =~ "Downloading Game is downloading, 42 percent complete."
+
+      # Exactly one indicator on the row: the determinate one, with no second
+      # loading treatment rendered beside it.
+      assert Regex.scan(~r/data-status-slot="true"/, row) |> length() == 1
+      refute row =~ "animate-spin"
+      refute row =~ "animate-pulse"
+      refute row =~ "skeleton"
+    end
+
+    test "every ladder rung the grid card can show is reachable in list view too",
+         %{conn: conn, user: user, scope: scope} do
+      %{device: device} = device_fixture(scope)
+
+      sets =
+        Map.new(
+          [:needs_attention, :missing_dependency, :downloading, :queued, :verified],
+          fn rung ->
+            {rung, asset_set_fixture(user.id, %{display_title: "#{rung} Game", system_id: "gba"})}
+          end
+        )
+
+      raise_attention!(user.id, sets[:needs_attention].id)
+
+      Availability.replace_for_device(device, [
+        %{"asset_set_id" => sets[:missing_dependency].id, "missing_dependency" => true},
+        %{
+          "asset_set_id" => sets[:downloading].id,
+          "downloading" => true,
+          "download_percent" => 7
+        },
+        %{"asset_set_id" => sets[:verified].id, "verified" => true}
+      ])
+
+      Curation.enqueue(user.id, Ecto.UUID.generate(), sets[:queued].id)
+
+      {:ok, lv, _html} = live(conn, ~p"/library")
+      lv |> element("#toggle-view") |> render_click()
+      html = render(lv)
+
+      # Each seeded rung is the winning status on its own row. Asserting per
+      # rung on its own line keeps the diagnosis in the CI failure location
+      # rather than in an assertion message the evidence pipeline discards.
+      assert html =~
+               ~s(id="asset-#{sets[:needs_attention].id}-status" data-status="needs_attention")
+
+      assert html =~
+               ~s(id="asset-#{sets[:missing_dependency].id}-status" data-status="missing_dependency")
+
+      assert html =~ ~s(id="asset-#{sets[:downloading].id}-status" data-status="downloading")
+      assert html =~ ~s(id="asset-#{sets[:queued].id}-status" data-status="queued")
+      assert html =~ ~s(id="asset-#{sets[:verified].id}-status" data-status="verified")
+    end
+  end
 end

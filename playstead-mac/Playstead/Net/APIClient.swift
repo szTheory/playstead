@@ -53,15 +53,18 @@ struct APIResponse {
 /// attaches `Authorization: Bearer <token>`; the credential itself never
 /// appears in a URL or a log line.
 ///
-/// Server-trust evaluation: Phase 1 pins the pairing-time root CA via a
-/// `URLSessionDelegate`. This tracer plan does not yet ship the pairing
-/// ceremony that captures that pinned certificate, so `APIClient` uses
-/// the platform's default trust evaluation when no pinned certificate is
-/// present on disk, and switches to pinned evaluation automatically once
-/// one is (`AppPaths.root/pinned-ca.der`, written by a future pairing
-/// plan). This keeps the client usable against a Caddy-internal-CA
-/// deployment today without silently downgrading trust once pairing
-/// ships its certificate capture.
+/// Server-trust evaluation: `pinnedCertificateURL` defaults to
+/// `AppPaths.defaultPinnedCertificateURL()` and is passed explicitly by
+/// both real construction sites -- `AppEnvironment`'s convenience init
+/// and the live-server `UITestBootstrap` session -- both derived from
+/// `AppPaths.pinnedCertificate`, the same URL `PairingCoordinator.redeem()`
+/// writes the pairing-time trust anchor to. `PinningDelegate` evaluates
+/// anchors-only against that file once it exists; when no file exists at
+/// that URL (before pairing, or in a test configured with no pinning),
+/// evaluation falls back to the platform's default trust handling. See
+/// `PinnedTrustWiringTests` for proof the write target and the read
+/// target are the same URL, and `PinnedTrustEvaluationTests` for proof
+/// pinned evaluation actually diverges from default evaluation.
 actor APIClient: NSObject {
     private enum CredentialSource {
         case keychain(KeychainStore)
@@ -74,7 +77,11 @@ actor APIClient: NSObject {
         return URLSession(configuration: config, delegate: PinningDelegate(pinnedCertificateURL: pinnedCertificateURL), delegateQueue: nil)
     }()
     private let sessionOverride: URLSession?
-    private let pinnedCertificateURL: URL?
+    /// Internal and `nonisolated` (not `private`) so `PinnedTrustWiringTests`
+    /// can read it synchronously off the actor without going through async
+    /// API — it is an immutable `Sendable let` assigned once in `init`, so
+    /// `nonisolated` adds no data-race risk.
+    nonisolated let pinnedCertificateURL: URL?
     /// A fixed credential a test can inject instead of `keychain`. Real
     /// macOS Keychain access can fail with `errSecInDarkWake` in a
     /// headless/sandboxed test run (see plan 03-03's SUMMARY) — this
@@ -84,7 +91,7 @@ actor APIClient: NSObject {
 
     init(
         keychain: KeychainStore,
-        pinnedCertificateURL: URL? = nil,
+        pinnedCertificateURL: URL? = AppPaths.defaultPinnedCertificateURL(),
         session: URLSession? = nil,
         credential: PairingCredential? = nil
     ) {
@@ -111,7 +118,10 @@ actor APIClient: NSObject {
     /// Constructing a real `KeychainStore` in a UI profile is what triggers
     /// the login-Keychain authorization prompt that
     /// `PLAYSTEAD_HUMAN_APPROVED_LOCAL_APP_LAUNCH` exists to gate, so paired
-    /// world state must never be a reason to reach for one.
+    /// world state must never be a reason to reach for one. The
+    /// deterministic UI profile also deliberately opts out of pinning
+    /// (`pinnedCertificateURL` stays `nil` below) because it never
+    /// contacts a real server.
     static func pairedForUITesting(_ credential: PairingCredential) -> APIClient {
         APIClient(credentialSource: .fixed(credential))
     }
@@ -227,29 +237,31 @@ actor APIClient: NSObject {
 
 /// Pins server-trust evaluation to a captured root CA certificate when
 /// one is present on disk; otherwise defers to the platform's default
-/// evaluation. See the `APIClient` doc comment for why both paths exist
-/// in this tracer plan.
-private final class PinningDelegate: NSObject, URLSessionDelegate {
+/// evaluation. See the `APIClient` doc comment for why both paths exist.
+///
+/// Internal (not `private`) so `PinnedTrustEvaluationTests` can construct
+/// it directly under `@testable import Playstead` and exercise
+/// `disposition(for:)` without any `URLSession`/`URLProtectionSpace`
+/// transport — the whole point of that test is that a system-trusted CI
+/// CA cannot make it pass vacuously.
+final class PinningDelegate: NSObject, URLSessionDelegate {
     let pinnedCertificateURL: URL?
 
     init(pinnedCertificateURL: URL?) {
         self.pinnedCertificateURL = pinnedCertificateURL
     }
 
-    func urlSession(
-        _ session: URLSession,
-        didReceive challenge: URLAuthenticationChallenge,
-        completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
-    ) {
+    /// The one decision function both the `URLSessionDelegate` callback
+    /// and `PinnedTrustEvaluationTests` execute — no second copy of this
+    /// logic exists anywhere else.
+    func disposition(for serverTrust: SecTrust?) -> URLSession.AuthChallengeDisposition {
         guard
-            challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
-            let serverTrust = challenge.protectionSpace.serverTrust,
+            let serverTrust,
             let pinnedCertificateURL,
             let pinnedData = try? Data(contentsOf: pinnedCertificateURL),
             let pinnedCertificate = SecCertificateCreateWithData(nil, pinnedData as CFData)
         else {
-            completionHandler(.performDefaultHandling, nil)
-            return
+            return .performDefaultHandling
         }
 
         SecTrustSetAnchorCertificates(serverTrust, [pinnedCertificate] as CFArray)
@@ -257,8 +269,29 @@ private final class PinningDelegate: NSObject, URLSessionDelegate {
 
         var error: CFError?
         if SecTrustEvaluateWithError(serverTrust, &error) {
-            completionHandler(.useCredential, URLCredential(trust: serverTrust))
+            return .useCredential
         } else {
+            return .cancelAuthenticationChallenge
+        }
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        didReceive challenge: URLAuthenticationChallenge,
+        completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+    ) {
+        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust else {
+            completionHandler(.performDefaultHandling, nil)
+            return
+        }
+
+        let serverTrust = challenge.protectionSpace.serverTrust
+        switch disposition(for: serverTrust) {
+        case .useCredential:
+            completionHandler(.useCredential, serverTrust.map(URLCredential.init(trust:)))
+        case .performDefaultHandling:
+            completionHandler(.performDefaultHandling, nil)
+        default:
             completionHandler(.cancelAuthenticationChallenge, nil)
         }
     }

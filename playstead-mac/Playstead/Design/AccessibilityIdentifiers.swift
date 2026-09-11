@@ -27,12 +27,13 @@ enum AccessibilityIdentifiers {
         static let adapter = "playstead.surface.adapter"
         static let bios = "playstead.surface.bios"
         static let controllerSettings = "playstead.surface.controller-settings"
+        static let pairing = "playstead.surface.pairing"
 
         static let all = [
             library, sidebar, continueShelf, favoritesShelf, collections,
             collectionDetail, playQueue, recent, search, filter, gameList,
             gameCard, downloads, quota, storage, reclaim, readiness, adapter,
-            bios, controllerSettings
+            bios, controllerSettings, pairing
         ]
     }
 
@@ -58,13 +59,28 @@ enum AccessibilityIdentifiers {
         static let installAdapter = "playstead.control.install-adapter"
         static let chooseAdapter = "playstead.control.choose-adapter"
         static let chooseBios = "playstead.control.choose-bios"
+        static let openPairing = "playstead.control.open-pairing"
+        static let pairingServerURL = "playstead.control.pairing-server-url"
+        static let requestPairing = "playstead.control.request-pairing"
+        static let pairingDisplayCode = "playstead.control.pairing-display-code"
+        static let pairingSuccess = "playstead.control.pairing-success"
 
         static let all = [
             done, cancel, search, filter, moveUp, moveDown, favorite, queue,
             pin, download, openDownloads, openStorage, openAdapter, showCards,
             showList, openReadiness, openBios, openControllerSettings,
-            installAdapter, chooseAdapter, chooseBios
+            installAdapter, chooseAdapter, chooseBios,
+            openPairing, pairingServerURL, requestPairing, pairingDisplayCode, pairingSuccess
         ]
+    }
+
+    /// Machine identity for a rendered status readout — a piece of copy an
+    /// automated check must be able to read back verbatim. Distinct from
+    /// `Surface`, which is the D-18 surface inventory and is walked as such.
+    enum Readout {
+        static let biosStatus = "playstead.readout.bios-status"
+
+        static let all = [biosStatus]
     }
 
     /// Finite identities for synthetic rows used by deterministic UI fixtures.
@@ -77,5 +93,5 @@ enum AccessibilityIdentifiers {
         static let all = [alpha, beta, gamma]
     }
 
-    static let allStaticIdentifiers = Surface.all + Control.all + FixtureRow.all
+    static let allStaticIdentifiers = Surface.all + Control.all + Readout.all + FixtureRow.all
 }

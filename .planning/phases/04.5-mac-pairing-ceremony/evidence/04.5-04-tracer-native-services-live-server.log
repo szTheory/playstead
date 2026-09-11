@@ -1,0 +1,161 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild test-without-building -project Playstead.xcodeproj -scheme Playstead -testPlan LiveServer -derivedDataPath /tmp/playstead-ceremony-proof/tracer/native-services/DerivedData -destination platform=macOS -resultBundlePath /tmp/playstead-ceremony-proof/tracer/native-services/live-server.xcresult CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= "-only-testing:PlaysteadUITests/PairingCeremonyTests"
+
+Build settings from command line:
+    CODE_SIGN_IDENTITY = -
+    CODE_SIGN_STYLE = Manual
+    DEVELOPMENT_TEAM = 
+    PROVISIONING_PROFILE_SPECIFIER = 
+
+Resolve Package Graph
+
+
+Resolved source packages:
+  swift-custom-dump: https://github.com/pointfreeco/swift-custom-dump @ 1.7.3
+  swift-snapshot-testing: https://github.com/pointfreeco/swift-snapshot-testing @ 1.19.4
+  swift-syntax: https://github.com/swiftlang/swift-syntax @ 603.0.2
+  xctest-dynamic-overlay: https://github.com/pointfreeco/xctest-dynamic-overlay @ 1.13.1
+
+Writing result bundle at path:
+	/tmp/playstead-ceremony-proof/tracer/native-services/live-server.xcresult
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:macOS, arch:arm64, id:00006050-0002582922F9401C, name:My Mac }
+{ platform:macOS, arch:x86_64, id:00006050-0002582922F9401C, name:My Mac }
+2026-09-09 21:29:37.733724-0400 PlaysteadUITests-Runner[86710:86868699] [Default] Running tests...
+Test Suite 'Selected tests' started at 2026-09-09 21:29:40.170.
+Test Suite 'PlaysteadUITests.xctest' started at 2026-09-09 21:29:40.171.
+Test Suite 'PairingCeremonyTests' started at 2026-09-09 21:29:40.171.
+Test Case '-[PlaysteadUITests.PairingCeremonyTests testAHumanCanPairAFreshMacEntirelyFromInsideTheAppAgainstTheRealServer]' started.
+    t =     0.00s Start Test at 2026-09-09 21:29:40.172
+    t =     0.40s Set Up
+    t =     1.42s Open dev.playstead.mac
+    t =     1.42s     Launch dev.playstead.mac
+2026-09-09 21:29:41.619 xcodebuild[84112:86864786] [MT] IDELaunchParametersSnapshot: The operation couldn’t be completed. (DebuggerLLDB.DebuggerVersionStore.StoreError error 0.)
+2026-09-09 21:29:41.619 xcodebuild[84112:86864786] [MT] IDELaunchParametersSnapshot: no debugger version
+    t =     2.02s         Wait for accessibility to load
+    t =     2.39s         Setting up automation session
+    t =     2.40s         Wait for dev.playstead.mac to idle
+    t =     2.40s Waiting 20.0s for "playstead.surface.library" Any to exist
+    t =     3.44s     Checking `Expect predicate `existsNoRetry == 1` for object "playstead.surface.library" Any`
+    t =     3.44s         Checking existence of `"playstead.surface.library" Any`
+    t =     3.62s Waiting 10.0s for "playstead.control.show-list" Button to exist
+    t =     4.66s     Checking `Expect predicate `existsNoRetry == 1` for object "playstead.control.show-list" Button`
+    t =     4.66s         Checking existence of `"playstead.control.show-list" Button`
+    t =     4.70s Click "playstead.control.show-list" Button
+    t =     4.70s     Wait for dev.playstead.mac to idle
+    t =     4.71s     Find the "playstead.control.show-list" Button
+    t =     4.74s     Check for interrupting elements affecting "playstead.control.show-list" Button
+    t =     4.78s     Synthesize event
+    t =     5.15s     Wait for dev.playstead.mac to idle
+    t =     5.15s Waiting 10.0s for "playstead.control.open-pairing" Button to exist
+    t =     6.19s     Checking `Expect predicate `existsNoRetry == 1` for object "playstead.control.open-pairing" Button`
+    t =     6.19s         Checking existence of `"playstead.control.open-pairing" Button`
+    t =     6.25s Click "playstead.control.open-pairing" Button
+    t =     6.25s     Wait for dev.playstead.mac to idle
+    t =     6.25s     Find the "playstead.control.open-pairing" Button
+    t =     6.29s     Check for interrupting elements affecting "playstead.control.open-pairing" Button
+    t =     6.31s     Synthesize event
+    t =     6.69s     Wait for dev.playstead.mac to idle
+    t =     7.02s Waiting 10.0s for "playstead.control.pairing-server-url" TextField to exist
+    t =     8.06s     Checking `Expect predicate `existsNoRetry == 1` for object "playstead.control.pairing-server-url" TextField`
+    t =     8.06s         Checking existence of `"playstead.control.pairing-server-url" TextField`
+    t =     8.12s Click "playstead.control.pairing-server-url" TextField
+    t =     8.12s     Wait for dev.playstead.mac to idle
+    t =     8.12s     Find the "playstead.control.pairing-server-url" TextField
+    t =     8.16s     Check for interrupting elements affecting "playstead.control.pairing-server-url" TextField
+    t =     8.18s     Synthesize event
+    t =     8.56s     Wait for dev.playstead.mac to idle
+    t =     8.56s Type 'https://127.0.0.1:...' into "playstead.control.pairing-server-url" TextField
+    t =     8.56s     Wait for dev.playstead.mac to idle
+    t =     8.57s     Find the "playstead.control.pairing-server-url" TextField
+    t =     8.61s     Check for interrupting elements affecting "playstead.control.pairing-server-url" TextField
+    t =     8.64s     Synthesize event
+    t =     9.19s     Wait for dev.playstead.mac to idle
+    t =     9.19s Waiting 5.0s for "playstead.control.request-pairing" Button to exist
+    t =    10.23s     Checking `Expect predicate `existsNoRetry == 1` for object "playstead.control.request-pairing" Button`
+    t =    10.23s         Checking existence of `"playstead.control.request-pairing" Button`
+    t =    10.28s Click "playstead.control.request-pairing" Button
+    t =    10.28s     Wait for dev.playstead.mac to idle
+    t =    10.28s     Find the "playstead.control.request-pairing" Button
+    t =    10.33s     Check for interrupting elements affecting "playstead.control.request-pairing" Button
+    t =    10.35s     Synthesize event
+    t =    10.67s     Wait for dev.playstead.mac to idle
+    t =    10.68s Waiting 15.0s for "playstead.control.pairing-display-code" Any to exist
+    t =    11.72s     Checking `Expect predicate `existsNoRetry == 1` for object "playstead.control.pairing-display-code" Any`
+    t =    11.72s         Checking existence of `"playstead.control.pairing-display-code" Any`
+    t =    11.78s Find the "playstead.control.pairing-display-code" Any
+    t =    11.83s Find the "playstead.control.pairing-display-code" StaticText
+    t =    12.94s Waiting 20.0s for "playstead.control.pairing-success" Any to exist
+    t =    13.97s     Checking `Expect predicate `existsNoRetry == 1` for object "playstead.control.pairing-success" Any`
+    t =    13.97s         Checking existence of `"playstead.control.pairing-success" Any`
+    t =    14.03s         Capturing element debug description
+    t =    14.96s     Checking `Expect predicate `existsNoRetry == 1` for object "playstead.control.pairing-success" Any`
+    t =    14.96s         Checking existence of `"playstead.control.pairing-success" Any`
+    t =    15.02s         Capturing element debug description
+    t =    15.95s     Checking `Expect predicate `existsNoRetry == 1` for object "playstead.control.pairing-success" Any`
+    t =    15.95s         Checking existence of `"playstead.control.pairing-success" Any`
+    t =    16.03s Click "playstead.control.done" Button
+    t =    16.03s     Wait for dev.playstead.mac to idle
+    t =    16.04s     Find the "playstead.control.done" Button
+    t =    16.09s     Check for interrupting elements affecting "playstead.control.done" Button
+    t =    16.11s     Synthesize event
+    t =    16.48s     Wait for dev.playstead.mac to idle
+    t =    16.75s Terminate dev.playstead.mac:87329
+    t =    17.82s Open dev.playstead.mac
+    t =    17.82s     Launch dev.playstead.mac
+2026-09-09 21:29:57.997 xcodebuild[84112:86864786] [MT] IDELaunchParametersSnapshot: The operation couldn’t be completed. (DebuggerLLDB.DebuggerVersionStore.StoreError error 0.)
+2026-09-09 21:29:57.997 xcodebuild[84112:86864786] [MT] IDELaunchParametersSnapshot: no debugger version
+    t =    18.07s         Wait for accessibility to load
+    t =    18.45s         Setting up automation session
+    t =    18.46s         Wait for dev.playstead.mac to idle
+    t =    18.46s Waiting 20.0s for "playstead.surface.library" Any to exist
+    t =    19.50s     Checking `Expect predicate `existsNoRetry == 1` for object "playstead.surface.library" Any`
+    t =    19.50s         Checking existence of `"playstead.surface.library" Any`
+    t =    19.71s Waiting 10.0s for "playstead.control.show-list" Button to exist
+    t =    20.74s     Checking `Expect predicate `existsNoRetry == 1` for object "playstead.control.show-list" Button`
+    t =    20.74s         Checking existence of `"playstead.control.show-list" Button`
+    t =    20.82s Click "playstead.control.show-list" Button
+    t =    20.82s     Wait for dev.playstead.mac to idle
+    t =    20.82s     Find the "playstead.control.show-list" Button
+    t =    20.86s     Check for interrupting elements affecting "playstead.control.show-list" Button
+    t =    20.89s     Synthesize event
+    t =    21.29s     Wait for dev.playstead.mac to idle
+    t =    21.30s Waiting 5.0s for "playstead.control.open-pairing" Button to exist
+    t =    22.34s     Checking `Expect predicate `existsNoRetry == 1` for object "playstead.control.open-pairing" Button`
+    t =    22.34s         Checking existence of `"playstead.control.open-pairing" Button`
+    t =    22.44s         Capturing element debug description
+    t =    23.37s     Checking `Expect predicate `existsNoRetry == 1` for object "playstead.control.open-pairing" Button`
+    t =    23.37s         Checking existence of `"playstead.control.open-pairing" Button`
+    t =    23.42s         Capturing element debug description
+    t =    24.36s     Checking `Expect predicate `existsNoRetry == 1` for object "playstead.control.open-pairing" Button`
+    t =    24.36s         Checking existence of `"playstead.control.open-pairing" Button`
+    t =    24.41s         Capturing element debug description
+    t =    25.34s     Checking `Expect predicate `existsNoRetry == 1` for object "playstead.control.open-pairing" Button`
+    t =    25.34s         Checking existence of `"playstead.control.open-pairing" Button`
+    t =    25.40s         Capturing element debug description
+    t =    26.31s     Checking `Expect predicate `existsNoRetry == 1` for object "playstead.control.open-pairing" Button`
+    t =    26.31s         Checking existence of `"playstead.control.open-pairing" Button`
+    t =    26.35s         Capturing element debug description
+    t =    26.35s     Checking existence of `"playstead.control.open-pairing" Button`
+    t =    26.40s Collecting debug information to assist test failure triage
+    t =    26.40s     Requesting snapshot of accessibility hierarchy for app with pid 90989
+    t =    26.47s Tear Down
+    t =    26.47s     Terminate dev.playstead.mac:90989
+Test Case '-[PlaysteadUITests.PairingCeremonyTests testAHumanCanPairAFreshMacEntirelyFromInsideTheAppAgainstTheRealServer]' passed (27.599 seconds).
+Test Suite 'PairingCeremonyTests' passed at 2026-09-09 21:30:07.771.
+	 Executed 1 test, with 0 failures (0 unexpected) in 27.599 (27.600) seconds
+Test Suite 'PlaysteadUITests.xctest' passed at 2026-09-09 21:30:07.771.
+	 Executed 1 test, with 0 failures (0 unexpected) in 27.599 (27.600) seconds
+Test Suite 'Selected tests' passed at 2026-09-09 21:30:07.772.
+	 Executed 1 test, with 0 failures (0 unexpected) in 27.599 (27.601) seconds
+2026-09-09 21:30:08.046 xcodebuild[84112:86864786] [MT] IDETestOperationsObserverDebug: 31.024 elapsed -- Testing started completed.
+2026-09-09 21:30:08.046 xcodebuild[84112:86864786] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-09-09 21:30:08.046 xcodebuild[84112:86864786] [MT] IDETestOperationsObserverDebug: 31.024 sec, +31.024 sec -- end
+
+Test session results, code coverage, and logs:
+	/tmp/playstead-ceremony-proof/tracer/native-services/live-server.xcresult
+
+** TEST EXECUTE SUCCEEDED **
+
+Testing started

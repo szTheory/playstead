@@ -125,7 +125,17 @@ final class SaveEndToEndTests: XCTestCase {
         XCTAssertEqual(result.adapterID, "e2e-harness", "adapter_id must survive upload, journal and sync")
         XCTAssertEqual(result.adapterVersion, "1.0")
 
-        guard try runFixture("verify", root: runRoot) else {
+        // This test calls `verify` for the mirror-state half only: stored
+        // cursor, both sentinels, empty objects/partials, and zero blob
+        // routes. It makes NO claim about how many snapshots the layer
+        // fetched, and saying so explicitly is what stops it inheriting
+        // LiveServerSnapshotTests' count -- which is what failed it in run
+        // 34636187313 once 04.5-01 added a third snapshotting test.
+        guard try runFixture(
+            "verify",
+            root: runRoot,
+            extraArguments: ["snapshots-not-asserted-here"]
+        ) else {
             return XCTFail("live fixture stage 'verify' failed")
         }
     }
@@ -265,7 +275,7 @@ final class SaveEndToEndTests: XCTestCase {
             .appendingPathComponent(".build/ci/four-layer/raw/live-server-runtime.json")
     }
 
-    private func runFixture(_ action: String, root: URL) throws -> Bool {
+    private func runFixture(_ action: String, root: URL, extraArguments: [String] = []) throws -> Bool {
         let script = fixtureScriptURL()
         guard let environment = fixtureEnvironment,
               let serverRoot = environment["PLAYSTEAD_MAC_CI_ROOT"] else {
@@ -273,7 +283,7 @@ final class SaveEndToEndTests: XCTestCase {
         }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = [script.path, action, root.path, serverRoot]
+        process.arguments = [script.path, action, root.path, serverRoot] + extraArguments
         process.environment = environment
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice

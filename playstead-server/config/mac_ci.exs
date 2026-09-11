@@ -9,6 +9,12 @@ import Config
 # context. Copy-pasting either pattern into a longer-lived or
 # externally-reachable environment would be a real security regression.
 #
+# The TLS material this endpoint serves (`tls/server.pem`, `tls/server-key.pem`,
+# both under `native_root`) is per-run: `scripts/ci/mac-ci-tls.sh issue`
+# generates a fresh CA and leaf for this job alone, and the CA is trusted as a
+# root on the runner only for the duration of that one job (`... trust` /
+# `... untrust`). Nothing here is a durable production certificate.
+#
 # A real, standalone native server for the hosted Mac acceptance spine.
 # It deliberately does not inherit the test transaction owner, endpoint
 # isolation plug, or Oban's manual test engine: XCUITest is an external client
@@ -29,6 +35,7 @@ database_url =
   )
 
 port = String.to_integer(System.get_env("PORT", "4010"))
+tls_root = Path.join(native_root, "tls")
 
 # Generated at boot rather than committed as a literal: this process is
 # single-run and ephemeral (the whole native root is discarded at the end
@@ -46,8 +53,14 @@ config :playstead, Playstead.Repo,
   queue_interval: 5_000
 
 config :playstead, PlaysteadWeb.Endpoint,
-  url: [host: "127.0.0.1", port: port, scheme: "http"],
-  http: [ip: {127, 0, 0, 1}, port: port],
+  url: [host: "127.0.0.1", port: port, scheme: "https"],
+  https: [
+    ip: {127, 0, 0, 1},
+    port: port,
+    cipher_suite: :strong,
+    certfile: Path.join(tls_root, "server.pem"),
+    keyfile: Path.join(tls_root, "server-key.pem")
+  ],
   secret_key_base: secret_key_base,
   # The long-lived Phoenix process owns the loopback listener. Fixture Mix
   # tasks still start Repo/domain services, but must not contend for the port.

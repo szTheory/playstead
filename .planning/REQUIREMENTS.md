@@ -16,7 +16,7 @@ Requirements for the first complete Mac-to-server custody and continuity release
 
 ### Pairing and Durable Protocol
 
-- [x] **PROT-01**: An authenticated owner can approve a Mac device-pairing request and the Mac client stores the resulting scoped credential in Keychain.
+- [x] **PROT-01**: An authenticated owner can approve a Mac device-pairing request and the Mac client stores the resulting scoped credential in Keychain. (Phase 04.5: the pairing ceremony is proven end-to-end against the real TLS-terminating `mac_ci` Phoenix and is a `--required-test` of the live-server CI layer — see 04.5-04-SUMMARY.md.)
 - [x] **PROT-02**: An authenticated owner can review paired devices and revoke one without invalidating other devices.
 - [x] **PROT-03**: A client can declare protocol, application, cache, transfer, emulator-adapter, and save capabilities and receive an actionable incompatibility response when the server cannot support them.
 - [x] **PROT-04**: A disconnected client can safely retry a mutation and receive the original durable receipt instead of creating a duplicate effect.
@@ -34,7 +34,7 @@ Requirements for the first complete Mac-to-server custody and continuity release
 ### Curated Library
 
 - [x] **LIBR-01**: A user can browse the complete server catalogue on a newly paired Mac before downloading game bytes.
-- [ ] **LIBR-02**: A user can quickly find games through search, filters, systems, and availability or readiness state.
+- [x] **LIBR-02**: A user can quickly find games through search, filters, systems, and availability or readiness state.
 - [x] **LIBR-03**: A user can curate focused views using favorites, collections, Continue, Recent, and a play queue without altering canonical game bytes.
 - [x] **LIBR-04**: Empty or unconfigured systems and irrelevant advanced settings stay hidden by default, while counts, readiness, and contextual setup actions appear when useful.
 - [ ] **LIBR-05**: A user can browse and curate the same canonical library, review imports, approve pairing, and inspect durable job status through the responsive LiveView console without installing a native client.
@@ -52,7 +52,7 @@ Requirements for the first complete Mac-to-server custody and continuity release
 - [x] **PLAY-02**: Before launch, a user receives a clear readiness result for game assets, local cache, emulator, BIOS, controller, and persistent-save path, with a concrete remedy for every blocking result.
 - [x] **PLAY-03**: A user can drag in a locally supplied BIOS file for validation and managed local use, while the product offers no proprietary BIOS acquisition or distribution path and recognizes an open replacement when the selected adapter supports one.
 - [ ] **PLAY-04**: A user can connect, test, assign, remap, reset, and recover a supported controller while retaining keyboard, pointer, and assistive-technology fallbacks.
-- [ ] **PLAY-05**: A user can launch one legally testable game through the supported adapter from a signed/notarized Mac build, exit safely, and relaunch it after an application or server restart.
+- [x] **PLAY-05**: A user can launch one legally testable game through the supported adapter from a signed/notarized Mac build, exit safely, and relaunch it after an application or server restart.
 
 ### Persistent Save Continuity
 
@@ -119,7 +119,7 @@ Which phases cover which requirements. This table is populated by roadmap creati
 | OPER-02 | Phase 1 | Complete |
 | OPER-03 | Phase 5 | Pending |
 | OPER-04 | Phase 5 | Pending |
-| PROT-01 | Phase 1 | Complete |
+| PROT-01 | Phase 1 / 04.5 | Complete |
 | PROT-02 | Phase 1 | Complete |
 | PROT-03 | Phase 1 | Complete |
 | PROT-04 | Phase 1 | Complete |
@@ -131,7 +131,7 @@ Which phases cover which requirements. This table is populated by roadmap creati
 | IMPT-05 | Phase 2 | Complete |
 | IMPT-06 | Phase 2 | Complete |
 | LIBR-01 | Phase 3 | Complete |
-| LIBR-02 | Phase 3 | Pending |
+| LIBR-02 | Phase 3 | Complete |
 | LIBR-03 | Phase 3 | Complete |
 | LIBR-04 | Phase 3 | Complete |
 | LIBR-05 | Phase 3 | Pending |
@@ -143,7 +143,7 @@ Which phases cover which requirements. This table is populated by roadmap creati
 | PLAY-02 | Phase 3 | Complete |
 | PLAY-03 | Phase 3 | Complete |
 | PLAY-04 | Phase 3 | Pending |
-| PLAY-05 | Phase 3 | Pending |
+| PLAY-05 | Phase 3 | Complete |
 | SAVE-01 | Phase 4 | Complete |
 | SAVE-02 | Phase 4 | Complete |
 | SAVE-03 | Phase 4 | Complete |

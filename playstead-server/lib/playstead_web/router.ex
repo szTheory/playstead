@@ -174,6 +174,15 @@ defmodule PlaysteadWeb.Router do
     post "/me/rotate", DevicesController, :rotate
   end
 
+  # Plan 03-13 (LIBR-02 gap closure): a paired device reports its own
+  # per-asset-set availability facts. Copies the device_auth+idempotency
+  # pipeline list from the `/api/v1/devices` mutation scope verbatim.
+  scope "/api/v1/devices", PlaysteadWeb.Api.V1 do
+    pipe_through [:api, :device_auth, :idempotency]
+
+    put "/me/availability", AvailabilityController, :replace
+  end
+
   # D-19: per-session capability negotiation. Not itself mutating in the
   # idempotency-receipt sense (a repeat hello just refreshes the
   # declaration row), so it stays on the plain device_auth pipeline.

@@ -113,9 +113,10 @@ case "$action" in
 
     enter_stage "request-pairing"
     python3 - "$request" "$device_code" <<'PY'
-import json, os, pathlib, secrets, sys, urllib.request
+import json, os, pathlib, secrets, ssl, sys, urllib.request
 request_path, code_path = map(pathlib.Path, sys.argv[1:])
 device_code = secrets.token_urlsafe(32)
+context = ssl.create_default_context(cafile=os.environ["PLAYSTEAD_MAC_CI_ROOT"] + "/tls/ca.pem")
 body = json.dumps({
     "device_code": device_code,
     "device_name": "Playstead Hosted Mac",
@@ -123,8 +124,8 @@ body = json.dumps({
     "app_version": "1",
     "capabilities": {},
 }).encode()
-req = urllib.request.Request("http://127.0.0.1:4010/api/v1/device-pairing/requests", data=body, headers={"Content-Type": "application/json"})
-with urllib.request.urlopen(req, timeout=10) as response:
+req = urllib.request.Request("https://127.0.0.1:4010/api/v1/device-pairing/requests", data=body, headers={"Content-Type": "application/json"})
+with urllib.request.urlopen(req, timeout=10, context=context) as response:
     payload = response.read()
 if len(payload) > 4096:
     raise SystemExit("pairing response exceeded bound")
@@ -141,24 +142,49 @@ PY
 
     enter_stage "redeem-pairing"
     python3 - "$request" "$device_code" "$handoff" <<'PY'
-import json, os, pathlib, sys, urllib.request
+import json, os, pathlib, ssl, sys, urllib.request
 request_path, code_path, handoff_path = map(pathlib.Path, sys.argv[1:])
 request_id = json.loads(request_path.read_text())["id"]
+context = ssl.create_default_context(cafile=os.environ["PLAYSTEAD_MAC_CI_ROOT"] + "/tls/ca.pem")
 body = json.dumps({"device_code": code_path.read_text()}).encode()
-url = f"http://127.0.0.1:4010/api/v1/device-pairing/requests/{request_id}/redeem"
+url = f"https://127.0.0.1:4010/api/v1/device-pairing/requests/{request_id}/redeem"
 req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
-with urllib.request.urlopen(req, timeout=10) as response:
+with urllib.request.urlopen(req, timeout=10, context=context) as response:
     redeemed = json.loads(response.read())
 handoff = {
     "device_id": redeemed["device_id"],
     "credential": redeemed["credential"],
-    "base_url": "http://127.0.0.1:4010",
+    "base_url": "https://127.0.0.1:4010",
 }
 handoff_path.write_text(json.dumps(handoff), encoding="utf-8")
 os.chmod(handoff_path, 0o600)
 request_path.unlink()
 code_path.unlink()
 PY
+    ;;
+  pair-provision)
+    # Plan 04.5-01: the live-server pairing ceremony proof drives the real
+    # `PairingView` end-to-end -- the pairing *request* is created by the
+    # app under test, never by this fixture. This action only provisions
+    # the owner (and the harmless first sentinel `provision!` also
+    # creates), then stops; `pair-approve` runs later, once the running
+    # app has actually created a pending request.
+    server_first="$server_control/first-sentinel.json"
+    enter_stage "provision-domain"
+    (cd "$server_root" && PLAYSTEAD_MAC_CI_TASK=1 mix playstead.mac_ci_fixture provision --output "$server_first") >/dev/null
+    rm -f "$server_first"
+    ;;
+  pair-approve)
+    # Approves the sole pending pairing request -- the one the app under
+    # test just created through its own real `PairingCoordinator` -- by
+    # display code alone, since the server-generated request id is never
+    # surfaced to a human or to this fixture (D-08). The device label must
+    # match `PairingCoordinator`'s `PLAYSTEAD_UI_TEST_PAIRING_DEVICE_NAME`
+    # override, which the driving XCTest sets to this exact literal.
+    display_code="${4:-}"
+    [ -n "$display_code" ] || die
+    enter_stage "approve-pairing"
+    (cd "$server_root" && PLAYSTEAD_MAC_CI_TASK=1 mix playstead.mac_ci_fixture approve-sole --display-code "$display_code" --device-label "Playstead Hosted Mac") >/dev/null
     ;;
   second)
     enter_stage "add-second-sentinel"
@@ -170,9 +196,29 @@ PY
     ;;
   verify)
     enter_stage "verify-evidence"
-    python3 - "$root" "$(dirname "$PLAYSTEAD_MAC_CI_ROOT")/phoenix.log" <<'PY'
+    # The snapshot-request count is a CUMULATIVE read of a phoenix.log shared
+    # by every test in the LiveServer layer, so it is the calling test's
+    # claim, never a property of the mirror. Hard-coding "exactly two" here
+    # made it LiveServerSnapshotTests' proof silently binding on every other
+    # caller: 04.5-01 added PairingCeremonyTests, which performs a third
+    # snapshot, and SaveEndToEndTests -- which never asserted anything about
+    # snapshot counts -- started failing on someone else's invariant.
+    #
+    # So every caller must now state its own position, and there is
+    # deliberately no default: an omitted or malformed argument dies here
+    # rather than quietly skipping the check, because a silent skip is how a
+    # guard rots into a pass (see reachability-allowlist.txt's header on the
+    # same failure mode).
+    snapshot_expectation="${4:-}"
+    case "$snapshot_expectation" in
+      snapshots-not-asserted-here) expected_snapshots="" ;;
+      ''|*[!0-9]*) die ;;
+      *) expected_snapshots="$snapshot_expectation" ;;
+    esac
+    python3 - "$root" "$(dirname "$PLAYSTEAD_MAC_CI_ROOT")/phoenix.log" "$expected_snapshots" <<'PY'
 import pathlib, sqlite3, sys
-root, log_path = map(pathlib.Path, sys.argv[1:])
+root, log_path = map(pathlib.Path, sys.argv[1:3])
+expected_snapshots = sys.argv[3]
 if not root.is_dir() or not log_path.is_file():
     raise SystemExit("live-server verification inputs are missing")
 
@@ -192,8 +238,10 @@ for line in lines:
     elif pending_snapshot and any(method in line for method in ("GET /", "POST /", "PUT /", "PATCH /", "DELETE /")):
         pending_snapshot = False
 
-if snapshot_success != 2:
-    raise SystemExit(f"expected exactly two successful snapshot requests, got {snapshot_success}")
+if expected_snapshots and snapshot_success != int(expected_snapshots):
+    raise SystemExit(
+        f"expected exactly {expected_snapshots} successful snapshot request(s), got {snapshot_success}"
+    )
 if blob_requests != 0:
     raise SystemExit(f"expected zero blob requests, got {blob_requests}")
 
@@ -209,7 +257,11 @@ for name in ("objects", "partials"):
     directory = root / name
     if not directory.is_dir() or any(directory.iterdir()):
         raise SystemExit(f"{name} must exist and remain empty")
-print("live-server: two snapshots, Keychain relaunch, and zero blob routes verified")
+print(
+    "live-server: "
+    + (f"{expected_snapshots} snapshot(s), " if expected_snapshots else "snapshots not asserted by this caller, ")
+    + "Keychain relaunch, and zero blob routes verified"
+)
 PY
     ;;
   *) die ;;

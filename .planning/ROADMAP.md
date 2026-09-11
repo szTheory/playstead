@@ -16,7 +16,7 @@ This MVP proves one trustworthy Mac-to-server custody and continuity journey: de
 - [ ] **Phase 3: Mac Offline Play Vertical Slice** - Let a paired Mac browse, selectively cache, preflight, and launch one proven adapter path offline.
 - [x] **Phase 3.5: Mac Verification Automation** - Stand up macOS CI and a UI-test harness so Mac client behavior is machine-verified instead of hand-checked. (completed 2026-09-03)
 - [x] **Phase 4: Persistent Save Continuity** - Preserve compatible progress through offline queues, immutable revisions, restore, and conflict recovery. (completed 2026-09-09)
-- [ ] **Phase 4.5: Mac Pairing Ceremony** - Ship the client half of pairing so a human can actually pair a Mac, unblocking every checkpoint that needs a paired device.
+- [x] **Phase 4.5: Mac Pairing Ceremony** - Ship the client half of pairing so a human can actually pair a Mac, unblocking every checkpoint that needs a paired device. (completed 2026-09-10)
 - [ ] **Phase 5: Recovery and Release Proof** - Demonstrate independently backed-up recovery, safe updates, diagnostics, and release-quality operations.
 
 ## Phase Details
@@ -145,7 +145,7 @@ Plans:
   5. A user can connect, test, assign, remap, reset, and recover a controller while retaining keyboard, pointer, screen-reader, focus, and reduced-motion fallbacks; from a signed/notarized build they can launch, exit, and relaunch one legally testable game after app or server restart.
 
 **Research / spike flags**: Required Mac adapter gate before commitment: empirically choose the first system/emulator and direct-notarized versus sandboxed distribution posture using legal homebrew content. Demonstrate Keychain, external-process launch/recovery, controller recovery, BIOS handling, and safe persistent-save location/flush; do not promise the current GBA/mGBA hypothesis until this passes.
-**Plans**: 10/10 plans executed
+**Plans**: 16/16 plans executed (14 executed; 2 gap-closure plans pending from the 2026-09-11 re-verification of 03-VERIFICATION.md)
 
 Plans:
 **Wave 1**
@@ -175,6 +175,21 @@ Plans:
 **Wave 6** *(blocked on Wave 5)*
 
 - [x] 03-10-PLAN.md — Controller lifecycle with non-stranding keyboard and pointer fallbacks, the accessibility and motion floor, the notarized release, launch-exit-relaunch proof, and the honest support matrix
+
+**Wave 7 — gap closure** *(from 03-VERIFICATION.md; CR-01/CR-02 already resolved by 03-REVIEW-FIX.md and need no plan)*
+
+- [x] 03-11-PLAN.md — PLAY-03 gap A: source and pin a cited BIOS reference, wire it through the composition root, and make a drop all-or-nothing under interruption and concurrency
+- [x] 03-12-PLAN.md — PLAY-05 gap B: one end-to-end release proof that refuses to certify an unnotarized build, behind a blocking Apple Developer Program enrolment checkpoint
+
+**Wave 8 — gap closure** *(from the 2026-09-11 re-verification of 03-VERIFICATION.md)*
+
+- [x] 03-13-PLAN.md — LIBR-02 gap: a device-reported availability read model, a frozen six-value filter vocabulary shared across both codebases, and a console filter where all six values discriminate and none falls through
+- [x] 03-14-PLAN.md — LIBR-02 close-out: the Mac client actually reports its availability with a two-sided wire contract, the UAT tally becomes a fail-closed command, and the requirement and verification records flip only for what was proven
+
+**Wave 9 — gap closure** *(from the independent re-verification that rejected 03-14's LIBR-02 claim: missing_dependency was still a hardcoded constant, plus review warnings WR-04 and WR-05)*
+
+- [x] 03-15-PLAN.md — LIBR-02 real signal: missing_dependency computed from catalogue membership, CAS presence, download-queue rows, and the pin flag, proved through buildEntries and through the real HTTP endpoint with one shared report fixture
+- [x] 03-16-PLAN.md — WR-04's 422 shape guard, WR-05's newest-wins outbox supersede, and the LIBR-02 requirement flip gated on the Mac-client-driven tests
 
 **UI hint**: yes
 
@@ -321,16 +336,36 @@ Plans:
   2. The ceremony lives in a `PairingCoordinator` a test constructs directly — no step of it inline in a SwiftUI view, the WINDOWS #37/#45 rule.
   3. The empty state that already says "Pair with your Playstead server" offers the action it names.
   4. Each of the server's four refusals (expired, already redeemed, not approved, slow down) is a distinct actionable state, not one generic failure.
-  5. A successful pairing captures the trust anchor to `AppPaths.root/pinned-ca.der`, which `APIClient` already watches for and already switches to pinned evaluation on.
+  5. A successful pairing captures the trust anchor to `AppPaths.root/pinned-ca.der` (derived once via `AppPaths.pinnedCertificate`), which APIClient evaluates pinned trust against at every request.
   6. The whole ceremony is proven against the real Phoenix in the live-server CI layer — a UI test against a stub is not evidence that a human can pair.
 
 **Research / spike flags**: Certificate capture is the least-proven step; which anchor to persist depends on the deployment (Caddy internal CA vs. a public certificate). If it cannot be made reliable, ship the ceremony without it and record the pin as its own window rather than writing a file `APIClient` will then trust wrongly.
-**Plans**: 0/1 plans executed
+**Plans**: 6/6 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 04.5-01-PLAN.md — `PairingClient`, `PairingCoordinator`, certificate capture, `PairingView` and its two call sites, tests at three levels
+- [x] 04.5-01-PLAN.md — `PairingClient`, `PairingCoordinator`, certificate capture, `PairingView` and its two call sites, tests at three levels
+
+**Gap closure — Wave 1**
+
+- [x] 04.5-02-PLAN.md — https-only ceremony, fail-closed trust-anchor pinning with credential rollback, and the first test asserting `pinned-ca.der` exists (gap 1 / criterion 5)
+
+**Gap closure — Wave 2**
+
+- [x] 04.5-03-PLAN.md — monotonic generation token checked after every await, and tests that cancel with a request genuinely in flight (gap 2 / criterion 2)
+
+**Gap closure — Wave 3**
+
+- [x] 04.5-04-PLAN.md — TLS termination for the mac_ci Phoenix on 4010 (run-scoped CA + trusted anchor), the whole live-server layer moved onto https, WR-01/WR-02 closed, and one recorded green run of `PairingCeremonyTests` (criterion 6 / criterion 1)
+
+**Gap closure — Wave 4**
+
+- [x] 04.5-05-PLAN.md — hosted-runner TLS provisioning and teardown, `PairingCeremonyTests` promoted to `--required-test` with a fail-closed gate self-test, PROT-01 completed with cited evidence (criterion 6)
+
+**Gap closure — Wave 5**
+
+- [x] 04.5-06-PLAN.md — the captured anchor wired into `APIClient` at both real construction sites, one `AppPaths`-derived pinned path, a live-object key-link test, and a `PinningDelegate` unit test proving pinned-vs-default trust divergence (criterion 5)
 
 ### Phase 5: Recovery and Release Proof
 
@@ -355,6 +390,6 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Private Custody and Durable Protocol | 8/8 | Complete    | 2026-08-28 |
 | 2. Explainable Import and Exact Export | 10/10 | Complete    | 2026-08-30 |
-| 3. Mac Offline Play Vertical Slice | 10/10 | In Progress|  |
+| 3. Mac Offline Play Vertical Slice | 16/16 | In Progress|  |
 | 4. Persistent Save Continuity | 25/25 | In Progress|  |
 | 5. Recovery and Release Proof | 0/TBD | Not started | - |

@@ -53,10 +53,17 @@ defmodule Mix.Tasks.Playstead.MacCiFixture do
         owner = Accounts.get_owner() || raise ArgumentError, "Mac CI owner is missing"
         write_control!(output, %{sentinel: add_second_sentinel!(owner)})
 
+      ["approve-sole", "--display-code", display_code, "--device-label", device_label] ->
+        owner = Accounts.get_owner() || raise ArgumentError, "Mac CI owner is missing"
+
+        _approved =
+          approve_sole!(owner, %{display_code: display_code, device_label: device_label})
+
       _ ->
         Mix.raise(
           "expected provision --output PATH, approve --request-id ID --display-code CODE " <>
-            "--device-label LABEL, or second --output PATH"
+            "--device-label LABEL, approve-sole --display-code CODE --device-label LABEL, " <>
+            "or second --output PATH"
         )
     end
   end
@@ -98,6 +105,40 @@ defmodule Mix.Tasks.Playstead.MacCiFixture do
 
       {:error, reason} ->
         raise ArgumentError, "exact approval failed: #{inspect(reason)}"
+    end
+  end
+
+  @doc """
+  Approves the sole pending pairing request without requiring its id --
+  the id is server-generated and never shown to the human (or the test
+  driving the app's own UI), so unlike `approve_exact!/2` this identifies
+  the request by device label alone plus "there is exactly one pending
+  request" (the same invariant `approve_exact!/2` already trusts).
+  Used by the live-server pairing ceremony proof (plan 04.5-01), where the
+  request is created by the app itself, not by this fixture.
+  """
+  def approve_sole!(owner, claims) do
+    scope = Scope.for_user(owner)
+
+    request =
+      case Pairing.list_pending_requests(scope) do
+        [request] ->
+          request
+
+        pending ->
+          raise ArgumentError, "expected sole pending pairing request, got #{length(pending)}"
+      end
+
+    require_equal!(request.display_code, claims.display_code, "display code")
+    require_equal!(request.claimed_device_name, claims.device_label, "device label")
+
+    case Pairing.approve(scope, request.id) do
+      {:ok, approved} ->
+        require_equal!(approved.display_code, claims.display_code, "approved display code")
+        approved
+
+      {:error, reason} ->
+        raise ArgumentError, "sole approval failed: #{inspect(reason)}"
     end
   end
 

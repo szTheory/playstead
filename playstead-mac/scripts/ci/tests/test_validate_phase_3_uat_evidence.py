@@ -75,11 +75,29 @@ coverage_id: fixture/{number}
     )
 
 
+def resolved_checkpoint(number):
+    """A checkpoint an earlier plan closed: it must keep passing, keep exactly
+    one automated source, and keep an evidence block — but it carries no
+    `AUTOMATED_MAPPINGS` test list, because the plan that closed it recorded
+    its evidence as commands and prose rather than a covering-test list."""
+    return checkpoint(
+        number,
+        f"""
+expected: fixture
+result: pass
+source: automated
+evidence: |
+  Closed by an earlier plan against recorded evidence.
+coverage_id: fixture/{number}
+""",
+    )
+
+
 def valid_uat():
     sections = {
         2: automated_checkpoint(2),
         3: automated_checkpoint(3),
-        4: blocked_checkpoint(4, "deliberate-scope"),
+        4: resolved_checkpoint(4),
         5: automated_checkpoint(5),
         6: automated_checkpoint(6),
         7: blocked_checkpoint(7, "real-emulator-game-bytes"),
@@ -103,8 +121,8 @@ reason: "Physical controller d-pad/shoulder behavior and experiential VoiceOver 
 coverage_id: fixture/10
 """,
         ),
-        14: blocked_checkpoint(14, "release-build-signing-notarization"),
-        15: blocked_checkpoint(15, "release-build-signing-notarization"),
+        14: resolved_checkpoint(14),
+        15: resolved_checkpoint(15),
     }
     return """---
 status: partial
@@ -192,20 +210,35 @@ class ValidatorTests(unittest.TestCase):
 
     def test_rejects_overbroad_or_misplaced_automated_source(self):
         self.assert_rejected(uat=valid_uat().replace("source: automated\n", "source: human\n", 1))
-        self.assert_rejected(uat=valid_uat().replace("blocked_by: deliberate-scope", "source: automated\nblocked_by: deliberate-scope"))
+        self.assert_rejected(uat=valid_uat().replace("blocked_by: real-emulator-game-bytes", "source: automated\nblocked_by: real-emulator-game-bytes"))
         self.assert_rejected(uat=valid_uat().replace("blocked_by: physical-device-and-experiential-review", "source: automated\nblocked_by: physical-device-and-experiential-review"))
 
     def test_rejects_absent_residual_blocker(self):
-        for number in (4, 7, 8, 9, 14, 15):
+        for number in (7, 8, 9):
             with self.subTest(checkpoint=number):
-                source = valid_uat().replace(f"result: blocked\nblocked_by:", "result: pass\nblocked_by:", 1 if number == 4 else 0)
-                if number != 4:
+                source = valid_uat()
+                start = source.index(f"### {number}.")
+                end = source.find("\n### ", start + 1)
+                end = len(source) if end < 0 else end
+                section = source[start:end].replace("result: blocked", "result: pass", 1)
+                self.assert_rejected(uat=source[:start] + section + source[end:])
+
+    def test_rejects_resolved_checkpoint_decaying(self):
+        """A checkpoint an earlier plan closed must not quietly lose the
+        evidence that closed it, nor be flipped back to blocked."""
+        for number in (4, 14, 15):
+            for mutation, replacement in (
+                ("result: pass", "result: blocked"),
+                ("source: automated", "source: human"),
+                ("evidence: |", "evidence_note:"),
+            ):
+                with self.subTest(checkpoint=number, mutation=mutation):
+                    source = valid_uat()
                     start = source.index(f"### {number}.")
                     end = source.find("\n### ", start + 1)
                     end = len(source) if end < 0 else end
-                    section = source[start:end].replace("result: blocked", "result: pass", 1)
-                    source = source[:start] + section + source[end:]
-                self.assert_rejected(uat=source)
+                    section = source[start:end].replace(mutation, replacement, 1)
+                    self.assert_rejected(uat=source[:start] + section + source[end:])
 
     def test_rejects_non_partial_frontmatter(self):
         self.assert_rejected(uat=valid_uat().replace("status: partial", "status: complete", 1))

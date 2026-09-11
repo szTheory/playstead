@@ -106,9 +106,18 @@ if live_environment != expected_live_environment:
 # cheaper layer: it needs a real upload, a real journal return, and a real
 # restore into a launch directory. Everything else about the save
 # subsystem is proven in Unit or Rendering and must stay there.
+#
+# Plan 04.5-01 added the pairing-ceremony entry below. It earns its place for
+# the same reason the save entries do: it drives the real `PairingView` against
+# a real running server starting from a genuinely empty scoped Keychain, which
+# is the one claim no deterministic profile can make (every other live-server
+# entry is handed a credential). It was added to LiveServer.xctestplan by
+# b8960d1 and this set was not updated alongside it -- the drift went unseen
+# because CI last ran 2026-09-08, before that commit.
 expected_live = {
     "HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner()",
     "LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch()",
+    "PairingCeremonyTests/testAHumanCanPairAFreshMacEntirelyFromInsideTheAppAgainstTheRealServer()",
     "SaveEndToEndTests/testOneSaveRoundTripsCaptureUploadAndJournalReturn()",
     "SaveRestoreProofTests/testCapturedRevisionRestoresToByteIdenticalArtifactInLaunchDir()",
 }
@@ -193,7 +202,19 @@ grep -F 'environment["PLAYSTEAD_WAVE_0_LAUNCH_CANARY"] == "1"' "$APP_ENTRY" >/de
 grep -F 'HostedRunnerLaunchCanaryView' "$APP_ENTRY" >/dev/null
 grep -F 'CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=' "$RUNNER" >/dev/null
 grep -F 'server: System.get_env("PLAYSTEAD_MAC_CI_TASK") != "1"' "$MAC_CI_CONFIG" >/dev/null
-[ "$(grep -c 'PLAYSTEAD_MAC_CI_TASK=1 mix playstead.mac_ci_fixture' "$LIVE_SERVER_FIXTURE")" -eq 3 ]
+# `mac_ci.exs` starts no server when PLAYSTEAD_MAC_CI_TASK=1, so every fixture
+# `mix` invocation must carry that flag or it boots a second server on the same
+# port. This used to assert an exact count of 3, which said "all of them" only
+# by coincidence: plan 04.5-01's pairing-ceremony flow legitimately added two
+# more invocations and the count was never updated, so this guard had been
+# failing on main since b8960d1 (unseen -- CI last ran 2026-09-08). Comparing
+# guarded against total says what was actually meant, survives a legitimate
+# addition, and still fails on an unguarded one. Both counts must be nonzero so
+# a renamed task cannot satisfy it with 0 == 0.
+live_fixture_total="$(grep -c 'mix playstead.mac_ci_fixture' "$LIVE_SERVER_FIXTURE")"
+live_fixture_guarded="$(grep -c 'PLAYSTEAD_MAC_CI_TASK=1 mix playstead.mac_ci_fixture' "$LIVE_SERVER_FIXTURE")"
+[ "$live_fixture_total" -gt 0 ]
+[ "$live_fixture_guarded" -eq "$live_fixture_total" ]
 grep -F 'live-server fixture failed at %s' "$LIVE_SERVER_FIXTURE" >/dev/null
 grep -F 'PLAYSTEAD_LIVE_SERVER_STAGE_FILE' "$LIVE_SERVER_FIXTURE" >/dev/null
 grep -F 'resolved_parent" = "$resolved_root' "$LIVE_SERVER_FIXTURE" >/dev/null
@@ -220,6 +241,64 @@ live_stage_count="$(sed -n 's/^    \([a-z|-]*\)) ;;$/\1/p' "$LIVE_SERVER_FIXTURE
 [ "$live_stage_count" -ge 7 ]
 [ "$(grep -c 'XCTAssertEqual(status, 0, "live-server-stage=' "$LIVE_SERVER_TEST")" -eq "$((live_stage_count + 1))" ]
 [ "$(grep -c 'guard try runFixture' "$LIVE_SERVER_TEST")" -eq 3 ]
+
+# Every caller of the shared `verify` stage must state its own snapshot
+# expectation, and the fixture must refuse to guess.
+#
+# The count is read cumulatively from a phoenix.log shared by the whole
+# LiveServer layer, so it is never a property of the mirror -- it is the
+# calling test's claim. While it was hardcoded as "exactly two",
+# LiveServerSnapshotTests' proof was silently binding on every other
+# caller: 04.5-01 added PairingCeremonyTests, which snapshots a third
+# time, and run 34636187313 failed SaveEndToEndTests on an invariant it
+# had never asserted. The sentinel below is deliberately a word and not
+# an empty string, so opting out is a visible decision in the diff.
+for token in 'snapshots-not-asserted-here' 'snapshot_expectation="${4:-}"'; do
+  grep -F "$token" "$LIVE_SERVER_FIXTURE" >/dev/null || {
+    printf 'live-server.sh: the verify stage lost its caller-stated snapshot expectation (%s)\n' "$token" >&2
+    exit 1
+  }
+done
+# Fail-closed: an omitted or non-numeric expectation dies rather than
+# skipping the assertion. A default here would turn a forgotten argument
+# into a silent pass, which is the exact rot this guard exists to stop.
+grep -F "''|*[!0-9]*) die ;;" "$LIVE_SERVER_FIXTURE" >/dev/null || {
+  printf 'live-server.sh: the verify stage must DIE on an omitted or non-numeric snapshot expectation, never default\n' >&2
+  exit 1
+}
+python3 - "$MAC_ROOT" <<'GUARD'
+import pathlib, re, sys
+
+mac_root = pathlib.Path(sys.argv[1])
+callers = sorted((mac_root / "PlaysteadUITests").glob("*.swift"))
+numeric, opted_out = [], []
+for path in callers:
+    source = path.read_text(encoding="utf-8")
+    for call in re.finditer(
+        r'runFixture\(\s*"verify"(.*?)\)\s*else', source, re.DOTALL
+    ):
+        body = call.group(1)
+        if "extraArguments" not in body:
+            raise SystemExit(
+                f"{path.name}: runFixture(\"verify\") must state a snapshot expectation"
+            )
+        if "snapshots-not-asserted-here" in body:
+            opted_out.append(path.name)
+        elif re.search(r'extraArguments:\s*\["\d+"\]', body):
+            numeric.append(path.name)
+        else:
+            raise SystemExit(f"{path.name}: unrecognised snapshot expectation")
+
+if not numeric:
+    raise SystemExit("no test asserts the live-server snapshot count any more")
+if numeric != ["LiveServerSnapshotTests.swift"]:
+    raise SystemExit(
+        "the snapshot count is LiveServerSnapshotTests' proof alone; "
+        f"also asserted by: {numeric}"
+    )
+if not opted_out:
+    raise SystemExit("expected at least one caller to opt out explicitly")
+GUARD
 if grep -E '(^|[[:space:]])(security|codesign)([[:space:]]|$)' "$RUNNER" >/dev/null; then
   printf 'verification runner must not invoke security(1) or codesign(1)\n' >&2
   exit 1

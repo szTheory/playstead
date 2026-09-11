@@ -1,19 +1,19 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.0
-current_phase: 04
-current_phase_name: Persistent Save Continuity
-status: shipped
-stopped_at: Phase 04 shipped (no PR: branching_strategy=none, work is already on main)
-last_updated: "2026-09-09T00:20:00.000Z"
-last_activity: 2026-09-09
-last_activity_desc: Phase 04 shipped — verification passed 5/5, security threats_open 0
-state_head: 50aafa52a2b79476956a6421fb339582d784be3d
+current_phase: 03
+current_phase_name: Mac Offline Play Vertical Slice
+status: executing
+stopped_at: Completed 03-16-PLAN.md
+last_updated: "2026-09-11T15:26:11.737Z"
+last_activity: 2026-09-11
+last_activity_desc: Phase 03 execution started
+state_head: 0294ccdd09d2b6e95583bbe5f87c70f45b19fe01
 progress:
   total_phases: 7
-  completed_phases: 4
-  total_plans: 64
-  completed_plans: 63
+  completed_phases: 5
+  total_plans: 75
+  completed_plans: 75
 milestone_name: milestone
 ---
 
@@ -24,18 +24,70 @@ milestone_name: milestone
 See: `.planning/PROJECT.md` (updated 2026-08-30)
 
 **Core value:** A locally available game and its progress remain effortless to play, safe, understandable, synchronized, and fully under the user's control.
-**Current focus:** Phase 04 — Persistent Save Continuity
+**Current focus:** Phase 03 — Mac Offline Play Vertical Slice
 
 ## Current Position
 
-Phase: 04 (Persistent Save Continuity) — EXECUTING
-Plan: 3 of 25
-Status: Ready to execute
-Last activity: 2026-09-05 — Phase 04 execution started
+Phase: 03 (Mac Offline Play Vertical Slice) — EXECUTING (all 16 plans complete; awaiting independent re-verification)
+Plan: 16 of 16
+Status: Ready for re-verification
+Last activity: 2026-09-11 — 03-16-PLAN.md complete
 
-**Read `.planning/phases/03.5-mac-verification-automation/.continue-here.md` before resuming 03.5-09.**
-It carries the root-cause analysis, the prepared Task 3 sequence, three blocking
-anti-patterns, and the deviations to record in the SUMMARY.
+**03-16-PLAN.md is COMPLETE.** Closed the two robustness findings the
+03-15 re-verification recorded alongside LIBR-02: `AvailabilityController
+.replace/2` now refuses a malformed `entries` body (non-list, or a list
+with a non-map element) with 422 in the sibling endpoints' problem shape
+instead of raising into a 500 (WR-04), and `Outbox.enqueue` now supersedes
+any still-pending or backed-off availability report of the same kind
+inside its existing transaction, so only the newest full-replacement
+report is ever delivered (WR-05) — an in-flight row and every other
+intent kind are untouched. `LIBR-02` was then flipped to `Complete` in
+`REQUIREMENTS.md`, gated exclusively on 03-15's and this plan's own
+observed Mac-client-driven and HTTP-driven test runs, with a
+clause-by-clause mapping from UAT item 4's expected text to named tests
+recorded in `03-16-SUMMARY.md`. `03-VERIFICATION.md` and `03-UAT.md`
+remain untouched by design — the phase's terminal status is for an
+independent re-verification to set, not this plan. See
+`.planning/phases/03-mac-offline-play-vertical-slice/03-16-SUMMARY.md`.
+
+**03-13-PLAN.md is COMPLETE.** Closed the actionable half of the LIBR-02
+gap: added a device-reported, per-user-merged availability read model
+(`Playstead.Availability`, `device_asset_availability`, `PUT
+/api/v1/devices/me/availability`) and rewrote `LibraryLive`'s
+`matches_availability?/3` so all six frozen filter values
+(`needs_attention`, `missing_dependency`, `downloading`, `ready_offline`,
+`queued`, `server_only`) genuinely discriminate the browse set — the
+unconditional pass-through clause that caused the gap is gone. See
+`.planning/phases/03-mac-offline-play-vertical-slice/03-13-SUMMARY.md`.
+`LIBR-02` stays unchecked in `REQUIREMENTS.md` by design — the Mac client
+report and the requirement flip are `03-14-PLAN.md`'s job.
+
+**03-11-PLAN.md is COMPLETE.** Sourced and pinned a real, three-source-cited
+BIOS reference (gba, 16384 bytes, SHA-256
+`fd2547724b505f487e6dcb29ec2ecff3af35a841a77ab2e85fd87350abd36570`) in
+`03-BIOS-PIN.json`, wired it into `PlaysteadApp`'s composition root via
+`BiosReferences.production` (genuine RED-then-GREEN commit pair), hardened
+`BiosStore.validateAndAccept` to be all-or-nothing under interruption and
+concurrency, and closed `03-VERIFICATION.md`'s first `gaps:` entry as
+`status: resolved`. See
+`.planning/phases/03-mac-offline-play-vertical-slice/03-11-SUMMARY.md`.
+Acceptance of real, legally-owned BIOS bytes remains operator-verified via
+`scripts/verify-bios-reference.sh` (`03-UAT.md` item 13 stays `partial`, not
+`pass`). `03-12-PLAN.md` (notarization gap) remains open in this phase; the
+04.5-04 note below is retained from a prior phase and does not describe
+current work.
+
+**04.5-04-PLAN.md is COMPLETE.** The operator ran the sudo-gated ceremony
+proof (`prove-pairing-ceremony.sh`) at a real terminal; `PairingCeremonyTests`
+passed twice against the real TLS-terminating mac_ci Phoenix (Task 1 and the
+post-WR-01 re-run at Task 3), WR-01/WR-02 are closed, and the evidence is
+quoted verbatim in `.planning/phases/04.5-mac-pairing-ceremony/04.5-04-SUMMARY.md`.
+One must-have is recorded as partially met, not silently passed:
+`SaveEndToEndTests` stays red over https, proven by A/B to be pre-existing and
+transport-independent, and filed at
+`.planning/todos/pending/save-e2e-duplicate-revision-409.md`. `PROT-01` is
+intentionally left unmarked in REQUIREMENTS.md — that belongs to 04.5-05.
+Only 04.5-05-PLAN.md remains in this phase.
 
 Progress: [█████████░] 90% (Phase 03.5)
 
@@ -43,7 +95,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 
 **Velocity:**
 
-- Total plans completed: 28
+- Total plans completed: 34
 - Average duration: —
 - Total execution time: 0 hours
 
@@ -55,6 +107,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 | 01 | 8 | - | - |
 | 02 | 10 | - | - |
 | 03.5 | 10 | - | - |
+| 04.5 | 6 | - | - |
 
 **Recent Trend:**
 
@@ -115,6 +168,17 @@ Progress: [█████████░] 90% (Phase 03.5)
 | Phase 04 P23 | 45 min | 3 tasks | 10 files |
 | Phase 04 P24 | 15min | 2 tasks | 7 files |
 | Phase 04 P25 | 55min | 2 tasks | 2 files |
+| Phase 04.5 P01 | 95min | 6 tasks | 18 files |
+| Phase 04.5-mac-pairing-ceremony P2 | 42min | 3 tasks | 7 files |
+| Phase 04.5 P3 | 28min | 2 tasks | 3 files |
+| Phase 04.5 P05 | 35min | 3 tasks | 3 files |
+| Phase 04.5 P06 | 25min | 3 tasks | 8 files |
+| Phase 03 P11 | 50min | 3 tasks | 11 files |
+| Phase 03-mac-offline-play-vertical-slice P12 | 55min | 1 tasks | 8 files |
+| Phase 03-mac-offline-play-vertical-slice P13 | 95min | 3 tasks | 15 files |
+| Phase 03 P14 | 95min | 3 tasks | 12 files |
+| Phase 03 P15 | 40min | 2 tasks | 5 files |
+| Phase 03 P16 | 22min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -241,6 +305,21 @@ Progress: [█████████░] 90% (Phase 03.5)
 - [Phase 04]: SaveCaptureBytesCommitter extracted from SaveSessionCoordinator and shared with SaveSessionRecovery so live and crash-recovery capture paths cannot drift apart — Two implementations of a content-addressed commit is how the two paths drifted apart in the first place (WINDOWS #52)
 - [Phase 04]: WINDOWS #32 closed as stale (resolved by plan 04-16 commit c223218 before the ledger entry was written), not as fixed-by-this-plan — 04-VERIFICATION confirmed the wiring directly in source; the ledger should record why it closed, not merely that it closed
 - [Phase 04]: 04-24: id chosen as {recorded_at, id} tiebreaker for revision ordering (not a stored sequence column), following attention_source.ex precedent — recorded_at remains sole ordering semantics (D-15); id is immutable and reproducible, never exposed as causal order
+- [Phase 04.5]: Reused LibraryShellView's existing ShellSurface sheet mechanism for pairing rather than a new presentation path; added a CI-fixture-only approve-sole mix task instead of touching production pairing routes; AppEnvironment now threads a pairingKeychain matched to whichever Keychain apiClient reads from.
+- [Phase 04.5]: PROT-01 left in progress rather than re-marked complete: the live-server pairing proof has not genuinely executed against a real server in this session.
+- [Phase 04.5]: Task 3 generation token: waitForEntry() polls rather than blocking synchronously, since the coordinator's poll/redeem work is MainActor-isolated and a raw synchronous wait would starve it of its turn on the shared executor.
+- [Phase 04.5]: 04.5-04: https promoted (not add-alongside) as the sole mac_ci scheme; SaveEndToEndTests A/B'd and filed as a pre-existing, transport-independent bug rather than treated as caused by TLS or silently dropped.
+- [Phase 04.5]: 04.5-06: pinned trust wired at both real APIClient construction sites via AppPaths.pinnedCertificate; secure-by-default parameter instead of non-optional to avoid churning ~18 stub-backed unit tests.
+- [Phase 03]: [Phase 03]: Closed Gap A (BIOS reference wiring) via 03-11-PLAN.md: pinned a real, three-source-cited gba BIOS reference (16384 bytes, SHA-256 fd254772...) into BiosReferences.production and wired it at PlaysteadApp's composition root; a correctly-sized non-matching candidate is now refused for its contents, not for having no reference at all.
+- [Phase 03]: [Phase 03]: BiosStore.validateAndAccept hardened to be all-or-nothing under interruption and concurrency (03-11): a shared incomingPrefix constant backs both the temp-file writer and a new init-time sweep, and the managed-file move race is closed so concurrent identical drops converge on exactly one managed file and one bios_files row.
+- [Phase 03]: PLAY-05 closed by 03-12-PLAN.md: real Developer ID notarization achieved (submission 8465f74d-5468-4b73-9885-fb0ea1dafcdd, Accepted), fixing three genuine release-script bugs found while proving it for real (codesign -dv missing Authority chain, notarytool rejecting raw .app, wrong RelaunchTests test identifier).
+- [Phase 03]: Task 1 checkpoint (03-13, auto-selected under yolo/blocking gate): six UI-SPEC availability values fed by any-device merge (boolean OR / percent max), not the verifier's literal CACH-02 four.
+- [Phase 03]: cache capability namespace bumped to 1.1.0 additively (transfer-1.1.0 precedent) to advertise availability-report support (03-13).
+- [Phase 03]: LIBR-02 flipped Complete only after Mac AvailabilityReporter + UAT tally guard observed passing this session; console filter follows 03-UI-SPEC/D-13 vocabulary, not CACH-02's AvailabilityState ladder
+- [Phase 03]: [Phase 03] missing_dependency's predicate carries an explicit engagement conjunct (cached, pinned, or queued) alongside the orphaned-member conjunct, since the literal 03-VERIFICATION.md definition alone would make server_only structurally unreachable for every never-downloaded game
+- [Phase 03]: [Phase 03] 03-15: Task 2 (transport proof) required no production code change -- Task 1's computed predicate already produced the exact facts the shared fixture and Elixir end-to-end test assert against
+- [Phase 03]: LIBR-02 flipped Complete only after judging every clause of UAT item 4 against a named test, with the availability/readiness clause specifically required to be proved by a test that drives the Mac client or the real HTTP endpoint, never a seeded server read model.
+- [Phase 03]: Supersede-on-enqueue (delete inside Outbox.enqueue's transaction) chosen over a newest-wins filter inside listPending, since listPending is a generic read shared by OutboxWorker and the rejected-intents surface.
 
 ### Pending Todos
 
@@ -274,6 +353,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-06T03:32:18.726Z
-Stopped at: Completed 04-24-PLAN.md
+Last session: 2026-09-11T15:26:11.219Z
+Stopped at: Completed 03-16-PLAN.md
 Resume file: None

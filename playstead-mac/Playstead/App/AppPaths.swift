@@ -16,6 +16,13 @@ struct AppPaths {
     let emulators: URL
     let bios: URL
     let databaseURL: URL
+    /// The trust-on-first-use pairing anchor `PairingCoordinator.redeem()`
+    /// writes on a successful pairing and `APIClient` evaluates server
+    /// trust against. Derived once here so the write side and the read
+    /// side can never spell the filename independently and drift apart
+    /// (the gap `04.5-VERIFICATION.md` found: the file was written but
+    /// nothing ever read it).
+    let pinnedCertificate: URL
 
     init(fileManager: FileManager = .default) {
         let support = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -35,6 +42,7 @@ struct AppPaths {
         self.emulators = root.appendingPathComponent("emulators", isDirectory: true)
         self.bios = root.appendingPathComponent("bios", isDirectory: true)
         self.databaseURL = root.appendingPathComponent("playstead.sqlite3", isDirectory: false)
+        self.pinnedCertificate = Self.pinnedCertificateURL(under: root)
 
         createDirectoriesIfNeeded(fileManager: fileManager)
         // Clear first so a stale root-level `true` (the pre-D-63 shape,
@@ -124,5 +132,27 @@ struct AppPaths {
     /// The materialized launch directory for one asset set.
     func launchDirectory(forAssetSet id: String) -> URL {
         launch.appendingPathComponent(id, isDirectory: true)
+    }
+
+    /// Resolves the same production pinned-certificate location as
+    /// `init(fileManager:)` would, without constructing an `AppPaths` or
+    /// creating any directory. Exists purely to be a secure default
+    /// argument value evaluated at unrelated call sites (`APIClient.init`)
+    /// — it must stay free of every side effect `init(root:fileManager:)`
+    /// performs, or a default-argument evaluation would create directories
+    /// or touch backup-exclusion flags as a side effect of merely
+    /// constructing an `APIClient`.
+    static func defaultPinnedCertificateURL(fileManager: FileManager = .default) -> URL {
+        let support = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let root = support.appendingPathComponent("Playstead", isDirectory: true)
+        return pinnedCertificateURL(under: root)
+    }
+
+    /// The single spelling of the pinned-certificate filename. Both
+    /// `init(root:fileManager:)` and `defaultPinnedCertificateURL(fileManager:)`
+    /// resolve through this one function so `pinned-ca.der` is never
+    /// spelled as a bare string literal at more than one site.
+    private static func pinnedCertificateURL(under root: URL) -> URL {
+        root.appendingPathComponent("pinned-ca.der", isDirectory: false)
     }
 }

@@ -21,12 +21,7 @@
     {
       "number": "4",
       "name": "Persistent Save Continuity",
-      "status": "complete"
-    },
-    {
-      "number": "4.5",
-      "name": "Mac Pairing Ceremony",
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "number": "5",
@@ -37,7 +32,7 @@
   "next": {
     "command": "/gsd:progress --next",
     "label": "Advance to the next step",
-    "reason": "Phase 4 shipped \u00b7 Phase 4.5 (Mac Pairing Ceremony) is next"
+    "reason": "Phase 3 of 7 · executing"
   },
-  "updated_at": "2026-09-09T00:20:00.000Z"
+  "updated_at": "2026-09-11T15:25:54.534Z"
 }

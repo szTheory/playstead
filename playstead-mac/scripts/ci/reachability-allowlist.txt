@@ -45,6 +45,16 @@ GameListView # Superseded: LibraryShellView.catalogueList builds its own inline 
 NoMatchesView # Same file/finding as GameListView above. Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
 SnapshotClient # struct SnapshotClient is never constructed in production; SyncEngine's own doc comment explicitly distinguishes itself from "the plan 03-03 tracer's SnapshotClient", implying this type is superseded tracer-era code. Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
 
+# --- (c) Cross-language contract anchors, unreachable by design ---------
+# Not a wiring gap and not dead code: a type whose whole purpose is to be
+# compared against its counterpart in the other codebase by a contract
+# test. It has no production caller because it is not meant to have one --
+# wiring it into shipped code would be the defect, not the fix. An entry
+# belongs here ONLY if the shipped feature it mirrors is rendered by the
+# OTHER codebase; if the Mac ever renders these values itself, the entry
+# must come out and the sweep must prove the call site.
+AvailabilityVocabulary # Frozen six-value availability filter vocabulary (03-13/03-14, LIBR-02), mirroring `Playstead.AvailabilityVocabulary` (Elixir) and `shared/availability-vocabulary.json` so the two cannot drift; asserted by AvailabilityVocabularyContractTests. The console filter chips are server-rendered LiveView, not Mac UI -- proven by playstead-server/test/playstead_web/browser/availability_chip_semantics_test.exs -- and the Mac's own read-time derivation is the separate `AvailabilityState`. No shipped Mac UI reads these constants, by design.
+
 # --- Elixir: genuinely reflective / dispatched --------------------------
 handle_continue # GenServer handle_continue/2 callback, dispatched by the OTP runtime via {:continue, :sweep}, never called by name in source.
 live_component # Phoenix component macro entry point, invoked via `use PlaysteadWeb, :live_component`, never called by name in source.

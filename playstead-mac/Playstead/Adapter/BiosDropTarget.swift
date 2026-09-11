@@ -80,6 +80,13 @@ struct BiosDropTargetView: View {
     }
 
     static func defaultChooseFile() -> URL? {
+        #if UI_TESTING
+        // A headless XCUITest can drive neither a drag session nor an
+        // NSOpenPanel, so the UI-testing build resolves one validated
+        // candidate path from the environment instead. Compiled out of
+        // every shipped configuration.
+        if let injected = UITestBiosCandidate.resolve() { return injected }
+        #endif
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
@@ -96,10 +103,15 @@ struct BiosDropTargetView: View {
             Text("BIOS validated and stored.")
                 .font(.psLabel)
                 .foregroundColor(StatusToken.verified)
+                .accessibilityIdentifier(AccessibilityIdentifiers.Readout.biosStatus)
         case .rejected(let reason):
+            // The store's own no-blame reason, rendered verbatim. The
+            // identifier exists so an automated check can read the copy
+            // back and prove it is neither blank nor a generic string.
             Text(reason)
                 .font(.psLabel)
                 .foregroundColor(StatusToken.attention)
+                .accessibilityIdentifier(AccessibilityIdentifiers.Readout.biosStatus)
         }
     }
 

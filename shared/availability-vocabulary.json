@@ -1,0 +1,14 @@
+{
+  "filter.needs_attention.label": "Needs attention",
+  "filter.needs_attention.accessible_name": "Filter by needs attention",
+  "filter.missing_dependency.label": "Missing dependency",
+  "filter.missing_dependency.accessible_name": "Filter by missing dependency",
+  "filter.downloading.label": "Downloading",
+  "filter.downloading.accessible_name": "Filter by downloading",
+  "filter.ready_offline.label": "Ready offline",
+  "filter.ready_offline.accessible_name": "Filter by ready offline",
+  "filter.queued.label": "Queued",
+  "filter.queued.accessible_name": "Filter by queued",
+  "filter.server_only.label": "On server",
+  "filter.server_only.accessible_name": "Filter by on server"
+}

@@ -47,6 +47,17 @@ struct PlaysteadApp: App {
 #endif
         }
         .windowResizability(.contentSize)
+        .commands {
+            // The second reachable call site the pairing ceremony needs
+            // (plan 04.5-01 task 4): a user who is already paired must be
+            // able to re-pair against a new server, not only a fresh
+            // install reaching pairing through the empty-state button.
+            CommandMenu("Pairing") {
+                Button("Pair with Server…") {
+                    NotificationCenter.default.post(name: .presentPairingSheetRequested, object: nil)
+                }
+            }
+        }
     }
 }
 
@@ -236,6 +247,13 @@ final class AppEnvironment {
     /// discovered lazily by whichever view happens to render first.
     let motionPreference = MotionPreference()
     private(set) var apiClient: APIClient?
+    /// The Keychain the pairing ceremony writes into — production's real
+    /// login Keychain, or the live-server/live-test harness's scoped file
+    /// Keychain, matching whatever `apiClient` reads its credential from.
+    /// `nil` for every deterministic UI-testing profile (WINDOWS #54's own
+    /// prohibition: a profile must never construct a real `KeychainStore`,
+    /// and none of them ever presents `PairingView`).
+    private let pairingKeychain: KeychainStore?
 #if UI_TESTING
     /// Set before a deterministic profile shell renders. This prevents the
     /// background sync and download paths from consulting any Keychain or network.
@@ -354,6 +372,15 @@ final class AppEnvironment {
     /// never reached the server (WINDOWS #42).
     let saveOutboxDrainTrigger: SaveOutboxDrainTrigger
     let playSessionRecorder: PlaySessionRecorder
+    /// Reports this device's own per-asset-set availability facts
+    /// (plan 03-14, LIBR-02 gap closure) — an after-the-fact outbox
+    /// producer, constructed here and invoked from `syncNow()`, never
+    /// from any launch path. Before this plan, `AvailabilityReporter`
+    /// had no production construction site at all: the console's
+    /// six-value filter (03-13) had a read model and an endpoint but no
+    /// device ever wrote to it, so four of the six chips matched
+    /// nothing for every real user.
+    let availabilityReporter: AvailabilityReporter
     let reachability: Reachability
 
     let libraryViewModel: LibraryViewModel
@@ -385,16 +412,25 @@ final class AppEnvironment {
         paths: AppPaths = AppPaths(),
         apiClient: APIClient? = nil,
         reachability: Reachability = Reachability(),
-        downloadSession: URLSession? = nil
+        downloadSession: URLSession? = nil,
+        /// The Keychain the pairing ceremony should write into. Defaults to
+        /// the real login Keychain, matching the default `apiClient`. A
+        /// caller that supplies its own `apiClient` against a scoped
+        /// Keychain (the live-server harness) must supply the *same*
+        /// scoped instance here, or pairing would write somewhere
+        /// `apiClient` never reads from.
+        pairingKeychain: KeychainStore? = nil
     ) {
         let store = (try? LocalStore(paths: paths)) ?? LocalStore.inMemoryFallback()
-        let client = apiClient ?? APIClient(keychain: KeychainStore())
+        let keychain = pairingKeychain ?? KeychainStore()
+        let client = apiClient ?? APIClient(keychain: keychain, pinnedCertificateURL: paths.pinnedCertificate)
         self.init(
             paths: paths,
             openedStore: store,
             apiClient: client,
             reachability: reachability,
-            downloadSession: downloadSession
+            downloadSession: downloadSession,
+            pairingKeychain: keychain
         )
     }
 
@@ -440,7 +476,8 @@ final class AppEnvironment {
                 openedStore: localStore,
                 apiClient: APIClient.pairedForUITesting(credential),
                 reachability: reachability,
-                downloadSession: nil
+                downloadSession: nil,
+                pairingKeychain: nil
             )
         } else {
             self.init(
@@ -448,7 +485,8 @@ final class AppEnvironment {
                 openedStore: localStore,
                 apiClient: APIClient.unpairedForUITesting(),
                 reachability: reachability,
-                downloadSession: nil
+                downloadSession: nil,
+                pairingKeychain: nil
             )
         }
     }
@@ -459,15 +497,17 @@ final class AppEnvironment {
         openedStore store: LocalStore,
         apiClient: APIClient,
         reachability: Reachability,
-        downloadSession: URLSession?
+        downloadSession: URLSession?,
+        pairingKeychain: KeychainStore?
     ) {
         self.appPaths = paths
         self.downloadSessionOverride = downloadSession
         self.localStore = store
         self.controllerMappingStore = ControllerMappingStore(localStore: store)
-        self.biosStore = BiosStore(localStore: store, managedDirectory: paths.bios, references: [])
+        self.biosStore = BiosStore(localStore: store, managedDirectory: paths.bios, references: BiosReferences.production)
         let client = apiClient
         self.apiClient = client
+        self.pairingKeychain = pairingKeychain
         self.reachability = reachability
 
         let catalogueStore = CatalogueStore(localStore: store)
@@ -545,6 +585,12 @@ final class AppEnvironment {
 
         let pinStore = PinStore(localStore: store)
         self.pinStore = pinStore
+        // The live-percent provider is wired below, once `self` is fully
+        // initialized (`AvailabilityReporter.setActiveTransferPercentProvider`) —
+        // it needs a weak `self` capture to read `downloadCoordinator`.
+        self.availabilityReporter = AvailabilityReporter(
+            localStore: store, downloadQueue: self.downloadQueue, cas: cas, pinStore: pinStore, outbox: outbox
+        )
         // The cache root is the volume whose free space the floor is
         // measured against — the objects directory, not the app bundle.
         self.quotaManager = QuotaManager(localStore: store, cacheRootURL: paths.objects)
@@ -606,6 +652,15 @@ final class AppEnvironment {
             // captured directly rather than through `self`, which is not
             // yet fully initialized at this point in `init`.
             Task { await uploadLane.drainOnce() }
+        }
+
+        // Wired last, once every property this weak-`self` closure reads
+        // (`downloadCoordinator`) is in scope — the coordinator itself is
+        // still built lazily on first use (see "Download coordination"
+        // above), so this closure reads whatever `self?.downloadCoordinator`
+        // is at call time, not at this wiring time.
+        availabilityReporter.setActiveTransferPercentProvider { [weak self] assetSetID in
+            await self?.downloadCoordinator?.progressPercent(forAssetSet: assetSetID)
         }
 
         // Wires ControllerHost's connect/disconnect/assign transitions to
@@ -741,6 +796,13 @@ final class AppEnvironment {
         // A sync pass is also the natural moment to flush anything the
         // outbox is still holding.
         drainOutbox()
+        // And the natural after-the-fact moment to report this device's
+        // own availability facts (plan 03-14) — never on a launch path,
+        // and never blocking anything above if it fails: `reportAll()`
+        // only enqueues durably; delivery itself happens on `drainOutbox()`'s
+        // own schedule, exactly like every other outbox-backed intent.
+        _ = await availabilityReporter.reportAll()
+        drainOutbox()
     }
 
     /// Loads (or lazily creates) the currently assigned controller's
@@ -864,6 +926,27 @@ final class AppEnvironment {
     /// `saveDirectoryURL(forAssetSetID:)` (CR-01/CR-02).
     func saveCaptureDirectoryURL(forAssetSetID assetSetID: String) throws -> URL {
         try SaveCapturePaths.captureDirectory(root: appPaths.root, assetSetID: assetSetID)
+    }
+
+    /// A fresh coordinator for one pairing ceremony attempt. `nil` only for
+    /// a deterministic UI-testing profile, which never presents
+    /// `PairingView` and must never construct a real `KeychainStore`
+    /// (WINDOWS #54's own prohibition). The `PinnedCertificateCapture`
+    /// delegate is shared with the session `PairingClient` uses, so the
+    /// certificate captured during the handshake is the one written to
+    /// `pinned-ca.der` on success.
+    func makePairingCoordinator() -> PairingCoordinator? {
+        guard let pairingKeychain else { return nil }
+        let capture = PinnedCertificateCapture()
+        let session = URLSession(
+            configuration: .ephemeral, delegate: capture, delegateQueue: nil
+        )
+        return PairingCoordinator(
+            client: PairingClient(session: session),
+            keychain: pairingKeychain,
+            certificateCapture: capture,
+            pinnedCertificateURL: appPaths.pinnedCertificate
+        )
     }
 
     /// A fresh coordinator for one play session (D-04's "exactly one

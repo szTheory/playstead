@@ -18,15 +18,24 @@ PG_PORT=55432
 PG_MODE=docker
 RUN_XCUITEST=false
 WORK=""
+ONLY_TESTING=()
+expect_only_testing=false
 for argument in "$@"; do
+  if [ "$expect_only_testing" = true ]; then
+    ONLY_TESTING+=("-only-testing:$argument")
+    expect_only_testing=false
+    continue
+  fi
   case "$argument" in
     --brew) PG_MODE=brew ;;
     --docker) PG_MODE=docker ;;
     --xcuitest) RUN_XCUITEST=true ;;
+    --only-testing) expect_only_testing=true ;;
     -*) echo "unknown option: $argument" >&2; exit 2 ;;
     *) WORK="$argument" ;;
   esac
 done
+[ "$expect_only_testing" = false ] || { echo "--only-testing requires an argument" >&2; exit 2; }
 [ -n "$WORK" ] || WORK="$(mktemp -d "${TMPDIR:-/tmp}/playstead-local-live.XXXXXX")"
 
 if [ "$PG_MODE" = docker ] && ! docker info >/dev/null 2>&1; then
@@ -40,6 +49,14 @@ CLIENT_ROOT="$WORK/client"
 PG_CONTAINER="playstead-local-live-pg-$$"
 
 cleanup() {
+  # Only attempt untrust if trust actually succeeded. Guarding on the existence
+  # of tls/ instead meant a run that died AT the trust step -- nothing ever
+  # installed -- still printed "a trusted root may remain in the System
+  # keychain". That warning has to stay rare and true to be worth reading.
+  if [ "${CA_TRUSTED:-false}" = true ]; then
+    "$REPO/playstead-mac/scripts/ci/mac-ci-tls.sh" untrust "$SERVER_ROOT" || \
+      echo "== warning: mac-ci-tls untrust failed -- a trusted root may remain in the System keychain"
+  fi
   [ -n "${PHOENIX_PID:-}" ] && kill "$PHOENIX_PID" 2>/dev/null || true
   rm -f "${LOCAL_FIXTURE:-/nonexistent}"
   if [ "$PG_MODE" = docker ]; then
@@ -51,6 +68,12 @@ cleanup() {
 trap cleanup EXIT
 
 echo "== work dir: $WORK"
+# An explicitly-passed work dir is not required to exist yet: every documented
+# invocation is `rm -rf <dir> && local-live-server.sh ... <dir>`, which hands us
+# a path we then have to create. Only $WORK is created recursively; $NATIVE_ROOT
+# below stays a non-recursive mkdir on purpose, so a second run against the same
+# root fails closed instead of silently reusing another run's TLS material.
+mkdir -p "$WORK"
 # Same layout the hosted runner builds: the runner owns the root and creates
 # mac-client-control, so the fixture only ever writes files into it.
 mkdir -m 0700 "$NATIVE_ROOT"
@@ -58,6 +81,14 @@ mkdir -p "$SERVER_ROOT/inbox" "$SERVER_ROOT/blobs" "$SERVER_ROOT/exports" \
   "$SERVER_ROOT/mac-client-control"
 chmod 0700 "$NATIVE_ROOT" "$SERVER_ROOT" "$SERVER_ROOT/mac-client-control"
 mkdir -m 0700 -p "$CLIENT_ROOT"
+
+echo "== issue run-scoped TLS material"
+"$REPO/playstead-mac/scripts/ci/mac-ci-tls.sh" issue "$SERVER_ROOT"
+echo "== trust run-scoped CA"
+"$REPO/playstead-mac/scripts/ci/mac-ci-tls.sh" trust "$SERVER_ROOT"
+# Set only after trust returns 0, so cleanup() knows there is really something
+# to remove. `set -e` means we never reach this line on a failed trust.
+CA_TRUSTED=true
 
 start_postgres_docker() {
   # One pinned Postgres version for the whole repo: read it off the compose file
@@ -123,11 +154,19 @@ echo "== start phoenix"
 PHOENIX_PID=$!
 ready=false
 for _ in $(seq 1 60); do
-  if curl -fsS "http://127.0.0.1:$PORT/healthz" >/dev/null 2>&1; then ready=true; break; fi
+  if curl --cacert "$SERVER_ROOT/tls/ca.pem" -fsS "https://127.0.0.1:$PORT/healthz" >/dev/null 2>&1; then ready=true; break; fi
   sleep 1
 done
 [ "$ready" = true ] || { echo "phoenix never became ready"; tail -40 "$NATIVE_ROOT/phoenix.log"; exit 1; }
 echo "   phoenix healthy on :$PORT"
+
+if openssl s_client -connect "127.0.0.1:$PORT" -CAfile "$SERVER_ROOT/tls/ca.pem" \
+    -verify_return_error </dev/null >/dev/null 2>&1; then
+  echo "== tls handshake verified"
+else
+  echo "== tls handshake could not be verified" >&2
+  exit 1
+fi
 
 # The shipped fixture silences its own stderr so only a bounded token escapes.
 # Strip that one line for local debugging; everything else runs verbatim.
@@ -192,7 +231,8 @@ CONFIG
   set +e
   ( cd "$MAC" && xcodebuild test-without-building -project Playstead.xcodeproj -scheme Playstead \
       -testPlan LiveServer -derivedDataPath "$derived" -destination 'platform=macOS' \
-      -resultBundlePath "$NATIVE_ROOT/live-server.xcresult" "${signing[@]}" ) \
+      -resultBundlePath "$NATIVE_ROOT/live-server.xcresult" "${signing[@]}" \
+      ${ONLY_TESTING[@]+"${ONLY_TESTING[@]}"} ) \
     >"$NATIVE_ROOT/live-server.log" 2>&1
   xcuitest_status=$?
   set -e
