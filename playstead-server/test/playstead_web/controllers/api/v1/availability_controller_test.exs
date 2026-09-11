@@ -79,4 +79,95 @@ defmodule PlaysteadWeb.Api.V1.AvailabilityControllerTest do
 
     assert_problem(resp, 422, :validation_failed)
   end
+
+  test "an absent entries key keeps performing a valid empty full replacement", %{conn: conn} do
+    {scope, _device, token} = paired()
+    asset_set = asset_set_fixture(scope.user.id)
+
+    # Seed a row first so we can prove the absent-key path still clears it
+    # (an empty full replacement), exactly as it did before this task.
+    seed_entries = [%{"asset_set_id" => asset_set.id, "verified" => true}]
+    _ = report!(conn, token, seed_entries, unique_key("avail"))
+
+    resp =
+      conn
+      |> put_req_header("authorization", "Bearer #{token}")
+      |> put_req_header("content-type", "application/json")
+      |> put_req_header("idempotency-key", unique_key("avail"))
+      |> put(~p"/api/v1/devices/me/availability", %{})
+
+    assert json_response(resp, 200)
+    facts = Availability.facts_for_user(scope.user.id)
+    assert map_size(facts) == 0
+  end
+
+  test "a string entries body is refused with 422 validation_failed, not a 500", %{conn: conn} do
+    {scope, _device, token} = paired()
+    _asset_set = asset_set_fixture(scope.user.id)
+
+    resp =
+      conn
+      |> put_req_header("authorization", "Bearer #{token}")
+      |> put_req_header("content-type", "application/json")
+      |> put_req_header("idempotency-key", unique_key("avail"))
+      |> put(~p"/api/v1/devices/me/availability", %{"entries" => "not-a-list"})
+
+    assert_problem(resp, 422, :validation_failed)
+  end
+
+  test "a map entries body is refused with 422 validation_failed, not a 500", %{conn: conn} do
+    {scope, _device, token} = paired()
+    _asset_set = asset_set_fixture(scope.user.id)
+
+    resp =
+      conn
+      |> put_req_header("authorization", "Bearer #{token}")
+      |> put_req_header("content-type", "application/json")
+      |> put_req_header("idempotency-key", unique_key("avail"))
+      |> put(~p"/api/v1/devices/me/availability", %{"entries" => %{"a" => "b"}})
+
+    assert_problem(resp, 422, :validation_failed)
+  end
+
+  test "an entries list containing a string element is refused with 422 validation_failed, not a 500",
+       %{conn: conn} do
+    {scope, _device, token} = paired()
+    _asset_set = asset_set_fixture(scope.user.id)
+
+    resp =
+      conn
+      |> put_req_header("authorization", "Bearer #{token}")
+      |> put_req_header("content-type", "application/json")
+      |> put_req_header("idempotency-key", unique_key("avail"))
+      |> put(~p"/api/v1/devices/me/availability", %{"entries" => ["not-a-map"]})
+
+    assert_problem(resp, 422, :validation_failed)
+  end
+
+  test "an entries list containing a number element is refused with 422 validation_failed, not a 500",
+       %{conn: conn} do
+    {scope, _device, token} = paired()
+    _asset_set = asset_set_fixture(scope.user.id)
+
+    resp =
+      conn
+      |> put_req_header("authorization", "Bearer #{token}")
+      |> put_req_header("content-type", "application/json")
+      |> put_req_header("idempotency-key", unique_key("avail"))
+      |> put(~p"/api/v1/devices/me/availability", %{"entries" => [42]})
+
+    assert_problem(resp, 422, :validation_failed)
+  end
+
+  test "an entries list of maps still returns 200 and still writes its rows", %{conn: conn} do
+    {scope, _device, token} = paired()
+    asset_set = asset_set_fixture(scope.user.id)
+
+    entries = [%{"asset_set_id" => asset_set.id, "verified" => true}]
+    resp = report!(conn, token, entries, unique_key("avail"))
+
+    assert json_response(resp, 200)
+    facts = Availability.facts_for_user(scope.user.id)
+    assert facts[asset_set.id].verified == true
+  end
 end
