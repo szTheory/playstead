@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 current_phase: 03
-current_phase_name: mac-offline-play-vertical-slice
+current_phase_name: Mac Offline Play Vertical Slice
 status: executing
-stopped_at: Completed 03-14-PLAN.md
-last_updated: "2026-09-11T14:40:07.915Z"
+stopped_at: Completed 03-15-PLAN.md
+last_updated: "2026-09-11T15:01:54.364Z"
 last_activity: 2026-09-11
 last_activity_desc: Phase 03 execution started
-state_head: 74246f960ff878db08652622d9b21dae3f4deebe
+state_head: 22e9dd0ddad75a60952dd3b51dbc84defac4f970
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 75
-  completed_plans: 73
+  completed_plans: 74
 milestone_name: milestone
 ---
 
@@ -28,10 +28,10 @@ See: `.planning/PROJECT.md` (updated 2026-08-30)
 
 ## Current Position
 
-Phase: 03 (mac-offline-play-vertical-slice) — READY TO EXECUTE
-Plan: 14 of 14 (gap-closure plan, executed out of sequence)
+Phase: 03 (Mac Offline Play Vertical Slice) — EXECUTING
+Plan: 2 of 16
 Status: Ready to execute
-Last activity: 2026-09-11 — 03-13-PLAN.md complete (LIBR-02 gap closure, server-side)
+Last activity: 2026-09-11 — Phase 03 execution started
 
 **03-13-PLAN.md is COMPLETE.** Closed the actionable half of the LIBR-02
 gap: added a device-reported, per-user-merged availability read model
@@ -160,6 +160,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 | Phase 03-mac-offline-play-vertical-slice P12 | 55min | 1 tasks | 8 files |
 | Phase 03-mac-offline-play-vertical-slice P13 | 95min | 3 tasks | 15 files |
 | Phase 03 P14 | 95min | 3 tasks | 12 files |
+| Phase 03 P15 | 40min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -297,6 +298,8 @@ Progress: [█████████░] 90% (Phase 03.5)
 - [Phase 03]: Task 1 checkpoint (03-13, auto-selected under yolo/blocking gate): six UI-SPEC availability values fed by any-device merge (boolean OR / percent max), not the verifier's literal CACH-02 four.
 - [Phase 03]: cache capability namespace bumped to 1.1.0 additively (transfer-1.1.0 precedent) to advertise availability-report support (03-13).
 - [Phase 03]: LIBR-02 flipped Complete only after Mac AvailabilityReporter + UAT tally guard observed passing this session; console filter follows 03-UI-SPEC/D-13 vocabulary, not CACH-02's AvailabilityState ladder
+- [Phase 03]: [Phase 03] missing_dependency's predicate carries an explicit engagement conjunct (cached, pinned, or queued) alongside the orphaned-member conjunct, since the literal 03-VERIFICATION.md definition alone would make server_only structurally unreachable for every never-downloaded game
+- [Phase 03]: [Phase 03] 03-15: Task 2 (transport proof) required no production code change -- Task 1's computed predicate already produced the exact facts the shared fixture and Elixir end-to-end test assert against
 
 ### Pending Todos
 
@@ -330,6 +333,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-11T05:01:51.257Z
-Stopped at: Completed 03-14-PLAN.md
+Last session: 2026-09-11T15:01:36.867Z
+Stopped at: Completed 03-15-PLAN.md
 Resume file: None
