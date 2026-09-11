@@ -196,9 +196,29 @@ PY
     ;;
   verify)
     enter_stage "verify-evidence"
-    python3 - "$root" "$(dirname "$PLAYSTEAD_MAC_CI_ROOT")/phoenix.log" <<'PY'
+    # The snapshot-request count is a CUMULATIVE read of a phoenix.log shared
+    # by every test in the LiveServer layer, so it is the calling test's
+    # claim, never a property of the mirror. Hard-coding "exactly two" here
+    # made it LiveServerSnapshotTests' proof silently binding on every other
+    # caller: 04.5-01 added PairingCeremonyTests, which performs a third
+    # snapshot, and SaveEndToEndTests -- which never asserted anything about
+    # snapshot counts -- started failing on someone else's invariant.
+    #
+    # So every caller must now state its own position, and there is
+    # deliberately no default: an omitted or malformed argument dies here
+    # rather than quietly skipping the check, because a silent skip is how a
+    # guard rots into a pass (see reachability-allowlist.txt's header on the
+    # same failure mode).
+    snapshot_expectation="${4:-}"
+    case "$snapshot_expectation" in
+      snapshots-not-asserted-here) expected_snapshots="" ;;
+      ''|*[!0-9]*) die ;;
+      *) expected_snapshots="$snapshot_expectation" ;;
+    esac
+    python3 - "$root" "$(dirname "$PLAYSTEAD_MAC_CI_ROOT")/phoenix.log" "$expected_snapshots" <<'PY'
 import pathlib, sqlite3, sys
-root, log_path = map(pathlib.Path, sys.argv[1:])
+root, log_path = map(pathlib.Path, sys.argv[1:3])
+expected_snapshots = sys.argv[3]
 if not root.is_dir() or not log_path.is_file():
     raise SystemExit("live-server verification inputs are missing")
 
@@ -218,8 +238,10 @@ for line in lines:
     elif pending_snapshot and any(method in line for method in ("GET /", "POST /", "PUT /", "PATCH /", "DELETE /")):
         pending_snapshot = False
 
-if snapshot_success != 2:
-    raise SystemExit(f"expected exactly two successful snapshot requests, got {snapshot_success}")
+if expected_snapshots and snapshot_success != int(expected_snapshots):
+    raise SystemExit(
+        f"expected exactly {expected_snapshots} successful snapshot request(s), got {snapshot_success}"
+    )
 if blob_requests != 0:
     raise SystemExit(f"expected zero blob requests, got {blob_requests}")
 
@@ -235,7 +257,11 @@ for name in ("objects", "partials"):
     directory = root / name
     if not directory.is_dir() or any(directory.iterdir()):
         raise SystemExit(f"{name} must exist and remain empty")
-print("live-server: two snapshots, Keychain relaunch, and zero blob routes verified")
+print(
+    "live-server: "
+    + (f"{expected_snapshots} snapshot(s), " if expected_snapshots else "snapshots not asserted by this caller, ")
+    + "Keychain relaunch, and zero blob routes verified"
+)
 PY
     ;;
   *) die ;;
