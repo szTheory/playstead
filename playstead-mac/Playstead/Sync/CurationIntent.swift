@@ -37,6 +37,28 @@ enum CurationIntentKind: String, Codable, Equatable {
     /// `curation_*` row it creates or targets, only facts read fresh
     /// from `DownloadQueue`/`CASManager`/`PinStore` at report time.
     case availabilityReport = "availability_report"
+
+    /// True only for `.availabilityReport` (WR-05, plan 03-16 gap
+    /// closure). `Outbox.enqueue` consults this to delete any still-
+    /// `pending` row of the same kind before inserting a new one: an
+    /// availability report is a full replacement of the device's entire
+    /// per-asset-set fact set, so an older queued report carries no
+    /// information the newer one lacks — delivering the older one after
+    /// the newer one already succeeded would temporarily reintroduce
+    /// stale facts. Written as an exhaustive switch (not a default
+    /// branch) so a future kind added to this enum does not silently
+    /// inherit newest-wins semantics it was never designed for.
+    var supersedesPending: Bool {
+        switch self {
+        case .availabilityReport:
+            return true
+        case .unknown, .favoriteAdd, .favoriteRemove, .collectionCreate, .collectionRename,
+             .collectionDelete, .collectionMemberAdd, .collectionMemberRemove, .collectionMemberMove,
+             .queueEnqueue, .queueDequeue, .queueMove, .continueDismiss, .playSessionRecord,
+             .playSessionDelete:
+            return false
+        }
+    }
 }
 
 /// One entry of an `.availabilityReport` intent's full-replacement body —

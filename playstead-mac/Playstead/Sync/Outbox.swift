@@ -115,6 +115,24 @@ class Outbox {
 
         try localStore.transaction {
             try intent.applyOptimistically(to: self.curationStore, at: now)
+
+            // WR-05 (plan 03-16 gap closure): for a kind whose
+            // `supersedesPending` is true, any row of that same kind
+            // still `pending` — including one backed off by
+            // `markPendingForRetry` with a future `next_retry_at` — can
+            // no longer be delivered after this newer one, so it is
+            // deleted here inside the same transaction that inserts the
+            // new row. Scoped by kind AND by `state = 'pending'` only:
+            // an `in_flight` row is a request already on the wire that
+            // cannot be recalled, and every other intent kind still
+            // drains in creation order with no entry dropped.
+            if intent.kind.supersedesPending {
+                try self.localStore.connection.execute(
+                    "DELETE FROM outbox_entries WHERE kind = ? AND state = 'pending';",
+                    params: [intent.kind.rawValue]
+                )
+            }
+
             try self.localStore.connection.execute(
                 """
                 INSERT INTO outbox_entries

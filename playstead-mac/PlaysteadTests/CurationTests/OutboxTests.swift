@@ -462,7 +462,23 @@ final class OutboxTests: XCTestCase {
 
         var sentBodies: [Data] = []
         StubURLProtocol.responder = { request in
-            if let body = request.httpBody { sentBodies.append(body) }
+            // URLSession delivers a URLRequest's body to URLProtocol as
+            // an `httpBodyStream`, not `httpBody`, once it has gone
+            // through `session.data(for:)` -- read whichever is present.
+            if let body = request.httpBody {
+                sentBodies.append(body)
+            } else if let stream = request.httpBodyStream {
+                stream.open()
+                defer { stream.close() }
+                var data = Data()
+                let bufferSize = 4096
+                var buffer = [UInt8](repeating: 0, count: bufferSize)
+                while stream.hasBytesAvailable {
+                    let read = stream.read(&buffer, maxLength: bufferSize)
+                    if read > 0 { data.append(buffer, count: read) } else { break }
+                }
+                sentBodies.append(data)
+            }
             return StubURLProtocol.Stub(statusCode: 200, headers: [:], body: Data("{}".utf8))
         }
 

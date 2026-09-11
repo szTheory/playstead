@@ -1284,7 +1284,12 @@ PY
     --required-test PlaysteadTests.AvailabilityReporterTests/test_orphanedMemberDuringActiveTransfer_reportsBothMissingDependencyAndDownloadingTrue \
     --required-test PlaysteadTests.AvailabilityReporterTests/test_buildEntriesOutputEncodesByteIdenticallyToSharedReportFixture \
     --required-test PlaysteadTests.AvailabilityVocabularyContractTests/testJSONVocabularyExactlyMatchesShippedSwiftConstants \
-    --required-test PlaysteadTests.AvailabilityVocabularyContractTests/testKeyRemovedFromVocabularyButStillEmittedWouldBeCaught
+    --required-test PlaysteadTests.AvailabilityVocabularyContractTests/testKeyRemovedFromVocabularyButStillEmittedWouldBeCaught \
+    --required-test PlaysteadTests.OutboxTests/test_secondAvailabilityReport_supersedesThePendingFirstOne \
+    --required-test PlaysteadTests.OutboxTests/test_secondAvailabilityReport_supersedesABackedOffFirstOne \
+    --required-test PlaysteadTests.OutboxTests/test_secondAvailabilityReport_leavesAnInFlightFirstOneAlone \
+    --required-test PlaysteadTests.OutboxTests/test_secondFavoriteIntent_isNotSupersededBecauseOnlyReportsAreNewestWins \
+    --required-test PlaysteadTests.OutboxTests/test_drainAfterSupersede_sendsOnlyTheNewerReportBody
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
 
   run_test_layer rendering Rendering 600 \
