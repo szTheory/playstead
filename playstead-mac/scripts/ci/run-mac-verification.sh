@@ -1282,6 +1282,7 @@ PY
     --required-test PlaysteadTests.AvailabilityReporterTests/test_untouchedGame_reportsMissingDependencyFalseSoServerOnlyStaysReachable \
     --required-test PlaysteadTests.AvailabilityReporterTests/test_emptyRequiredMemberList_reportsMissingDependencyFalse \
     --required-test PlaysteadTests.AvailabilityReporterTests/test_orphanedMemberDuringActiveTransfer_reportsBothMissingDependencyAndDownloadingTrue \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_buildEntriesOutputEncodesByteIdenticallyToSharedReportFixture \
     --required-test PlaysteadTests.AvailabilityVocabularyContractTests/testJSONVocabularyExactlyMatchesShippedSwiftConstants \
     --required-test PlaysteadTests.AvailabilityVocabularyContractTests/testKeyRemovedFromVocabularyButStillEmittedWouldBeCaught
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1

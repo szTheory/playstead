@@ -1,0 +1,36 @@
+{
+  "entries": [
+    {
+      "asset_set_id": "missing-dependency-asset-set",
+      "downloading": false,
+      "verified": false,
+      "pinned": false,
+      "missing_dependency": true,
+      "download_percent": 0
+    },
+    {
+      "asset_set_id": "downloading-asset-set",
+      "downloading": true,
+      "verified": false,
+      "pinned": false,
+      "missing_dependency": false,
+      "download_percent": 42
+    },
+    {
+      "asset_set_id": "verified-asset-set",
+      "downloading": false,
+      "verified": true,
+      "pinned": false,
+      "missing_dependency": false,
+      "download_percent": 0
+    },
+    {
+      "asset_set_id": "all-false-asset-set",
+      "downloading": false,
+      "verified": false,
+      "pinned": false,
+      "missing_dependency": false,
+      "download_percent": 0
+    }
+  ]
+}

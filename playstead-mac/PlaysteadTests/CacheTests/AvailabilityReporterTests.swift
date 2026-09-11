@@ -377,4 +377,86 @@ final class AvailabilityReporterTests: XCTestCase {
         XCTAssertTrue(report.missingDependency, "the third member is orphaned; the client sends both facts and never picks a winner")
     }
 
+    // MARK: - Plan 03-15 Task 2: the same fixture the Elixir end-to-end
+    // test PUTs verbatim is proven, on this side, to be exactly what
+    // `buildEntries` produces -- one fixture, asserted by both languages,
+    // never a hand-written guess about the other side's output.
+
+    private struct FixtureReportBody: Decodable {
+        let entries: [AvailabilityReportEntry]
+    }
+
+    /// Loads `shared/availability-report-fixture.json` from disk.
+    /// `#filePath` for this file is
+    /// `playstead-mac/PlaysteadTests/CacheTests/AvailabilityReporterTests.swift`;
+    /// four `deleteLastPathComponent()` calls (CacheTests ->
+    /// PlaysteadTests -> playstead-mac -> repo root) land at the repo
+    /// root, mirroring `AvailabilityVocabularyContractTests`'
+    /// `loadJSONVocabulary()` exactly.
+    private func loadReportFixture(file: StaticString = #filePath) throws -> FixtureReportBody {
+        var url = URL(fileURLWithPath: "\(file)")
+        url.deleteLastPathComponent()
+        url.deleteLastPathComponent()
+        url.deleteLastPathComponent()
+        url.deleteLastPathComponent()
+        url.appendPathComponent("shared/availability-report-fixture.json")
+        let data = try Data(contentsOf: url)
+        return try JSONDecoder().decode(FixtureReportBody.self, from: data)
+    }
+
+    func test_buildEntriesOutputEncodesByteIdenticallyToSharedReportFixture() async throws {
+        let fixture = try loadReportFixture()
+        XCTAssertEqual(fixture.entries.count, 4, "the fixture is expected to carry exactly four states: missing-dependency, downloading, verified, all-false")
+
+        // Build store state matching each fixture entry by its
+        // asset_set_id, exactly as the fixture's facts describe.
+
+        // missing-dependency-asset-set: one cached member (engagement),
+        // one absent member with no queue row of any kind (orphaned).
+        let mdCached = try seedCachedObject(seed: "fx1")
+        let mdOrphaned = "b1" + String(repeating: "0", count: 62)
+        let missingDependencyEntry = catalogueEntry(id: "missing-dependency-asset-set", requiredSHAs: [mdCached, mdOrphaned])
+        try catalogueStore.upsert(missingDependencyEntry)
+
+        // downloading-asset-set: one required member with an active
+        // queue row; live percent injected as 42 to match the fixture.
+        let downloadingDigest = "b2" + String(repeating: "0", count: 62)
+        let downloadingEntry = catalogueEntry(id: "downloading-asset-set", requiredSHA: downloadingDigest)
+        try catalogueStore.upsert(downloadingEntry)
+        try downloadQueue.enqueueGame(downloadingEntry)
+        let downloadingItem = try XCTUnwrap(downloadQueue.itemsForAssetSet("downloading-asset-set").first)
+        try downloadQueue.markActive(id: downloadingItem.id)
+
+        // verified-asset-set: its one required member is fully cached.
+        let verifiedDigest = try seedCachedObject(seed: "fx3")
+        let verifiedEntry = catalogueEntry(id: "verified-asset-set", requiredSHA: verifiedDigest)
+        try catalogueStore.upsert(verifiedEntry)
+
+        // all-false-asset-set: untouched -- no cached member, no queue
+        // row, no pin.
+        let allFalseDigest = "b4" + String(repeating: "0", count: 62)
+        let allFalseEntry = catalogueEntry(id: "all-false-asset-set", requiredSHA: allFalseDigest)
+        try catalogueStore.upsert(allFalseEntry)
+
+        let liveReporter = AvailabilityReporter(
+            localStore: localStore, downloadQueue: downloadQueue, cas: cas, pinStore: pinStore, outbox: outbox,
+            activeTransferPercent: { assetSetID in assetSetID == "downloading-asset-set" ? 42 : nil }
+        )
+
+        let built = await liveReporter.buildEntries(catalogue: [
+            missingDependencyEntry, downloadingEntry, verifiedEntry, allFalseEntry
+        ])
+
+        // Assert the full key set in both directions -- an entry added
+        // on one side and missing from the other fails here, not just
+        // a per-field mismatch on entries both sides happen to share.
+        XCTAssertEqual(Set(built.map(\.assetSetID)), Set(fixture.entries.map(\.assetSetID)))
+
+        let builtByID = Dictionary(uniqueKeysWithValues: built.map { ($0.assetSetID, $0) })
+        for fixtureEntry in fixture.entries {
+            let builtEntry = try XCTUnwrap(builtByID[fixtureEntry.assetSetID], "fixture entry \(fixtureEntry.assetSetID) has no corresponding built entry")
+            XCTAssertEqual(builtEntry, fixtureEntry, "built entry for \(fixtureEntry.assetSetID) does not match the committed fixture")
+        }
+    }
+
 }
