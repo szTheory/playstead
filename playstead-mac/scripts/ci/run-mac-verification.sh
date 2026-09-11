@@ -1268,7 +1268,14 @@ PY
     --required-test PlaysteadTests.PlaySessionTests/test_launchSucceedsIndependentlyOfPlaySessionRecording \
     --required-test PlaysteadTests.PlaySessionTests/test_offlineSession_isDeliveredAfterReachabilityReturns \
     --required-test PlaysteadTests.PlaySessionTests/test_sameSessionIdentifierPostedTwice_resultsInOneServerSideEffect \
-    --required-test PlaysteadTests.PlaySessionTests/test_userDeletion_enqueuesDeleteIntentAndRemovesFromRecent
+    --required-test PlaysteadTests.PlaySessionTests/test_userDeletion_enqueuesDeleteIntentAndRemovesFromRecent \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_allRequiredMembersCachedAndPinned_emitsVerifiedAndPinnedTrue \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_activeTransfer_emitsDownloadingTrueWithPercentInRange \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_noLocalBytesAndNoQueueRow_emitsAllFactsFalseNeverOmitted \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_sameReportRetried_carriesSameIdempotencyKeyAndOneServerEffect \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_offlineReport_isEnqueuedAndDrainedLaterWithNoSurfacedError \
+    --required-test PlaysteadTests.AvailabilityVocabularyContractTests/testJSONVocabularyExactlyMatchesShippedSwiftConstants \
+    --required-test PlaysteadTests.AvailabilityVocabularyContractTests/testKeyRemovedFromVocabularyButStillEmittedWouldBeCaught
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
 
   run_test_layer rendering Rendering 600 \

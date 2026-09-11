@@ -29,6 +29,35 @@ enum CurationIntentKind: String, Codable, Equatable {
     case continueDismiss = "continue_dismiss"
     case playSessionRecord = "play_session_record"
     case playSessionDelete = "play_session_delete"
+
+    /// A device's full-replacement report of its own per-asset-set
+    /// availability facts (plan 03-14, LIBR-02 gap closure) —
+    /// `PUT /api/v1/devices/me/availability`. Unlike every other kind
+    /// here, this carries no local optimistic write: there is no
+    /// `curation_*` row it creates or targets, only facts read fresh
+    /// from `DownloadQueue`/`CASManager`/`PinStore` at report time.
+    case availabilityReport = "availability_report"
+}
+
+/// One entry of an `.availabilityReport` intent's full-replacement body —
+/// the exact field names `PlaysteadWeb.Api.V1.AvailabilityController`
+/// accepts (`playstead-server/lib/playstead/availability.ex`). A field
+/// renamed on either side fails `AvailabilityVocabularyContractTests`'
+/// sibling wire-shape test.
+struct AvailabilityReportEntry: Codable, Equatable {
+    let assetSetID: String
+    var downloading: Bool = false
+    var verified: Bool = false
+    var pinned: Bool = false
+    var missingDependency: Bool = false
+    var downloadPercent: Int = 0
+
+    private enum CodingKeys: String, CodingKey {
+        case assetSetID = "asset_set_id"
+        case downloading, verified, pinned
+        case missingDependency = "missing_dependency"
+        case downloadPercent = "download_percent"
+    }
 }
 
 /// The wire-and-storage envelope for one `CurationIntent` — every field
@@ -49,6 +78,9 @@ struct CurationIntentEnvelope: Codable, Equatable {
     var afterAssetSetID: String?
     var startedAt: String?
     var endedAt: String?
+    /// The full-replacement entry list for an `.availabilityReport`
+    /// intent only — every other kind leaves this `nil`.
+    var availabilityEntries: [AvailabilityReportEntry]?
 
     private enum CodingKeys: String, CodingKey {
         case kind, id, name, position
@@ -59,6 +91,7 @@ struct CurationIntentEnvelope: Codable, Equatable {
         case afterAssetSetID = "after_asset_set_id"
         case startedAt = "started_at"
         case endedAt = "ended_at"
+        case availabilityEntries = "availability_entries"
     }
 }
 
@@ -113,6 +146,13 @@ enum CurationIntent: Equatable {
     /// session.
     case playSessionDelete(id: String)
 
+    /// A device's full-replacement availability report (plan 03-14).
+    /// `id` is a locally-generated identifier for this report attempt
+    /// only (there is no server-side row it names) — `Outbox.enqueue`
+    /// still derives the wire `Idempotency-Key` from its own
+    /// freshly-generated `entryID`, never from this `id`.
+    case availabilityReport(id: String, entries: [AvailabilityReportEntry])
+
     var kind: CurationIntentKind {
         switch self {
         case .favoriteAdd: return .favoriteAdd
@@ -129,6 +169,7 @@ enum CurationIntent: Equatable {
         case .continueDismiss: return .continueDismiss
         case .playSessionRecord: return .playSessionRecord
         case .playSessionDelete: return .playSessionDelete
+        case .availabilityReport: return .availabilityReport
         }
     }
 
@@ -149,6 +190,7 @@ enum CurationIntent: Equatable {
         case .continueDismiss(let id, _): return id
         case .playSessionRecord(let id, _, _, _): return id
         case .playSessionDelete(let id): return id
+        case .availabilityReport(let id, _): return id
         }
     }
 
@@ -162,6 +204,8 @@ enum CurationIntent: Equatable {
             return "POST"
         case .collectionRename, .collectionMemberMove, .queueMove:
             return "PATCH"
+        case .availabilityReport:
+            return "PUT"
         }
     }
 
@@ -188,6 +232,8 @@ enum CurationIntent: Equatable {
             return "/api/v1/play-sessions"
         case .playSessionDelete(let id):
             return "/api/v1/play-sessions/\(id)"
+        case .availabilityReport:
+            return "/api/v1/devices/me/availability"
         }
     }
 
@@ -236,6 +282,9 @@ enum CurationIntent: Equatable {
             ])
         case .playSessionDelete:
             return nil
+        case .availabilityReport(_, let entries):
+            struct Body: Encodable { let entries: [AvailabilityReportEntry] }
+            return try? JSONEncoder().encode(Body(entries: entries))
         }
     }
 
@@ -275,6 +324,8 @@ enum CurationIntent: Equatable {
             return CurationIntentEnvelope(kind: kind, id: id, assetSetID: assetSetID, startedAt: startedAt, endedAt: endedAt)
         case .playSessionDelete(let id):
             return CurationIntentEnvelope(kind: kind, id: id)
+        case .availabilityReport(let id, let entries):
+            return CurationIntentEnvelope(kind: kind, id: id, availabilityEntries: entries)
         }
     }
 
@@ -344,6 +395,9 @@ enum CurationIntent: Equatable {
         case .playSessionDelete:
             guard let id = envelope.id else { return nil }
             return .playSessionDelete(id: id)
+        case .availabilityReport:
+            guard let id = envelope.id, let entries = envelope.availabilityEntries else { return nil }
+            return .availabilityReport(id: id, entries: entries)
         case .unknown:
             // Never actually persisted by this build (`kind.rawValue` on
             // enqueue always comes from a real `CurationIntent` case) —
@@ -397,6 +451,10 @@ enum CurationIntent: Equatable {
             // directly by `PlaySessionRecorder` — never in any
             // `curation_*` table `CurationStore` manages.
             break
+        case .availabilityReport:
+            // No local optimistic write: this intent reports facts read
+            // fresh from disk at report time, never a `curation_*` row.
+            break
         }
     }
 
@@ -428,7 +486,8 @@ enum CurationIntent: Equatable {
         case .continueDismiss(let id, _):
             try curationStore.tombstoneContinueDismissal(id: id)
         case .favoriteRemove, .collectionRename, .collectionDelete, .collectionMemberRemove,
-             .collectionMemberMove, .queueDequeue, .queueMove, .playSessionRecord, .playSessionDelete:
+             .collectionMemberMove, .queueDequeue, .queueMove, .playSessionRecord, .playSessionDelete,
+             .availabilityReport:
             break
         }
     }
@@ -452,7 +511,7 @@ enum CurationIntent: Equatable {
         case .favoriteRemove, .collectionDelete, .collectionMemberRemove, .queueDequeue, .playSessionDelete:
             return true
         case .favoriteAdd, .collectionCreate, .collectionRename, .collectionMemberAdd, .collectionMemberMove,
-             .queueEnqueue, .queueMove, .continueDismiss, .playSessionRecord:
+             .queueEnqueue, .queueMove, .continueDismiss, .playSessionRecord, .availabilityReport:
             return false
         }
     }

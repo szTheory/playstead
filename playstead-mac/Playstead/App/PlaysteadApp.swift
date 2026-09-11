@@ -372,6 +372,15 @@ final class AppEnvironment {
     /// never reached the server (WINDOWS #42).
     let saveOutboxDrainTrigger: SaveOutboxDrainTrigger
     let playSessionRecorder: PlaySessionRecorder
+    /// Reports this device's own per-asset-set availability facts
+    /// (plan 03-14, LIBR-02 gap closure) — an after-the-fact outbox
+    /// producer, constructed here and invoked from `syncNow()`, never
+    /// from any launch path. Before this plan, `AvailabilityReporter`
+    /// had no production construction site at all: the console's
+    /// six-value filter (03-13) had a read model and an endpoint but no
+    /// device ever wrote to it, so four of the six chips matched
+    /// nothing for every real user.
+    let availabilityReporter: AvailabilityReporter
     let reachability: Reachability
 
     let libraryViewModel: LibraryViewModel
@@ -576,6 +585,12 @@ final class AppEnvironment {
 
         let pinStore = PinStore(localStore: store)
         self.pinStore = pinStore
+        // The live-percent provider is wired below, once `self` is fully
+        // initialized (`AvailabilityReporter.setActiveTransferPercentProvider`) —
+        // it needs a weak `self` capture to read `downloadCoordinator`.
+        self.availabilityReporter = AvailabilityReporter(
+            localStore: store, downloadQueue: self.downloadQueue, cas: cas, pinStore: pinStore, outbox: outbox
+        )
         // The cache root is the volume whose free space the floor is
         // measured against — the objects directory, not the app bundle.
         self.quotaManager = QuotaManager(localStore: store, cacheRootURL: paths.objects)
@@ -637,6 +652,15 @@ final class AppEnvironment {
             // captured directly rather than through `self`, which is not
             // yet fully initialized at this point in `init`.
             Task { await uploadLane.drainOnce() }
+        }
+
+        // Wired last, once every property this weak-`self` closure reads
+        // (`downloadCoordinator`) is in scope — the coordinator itself is
+        // still built lazily on first use (see "Download coordination"
+        // above), so this closure reads whatever `self?.downloadCoordinator`
+        // is at call time, not at this wiring time.
+        availabilityReporter.setActiveTransferPercentProvider { [weak self] assetSetID in
+            await self?.downloadCoordinator?.progressPercent(forAssetSet: assetSetID)
         }
 
         // Wires ControllerHost's connect/disconnect/assign transitions to
@@ -771,6 +795,13 @@ final class AppEnvironment {
         await libraryViewModel.refreshSyncState()
         // A sync pass is also the natural moment to flush anything the
         // outbox is still holding.
+        drainOutbox()
+        // And the natural after-the-fact moment to report this device's
+        // own availability facts (plan 03-14) — never on a launch path,
+        // and never blocking anything above if it fails: `reportAll()`
+        // only enqueues durably; delivery itself happens on `drainOutbox()`'s
+        // own schedule, exactly like every other outbox-backed intent.
+        _ = await availabilityReporter.reportAll()
         drainOutbox()
     }
 
