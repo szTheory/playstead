@@ -100,11 +100,19 @@ if ! grep -q 'source=Notarized Developer ID' <<< "$SPCTL_RESULT"; then
 fi
 
 echo "==> Running RelaunchTests against the notarized build"
+# DEVELOPMENT_TEAM overrides the project's checked-in REPLACE_WITH_YOUR_TEAM_ID
+# placeholder (README.md documents that placeholder as intentional — each
+# operator's machine substitutes its own local dev-signing team) for this one
+# invocation only, using the same PLAYSTEAD_TEAM_ID already required by
+# preflight. This is local test-signing, unrelated to the Developer ID
+# release identity asserted above; RelaunchTests itself exercises LocalStore
+# and CASManager directly and is code-signing-independent.
 xcodebuild test \
   -project "$PROJECT_DIR/Playstead.xcodeproj" \
   -scheme Playstead \
   -destination 'platform=macOS' \
-  -only-testing:PlaysteadTests/AdapterTests/RelaunchTests
+  DEVELOPMENT_TEAM="$PLAYSTEAD_TEAM_ID" \
+  -only-testing:PlaysteadTests/RelaunchTests
 
 echo "==> Launching the exported, notarized app to confirm clean exit and relaunch"
 APP_BUNDLE_ID="$(defaults read "$APP_PATH/Contents/Info" CFBundleIdentifier)"

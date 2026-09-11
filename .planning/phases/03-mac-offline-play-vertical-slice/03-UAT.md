@@ -1,14 +1,14 @@
 ---
 status: partial
 phase: 03-mac-offline-play-vertical-slice
-source: 03-01-SUMMARY.md, 03-02-SUMMARY.md, 03-03-SUMMARY.md, 03-04-SUMMARY.md, 03-05-SUMMARY.md, 03-06-SUMMARY.md, 03-07-SUMMARY.md, 03-08-SUMMARY.md, 03-09-SUMMARY.md, 03-10-SUMMARY.md
+source: 03-01-SUMMARY.md, 03-02-SUMMARY.md, 03-03-SUMMARY.md, 03-04-SUMMARY.md, 03-05-SUMMARY.md, 03-06-SUMMARY.md, 03-07-SUMMARY.md, 03-08-SUMMARY.md, 03-09-SUMMARY.md, 03-10-SUMMARY.md, 03-12-SUMMARY.md
 started: 2026-08-31T00:00:00Z
-updated: 2026-09-02T00:00:00Z
+updated: 2026-09-11T00:00:00Z
 ---
 
 ## Current Test
 
-[testing paused — 9 items outstanding: 8 blocked, 1 deliberate scope decision]
+[testing paused — 7 items outstanding: 5 blocked (items 4, 7, 8, 9, 11), 2 partial (item 10's live VoiceOver pass and item 13's real-BIOS-bytes acceptance remain operator-verified). 03-12-PLAN.md closed the notarization gap (items 14-16 now pass); notarization is no longer an outstanding item.]
 
 ## Tests
 
@@ -207,24 +207,53 @@ evidence: |
   scripts/verify-bios-reference.sh <path> once you have one.
 coverage_id: 03-09/D2
 
-### 14. Dev-signed release pipeline, relaunch, and orphan prevention
-expected: The dev-signed hardened-runtime release build launches; Gatekeeper accepts it without a user override; quitting prevents orphan emulator processes; relaunch after an application restart works with zero network calls; support documentation matches actual behavior.
-result: blocked
-blocked_by: release-build
-reason: "Requires a Developer ID Application certificate (paid Apple Developer Program). Gatekeeper acceptance and the full launch/quit/relaunch cycle cannot be exercised without it."
+### 14. Notarized release pipeline, relaunch, and orphan prevention
+expected: The Developer-ID-signed, notarized hardened-runtime release build launches; Gatekeeper accepts it without a user override; quitting prevents orphan emulator processes; relaunch after an application restart works with zero network calls; support documentation matches actual behavior.
+result: pass
+source: automated
+evidence: |
+  Closed by 03-12-PLAN.md Task 3 against a real notarized artifact (submission
+  8465f74d-5468-4b73-9885-fb0ea1dafcdd, status Accepted, run 2026-09-11). See
+  .planning/phases/03-mac-offline-play-vertical-slice/03-NOTARIZATION-EVIDENCE.md
+  for the full transcript. `spctl --assess --type execute --verbose` accepted
+  the build with source=Notarized Developer ID (no user override). RelaunchTests
+  (2/2) ran against the exported notarized artifact and passed. The
+  launch/exit/relaunch cycle (open -> pgrep confirms running -> osascript quit
+  -> pgrep confirms exited -> reopen -> pgrep confirms running) completed with
+  no FATAL, proving clean exit and no orphaned emulator process holds the save
+  file open. Covering command: scripts/verify-notarized-release.sh.
 coverage_id: 03-10/D3
 
 ### 15. Signing / notarization scripts run end to end
 expected: With a real Developer ID Application certificate and PLAYSTEAD_TEAM_ID / PLAYSTEAD_DEV_ID_APP set, build-release.sh and sign-and-notarize.sh run end to end; the local dev-signed build/test succeeds with hardened runtime and sandbox disabled.
-result: blocked
-blocked_by: release-build
-reason: "build-release.sh / sign-and-notarize.sh require a real Developer ID Application certificate and PLAYSTEAD_TEAM_ID / PLAYSTEAD_DEV_ID_APP."
+result: pass
+source: automated
+evidence: |
+  scripts/verify-notarized-release.sh ran build-release.sh (archive + export
+  succeeded), then sign-and-notarize.sh with PLAYSTEAD_REQUIRE_NOTARIZATION=1
+  (strict mode) against the real Developer ID Application identity
+  "Developer ID Application: Johnathan Bryan (6CH9Y797RU)". Hardened runtime
+  (flags=0x10000(runtime)), non-sandboxed entitlement (app-sandbox=false), and
+  no-nested-bundle were all asserted and held. notarytool submit --wait
+  returned status: Accepted; stapler staple succeeded; spctl named
+  source=Notarized Developer ID. Full verbatim transcript in
+  .planning/phases/03-mac-offline-play-vertical-slice/03-NOTARIZATION-EVIDENCE.md.
+  Covering command: scripts/verify-notarized-release.sh.
 coverage_id: 03-03/D6
 
 ### 16. Notarization posture decision (PLAY-05)
 expected: Notarized launch and Keychain access from a notarized build are DEFERRED (no paid Apple Developer Program membership this run). Confirm this is an acceptable interim state and that plan 03-10 closes the gap before PLAY-05 is promised to end users.
-result: skipped
-reason: "Not a test — an owner decision already recorded. Notarization is DEFERRED per the 2026-08-30 owner decision (no paid Apple Developer Program membership this run). Tracked by tests 14 and 15 as release-build-blocked."
+result: pass
+source: automated
+evidence: |
+  The 2026-08-30 deferral was lifted on 2026-09-11: the owner enrolled in the
+  Apple Developer Program, installed a Developer ID Application certificate
+  and a notarytool credential profile, and answered the 03-12-PLAN.md Task 2
+  blocking-human checkpoint "enrolled" after all three confirmation commands
+  (security find-identity, xcrun notarytool history, and
+  scripts/verify-notarized-release.sh --preflight-only) succeeded. Task 3 then
+  produced and verified a genuinely notarized artifact (see items 14 and 15).
+  PLAY-05 is no longer deferred.
 coverage_id: 03-01/D3
 
 ### 17. Adapter pin file is complete and single-valued

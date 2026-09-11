@@ -20,29 +20,33 @@ this project's constraints forbid.
 
 ## Signing and distribution posture
 
-**Notarization is DEFERRED — requires paid Apple Developer Program
-enrollment (owner decision, 2026-08-30).** This installation has no
-Developer ID Application certificate and no `notarytool` credential
-profile. Every build produced in this environment is dev-signed
-(`Apple Development: REPLACE_WITH_YOUR_APPLE_ID (REPLACE_WITH_YOUR_CERT_ID)`, team
-`REPLACE_WITH_YOUR_TEAM_ID`) with the hardened runtime enabled and is **not**
-notarized. The following criteria this plan's own `must_haves` name are
-therefore recorded honestly as unproven in this environment, not
-faked:
+**Notarized as of 2026-09-11.** The Apple Developer Program enrollment
+deferred on 2026-08-30 was lifted once the owner enrolled and installed a
+Developer ID Application certificate and a `notarytool` credential
+profile (`playstead-notary`). The build is signed with `Developer ID
+Application: Johnathan Bryan (6CH9Y797RU)`, submitted to and accepted by
+Apple's notary service (submission `8465f74d-5468-4b73-9885-fb0ea1dafcdd`,
+status `Accepted`), and the notarization ticket is stapled into the
+exported bundle. Gatekeeper accepts the notarized artifact with **no user
+interaction**:
 
-- Gatekeeper accepting the distributed build with no additional user
-  interaction (`spctl --assess` reporting a `Notarized Developer ID`
-  source).
-- A signed-and-notarized build's launch/exit/relaunch cycle, run from
-  an actual notarized artifact.
+```
+build/Release/Playstead.app: accepted
+source=Notarized Developer ID
+```
 
-Everything that does not depend on notarization — the dev-signed build,
-its hardened-runtime and non-sandboxed entitlements, the absence of a
-nested application bundle, and the full relaunch-after-restart proof
-(`RelaunchTests`, exercised against `LocalStore`/`CASManager` directly,
-independent of code signing) — is proven and covered by automated
-tests. See `docs/RELEASE.md` for the exact commands and the paid-membership
-path this posture will convert to once available.
+Verbatim tool output — the notarytool submission log, the stapler
+validation, three independent `spctl --assess` confirmations, the
+`codesign -dvvv` signature detail, and the `RelaunchTests` run against
+this exact notarized artifact — is recorded in
+`.planning/phases/03-mac-offline-play-vertical-slice/03-NOTARIZATION-EVIDENCE.md`.
+
+The full relaunch-after-restart proof (`RelaunchTests`, exercised against
+`LocalStore`/`CASManager` directly and, in this run, against the
+notarized/stapled exported `.app`) and the hardened-runtime,
+non-sandboxed, no-nested-bundle assertions all pass. See
+`docs/RELEASE.md` for the one-command release proof
+(`scripts/verify-notarized-release.sh`).
 
 ## Save restore support
 

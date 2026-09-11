@@ -1,55 +1,74 @@
 # Release: Signing and Notarization
 
-How a distributable `Playstead.app` is built, signed, and (when a paid
-Apple Developer Program membership is available) notarized.
+How a distributable `Playstead.app` is built, signed, and notarized.
 
-## Current posture: dev-signed only, notarization DEFERRED
+## Current posture: notarized (as of 2026-09-11)
 
-**Owner decision, 2026-08-30 (binding):** this installation has no
-Developer ID Application certificate and no `notarytool` keychain
-profile — notarization is deferred pending paid Apple Developer Program
-enrollment. `scripts/build-release.sh`/`scripts/sign-and-notarize.sh`
-below are written to run the **full** notarized path unchanged the
-moment `PLAYSTEAD_DEV_ID_APP`/`PLAYSTEAD_NOTARY_PROFILE` point at real
-credentials — nothing about that path is simulated or stubbed. Until
-then, running these scripts produces a dev-signed, hardened-runtime,
-non-notarized build, and `sign-and-notarize.sh` skips every
-notarization-dependent verification step (Developer ID identity check,
-`notarytool submit`, `stapler staple`, the Gatekeeper "accepted"
-assertion) rather than faking them. See `docs/SUPPORT-MATRIX.md` for
-exactly which claims this posture allows and which it does not.
+**Owner enrolled in the Apple Developer Program** (paid, annual) and
+installed a Developer ID Application certificate plus a `notarytool`
+keychain profile, lifting the notarization deferral recorded on
+2026-08-30. `scripts/build-release.sh`/`scripts/sign-and-notarize.sh` run
+the full notarized path unchanged — nothing about it is simulated or
+stubbed. See
+`.planning/phases/03-mac-offline-play-vertical-slice/03-NOTARIZATION-EVIDENCE.md`
+for the verbatim proof (submission id, `Accepted` status, staple
+validation, `spctl` Gatekeeper acceptance, code signature detail, and the
+`RelaunchTests` run against the notarized artifact), and
+`docs/SUPPORT-MATRIX.md` for exactly which claims this posture allows.
+
+## The one-command release proof
+
+```bash
+export PLAYSTEAD_TEAM_ID="<your Team ID>"
+export PLAYSTEAD_DEV_ID_APP="Developer ID Application: <Your Name> (<Team ID>)"
+export PLAYSTEAD_NOTARY_PROFILE="<your notarytool keychain profile name>"
+
+cd playstead-mac
+scripts/verify-notarized-release.sh
+```
+
+This single command runs, in order: a preflight check of the three
+environment variables above plus the Developer ID identity and notary
+credential profile; `build-release.sh`; `sign-and-notarize.sh` in strict
+mode (`PLAYSTEAD_REQUIRE_NOTARIZATION=1`, which turns any notarization
+gap into a hard failure rather than a graceful degrade); `xcrun stapler
+validate`; a Gatekeeper re-assertion requiring `source=Notarized
+Developer ID`; the `RelaunchTests` suite run against the exported
+notarized artifact; and a launch/exit/relaunch cycle of that same
+artifact. Every failure path exits non-zero and prints exactly one of
+`NO_TEAM_ID`, `NO_DEVELOPER_ID_IDENTITY`, `NO_NOTARY_PROFILE`,
+`NOT_STAPLED`, or `GATEKEEPER_REJECTED` to stderr — never a credential, a
+profile's contents, or an app-specific password.
+
+Run only the preflight (identity/credential checks, no build) with:
+
+```bash
+scripts/verify-notarized-release.sh --preflight-only
+```
 
 ## Prerequisites
 
 | For | Requires |
 |---|---|
-| Dev-signed build (current posture) | An "Apple Development: ..." signing identity already provisioned in Xcode/Keychain Access |
-| Notarized build (future, once enrolled) | A "Developer ID Application: ..." certificate and a `notarytool` keychain profile created via `xcrun notarytool store-credentials` |
+| Notarized build (current posture) | A paid Apple Developer Program membership, a "Developer ID Application: ..." certificate, and a `notarytool` keychain profile created via `xcrun notarytool store-credentials` |
+| Dev-signed build (local `xcodebuild build`/`test` only) | An "Apple Development: ..." signing identity already provisioned in Xcode/Keychain Access |
 
 ## Environment variables
 
 | Variable | Required for | Example |
 |---|---|---|
-| `PLAYSTEAD_DEV_ID_APP` | `build-release.sh` (always) | `Developer ID Application: Example LLC (TEAMID1234)` — or, in the current dev-signed posture, an `Apple Development: ...` identity |
-| `PLAYSTEAD_TEAM_ID` | `build-release.sh` (always) | `TEAMID1234` |
-| `PLAYSTEAD_NOTARY_PROFILE` | `sign-and-notarize.sh`, only to run the notarization branch | A profile name created via `xcrun notarytool store-credentials <profile-name> --apple-id <email> --team-id <team> --password <app-specific-password>` |
+| `PLAYSTEAD_TEAM_ID` | `build-release.sh`, `verify-notarized-release.sh` preflight (always) | `TEAMID1234` |
+| `PLAYSTEAD_DEV_ID_APP` | `build-release.sh` (always) | `Developer ID Application: Example LLC (TEAMID1234)` |
+| `PLAYSTEAD_NOTARY_PROFILE` | `sign-and-notarize.sh`, `verify-notarized-release.sh` preflight | A profile name created via `xcrun notarytool store-credentials <profile-name> --apple-id <email> --team-id <team> --password <app-specific-password>` |
 
-`PLAYSTEAD_NOTARY_PROFILE` left unset (the current posture) is what
-routes `sign-and-notarize.sh` into its deferred branch — this is
-intentional, not a missing-configuration error.
-
-## Exact commands
-
-```bash
-export PLAYSTEAD_DEV_ID_APP="Developer ID Application: Example LLC (TEAMID1234)"
-export PLAYSTEAD_TEAM_ID="TEAMID1234"
-# Only once notarization is available:
-export PLAYSTEAD_NOTARY_PROFILE="playstead-notary"
-
-cd playstead-mac
-./scripts/build-release.sh        # archive + export -> build/Release/Playstead.app
-./scripts/sign-and-notarize.sh    # verify signature, notarize (if configured), assert Gatekeeper
-```
+`PLAYSTEAD_REQUIRE_NOTARIZATION=1` (set automatically by
+`verify-notarized-release.sh`) turns `sign-and-notarize.sh`'s old
+graceful-degrade-to-dev-signed branch into a hard failure — a missing
+notary profile is `FATAL: NO_NOTARY_PROFILE`, not an informational
+deferral. Unset (the default when calling `sign-and-notarize.sh`
+directly), behavior is unchanged from before this flag existed: a
+missing `PLAYSTEAD_NOTARY_PROFILE` produces a dev-signed,
+non-notarized build for local iteration.
 
 ## Verification step
 
@@ -57,17 +76,13 @@ cd playstead-mac
 spctl --assess --type execute --verbose build/Release/Playstead.app
 ```
 
-- **Notarized posture (once enrolled):** exits 0 and prints `accepted`
-  with `source=Notarized Developer ID`. `sign-and-notarize.sh` itself
-  fails loudly (non-zero exit) if this does not hold — it never reports
-  success on an unaccepted build.
-- **Current dev-signed posture:** `sign-and-notarize.sh` runs this same
-  command informationally (never asserted as a pass/fail gate in this
-  branch) and prints its result for manual inspection; a dev-signed,
-  unnotarized build is expected to differ from `source=Notarized
-  Developer ID`.
+Exits 0 and prints `accepted` with `source=Notarized Developer ID` for
+the current, notarized posture. `sign-and-notarize.sh` in strict mode
+fails loudly (non-zero exit, `FATAL: GATEKEEPER_REJECTED`) if this exact
+source line is not present — a locally-signed build accepted for some
+other reason is never reported as a pass.
 
-`sign-and-notarize.sh` additionally asserts, in both postures:
+`sign-and-notarize.sh` additionally asserts, in every posture:
 
 - The hardened runtime flag (`flags=0x10000(runtime)`) is set.
 - The app is not App-Sandboxed (D-04).

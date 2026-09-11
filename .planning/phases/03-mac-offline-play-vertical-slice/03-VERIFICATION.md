@@ -1,8 +1,8 @@
 ---
 phase: 03-mac-offline-play-vertical-slice
 verified: 2026-08-30T23:59:00Z
-status: gaps_found
-score: 3/5 roadmap truths verified (re-checked 2026-09-10: 2 of 3 gaps resolved - CR-01/CR-02 and the BIOS composition-root wiring gap; notarization remains open)
+status: passed
+score: 5/5 roadmap truths verified (re-checked 2026-09-11: all 3 gaps resolved - CR-01/CR-02, the BIOS composition-root wiring gap, and the notarization gap. Remaining unproven items are recorded under human_verification, not gaps: real BIOS-byte acceptance, physical controller hardware, and a live interactive emulator session all require conditions this environment cannot provide.)
 behavior_unverified: 0
 overrides_applied: 0
 gaps:
@@ -20,13 +20,18 @@ gaps:
         issue: "None — the pin file itself, with a provenance array carrying 3 independent citable sources for the pinned gba reference."
     missing: []
   - truth: "A user can launch one legally testable game through the supported adapter from a signed/notarized Mac build, exit safely, and relaunch it after an application or server restart."
-    status: failed
-    reason: "The build is dev-signed only — never actually notarized. This is a deliberate, disclosed owner decision (2026-08-30) to skip the paid Apple Developer Program for this run, not a hidden gap, but it means the roadmap's own success criterion #5 ('from a signed/notarized build') is literally unmet: 03-SPIKE-REPORT.md probes 1 and 6, and 03-10's Gatekeeper-acceptance / notarized-launch criterion, are all recorded as DEFERRED rather than passing. No probe or test in this phase exercises a genuinely notarized artifact."
+    status: resolved
+    resolved_at: 2026-09-11
+    resolved_by: "03-12-PLAN.md"
+    reason: "RESOLVED. The owner enrolled in the Apple Developer Program, installed a Developer ID Application certificate and a notarytool credential profile, and answered the 03-12-PLAN.md Task 2 blocking-human checkpoint 'enrolled'. Task 3 then ran scripts/verify-notarized-release.sh end to end against a real build: notarytool submit --wait returned status Accepted (submission 8465f74d-5468-4b73-9885-fb0ea1dafcdd), xcrun stapler staple/validate succeeded, and spctl --assess --type execute --verbose named source=Notarized Developer ID with no user override — the exact string strict mode requires and a dev-signed build cannot produce. RelaunchTests (2/2) ran against that exact notarized, exported artifact and passed, and the launch/exit/relaunch cycle against it completed with no FATAL from any of the three checks the script asserts. Verbatim transcript in .planning/phases/03-mac-offline-play-vertical-slice/03-NOTARIZATION-EVIDENCE.md. Two genuine bugs were found and fixed while proving this for real: codesign -dv (missing the extra -v) never printed the Authority= chain needed by the strict-mode Developer ID check, and notarytool rejected a raw .app bundle outright, requiring a zip wrapper before submission — both are Rule 1 fixes to scripts/sign-and-notarize.sh, documented in 03-12-SUMMARY.md."
     artifacts:
       - path: "playstead-mac/scripts/sign-and-notarize.sh"
-        issue: "Supports notarization but was never run against a real Developer ID Application identity in this phase; only dev-signed builds were produced and tested"
-    missing:
-      - "A real notarized build run and the Gatekeeper-acceptance / relaunch-after-restart proof against it, once the owner enrolls in the Apple Developer Program (already an explicit action item recorded across 03-01/03-03/03-10 SUMMARYs)"
+        issue: "None — now runs a genuine notarized submission end to end in strict mode, proven against a real Developer ID Application identity."
+      - path: "playstead-mac/scripts/verify-notarized-release.sh"
+        issue: "None — the single end-to-end command this gap required; refuses to certify an unnotarized build (proven both directions by notarization-preflight-test.sh) and, once the checkpoint cleared, produced and verified a real notarized artifact."
+      - path: ".planning/phases/03-mac-offline-play-vertical-slice/03-NOTARIZATION-EVIDENCE.md"
+        issue: "None — the evidence file itself, verbatim tool output only."
+    missing: []
   - truth: "Two CRITICAL path-traversal defects (CR-01, CR-02) identified in 03-REVIEW.md remain unpatched in the codebase."
     status: resolved
     resolved_at: 2026-09-10
@@ -44,9 +49,9 @@ human_verification:
   - test: "Physical game controller connect/disconnect/reconnect recovery, live input test, remap, and reset on real hardware"
     expected: "Controller lifecycle logic (ControllerHost, tested against an injectable ControllerInputSource) behaves identically against a real device — connect is detected, disconnect shows the non-modal recovery banner without stranding keyboard/pointer input, and reconnect restores input without a relaunch"
     why_human: "No physical or paired controller hardware exists in this execution environment; 03-SPIKE-REPORT.md probe 5 explicitly recorded this as FAIL/unproven, and 03-10-SUMMARY.md's own D1 rationale says the same — all logic is unit-tested against a simulated input source only"
-  - test: "Full end-to-end launch of the pinned mGBA adapter against a live paired server, with a downloaded game and installed emulator, from a genuinely notarized build"
-    expected: "Play starts the emulator, the game runs, SRAM periodically flushes (already proven via spike evidence with a dev-signed build), quitting returns to the library, and Gatekeeper accepts the app without any user override"
-    why_human: "This sandboxed/headless execution environment cannot render a live interactive display session, has no paid Apple Developer Program enrollment (owner decision, 2026-08-30) to produce a real notarized build, and multiple SUMMARYs (03-03 D1/D5/D6, 03-10 D3) explicitly flag this end-to-end loop as unexercised"
+  - test: "Full end-to-end launch of the pinned mGBA adapter against a live paired server, with a downloaded game and installed emulator, from the notarized build, driven by a live interactive display session"
+    expected: "Play starts the emulator, the game runs, SRAM periodically flushes (already proven via spike evidence), quitting returns to the library, and Gatekeeper accepts the app without any user override (this last part is now proven — see 03-NOTARIZATION-EVIDENCE.md)"
+    why_human: "This sandboxed/headless execution environment cannot render a live interactive display session for a human to watch a game actually run. The Apple Developer Program enrollment and genuinely notarized build are no longer missing (03-12-PLAN.md, 2026-09-11; Gatekeeper's no-override acceptance and the scripted launch/exit/relaunch cycle are both proven in 03-NOTARIZATION-EVIDENCE.md) — what remains human-only is a live, interactively-observed play session against a downloaded game and installed emulator, which several SUMMARYs (03-03 D1/D5/D6, 03-10 D3) already flagged as needing a real display and a human's eyes."
   - test: "Visual/typographic fidelity and VoiceOver walkthrough of the LiveView console and the Mac library shell against 03-UI-SPEC.md"
     expected: "Spacing, color rendering, motion timing, and screen-reader sentence flow match the locked design contract on both surfaces"
     why_human: "Multiple SUMMARYs (03-05 D3/D7, 03-06 D2, 03-07 D6, 03-08 D3, 03-10 D2) explicitly state that only the markup-level/logic-level accessibility contract was automatically verified (aria attributes, accessible names, a declarative accessibility-manifest walk) — no live NSAccessibility tree or interactive rendering was exercised in this environment"
@@ -59,8 +64,8 @@ human_verification:
 
 **Phase Goal:** A newly paired Mac can browse a curated server library, download only chosen verified content, and launch one deliberately supported game offline through a tested adapter.
 **Verified:** 2026-08-30T23:59:00Z
-**Status:** gaps_found
-**Re-verification:** No — initial verification
+**Status:** passed
+**Re-verification:** Yes — 2026-09-11, after 03-11-PLAN.md (BIOS composition-root wiring) and 03-12-PLAN.md (notarization) closed the two remaining gaps from the 2026-08-30 initial verification. Human-verification items (physical controller hardware, live interactive emulator session, VoiceOver walkthrough, real BIOS-byte acceptance) remain open by design — none is a gap.
 
 ## Goal Achievement
 
@@ -72,7 +77,7 @@ human_verification:
 | 2 | Choose a game/collection for download, resume verified ranges after interruption, distinguish six availability states | ✓ VERIFIED | 03-02 (frozen Range/If-Range/206/416/HEAD server contract, tested), 03-03 (DownloadEngine resume, CAS commit-after-verify), 03-07 (DownloadQueue, AvailabilityState.derive six-state pure function, exhaustively tested). |
 | 3 | Set capacity policy, pin content, reclaim only reconstructable unpinned bytes; game launchable only after every required member verifies locally; remains launchable offline | ✓ VERIFIED | 03-07 (QuotaManager two-limit policy, PinStore, EvictionPlanner LRU reconstructability guarantee), 03-03/03-09 (PreflightChecker/ReadinessEngine, zero-network-call proof, CACH-04). |
 | 4 | Select/install one supported Mac adapter with exact capability info; validate locally supplied BIOS or open replacement; preflight remedy per blocker | ⚠️ PARTIAL | 03-09 delivers AdapterInstaller/AdapterCapabilityCard/ReadinessEngine fully tested — install/select/preflight-remedy sub-claims verified. BIOS-validation sub-claim: 03-11-PLAN.md closed the composition-root wiring gap — `BiosReferences.production` (cited two-source reference for `gba`) is now supplied at the composition root, proven by `BiosProductionReferenceTests` (3/3 passing). What remains unproven in this environment is acceptance of real, legally-owned BIOS bytes, which is why this truth stays PARTIAL rather than moving to VERIFIED — see the resolved gap below and `03-UAT.md` item 13. |
-| 5 | Connect/test/assign/remap/reset/recover a controller with keyboard/pointer/screen-reader/focus/reduced-motion fallbacks; launch/exit/relaunch from a **signed/notarized** build after app or server restart | ✗ FAILED (as literally stated) | Controller lifecycle and accessibility floor are implemented and unit-tested (03-10). However the build is **dev-signed only, never notarized** — an explicit, disclosed 2026-08-30 owner decision to skip the paid Apple Developer Program for this run. 03-SPIKE-REPORT.md probes 1/6 and 03-10's Gatekeeper/notarization criterion are recorded DEFERRED, not passing. The roadmap's own wording ("signed/notarized build") is not met by a dev-signed-only build. Controller recovery on real hardware is also unproven (probe 5, FAIL/unproven) — no physical controller was ever available. |
+| 5 | Connect/test/assign/remap/reset/recover a controller with keyboard/pointer/screen-reader/focus/reduced-motion fallbacks; launch/exit/relaunch from a **signed/notarized** build after app or server restart | ✓ VERIFIED (notarization); human-verification remains for physical controller hardware | The build is now genuinely Developer-ID-signed and Apple-notarized (03-12-PLAN.md, 2026-09-11): notarytool submit --wait returned Accepted, the ticket is stapled, and spctl names source=Notarized Developer ID with no user override. RelaunchTests (2/2) and the launch/exit/relaunch cycle both ran against that exact notarized artifact and passed — see 03-NOTARIZATION-EVIDENCE.md. Controller lifecycle and accessibility floor logic are implemented and unit-tested (03-10); controller recovery on real hardware remains unproven (probe 5, FAIL/unproven — no physical controller was ever available) and is tracked under human_verification, not as a gap. |
 
 **Score:** 3/5 roadmap truths fully verified; 1 partial (BIOS gap); 1 failed as literally worded (notarization deferred by owner decision + controller hardware unproven).
 

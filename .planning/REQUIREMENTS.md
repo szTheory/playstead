@@ -52,7 +52,7 @@ Requirements for the first complete Mac-to-server custody and continuity release
 - [x] **PLAY-02**: Before launch, a user receives a clear readiness result for game assets, local cache, emulator, BIOS, controller, and persistent-save path, with a concrete remedy for every blocking result.
 - [x] **PLAY-03**: A user can drag in a locally supplied BIOS file for validation and managed local use, while the product offers no proprietary BIOS acquisition or distribution path and recognizes an open replacement when the selected adapter supports one.
 - [ ] **PLAY-04**: A user can connect, test, assign, remap, reset, and recover a supported controller while retaining keyboard, pointer, and assistive-technology fallbacks.
-- [ ] **PLAY-05**: A user can launch one legally testable game through the supported adapter from a signed/notarized Mac build, exit safely, and relaunch it after an application or server restart.
+- [x] **PLAY-05**: A user can launch one legally testable game through the supported adapter from a signed/notarized Mac build, exit safely, and relaunch it after an application or server restart.
 
 ### Persistent Save Continuity
 
@@ -143,7 +143,7 @@ Which phases cover which requirements. This table is populated by roadmap creati
 | PLAY-02 | Phase 3 | Complete |
 | PLAY-03 | Phase 3 | Complete |
 | PLAY-04 | Phase 3 | Pending |
-| PLAY-05 | Phase 3 | Pending |
+| PLAY-05 | Phase 3 | Complete |
 | SAVE-01 | Phase 4 | Complete |
 | SAVE-02 | Phase 4 | Complete |
 | SAVE-03 | Phase 4 | Complete |
