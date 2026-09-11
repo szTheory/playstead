@@ -57,8 +57,15 @@ fi
 # This needs real sudo to reach the logic (`untrust` dies at its own `sudo -n`
 # check first), so it SKIPS without sudo and runs for real on the hosted runner,
 # which has passwordless sudo. A skip prints why -- it must never read as a pass.
+#
+# The directory is left in place, exactly as the primary `issue "$ROOT"` case
+# above leaves it: `cmd_issue` refuses only when `<root>/tls` already exists,
+# and its `mkdir -m 0700 "<root>/tls"` has no `-p`, so removing `<root>` first
+# makes `issue` die with ENOENT before reaching any of the logic under test.
+# This check was added by 521c1cf on 2026-09-09 and CI last ran 2026-09-08, so
+# it had never executed on the hosted runner -- its first real run failed here
+# at "could not issue TLS material for the untrust check".
 untrust_root="$(mktemp -d "${TMPDIR:-/tmp}/mac-ci-tls-untrust.XXXXXX")"
-rmdir "$untrust_root"
 if ! sudo -n true 2>/dev/null; then
   printf 'mac-ci-tls contract: SKIPPED the untrust fail-closed check (no passwordless sudo; it runs on the hosted runner)\n'
 else
