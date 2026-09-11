@@ -463,7 +463,85 @@ final class BiosTests: XCTestCase {
         }
     }
 
+    /// UAT item 13 says no acquisition path is offered anywhere in *the UI*.
+    /// The grep above proves that for two files. Eight shipped files carry
+    /// user-facing BIOS copy, and the six it never looked at include
+    /// `ReadinessEngine.swift`, whose remedy text ("Drop in a BIOS file") is
+    /// the single most tempting place to add "...you can get one here" — so
+    /// the claim was broad and the proof was narrow.
+    ///
+    /// This sweeps every shipped Swift file. It reads string literals rather
+    /// than raw source because that is what the requirement is actually
+    /// about: `BiosReferences.swift` cites three URLs in a doc comment as
+    /// provenance for the pinned digest, which is scholarship, not an offer,
+    /// and a raw-source grep cannot tell the two apart.
+    func testNoShippedBiosCopyAnywhereOffersAnAcquisitionPath() throws {
+        let acquisition = try NSRegularExpression(
+            pattern: #"https?://|\bdownload\b|\bobtain\b|where to (get|find)|\bdump\b|torrent|\bacquire\b"#,
+            options: [.caseInsensitive]
+        )
+
+        var offending: [String] = []
+        var biosLiteralCount = 0
+        var filesWithBiosCopy: Set<String> = []
+
+        for url in try shippedSwiftSources() {
+            let source = try String(contentsOf: url, encoding: .utf8)
+            for literal in stringLiterals(in: source) {
+                guard literal.range(of: "bios", options: .caseInsensitive) != nil else { continue }
+                biosLiteralCount += 1
+                filesWithBiosCopy.insert(url.lastPathComponent)
+                let range = NSRange(literal.startIndex..., in: literal)
+                if acquisition.firstMatch(in: literal, range: range) != nil {
+                    offending.append("\(url.lastPathComponent): \(literal)")
+                }
+            }
+        }
+
+        // Each clause on its own line: CI keeps file:line, not assertion text.
+        XCTAssertEqual(offending, [], "shipped BIOS copy offers an acquisition path")
+
+        // Non-vacuity. A sweep that silently stops finding anything -- a
+        // refactor into resources, a renamed directory, a broken literal
+        // scanner -- would otherwise pass while proving nothing at all.
+        XCTAssertGreaterThanOrEqual(biosLiteralCount, 20, "the literal sweep found almost nothing; it is no longer reading shipped copy")
+        XCTAssertTrue(filesWithBiosCopy.contains("ReadinessEngine.swift"), "the remedy copy is no longer being swept")
+        XCTAssertTrue(filesWithBiosCopy.contains("AdapterCapabilityCard.swift"), "the capability-card copy is no longer being swept")
+        XCTAssertTrue(filesWithBiosCopy.contains("BiosDropTarget.swift"), "the drop-surface copy is no longer being swept")
+    }
+
     // MARK: - Helpers
+
+    /// Every shipped Swift file. `Playstead/` only: test targets are not
+    /// shipped, and UI copy never lives there.
+    private func shippedSwiftSources() throws -> [URL] {
+        let root = playsteadMacRoot().appendingPathComponent("Playstead", isDirectory: true)
+        guard let walker = FileManager.default.enumerator(
+            at: root, includingPropertiesForKeys: [.isRegularFileKey]
+        ) else {
+            throw XCTSkip("could not walk \(root.path)")
+        }
+        var found: [URL] = []
+        for case let url as URL in walker where url.pathExtension == "swift" {
+            found.append(url)
+        }
+        XCTAssertGreaterThan(found.count, 40, "walked \(root.path) and found almost no Swift files")
+        return found.sorted { $0.path < $1.path }
+    }
+
+    /// String literals, with comment lines removed first so a doc-comment
+    /// citation is not mistaken for user-facing copy.
+    private func stringLiterals(in source: String) -> [String] {
+        let code = source
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        guard let literal = try? NSRegularExpression(pattern: #""((?:[^"\\\n]|\\.)*)""#) else { return [] }
+        let range = NSRange(code.startIndex..., in: code)
+        return literal.matches(in: code, range: range).compactMap { match in
+            Range(match.range(at: 1), in: code).map { String(code[$0]) }
+        }
+    }
 
     private static let pinJSON = """
     {
@@ -495,13 +573,15 @@ final class BiosTests: XCTestCase {
     }
     """
 
-    private func adapterSourcePaths(named names: [String]) -> [String] {
-        let thisFile = URL(fileURLWithPath: #filePath)
-        let playsteadMacRoot = thisFile
+    private func playsteadMacRoot() -> URL {
+        URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent() // BiosTests.swift -> AdapterTests/
             .deletingLastPathComponent() // AdapterTests/ -> PlaysteadTests/
             .deletingLastPathComponent() // PlaysteadTests/ -> playstead-mac/
-        let adapterDir = playsteadMacRoot.appendingPathComponent("Playstead/Adapter")
+    }
+
+    private func adapterSourcePaths(named names: [String]) -> [String] {
+        let adapterDir = playsteadMacRoot().appendingPathComponent("Playstead/Adapter")
         return names.map { adapterDir.appendingPathComponent($0).path }
     }
 }

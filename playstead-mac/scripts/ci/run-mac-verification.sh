@@ -1293,7 +1293,8 @@ PY
     --required-test PlaysteadTests.AvailabilityReporterTests/test_secondPassOverUnchangedState_enqueuesAgainRatherThanShortCircuiting \
     --required-test PlaysteadTests.AvailabilityReporterTests/test_unchangedSecondPassEncodesToTheSamePayloadAsTheFirst \
     --required-test PlaysteadTests.BiosTests/testRejectionMessageQuotesTheStoreReasonVerbatim \
-    --required-test PlaysteadTests.BiosTests/testEveryRejectionIsDistinguishableAndNoneIsTheGenericFallback
+    --required-test PlaysteadTests.BiosTests/testEveryRejectionIsDistinguishableAndNoneIsTheGenericFallback \
+    --required-test PlaysteadTests.BiosTests/testNoShippedBiosCopyAnywhereOffersAnAcquisitionPath
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
 
   run_test_layer rendering Rendering 600 \
