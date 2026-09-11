@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 03
 current_phase_name: Mac Offline Play Vertical Slice
 status: executing
-stopped_at: Completed 03-15-PLAN.md
-last_updated: "2026-09-11T15:01:54.364Z"
+stopped_at: Completed 03-16-PLAN.md
+last_updated: "2026-09-11T15:26:11.737Z"
 last_activity: 2026-09-11
 last_activity_desc: Phase 03 execution started
-state_head: 22e9dd0ddad75a60952dd3b51dbc84defac4f970
+state_head: 0294ccdd09d2b6e95583bbe5f87c70f45b19fe01
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 75
-  completed_plans: 74
+  completed_plans: 75
 milestone_name: milestone
 ---
 
@@ -28,10 +28,27 @@ See: `.planning/PROJECT.md` (updated 2026-08-30)
 
 ## Current Position
 
-Phase: 03 (Mac Offline Play Vertical Slice) — EXECUTING
-Plan: 2 of 16
-Status: Ready to execute
-Last activity: 2026-09-11 — Phase 03 execution started
+Phase: 03 (Mac Offline Play Vertical Slice) — EXECUTING (all 16 plans complete; awaiting independent re-verification)
+Plan: 16 of 16
+Status: Ready for re-verification
+Last activity: 2026-09-11 — 03-16-PLAN.md complete
+
+**03-16-PLAN.md is COMPLETE.** Closed the two robustness findings the
+03-15 re-verification recorded alongside LIBR-02: `AvailabilityController
+.replace/2` now refuses a malformed `entries` body (non-list, or a list
+with a non-map element) with 422 in the sibling endpoints' problem shape
+instead of raising into a 500 (WR-04), and `Outbox.enqueue` now supersedes
+any still-pending or backed-off availability report of the same kind
+inside its existing transaction, so only the newest full-replacement
+report is ever delivered (WR-05) — an in-flight row and every other
+intent kind are untouched. `LIBR-02` was then flipped to `Complete` in
+`REQUIREMENTS.md`, gated exclusively on 03-15's and this plan's own
+observed Mac-client-driven and HTTP-driven test runs, with a
+clause-by-clause mapping from UAT item 4's expected text to named tests
+recorded in `03-16-SUMMARY.md`. `03-VERIFICATION.md` and `03-UAT.md`
+remain untouched by design — the phase's terminal status is for an
+independent re-verification to set, not this plan. See
+`.planning/phases/03-mac-offline-play-vertical-slice/03-16-SUMMARY.md`.
 
 **03-13-PLAN.md is COMPLETE.** Closed the actionable half of the LIBR-02
 gap: added a device-reported, per-user-merged availability read model
@@ -161,6 +178,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 | Phase 03-mac-offline-play-vertical-slice P13 | 95min | 3 tasks | 15 files |
 | Phase 03 P14 | 95min | 3 tasks | 12 files |
 | Phase 03 P15 | 40min | 2 tasks | 5 files |
+| Phase 03 P16 | 22min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -300,6 +318,8 @@ Progress: [█████████░] 90% (Phase 03.5)
 - [Phase 03]: LIBR-02 flipped Complete only after Mac AvailabilityReporter + UAT tally guard observed passing this session; console filter follows 03-UI-SPEC/D-13 vocabulary, not CACH-02's AvailabilityState ladder
 - [Phase 03]: [Phase 03] missing_dependency's predicate carries an explicit engagement conjunct (cached, pinned, or queued) alongside the orphaned-member conjunct, since the literal 03-VERIFICATION.md definition alone would make server_only structurally unreachable for every never-downloaded game
 - [Phase 03]: [Phase 03] 03-15: Task 2 (transport proof) required no production code change -- Task 1's computed predicate already produced the exact facts the shared fixture and Elixir end-to-end test assert against
+- [Phase 03]: LIBR-02 flipped Complete only after judging every clause of UAT item 4 against a named test, with the availability/readiness clause specifically required to be proved by a test that drives the Mac client or the real HTTP endpoint, never a seeded server read model.
+- [Phase 03]: Supersede-on-enqueue (delete inside Outbox.enqueue's transaction) chosen over a newest-wins filter inside listPending, since listPending is a generic read shared by OutboxWorker and the rejected-intents surface.
 
 ### Pending Todos
 
@@ -333,6 +353,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-11T15:01:36.867Z
-Stopped at: Completed 03-15-PLAN.md
+Last session: 2026-09-11T15:26:11.219Z
+Stopped at: Completed 03-16-PLAN.md
 Resume file: None
