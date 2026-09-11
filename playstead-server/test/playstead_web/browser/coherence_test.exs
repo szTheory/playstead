@@ -71,7 +71,7 @@ defmodule PlaysteadWeb.Browser.CoherenceTest do
 
       for b <- buttons, is_binary(b["label"]) do
         assert Regex.match?(
-                 ~r/^(Approve device|Deny pairing request|Revoke .+|Rename .+|Dismiss|Add .+ to (Favorites|Queue)|Remove .+ from (Favorites|Queue|collection)|Move .+ (up|down)( in queue)?|Switch to (list|grid) view|Show all systems .+|Hide empty systems|Delete)$/,
+                 ~r/^(Approve device|Deny pairing request|Revoke .+|Rename .+|Dismiss|Add .+ to (Favorites|Queue)|Remove .+ from (Favorites|Queue|collection)|Move .+ (up|down)( in queue)?|Switch to (list|grid) view|Show all systems .+|Hide empty systems|Delete|Filter by .+)$/,
                  b["label"]
                ),
                "aria-label is not an action verb phrase: #{inspect(b["label"])}"
