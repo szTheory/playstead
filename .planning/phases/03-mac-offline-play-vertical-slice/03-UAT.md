@@ -8,7 +8,7 @@ updated: 2026-09-11T00:00:00Z
 
 ## Current Test
 
-[testing paused — 6 items outstanding: 4 blocked (items 4, 7, 8, 9), 2 partial (item 10's live VoiceOver pass and item 13's real-BIOS-bytes acceptance remain operator-verified). 03-12-PLAN.md closed the notarization gap (items 14-16 now pass); notarization is no longer an outstanding item. This annotation and the Summary footer below are recomputed by `scripts/check-uat-tally.sh` from this file's own per-item results, not hand-maintained (plan 03-14) — item 11 is `pass`, not blocked, contrary to a stale prior version of this line.]
+[testing paused — 5 items outstanding: 3 blocked (items 7, 8, 9), 2 partial (item 10's live VoiceOver pass and item 13's real-BIOS-bytes acceptance remain operator-verified). 03-12-PLAN.md closed the notarization gap (items 14-16 now pass); notarization is no longer an outstanding item. 03-14-PLAN.md closed item 4's availability-search gap (now pass). This annotation and the Summary footer below are recomputed by `scripts/check-uat-tally.sh` from this file's own per-item results, not hand-maintained — item 11 is `pass`, not blocked, contrary to a stale pre-03-14 version of this line.]
 
 ## Tests
 
@@ -58,10 +58,46 @@ coverage_id: 03-06/D2
 
 ### 4. Find any game by system, availability, and free-text search (web console)
 expected: From the web console you can reach any imported game by system, by availability, and by free-text search. (Note: the availability dimension is deliberately incomplete this plan — see 03-05 key-decisions.)
-result: blocked
-blocked_by: prior-phase
-reason: "Two distinct blockers, neither a defect. (1) The availability filter dimension is deliberately incomplete in this plan per a recorded 03-05 key-decision — not a bug, but it means 'reach any game by availability' cannot be true yet. (2) The remaining find-a-game UX review is human judgment. The search and system-filter mechanics are already machine-proven by library_live_test.exs. Revisit once the availability dimension is completed."
-coverage_id: 03-05/D3
+result: pass
+source: automated
+evidence: |
+  Clause-by-clause coverage (03-14, LIBR-02 gap closure — see
+  03-14-SUMMARY.md for the full mapping this evidence block summarizes):
+
+  - "reach any imported game by system": covered pre-existing by
+    `test/playstead_web/live/library_live_test.exs` — "toggling a
+    system chip and an availability chip each narrow the set, and a
+    pressed chip carries aria-pressed" (system-chip half).
+  - "by availability": the console's six-value filter genuinely
+    discriminates over device-reported facts, proven end to end across
+    both codebases:
+    - Mac client actually builds and enqueues a real per-game report
+      matching the server's accepted wire shape:
+      `playstead-mac/PlaysteadTests/CacheTests/AvailabilityReporterTests.swift`
+      (all cases) and
+      `playstead-mac/PlaysteadTests/CacheTests/AvailabilityVocabularyContractTests.swift`.
+    - The server stores exactly what a device sends:
+      `test/playstead_web/controllers/api/v1/availability_controller_test.exs`
+      — "PUT devices/me/availability stores the reported facts".
+    - All six filter values discriminate the browse set, no
+      pass-through: `test/playstead_web/live/library_live_test.exs` —
+      "each of the six values narrows the set to exactly its own asset
+      set, excluding every other".
+  - "by free-text search": covered pre-existing by
+    `test/playstead_web/live/library_live_test.exs` — "searching a
+    distinctive substring narrows the rendered set to the matching
+    entries only".
+  - The parenthetical note ("the availability dimension is deliberately
+    incomplete this plan") is now stale and resolved by 03-13/03-14 —
+    the dimension is complete as of this report.
+
+  Commands run this session: `cd playstead-mac && xcodebuild test
+  -scheme Playstead -destination 'platform=macOS'
+  -only-testing:PlaysteadTests/AvailabilityReporterTests
+  -only-testing:PlaysteadTests/AvailabilityVocabularyContractTests`
+  (16 tests, 0 failures) and `cd playstead-server && mix test` (1065
+  tests, 0 failures).
+coverage_id: 03-05/D3, 03-13/D1, 03-13/D2
 
 ### 5. Downloads / quota / reclaim / storage click-through
 expected: Against a live paired server on an interactive Mac session, click through DownloadsView, QuotaSettingsView, ReclaimPromptView, and StorageView. Visual fidelity, motion timing, and VoiceOver behavior match the spec; the queue/quota/reclaim/storage flows behave as described.
@@ -461,11 +497,11 @@ coverage_id: 03-09/D3
 ## Summary
 
 total: 44
-passed: 38
+passed: 39
 issues: 0
 pending: 0
 skipped: 0
-blocked: 4
+blocked: 3
 partial: 2
 
 ## Gaps
