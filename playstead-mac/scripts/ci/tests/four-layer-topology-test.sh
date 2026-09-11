@@ -106,9 +106,18 @@ if live_environment != expected_live_environment:
 # cheaper layer: it needs a real upload, a real journal return, and a real
 # restore into a launch directory. Everything else about the save
 # subsystem is proven in Unit or Rendering and must stay there.
+#
+# Plan 04.5-01 added the pairing-ceremony entry below. It earns its place for
+# the same reason the save entries do: it drives the real `PairingView` against
+# a real running server starting from a genuinely empty scoped Keychain, which
+# is the one claim no deterministic profile can make (every other live-server
+# entry is handed a credential). It was added to LiveServer.xctestplan by
+# b8960d1 and this set was not updated alongside it -- the drift went unseen
+# because CI last ran 2026-09-08, before that commit.
 expected_live = {
     "HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner()",
     "LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch()",
+    "PairingCeremonyTests/testAHumanCanPairAFreshMacEntirelyFromInsideTheAppAgainstTheRealServer()",
     "SaveEndToEndTests/testOneSaveRoundTripsCaptureUploadAndJournalReturn()",
     "SaveRestoreProofTests/testCapturedRevisionRestoresToByteIdenticalArtifactInLaunchDir()",
 }
@@ -193,7 +202,19 @@ grep -F 'environment["PLAYSTEAD_WAVE_0_LAUNCH_CANARY"] == "1"' "$APP_ENTRY" >/de
 grep -F 'HostedRunnerLaunchCanaryView' "$APP_ENTRY" >/dev/null
 grep -F 'CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=' "$RUNNER" >/dev/null
 grep -F 'server: System.get_env("PLAYSTEAD_MAC_CI_TASK") != "1"' "$MAC_CI_CONFIG" >/dev/null
-[ "$(grep -c 'PLAYSTEAD_MAC_CI_TASK=1 mix playstead.mac_ci_fixture' "$LIVE_SERVER_FIXTURE")" -eq 3 ]
+# `mac_ci.exs` starts no server when PLAYSTEAD_MAC_CI_TASK=1, so every fixture
+# `mix` invocation must carry that flag or it boots a second server on the same
+# port. This used to assert an exact count of 3, which said "all of them" only
+# by coincidence: plan 04.5-01's pairing-ceremony flow legitimately added two
+# more invocations and the count was never updated, so this guard had been
+# failing on main since b8960d1 (unseen -- CI last ran 2026-09-08). Comparing
+# guarded against total says what was actually meant, survives a legitimate
+# addition, and still fails on an unguarded one. Both counts must be nonzero so
+# a renamed task cannot satisfy it with 0 == 0.
+live_fixture_total="$(grep -c 'mix playstead.mac_ci_fixture' "$LIVE_SERVER_FIXTURE")"
+live_fixture_guarded="$(grep -c 'PLAYSTEAD_MAC_CI_TASK=1 mix playstead.mac_ci_fixture' "$LIVE_SERVER_FIXTURE")"
+[ "$live_fixture_total" -gt 0 ]
+[ "$live_fixture_guarded" -eq "$live_fixture_total" ]
 grep -F 'live-server fixture failed at %s' "$LIVE_SERVER_FIXTURE" >/dev/null
 grep -F 'PLAYSTEAD_LIVE_SERVER_STAGE_FILE' "$LIVE_SERVER_FIXTURE" >/dev/null
 grep -F 'resolved_parent" = "$resolved_root' "$LIVE_SERVER_FIXTURE" >/dev/null
