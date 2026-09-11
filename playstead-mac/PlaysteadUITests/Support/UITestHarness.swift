@@ -64,9 +64,17 @@ final class UITestHarness {
     let app: XCUIApplication
     private(set) var identifierTrace: [String] = []
 
-    init(profile: Profile, persistentSession: Bool = false) {
+    /// `extraEnvironment` carries additional launch variables a specific
+    /// test needs (e.g. the BIOS candidate path). It is applied after the
+    /// mode/profile keys below and must never overwrite them — a test that
+    /// tried would silently escape the deterministic-profile contract, so
+    /// those keys are re-asserted afterwards.
+    init(profile: Profile, persistentSession: Bool = false, extraEnvironment: [String: String] = [:]) {
         app = XCUIApplication()
         app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
+        for (key, value) in extraEnvironment {
+            app.launchEnvironment[key] = value
+        }
         // These literals intentionally mirror `UITestBootstrap.modeKey` and
         // `.profileKey`: the UI-test target cannot link app-internal constants.
         // Both are required. A profile name alone must never fall through to

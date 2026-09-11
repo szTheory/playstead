@@ -11,7 +11,9 @@ final class ReleaseHookAbsenceTests: XCTestCase {
         "PLAYSTEAD_UI_TEST_PROFILE",
         "blockExternalIOForUITesting",
         "uiTestingBlocksExternalIO",
-        "uiTestingLocalStore"
+        "uiTestingLocalStore",
+        "UITestBiosCandidate",
+        "PLAYSTEAD_UI_TEST_BIOS_CANDIDATE"
     ]
 
     func testScannerRejectsSeededForbiddenHookToken() {

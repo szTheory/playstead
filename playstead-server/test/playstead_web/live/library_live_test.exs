@@ -690,4 +690,101 @@ defmodule PlaysteadWeb.LibraryLiveTest do
       assert true
     end
   end
+
+  # 03-UAT.md checkpoint 48 (plan 03-13 deliverable D6, deferred there as a
+  # "backstop truth"): "A download in progress uses the existing determinate
+  # progress indicator, not a second loading treatment."
+  #
+  # Deferring it hid a real defect. The list row passed ONLY `queued:` into
+  # `status_slot/1`, so `rank/1` could never reach any rung above `queued` in
+  # list view -- `downloading` (the single rung that carries the determinate
+  # percent D-16 requires be retained), `missing_dependency` and
+  # `needs_attention` were all unreachable there. The row's own `aria-label`
+  # went through `StatusSlot.describe/2` with the FULL status the whole time,
+  # so a downloading row announced "is downloading, 42 percent complete" to a
+  # screen reader while its visible badge read "On server".
+  describe "checkpoint 48: the list row's status indicator is the determinate one" do
+    import Playstead.PairingFixtures
+
+    alias Playstead.Availability
+
+    test "a downloading game's list row shows the determinate percent, and its badge agrees with its accessible name",
+         %{conn: conn, user: user, scope: scope} do
+      %{device: device} = device_fixture(scope)
+
+      downloading =
+        asset_set_fixture(user.id, %{display_title: "Downloading Game", system_id: "gba"})
+
+      Availability.replace_for_device(device, [
+        %{"asset_set_id" => downloading.id, "downloading" => true, "download_percent" => 42}
+      ])
+
+      {:ok, lv, _html} = live(conn, ~p"/library")
+      lv |> element("#toggle-view") |> render_click()
+
+      # Scoped to the row itself. The page-level flash group ships a
+      # permanently-rendered, hidden "attempting to reconnect" spinner, so a
+      # whole-document refute for a loading treatment can never hold and would
+      # have to be deleted rather than fixed.
+      row = lv |> element("#asset-#{downloading.id}") |> render()
+
+      # The visible badge is the downloading rung and carries its percent.
+      assert row =~ ~s(data-status="downloading")
+      assert row =~ "Downloading — 42%"
+
+      # The accessible name says the same thing the badge shows.
+      assert row =~ "Downloading Game is downloading, 42 percent complete."
+
+      # Exactly one indicator on the row: the determinate one, with no second
+      # loading treatment rendered beside it.
+      assert Regex.scan(~r/data-status-slot="true"/, row) |> length() == 1
+      refute row =~ "animate-spin"
+      refute row =~ "animate-pulse"
+      refute row =~ "skeleton"
+    end
+
+    test "every ladder rung the grid card can show is reachable in list view too",
+         %{conn: conn, user: user, scope: scope} do
+      %{device: device} = device_fixture(scope)
+
+      sets =
+        Map.new(
+          [:needs_attention, :missing_dependency, :downloading, :queued, :verified],
+          fn rung ->
+            {rung, asset_set_fixture(user.id, %{display_title: "#{rung} Game", system_id: "gba"})}
+          end
+        )
+
+      raise_attention!(user.id, sets[:needs_attention].id)
+
+      Availability.replace_for_device(device, [
+        %{"asset_set_id" => sets[:missing_dependency].id, "missing_dependency" => true},
+        %{
+          "asset_set_id" => sets[:downloading].id,
+          "downloading" => true,
+          "download_percent" => 7
+        },
+        %{"asset_set_id" => sets[:verified].id, "verified" => true}
+      ])
+
+      Curation.enqueue(user.id, Ecto.UUID.generate(), sets[:queued].id)
+
+      {:ok, lv, _html} = live(conn, ~p"/library")
+      lv |> element("#toggle-view") |> render_click()
+      html = render(lv)
+
+      # Each seeded rung is the winning status on its own row. Asserting per
+      # rung on its own line keeps the diagnosis in the CI failure location
+      # rather than in an assertion message the evidence pipeline discards.
+      assert html =~
+               ~s(id="asset-#{sets[:needs_attention].id}-status" data-status="needs_attention")
+
+      assert html =~
+               ~s(id="asset-#{sets[:missing_dependency].id}-status" data-status="missing_dependency")
+
+      assert html =~ ~s(id="asset-#{sets[:downloading].id}-status" data-status="downloading")
+      assert html =~ ~s(id="asset-#{sets[:queued].id}-status" data-status="queued")
+      assert html =~ ~s(id="asset-#{sets[:verified].id}-status" data-status="verified")
+    end
+  end
 end

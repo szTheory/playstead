@@ -814,11 +814,10 @@ defmodule PlaysteadWeb.LibraryLive do
                   <span class="text-label text-[#94A3B8]">
                     {GameCard.system_display_name(entry.asset_set.system_id)}
                   </span>
-                  <.status_slot
+                  <.list_status_slot
                     id={"#{dom_id}-status"}
                     title={entry.asset_set.display_title}
-                    variant={:list}
-                    queued={Map.get(status_for(entry.asset_set, assigns), :queued, false)}
+                    status={status_for(entry.asset_set, assigns)}
                   />
                   <.asset_actions
                     asset_set={entry.asset_set}
@@ -873,6 +872,35 @@ defmodule PlaysteadWeb.LibraryLive do
         {if @queued?, do: "Remove from Queue", else: "Add to Queue"}
       </button>
     </div>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :title, :string, required: true
+  attr :status, :map, required: true
+
+  # The list row's status indicator. It must carry the SAME ladder facts
+  # the grid card carries. Passing only `queued` here made every
+  # higher-ranking state unreachable in list view -- including
+  # `downloading`, the one state that owns the
+  # determinate percent D-16 requires be retained. The row's own
+  # `aria-label` already went through `StatusSlot.describe/2` with the
+  # full status, so a downloading row announced "is downloading, 42
+  # percent complete" while its visible badge read "On server".
+  defp list_status_slot(assigns) do
+    ~H"""
+    <.status_slot
+      id={@id}
+      title={@title}
+      variant={:list}
+      needs_attention={Map.get(@status, :needs_attention, false)}
+      missing_dependency={Map.get(@status, :missing_dependency, false)}
+      downloading={Map.get(@status, :downloading, false)}
+      download_percent={Map.get(@status, :download_percent, 0)}
+      queued={Map.get(@status, :queued, false)}
+      pinned={Map.get(@status, :pinned, false)}
+      verified={Map.get(@status, :verified, false)}
+    />
     """
   end
 

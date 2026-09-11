@@ -74,6 +74,15 @@ enum AccessibilityIdentifiers {
         ]
     }
 
+    /// Machine identity for a rendered status readout — a piece of copy an
+    /// automated check must be able to read back verbatim. Distinct from
+    /// `Surface`, which is the D-18 surface inventory and is walked as such.
+    enum Readout {
+        static let biosStatus = "playstead.readout.bios-status"
+
+        static let all = [biosStatus]
+    }
+
     /// Finite identities for synthetic rows used by deterministic UI fixtures.
     /// These are deliberately not generated from catalogue IDs or coordinates.
     enum FixtureRow {
@@ -84,5 +93,5 @@ enum AccessibilityIdentifiers {
         static let all = [alpha, beta, gamma]
     }
 
-    static let allStaticIdentifiers = Surface.all + Control.all + FixtureRow.all
+    static let allStaticIdentifiers = Surface.all + Control.all + Readout.all + FixtureRow.all
 }

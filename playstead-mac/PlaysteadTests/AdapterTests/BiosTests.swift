@@ -365,6 +365,67 @@ final class BiosTests: XCTestCase {
         XCTAssertFalse(reason.isEmpty)
     }
 
+    // MARK: - 03-UAT.md checkpoint 45: the reason the surface renders is
+    // the store's own, verbatim — never a generic failure string.
+    //
+    // `testBiosDropTargetRejectsANonMatchingDroppedFileWithAReason` only
+    // asserts the reason is non-empty, which the generic fallback also
+    // satisfies. These pin the exact copy, one store error per line, and
+    // anchor the literal `BiosRejectionCopyTests` mirrors in the UI-test
+    // target (which cannot link these types).
+
+    func testRejectionMessageQuotesTheStoreReasonVerbatim() throws {
+        let gba = BiosDropTarget(store: store, system: "gba")
+
+        let wrongContents = try writeFile(
+            named: "wrong-contents.bin", contents: Data(repeating: 0x11, count: Self.referenceLength)
+        )
+        XCTAssertEqual(
+            reason(from: gba.handle(droppedFileURL: wrongContents)),
+            "This file could not be validated — this file's contents don't match a known reference."
+        )
+
+        let wrongSize = try writeFile(named: "wrong-size.bin", contents: Data(repeating: 0x11, count: 3))
+        XCTAssertEqual(
+            reason(from: gba.handle(droppedFileURL: wrongSize)),
+            "This file could not be validated — wrong size (expected \(Self.referenceLength) bytes, got 3)."
+        )
+
+        // The literal `BiosRejectionCopyTests` drives the real surface to,
+        // via the deterministic profiles' `synthetic-system`.
+        let unknownSystem = BiosDropTarget(store: store, system: "synthetic-system")
+        let anyFile = try writeFile(named: "any.bin", contents: Data(repeating: 0x5A, count: 2048))
+        XCTAssertEqual(
+            reason(from: unknownSystem.handle(droppedFileURL: anyFile)),
+            "This file could not be validated — no known reference for this system yet."
+        )
+    }
+
+    func testEveryRejectionIsDistinguishableAndNoneIsTheGenericFallback() throws {
+        let gba = BiosDropTarget(store: store, system: "gba")
+        let generic = "This file could not be validated."
+
+        let candidates = [
+            try writeFile(named: "d1.bin", contents: Data(repeating: 0x11, count: Self.referenceLength)),
+            try writeFile(named: "d2.bin", contents: Data(repeating: 0x11, count: 3)),
+            try writeFile(named: "d3.bin", contents: Data())
+        ]
+
+        let reasons = candidates.map { reason(from: gba.handle(droppedFileURL: $0)) }
+
+        XCTAssertFalse(reasons.contains(generic), "a store error fell through to the generic fallback")
+        XCTAssertFalse(reasons.contains(where: \.isEmpty))
+        XCTAssertEqual(Set(reasons).count, reasons.count, "two distinct failures rendered identical copy")
+    }
+
+    private func reason(from result: BiosDropResult) -> String {
+        guard case .rejected(let reason) = result else {
+            XCTFail("expected .rejected, got \(result)")
+            return ""
+        }
+        return reason
+    }
+
     // MARK: - Capability card fidelity caveat
 
     func testCapabilityCardStatesFidelityCaveatWhenNoBiosIsPresent() throws {

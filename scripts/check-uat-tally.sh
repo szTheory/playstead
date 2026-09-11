@@ -138,7 +138,12 @@ if stated["total"] != len(headings):
 # no footer line at all) is exactly the shape of defect that let
 # 03-UAT.md's footer go stale (it never grew a "partial:" line when
 # item 10 and item 13 became partial records).
-KIND_TO_FOOTER_KEY = {"pass": "passed", "blocked": "blocked", "partial": "partial", "skipped": "skipped"}
+# "[pending]" is the literal the UAT template writes for an unresolved
+# item, brackets included. Without an entry here its footer key would be
+# "[pending]", which the "^([a-z_]+):" footer parser above can never
+# match -- so every in-progress UAT file failed this check outright and
+# the only way to satisfy it was to stop recording pending items.
+KIND_TO_FOOTER_KEY = {"pass": "passed", "blocked": "blocked", "partial": "partial", "skipped": "skipped", "[pending]": "pending"}
 for kind, count in sorted(derived.items()):
     footer_key = KIND_TO_FOOTER_KEY.get(kind, kind)
     if footer_key not in stated:

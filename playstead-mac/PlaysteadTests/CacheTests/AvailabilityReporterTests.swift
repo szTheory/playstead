@@ -459,4 +459,101 @@ final class AvailabilityReporterTests: XCTestCase {
         }
     }
 
+
+    // MARK: - 03-UAT.md checkpoint 49 (plan 03-15 deliverable D7): a
+    // report whose entry list is unchanged since the last pass still
+    // encodes and enqueues.
+    //
+    // 03-15 left this unclassified ("coverage not determined at
+    // authoring time -- verifier should classify") because the existing
+    // retry test proves one intent re-sent, not two passes enqueued.
+    // The distinction matters now that 03-16 added newest-wins
+    // supersede: a second report REPLACES a pending predecessor, and a
+    // supersede that dropped the newer report instead of the older one
+    // would look identical from the outbox count alone. These pin the
+    // direction as well as the count.
+
+    func test_secondPassOverUnchangedState_enqueuesAgainRatherThanShortCircuiting() async throws {
+        let digest = try seedCachedObject(seed: "u")
+        let entry = catalogueEntry(id: "game-unchanged", requiredSHA: digest)
+        try catalogueStore.upsert(entry)
+
+        var issued = 0
+        let counting = AvailabilityReporter(
+            localStore: localStore, downloadQueue: downloadQueue, cas: cas, pinStore: pinStore,
+            outbox: outbox,
+            idGenerator: { issued += 1; return "report-pass-\(issued)" }
+        )
+
+        let first = await counting.reportAll()
+        let firstPending = try XCTUnwrap(outbox.listAll().first(where: { $0.kind == .availabilityReport }))
+
+        // Nothing about the world changes between the two passes.
+        let second = await counting.reportAll()
+
+        XCTAssertEqual(first, second, "an unchanged world must produce an identical entry list")
+        XCTAssertEqual(issued, 2, "the second pass built and enqueued its own intent")
+
+        let pending = outbox.listAll().filter { $0.kind == .availabilityReport }
+        XCTAssertEqual(pending.count, 1, "newest-wins supersede leaves exactly one report queued")
+
+        let survivor = try XCTUnwrap(pending.first)
+        XCTAssertNotEqual(
+            survivor.idempotencyKey, firstPending.idempotencyKey,
+            "the SECOND pass's report survived -- supersede dropped the older one, not the newer"
+        )
+    }
+
+    func test_unchangedSecondPassEncodesToTheSamePayloadAsTheFirst() async throws {
+        let digest = try seedCachedObject(seed: "v")
+        let entry = catalogueEntry(id: "game-stable", requiredSHA: digest)
+        try catalogueStore.upsert(entry)
+        try pinStore.pin(assetSetID: "game-stable")
+
+        let first = await reporter.buildEntries(catalogue: [entry])
+        let second = await reporter.buildEntries(catalogue: [entry])
+
+        // Non-vacuity first: a real, populated report, not two equal empty
+        // ones.
+        XCTAssertEqual(first.count, 1)
+        XCTAssertEqual(second.count, 1)
+        let a = try XCTUnwrap(first.first)
+        let b = try XCTUnwrap(second.first)
+        XCTAssertTrue(a.verified)
+        XCTAssertTrue(a.pinned)
+
+        // Field by field, each on its own line. `Data`'s description is only
+        // a byte count, so comparing the encoded bodies directly reports
+        // `("142 bytes") is not equal to ("142 bytes")` and names nothing --
+        // and CI keeps file:line, not assertion messages, so the diagnosis
+        // has to live in WHICH line failed.
+        XCTAssertEqual(a.assetSetID, b.assetSetID)
+        XCTAssertEqual(a.downloading, b.downloading)
+        XCTAssertEqual(a.verified, b.verified)
+        XCTAssertEqual(a.pinned, b.pinned)
+        XCTAssertEqual(a.missingDependency, b.missingDependency)
+        XCTAssertEqual(a.downloadPercent, b.downloadPercent)
+
+        // Then the payload the server actually reads. Compared as DECODED
+        // JSON, not as bytes: `JSONEncoder` gives no guarantee that two
+        // encodings of equal values emit their keys in the same order, so a
+        // byte comparison asserts something Foundation does not promise. An
+        // earlier draft of this test did exactly that and failed once in a
+        // full-suite run with the uninformative
+        // `("142 bytes") is not equal to ("142 bytes")` -- both bodies
+        // carried identical values in a different key order. The neighbouring
+        // `test_buildEntriesOutputEncodesByteIdenticallyToSharedReportFixture`
+        // already compares decoded values despite its name, for the same
+        // reason.
+        //
+        // The intent id differs by construction and `wireBody` ignores it for
+        // this kind, which is itself part of what this asserts. Idempotency
+        // does not depend on body bytes either -- `Outbox` derives its key
+        // from `kind` plus the entry id.
+        let firstBody = try XCTUnwrap(CurationIntent.availabilityReport(id: "a", entries: first).wireBody)
+        let secondBody = try XCTUnwrap(CurationIntent.availabilityReport(id: "b", entries: second).wireBody)
+        let firstJSON = try XCTUnwrap(JSONSerialization.jsonObject(with: firstBody) as? NSDictionary)
+        let secondJSON = try XCTUnwrap(JSONSerialization.jsonObject(with: secondBody) as? NSDictionary)
+        XCTAssertEqual(firstJSON, secondJSON)
+    }
 }

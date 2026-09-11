@@ -1,14 +1,14 @@
 ---
 status: partial
 phase: 03-mac-offline-play-vertical-slice
-source: 03-01-SUMMARY.md, 03-02-SUMMARY.md, 03-03-SUMMARY.md, 03-04-SUMMARY.md, 03-05-SUMMARY.md, 03-06-SUMMARY.md, 03-07-SUMMARY.md, 03-08-SUMMARY.md, 03-09-SUMMARY.md, 03-10-SUMMARY.md, 03-12-SUMMARY.md
+source: 03-01-SUMMARY.md, 03-02-SUMMARY.md, 03-03-SUMMARY.md, 03-04-SUMMARY.md, 03-05-SUMMARY.md, 03-06-SUMMARY.md, 03-07-SUMMARY.md, 03-08-SUMMARY.md, 03-09-SUMMARY.md, 03-10-SUMMARY.md, 03-11-SUMMARY.md, 03-12-SUMMARY.md, 03-13-SUMMARY.md, 03-14-SUMMARY.md, 03-15-SUMMARY.md, 03-16-SUMMARY.md
 started: 2026-08-31T00:00:00Z
-updated: 2026-09-11T00:00:00Z
+updated: 2026-09-11T18:00:00Z
 ---
 
 ## Current Test
 
-[testing paused — 5 items outstanding: 3 blocked (items 7, 8, 9), 2 partial (item 10's live VoiceOver pass and item 13's real-BIOS-bytes acceptance remain operator-verified). 03-12-PLAN.md closed the notarization gap (items 14-16 now pass); notarization is no longer an outstanding item. 03-14-PLAN.md closed item 4's availability-search gap (now pass). This annotation and the Summary footer below are recomputed by `scripts/check-uat-tally.sh` from this file's own per-item results, not hand-maintained — item 11 is `pass`, not blocked, contrary to a stale pre-03-14 version of this line.]
+[testing paused — 6 items outstanding: 3 blocked (items 7, 8, 9 — real emulator + game bytes, and physical controller hardware), 3 partial (item 10's physical-controller/experiential-VoiceOver half, item 13's real-BIOS-bytes acceptance, item 45's rendered-surface half). Items 45-49 were merged from plans 03-11/03-13/03-15, whose human checkpoints had never reached this file; 46, 47, 48 and 49 were closed by new automation this session, and 48 turned out to be a real defect (see its evidence). This annotation and the Summary footer below are recomputed by `scripts/check-uat-tally.sh` from this file's own per-item results, not hand-maintained.]
 
 ## Tests
 
@@ -147,21 +147,39 @@ coverage_id: 03-08/D3
 expected: With the real pinned emulator installed and a real downloaded game, network disabled: pressing Play starts the emulator, the game runs, and quitting returns to the library. An install-digest mismatch refuses to launch; exits classify into clean/crashed/killed per the pin.
 result: blocked
 blocked_by: third-party
-reason: "Requires the pinned emulator installed locally plus a real downloaded game. Automatable on a self-hosted Mac runner with the emulator installed; the game bytes cannot ship in CI."
+reason: |
+  Requires the pinned emulator installed locally plus a real downloaded game.
+  Automation path (not yet built, needs an owner decision): a self-hosted Mac
+  runner with the pinned emulator installed, driving the real AdapterHost
+  against a freely-redistributable homebrew GBA ROM committed as a fixture.
+  The homebrew-ROM choice is a licensing decision for the owner, not something
+  to assume; commercial game bytes can never ship in CI.
 coverage_id: 03-03/D5
 
 ### 8. Controller connect / disconnect recovery on real hardware
 expected: With a real game controller, unplug and reconnect it mid-use. Recovery is non-modal and never strands keyboard or pointer input.
 result: blocked
 blocked_by: physical-device
-reason: "Requires physical game controller hardware. 03-SPIKE-REPORT.md probe 5 recorded this as unproven for the same reason."
+reason: |
+  Requires physical game controller hardware. 03-SPIKE-REPORT.md probe 5
+  recorded this as unproven for the same reason.
+  Automation path (not yet built): a virtual HID gamepad created with
+  IOHIDUserDevice, which the GameController framework enumerates as a real
+  controller, so connect/disconnect can be driven from a test rather than by
+  hand. This is real work — a new test-only HID descriptor plus lifecycle
+  plumbing — and is a plan of its own, shared with items 9 and 10.
 coverage_id: 03-01/D4
 
 ### 9. Controller lifecycle: live-test, assign, remap, reset
 expected: On real controller hardware: connect, live-test inputs, assign, remap bindings, and reset to defaults all work as designed.
 result: blocked
 blocked_by: physical-device
-reason: "Requires physical game controller hardware. Logic is fully tested against the injectable ControllerInputSource; only real-hardware behavior is unverified."
+reason: |
+  Requires physical game controller hardware. Logic is fully tested against the
+  injectable ControllerInputSource; only real-hardware behavior is unverified.
+  Automation path (not yet built): the same IOHIDUserDevice virtual gamepad
+  item 8 names. Once a virtual device enumerates, live-test/assign/remap/reset
+  are all drivable from XCUITest against the real ControllerSettingsView.
 coverage_id: 03-10/D1
 
 ### 10. Directional-pad / shoulder navigation and accessibility floor
@@ -460,6 +478,169 @@ result: pass
 source: automated
 coverage_id: 03-09/D3
 
+### 45. BIOS drop surface renders the exact no-blame rejection reason
+expected: Drag a non-matching BIOS file onto the BIOS drop surface. The surface renders the store's exact no-blame rejection reason as explanatory copy — never a blank pane and never a generic failure string.
+result: partial
+source: automated
+evidence: |
+  Closed at the logic layer, written-and-registered but NOT YET EXECUTED at
+  the rendered-surface layer. Recorded as partial rather than pass on that
+  basis (see the sub-records below).
+coverage_id: 03-11/D7
+
+#### Automated store-reason record
+result: pass
+source: automated
+evidence: |
+  `playstead-mac/PlaysteadTests/AdapterTests/BiosTests.swift` (24/24 passing,
+  run 2026-09-11 via `xcodebuild test -testPlan Unit`):
+  - `testRejectionMessageQuotesTheStoreReasonVerbatim` — pins the exact copy
+    for three distinct store errors (contents mismatch, wrong size, unknown
+    system), one per line.
+  - `testEveryRejectionIsDistinguishableAndNoneIsTheGenericFallback` — no
+    store error falls through to the generic "This file could not be
+    validated." string, none is empty, and no two distinct failures render
+    identical copy.
+  The pre-existing `testBiosDropTargetRejectsANonMatchingDroppedFileWithAReason`
+  only asserted the reason was non-empty, which the generic fallback also
+  satisfies. Evidence boundary: the reason `BiosDropTarget` produces; NOT that
+  the view renders it.
+
+#### Written-but-unexecuted rendered-surface record
+result: blocked
+blocked_by: xcuitest-automation-permission
+reason: |
+  `playstead-mac/PlaysteadUITests/BiosRejectionCopyTests.swift` (new) drives
+  the real packaged app: `.storage` profile -> production readiness route ->
+  production BIOS surface -> production "Choose File…" control -> reads the
+  rendered copy back off `playstead.readout.bios-status` and asserts it equals
+  the store's exact sentence, is non-empty, and is not the generic fallback. A
+  second feature proves a refused candidate path leaves the surface untouched
+  rather than fabricating a rejection. Supporting production changes:
+  `AccessibilityIdentifiers.Readout.biosStatus` on the status Text, and
+  `UITestBiosCandidate` (a `#if UI_TESTING` env-var seam, path-validated for
+  containment/regular-file/non-symlink) because a headless XCUITest can drive
+  neither a drag session nor an NSOpenPanel.
+  `xcodebuild build-for-testing -testPlan UI` SUCCEEDS. Execution does not:
+  every XCUITest in this environment, including pre-existing ones
+  (`CurationInteractionTests` was run as a control), fails with "The test
+  runner failed to initialize for UI testing. (Underlying Error: Timed out
+  while enabling automation mode.)" — an interactive Accessibility/Automation
+  grant this session cannot make. Registered in `TestPlans/UI.xctestplan` and
+  as two `--required-test` entries in `scripts/ci/run-mac-verification.sh`, so
+  the hosted six-job runner executes it and a zero-discovery run fails closed.
+
+### 46. Availability chips under a real screen reader
+expected: With a real screen reader running, walk the web console's six availability chips. Each chip's accessible name reads sensibly, its pressed state is announced (not conveyed by color alone), and every chip is reachable from the keyboard.
+result: pass
+source: automated
+evidence: |
+  Closed by `test/playstead_web/browser/availability_chip_semantics_test.exs`
+  (new, 5 features, all passing; run 2026-09-11). Drives real Tab keypresses
+  and reads real computed styles through chromedriver:
+  - every one of the six frozen vocabulary chips is reached by sequential
+    focus navigation;
+  - each chip's `aria-label` equals its exact `AvailabilityVocabulary
+    .accessible_name/1` sentence;
+  - pressing one chip moves `aria-pressed` to it and off every other chip;
+  - the pressed state is carried by two non-color channels (border-width and
+    font-weight both grow) while a sibling chip keeps the unpressed treatment;
+  - a focused chip draws a real outline or box-shadow ring.
+  Non-vacuity observed this session: replacing `.filter-chip[aria-pressed=
+  "true"]`'s `border-width`/`font-weight` rule with a color-only `color:`
+  swap made "the pressed state is carried by something other than color" fail;
+  restoring it returned 5/5. Checkpoint 11's walkthrough predates these chips
+  (03-13 created them), so nothing had ever driven them.
+  Residual human judgment: screen-reader *sentence quality* only — the same
+  deliberately-unautomated residue checkpoint 11 records.
+coverage_id: 03-13/D4
+
+### 47. 500-entry library toggle re-streams without a skeleton
+expected: With a 500-entry library loaded, toggle an availability or system chip. The browse list re-streams directly to its new contents — no loading skeleton and no intermediate empty frame.
+result: pass
+source: automated
+evidence: |
+  Closed by `test/playstead_web/browser/library_restream_test.exs` (new, 2
+  features, all passing; run 2026-09-11). Seeds a real 500-entry library,
+  then samples `#library-asset-stream`'s `childElementCount` on every
+  `requestAnimationFrame` across a chip toggle — painted frames, which is
+  what the checkpoint is actually about and what `Phoenix.LiveViewTest`
+  structurally cannot see (it only observes settled HTML).
+  Every filter change calls `stream_filtered_assets(socket, reset: true)`, so
+  a clear-then-refill landing in two paints would blink the whole library
+  empty; the narrowing direction (500 -> 50) and the widening direction
+  (50 -> 500) are both covered.
+  Asserts: no sampled frame has zero rows; no skeleton / `animate-pulse` /
+  `animate-spin` / `aria-busy` element is ever painted inside the stream.
+  Non-vacuity is structural, not a comment: each feature asserts the sampled
+  frame counts reach BOTH 500 and 50, so a sampler that only caught one
+  settled end — or never ran at all — fails rather than passing silently.
+coverage_id: 03-13/D5
+
+### 48. In-progress download uses the determinate progress indicator
+expected: With a download in progress, the list-view status slot shows the existing determinate percent-bearing progress indicator — not a second, separate loading treatment.
+result: pass
+source: automated
+evidence: |
+  This checkpoint was hiding a real defect, found and fixed this session.
+  `library_live.ex`'s list row passed ONLY `queued:` into `status_slot/1`, so
+  `rank/1` could never reach any rung above `queued` in list view —
+  `downloading` (the single rung carrying the determinate percent D-16
+  requires be retained), `missing_dependency` and `needs_attention` were all
+  structurally unreachable there. Meanwhile the row's own `aria-label` went
+  through `StatusSlot.describe/2` with the FULL status the whole time, so a
+  downloading row announced "is downloading, 42 percent complete" to a screen
+  reader while its visible badge read "On server".
+  Fix: a `list_status_slot/1` wrapper passing the complete ladder, mirroring
+  what `GameCard` already passed in grid view.
+  Guarded by two new tests in `test/playstead_web/live/library_live_test.exs`
+  (39 tests in file, 0 failures; run 2026-09-11):
+  - "a downloading game's list row shows the determinate percent, and its
+    badge agrees with its accessible name" — asserts `data-status="downloading"`,
+    the visible "Downloading — 42%" label, the matching accessible sentence,
+    exactly one `data-status-slot` on the row, and no second loading treatment
+    beside it (scoped to the row: the page-level flash group ships a
+    permanently-rendered hidden reconnect spinner, so a document-wide refute
+    could never hold).
+  - "every ladder rung the grid card can show is reachable in list view too" —
+    the general form of the defect, one rung per assertion line.
+  Non-vacuity observed this session: reverting the production fix made both
+  tests fail; restoring it returned 39/39.
+coverage_id: 03-13/D6
+
+### 49. Unchanged availability report still encodes and enqueues
+expected: Trigger an availability report twice with no change to the entry list between passes. The second pass still encodes and enqueues without error (no no-op short-circuit that silently drops the report).
+result: pass
+source: automated
+evidence: |
+  Closed by two new tests in
+  `playstead-mac/PlaysteadTests/CacheTests/AvailabilityReporterTests.swift`
+  (19/19 passing; run 2026-09-11 via `xcodebuild test -testPlan Unit`):
+  - `test_secondPassOverUnchangedState_enqueuesAgainRatherThanShortCircuiting`
+    — an unchanged world produces an identical entry list, the second pass
+    still builds and enqueues its OWN intent (proved by a counting id
+    generator reaching 2), 03-16's newest-wins supersede leaves exactly one
+    report queued, and the survivor's idempotency key is the SECOND pass's —
+    so supersede dropped the older report, not the newer one. That direction
+    is the part an outbox count alone cannot distinguish.
+  - `test_unchangedSecondPassEncodesToTheSamePayloadAsTheFirst` — two
+    successive `buildEntries` passes over an unchanged world produce the same
+    entry (asserted field by field, each on its own line) and the same decoded
+    wire payload, with a non-vacuity guard that the compared body is a real
+    populated report (verified + pinned true), not two equal empty ones.
+    Written first as a BYTE comparison, which failed once in a full-suite run
+    with `("142 bytes") is not equal to ("142 bytes")` — both bodies carried
+    identical values in a different key order. `JSONEncoder` makes no
+    key-order guarantee, so byte-identity was a claim the system does not
+    provide; the neighbouring, pre-existing
+    `test_buildEntriesOutputEncodesByteIdenticallyToSharedReportFixture` is
+    misnamed for the same reason and already compares decoded values. No
+    production defect: `Outbox` derives its idempotency key from `kind` plus
+    the entry id, never from body bytes.
+  The pre-existing `test_sameReportRetried_...` proves ONE intent re-sent, not
+  two passes enqueued — which is why 03-15 left this unclassified.
+coverage_id: 03-15/D7
+
 ## Defects Found During Verification
 
 - id: D-03-EXPORTS-OWNERSHIP
@@ -496,13 +677,13 @@ coverage_id: 03-09/D3
 
 ## Summary
 
-total: 44
-passed: 39
+total: 49
+passed: 43
 issues: 0
 pending: 0
 skipped: 0
 blocked: 3
-partial: 2
+partial: 3
 
 ## Gaps
 

@@ -1289,7 +1289,11 @@ PY
     --required-test PlaysteadTests.OutboxTests/test_secondAvailabilityReport_supersedesABackedOffFirstOne \
     --required-test PlaysteadTests.OutboxTests/test_secondAvailabilityReport_leavesAnInFlightFirstOneAlone \
     --required-test PlaysteadTests.OutboxTests/test_secondFavoriteIntent_isNotSupersededBecauseOnlyReportsAreNewestWins \
-    --required-test PlaysteadTests.OutboxTests/test_drainAfterSupersede_sendsOnlyTheNewerReportBody
+    --required-test PlaysteadTests.OutboxTests/test_drainAfterSupersede_sendsOnlyTheNewerReportBody \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_secondPassOverUnchangedState_enqueuesAgainRatherThanShortCircuiting \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_unchangedSecondPassEncodesToTheSamePayloadAsTheFirst \
+    --required-test PlaysteadTests.BiosTests/testRejectionMessageQuotesTheStoreReasonVerbatim \
+    --required-test PlaysteadTests.BiosTests/testEveryRejectionIsDistinguishableAndNoneIsTheGenericFallback
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
 
   run_test_layer rendering Rendering 600 \
@@ -1358,6 +1362,8 @@ PY
     --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventoryConfirmMutationRemovesOnlyEligibleCopy \
     --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventoryPostMutationPreservesCanonicalRows \
     --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventoryProtectsPinnedCopy \
+    --required-test PlaysteadUITests.BiosRejectionCopyTests/testRejectedDropRendersTheStoresExactReasonAsVisibleCopy \
+    --required-test PlaysteadUITests.BiosRejectionCopyTests/testAnUnusableCandidatePathLeavesTheSurfaceUntouchedRatherThanShowingAGenericFailure \
     --required-test PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit \
     --required-test PlaysteadUITests.ZeroNetworkPlayFlowTests/testWholePlayFlowRecordsZeroHTTPRequests
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
