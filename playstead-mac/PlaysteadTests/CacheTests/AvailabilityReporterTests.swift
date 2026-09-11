@@ -80,6 +80,21 @@ final class AvailabilityReporterTests: XCTestCase {
         )
     }
 
+    /// Multi-member variant: one `CatalogueEntry` with `requiredSHAs.count`
+    /// required members, each a distinct manifest position — used by the
+    /// missing-dependency predicate tests (plan 03-15), which need to
+    /// distinguish "this member is orphaned" from "that member is
+    /// orphaned" within the same game.
+    private func catalogueEntry(id: String, requiredSHAs: [String]) -> CatalogueEntry {
+        CatalogueEntry(
+            id: id, system: "gba", displayTitle: "Test Game \(id)", tags: [:],
+            members: requiredSHAs.enumerated().map { ordinal, sha in
+                AssetMember(ordinal: ordinal, role: "rom", required: true, sha256: sha, size: 256, name: "game-\(ordinal).gba")
+            }
+        )
+    }
+
+
     // MARK: - Fully cached and pinned -> verified true, pinned true
 
     func test_allRequiredMembersCachedAndPinned_emitsVerifiedAndPinnedTrue() async throws {
@@ -245,6 +260,121 @@ final class AvailabilityReporterTests: XCTestCase {
             return XCTFail("expected an availabilityReport intent")
         }
         XCTAssertEqual(Set(entries.map(\.assetSetID)), ["game-cached", "game-plain"])
+    }
+
+    // MARK: - Plan 03-15: missing_dependency as a computed fact, not a
+    // constant. Two required members per game so "this member is
+    // orphaned" and "that member is not" can be distinguished within one
+    // entry.
+
+    func test_requiredMemberAbsentWithNoQueueRow_reportsMissingDependencyTrue() async throws {
+        let cachedDigest = try seedCachedObject(seed: "h1")
+        let orphanedDigest = "a2" + String(repeating: "0", count: 62)
+        let entry = catalogueEntry(id: "game-orphan-1", requiredSHAs: [cachedDigest, orphanedDigest])
+        try catalogueStore.upsert(entry)
+
+        let entries = await reporter.buildEntries(catalogue: [entry])
+        let report = try XCTUnwrap(entries.first)
+        XCTAssertTrue(report.missingDependency, "one required member is absent with no queue row of any kind")
+        XCTAssertFalse(report.verified, "not every required member is cached")
+    }
+
+    func test_pinnedGameWithEvictedRequiredMember_reportsMissingDependencyTrue() async throws {
+        let evictedDigest = "a3" + String(repeating: "0", count: 62)
+        let entry = catalogueEntry(id: "game-pinned-evicted", requiredSHAs: [evictedDigest])
+        try catalogueStore.upsert(entry)
+        try pinStore.pin(assetSetID: "game-pinned-evicted")
+
+        let entries = await reporter.buildEntries(catalogue: [entry])
+        let report = try XCTUnwrap(entries.first)
+        XCTAssertTrue(report.pinned)
+        XCTAssertTrue(report.missingDependency, "the pin itself is engagement; the required member is gone and unqueued")
+    }
+
+    func test_absentMemberWithWaitingQueueRow_reportsMissingDependencyFalse() async throws {
+        let cachedDigest = try seedCachedObject(seed: "h4")
+        let waitingDigest = "a5" + String(repeating: "0", count: 62)
+        let entry = catalogueEntry(id: "game-waiting", requiredSHAs: [cachedDigest, waitingDigest])
+        try catalogueStore.upsert(entry)
+        try downloadQueue.enqueueGame(entry)
+        // enqueueGame enqueues every required member; the cached one's
+        // row is harmless to leave present -- only the waiting member's
+        // queue state matters to this predicate.
+
+        let entries = await reporter.buildEntries(catalogue: [entry])
+        let report = try XCTUnwrap(entries.first)
+        XCTAssertFalse(report.missingDependency, "a waiting queue row means the member is coming, not missing")
+    }
+
+    func test_absentMemberWithPausedQueueRow_reportsMissingDependencyFalse() async throws {
+        let cachedDigest = try seedCachedObject(seed: "h6")
+        let pausedDigest = "a7" + String(repeating: "0", count: 62)
+        let entry = catalogueEntry(id: "game-paused", requiredSHAs: [cachedDigest, pausedDigest])
+        try catalogueStore.upsert(entry)
+        try downloadQueue.enqueueGame(entry)
+        let pausedItem = try XCTUnwrap(downloadQueue.itemsForAssetSet("game-paused").first { $0.sha256 == pausedDigest })
+        try downloadQueue.pause(id: pausedItem.id)
+
+        let entries = await reporter.buildEntries(catalogue: [entry])
+        let report = try XCTUnwrap(entries.first)
+        XCTAssertFalse(report.missingDependency, "a paused row is still in the queue")
+    }
+
+    func test_absentMemberWithOnlyCancelledQueueRow_reportsMissingDependencyTrue() async throws {
+        let cachedDigest = try seedCachedObject(seed: "h8")
+        let cancelledDigest = "a9" + String(repeating: "0", count: 62)
+        let entry = catalogueEntry(id: "game-cancelled", requiredSHAs: [cachedDigest, cancelledDigest])
+        try catalogueStore.upsert(entry)
+        try downloadQueue.enqueueGame(entry)
+        let cancelledItem = try XCTUnwrap(downloadQueue.itemsForAssetSet("game-cancelled").first { $0.sha256 == cancelledDigest })
+        try downloadQueue.cancel(id: cancelledItem.id)
+
+        let entries = await reporter.buildEntries(catalogue: [entry])
+        let report = try XCTUnwrap(entries.first)
+        XCTAssertTrue(report.missingDependency, "a cancelled row is not in the queue")
+    }
+
+    func test_untouchedGame_reportsMissingDependencyFalseSoServerOnlyStaysReachable() async throws {
+        let digest = "aa" + String(repeating: "0", count: 62)
+        let entry = catalogueEntry(id: "game-untouched", requiredSHAs: [digest])
+        try catalogueStore.upsert(entry)
+
+        let entries = await reporter.buildEntries(catalogue: [entry])
+        let report = try XCTUnwrap(entries.first)
+        XCTAssertFalse(report.missingDependency, "an untouched game is on the server, not broken -- server_only must stay reachable")
+        XCTAssertFalse(report.verified)
+        XCTAssertFalse(report.downloading)
+        XCTAssertFalse(report.pinned)
+    }
+
+    func test_emptyRequiredMemberList_reportsMissingDependencyFalse() async throws {
+        let entry = CatalogueEntry(id: "game-no-members", system: "gba", displayTitle: "No Members", tags: [:], members: [])
+        try catalogueStore.upsert(entry)
+
+        let entries = await reporter.buildEntries(catalogue: [entry])
+        let report = try XCTUnwrap(entries.first)
+        XCTAssertFalse(report.missingDependency, "a manifest with no required members is an upstream defect, not a claim this client makes")
+    }
+
+    func test_orphanedMemberDuringActiveTransfer_reportsBothMissingDependencyAndDownloadingTrue() async throws {
+        let cachedDigest = try seedCachedObject(seed: "hb")
+        let activeDigest = "ac" + String(repeating: "0", count: 62)
+        let orphanedDigest = "ad" + String(repeating: "0", count: 62)
+        let entry = catalogueEntry(id: "game-active-and-orphaned", requiredSHAs: [cachedDigest, activeDigest, orphanedDigest])
+        try catalogueStore.upsert(entry)
+        try downloadQueue.enqueueGame(entry)
+        let activeItem = try XCTUnwrap(downloadQueue.itemsForAssetSet("game-active-and-orphaned").first { $0.sha256 == activeDigest })
+        try downloadQueue.markActive(id: activeItem.id)
+        // enqueueGame enqueues every required member, including the
+        // one meant to be truly orphaned -- cancel its row so it is
+        // genuinely "absent with no queue row", not merely waiting.
+        let orphanedItem = try XCTUnwrap(downloadQueue.itemsForAssetSet("game-active-and-orphaned").first { $0.sha256 == orphanedDigest })
+        try downloadQueue.cancel(id: orphanedItem.id)
+
+        let entries = await reporter.buildEntries(catalogue: [entry])
+        let report = try XCTUnwrap(entries.first)
+        XCTAssertTrue(report.downloading, "the active member's transfer is in flight")
+        XCTAssertTrue(report.missingDependency, "the third member is orphaned; the client sends both facts and never picks a winner")
     }
 
 }

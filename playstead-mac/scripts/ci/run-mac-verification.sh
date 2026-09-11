@@ -1274,6 +1274,14 @@ PY
     --required-test PlaysteadTests.AvailabilityReporterTests/test_noLocalBytesAndNoQueueRow_emitsAllFactsFalseNeverOmitted \
     --required-test PlaysteadTests.AvailabilityReporterTests/test_sameReportRetried_carriesSameIdempotencyKeyAndOneServerEffect \
     --required-test PlaysteadTests.AvailabilityReporterTests/test_offlineReport_isEnqueuedAndDrainedLaterWithNoSurfacedError \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_requiredMemberAbsentWithNoQueueRow_reportsMissingDependencyTrue \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_pinnedGameWithEvictedRequiredMember_reportsMissingDependencyTrue \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_absentMemberWithWaitingQueueRow_reportsMissingDependencyFalse \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_absentMemberWithPausedQueueRow_reportsMissingDependencyFalse \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_absentMemberWithOnlyCancelledQueueRow_reportsMissingDependencyTrue \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_untouchedGame_reportsMissingDependencyFalseSoServerOnlyStaysReachable \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_emptyRequiredMemberList_reportsMissingDependencyFalse \
+    --required-test PlaysteadTests.AvailabilityReporterTests/test_orphanedMemberDuringActiveTransfer_reportsBothMissingDependencyAndDownloadingTrue \
     --required-test PlaysteadTests.AvailabilityVocabularyContractTests/testJSONVocabularyExactlyMatchesShippedSwiftConstants \
     --required-test PlaysteadTests.AvailabilityVocabularyContractTests/testKeyRemovedFromVocabularyButStillEmittedWouldBeCaught
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
