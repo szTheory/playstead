@@ -145,7 +145,7 @@ Plans:
   5. A user can connect, test, assign, remap, reset, and recover a controller while retaining keyboard, pointer, screen-reader, focus, and reduced-motion fallbacks; from a signed/notarized build they can launch, exit, and relaunch one legally testable game after app or server restart.
 
 **Research / spike flags**: Required Mac adapter gate before commitment: empirically choose the first system/emulator and direct-notarized versus sandboxed distribution posture using legal homebrew content. Demonstrate Keychain, external-process launch/recovery, controller recovery, BIOS handling, and safe persistent-save location/flush; do not promise the current GBA/mGBA hypothesis until this passes.
-**Plans**: 14 plans (12 executed; 2 gap-closure plans pending from the 2026-09-11 re-verification)
+**Plans**: 14/14 plans executed (12 executed; 2 gap-closure plans pending from the 2026-09-11 re-verification)
 
 Plans:
 **Wave 1**
@@ -184,7 +184,7 @@ Plans:
 **Wave 8 — gap closure** *(from the 2026-09-11 re-verification of 03-VERIFICATION.md)*
 
 - [x] 03-13-PLAN.md — LIBR-02 gap: a device-reported availability read model, a frozen six-value filter vocabulary shared across both codebases, and a console filter where all six values discriminate and none falls through
-- [ ] 03-14-PLAN.md — LIBR-02 close-out: the Mac client actually reports its availability with a two-sided wire contract, the UAT tally becomes a fail-closed command, and the requirement and verification records flip only for what was proven
+- [x] 03-14-PLAN.md — LIBR-02 close-out: the Mac client actually reports its availability with a two-sided wire contract, the UAT tally becomes a fail-closed command, and the requirement and verification records flip only for what was proven
 
 **UI hint**: yes
 
@@ -385,6 +385,6 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Private Custody and Durable Protocol | 8/8 | Complete    | 2026-08-28 |
 | 2. Explainable Import and Exact Export | 10/10 | Complete    | 2026-08-30 |
-| 3. Mac Offline Play Vertical Slice | 11/12 | In Progress|  |
+| 3. Mac Offline Play Vertical Slice | 14/14 | In Progress|  |
 | 4. Persistent Save Continuity | 25/25 | In Progress|  |
 | 5. Recovery and Release Proof | 0/TBD | Not started | - |

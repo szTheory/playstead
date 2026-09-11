@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 42
+open_count: 43
 waived_count: 1
 fixed_count: 22
-total_count: 65
-last_updated: 2026-09-11T04:31:57.416Z
+total_count: 66
+last_updated: 2026-09-11T05:01:21.768Z
 ---
 
 # Broken Windows Ledger
@@ -80,6 +80,7 @@ last_updated: 2026-09-11T04:31:57.416Z
 | 63 | 04.5 | stub | playstead-mac/Playstead/Pairing/PinnedCertificateCapture.swift |  | PinnedCertificateCapture has no dedicated unit test — its real trust-anchor capture path only fires on a genuine TLS handshake, which StubURLProtocol never performs. Coverage is structural/code-review only until the live-server proof (window #62) is run. | open |  | 2026-09-09T00:53:50.372Z |  |
 | 64 | 03 | stub | playstead-server/lib/playstead_web/live/library_live.ex |  | list-view status_slot only passes queued fact, not the full device-reported status map status_for/2 now returns | open |  | 2026-09-11T04:31:57.324Z |  |
 | 65 | 03 | unrun-verify | playstead-server/lib/playstead_web/live/library_live.ex |  | 03-13 backstop truths (500-entry stress toggle, download-in-progress uses existing indicator) not exercised by a dedicated automated fixture | open |  | 2026-09-11T04:31:57.416Z |  |
+| 66 | 03 | stub | playstead-mac/Playstead/Cache/AvailabilityReporter.swift |  | Live transfer percent falls back to 0 when no DownloadCoordinator exists yet at report time | open |  | 2026-09-11T05:01:21.768Z |  |
 
 ````json
 [
@@ -861,6 +862,18 @@ last_updated: 2026-09-11T04:31:57.416Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-11T04:31:57.416Z",
+    "resolved_at": null
+  },
+  {
+    "id": 66,
+    "kind": "stub",
+    "phase": "03",
+    "file": "playstead-mac/Playstead/Cache/AvailabilityReporter.swift",
+    "line": null,
+    "description": "Live transfer percent falls back to 0 when no DownloadCoordinator exists yet at report time",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-11T05:01:21.768Z",
     "resolved_at": null
   }
 ]
