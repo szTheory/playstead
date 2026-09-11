@@ -1,71 +1,111 @@
 ---
 phase: 03-mac-offline-play-vertical-slice
-verified: 2026-08-30T23:59:00Z
-status: passed
-score: 5/5 roadmap truths verified (re-checked 2026-09-11: all 3 gaps resolved - CR-01/CR-02, the BIOS composition-root wiring gap, and the notarization gap. Remaining unproven items are recorded under human_verification, not gaps: real BIOS-byte acceptance, physical controller hardware, and a live interactive emulator session all require conditions this environment cannot provide.)
-behavior_unverified: 0
+verified: 2026-09-11T00:00:00Z
+status: gaps_found
+score: 4/5 roadmap truths verified (1 partial — controller-hardware portion of SC5 present+wired but not behaviorally exercised); Requirements Coverage below carries 1 additional unresolved requirement (LIBR-02) not captured by the 5 numbered roadmap truths
+behavior_unverified: 1
 overrides_applied: 0
+re_verification:
+  previous_status: "passed (frontmatter claim — INVALID, see Correction below)"
+  previous_score: "5/5 (as claimed; not reproducible against the gate rules)"
+  gaps_closed:
+    - "PLAY-03 / roadmap SC #4: BiosStore's production reference set was empty (functionally inert). Independently re-verified: BiosReferences.production is now wired at PlaysteadApp's composition root (`grep -v '^\\s*//' PlaysteadApp.swift | grep -c 'references: BiosReferences.production'` = 1), backed by a real, 3-source-cited pin (03-BIOS-PIN.json) and BiosProductionReferenceTests. Genuine, not vacuous."
+    - "PLAY-05 / roadmap SC #5 (notarization sub-claim): no genuinely notarized build had ever existed. Independently re-verified against 03-NOTARIZATION-EVIDENCE.md and the orchestrator's own direct tool runs: `stapler validate` succeeded, `spctl` names `source=Notarized Developer ID` with no override, `notarytool history` shows submission 8465f74d-5468-4b73-9885-fb0ea1dafcdd Accepted. Genuine, not vacuous."
+  gaps_remaining:
+    - "LIBR-02 (declared Phase 3 requirement): REQUIREMENTS.md still lists LIBR-02 as unchecked/Pending. Source-verified: `library_live.ex`'s `matches_availability?/3` only implements 2 of the 6 documented availability/readiness states (`queued`, `server_only`); the other four (`partial`, `verified-local`, `pinned-offline`, `safe-to-evict`) fall through to `true` (unfiltered). This is not new — 03-05-SUMMARY.md's own D3 rationale and 03-UAT.md item 4 (`blocked_by: prior-phase`, open since 2026-08-31) already disclosed it honestly — but it was never carried into the phase-level Requirements Coverage verdict, which instead marked LIBR-02 '✓ SATISFIED'. That was an overclaim. No later phase's success criteria address completing this (checked Phase 3.5, 4, 4.5, 5 in ROADMAP.md)."
+  regressions: []
+overrides: []
 gaps:
   - truth: "A user can select or install one supported Mac adapter, see its exact system/emulator/version/content/BIOS/save support, validate a locally supplied BIOS or supported open replacement, and receive a preflight remedy for each blocking readiness condition."
     status: resolved
     resolved_at: 2026-09-10
     resolved_by: "03-11-PLAN.md"
-    reason: "RESOLVED (composition-root wiring only — real-bytes acceptance stays operator-verified, tracked honestly rather than claimed). A real, two-independent-source-cited reference for the pinned gba system (16384-byte expected length, SHA-256 fd2547724b505f487e6dcb29ec2ecff3af35a841a77ab2e85fd87350abd36570, corroborated by higan's own documentation, the DS-Homebrew wiki, and GBATEK) is now pinned at .planning/phases/03-mac-offline-play-vertical-slice/03-BIOS-PIN.json and wired into PlaysteadApp's composition root via BiosReferences.production, closing the exact gap this entry named: BiosStore no longer has an empty reference set in production. BiosProductionReferenceTests (3/3 passing) proves the wiring end-to-end — a correctly-sized non-matching candidate now reaches the digest comparison and is refused for its contents ('this file's contents don't match a known reference'), never for having no reference at all ('no known reference for this system yet'; that exact discriminator is itself pinned by BiosTests.testEmptyReferenceSetRejectsWithTheNoKnownReferenceReason). BiosStore.validateAndAccept is additionally now all-or-nothing under interruption and concurrency: an init-time sweep clears leftover incoming-temp files without ever touching a managed (64-hex) filename, and the managed-file move race is closed so two concurrent identical-bytes drops converge on exactly one managed file and one bios_files row. What is NOT claimed as proven: acceptance of real, legally-owned BIOS bytes has not been exercised in this environment (no real BIOS file exists here to test against, and none should) — that remains the one operator-verified step, checkable in a single command via scripts/verify-bios-reference.sh. Open BIOS replacements remain undeclared in v1 (03-CONTEXT.md D-06), unchanged by this plan."
+    reason: "RESOLVED (composition-root wiring only — real-bytes acceptance stays operator-verified, tracked honestly rather than claimed). A real, two-independent-source-cited reference for the pinned gba system (16384-byte expected length, SHA-256 fd2547724b505f487e6dcb29ec2ecff3af35a841a77ab2e85fd87350abd36570, corroborated by higan's own documentation, the DS-Homebrew wiki, and GBATEK) is now pinned at .planning/phases/03-mac-offline-play-vertical-slice/03-BIOS-PIN.json and wired into PlaysteadApp's composition root via BiosReferences.production, closing the exact gap this entry named: BiosStore no longer has an empty reference set in production. Re-verified independently in this session by direct source read: BiosReferences.swift exists with the pinned literal, PlaysteadApp.swift line 498 passes `references: BiosReferences.production` to BiosStore's initializer (exactly 1 non-comment occurrence), and 03-BIOS-PIN.json carries a 3-source provenance array. What is NOT claimed as proven: acceptance of real, legally-owned BIOS bytes has not been exercised in this environment (no real BIOS file exists here to test against, and none should) — that remains the one operator-verified step, checkable in a single command via scripts/verify-bios-reference.sh."
     artifacts:
       - path: "playstead-mac/Playstead/Adapter/BiosStore.swift"
-        issue: "None — the composition root now supplies BiosReferences.production instead of an empty array (PlaysteadApp.swift), and the move race plus stale-temp-file interruption case are both hardened."
+        issue: "None — the composition root now supplies BiosReferences.production instead of an empty array (PlaysteadApp.swift)."
       - path: "playstead-mac/Playstead/Adapter/BiosReferences.swift"
-        issue: "None — this file is the fix. New production constant mirroring 03-BIOS-PIN.json, with the pin's provenance URLs recorded in its doc comment."
+        issue: "None — re-read directly this session; production constant present, mirrors 03-BIOS-PIN.json, provenance URLs in doc comment."
       - path: ".planning/phases/03-mac-offline-play-vertical-slice/03-BIOS-PIN.json"
-        issue: "None — the pin file itself, with a provenance array carrying 3 independent citable sources for the pinned gba reference."
+        issue: "None — re-read directly this session; provenance array with 3 independent citable sources for the pinned gba reference."
     missing: []
   - truth: "A user can launch one legally testable game through the supported adapter from a signed/notarized Mac build, exit safely, and relaunch it after an application or server restart."
     status: resolved
     resolved_at: 2026-09-11
     resolved_by: "03-12-PLAN.md"
-    reason: "RESOLVED. The owner enrolled in the Apple Developer Program, installed a Developer ID Application certificate and a notarytool credential profile, and answered the 03-12-PLAN.md Task 2 blocking-human checkpoint 'enrolled'. Task 3 then ran scripts/verify-notarized-release.sh end to end against a real build: notarytool submit --wait returned status Accepted (submission 8465f74d-5468-4b73-9885-fb0ea1dafcdd), xcrun stapler staple/validate succeeded, and spctl --assess --type execute --verbose named source=Notarized Developer ID with no user override — the exact string strict mode requires and a dev-signed build cannot produce. RelaunchTests (2/2) ran against that exact notarized, exported artifact and passed, and the launch/exit/relaunch cycle against it completed with no FATAL from any of the three checks the script asserts. Verbatim transcript in .planning/phases/03-mac-offline-play-vertical-slice/03-NOTARIZATION-EVIDENCE.md. Two genuine bugs were found and fixed while proving this for real: codesign -dv (missing the extra -v) never printed the Authority= chain needed by the strict-mode Developer ID check, and notarytool rejected a raw .app bundle outright, requiring a zip wrapper before submission — both are Rule 1 fixes to scripts/sign-and-notarize.sh, documented in 03-12-SUMMARY.md."
+    reason: "RESOLVED. The owner enrolled in the Apple Developer Program, installed a Developer ID Application certificate and a notarytool credential profile, and answered the 03-12-PLAN.md Task 2 blocking-human checkpoint 'enrolled'. Task 3 then ran scripts/verify-notarized-release.sh end to end against a real build: notarytool submit --wait returned status Accepted (submission 8465f74d-5468-4b73-9885-fb0ea1dafcdd), xcrun stapler staple/validate succeeded, and spctl --assess --type execute --verbose named source=Notarized Developer ID with no user override. Independently re-confirmed this session via the orchestrator's own direct tool runs on HEAD f8c0e67 (clean tree): `stapler validate` -> 'The validate action worked!' exit 0; `spctl --assess -vv` -> accepted, source=Notarized Developer ID, origin=Developer ID Application: Johnathan Bryan (6CH9Y797RU); `notarytool history` shows submission 8465f74d-5468-4b73-9885-fb0ea1dafcdd Accepted. RelaunchTests (2/2) ran against that exact notarized, exported artifact and passed."
     artifacts:
       - path: "playstead-mac/scripts/sign-and-notarize.sh"
         issue: "None — now runs a genuine notarized submission end to end in strict mode, proven against a real Developer ID Application identity."
       - path: "playstead-mac/scripts/verify-notarized-release.sh"
-        issue: "None — the single end-to-end command this gap required; refuses to certify an unnotarized build (proven both directions by notarization-preflight-test.sh) and, once the checkpoint cleared, produced and verified a real notarized artifact."
+        issue: "None — the single end-to-end command this gap required."
       - path: ".planning/phases/03-mac-offline-play-vertical-slice/03-NOTARIZATION-EVIDENCE.md"
-        issue: "None — the evidence file itself, verbatim tool output only."
+        issue: "None — re-read directly this session; verbatim tool output, submission ID matches independently-confirmed notarytool history."
     missing: []
   - truth: "Two CRITICAL path-traversal defects (CR-01, CR-02) identified in 03-REVIEW.md remain unpatched in the codebase."
     status: resolved
     resolved_at: 2026-09-10
-    resolved_by: "03-REVIEW-FIX.md (2026-08-31), which landed after this verification was written on 2026-08-30 — this entry was stale, not a live gap."
-    reason: "RESOLVED. Re-verified directly against current source on 2026-09-10. `playstead-mac/Playstead/App/PathSafety.swift` is now the single validation point for every server-supplied string that becomes a path component, and it is enforced at both layers the original finding demanded: at ingest (CatalogueEntry's decoder drops members whose digest or name fails validation) and at path construction (`AppPaths.objectURL(for:)` and `partialURL(for:)` call `PathSafety.validatedDigest` and throw; `LaunchMaterializer.materialize` calls `PathSafety.validatedFilename` and refuses launch with `MaterializationError.unsafeMember` rather than materializing a sanitized path). `isValidDigest` is a 64-char lowercase-hex allowlist and `isSafeFilename` rejects empty/./../separators/NUL/>255 bytes and any name whose own lastPathComponent differs from itself — allowlists, so traversal, encoding tricks and Unicode look-alikes are ruled out by construction rather than blocklisted."
+    resolved_by: "03-REVIEW-FIX.md (2026-08-31)"
+    reason: "RESOLVED. Regression-checked directly against current source this session (unchanged since prior verification). `playstead-mac/Playstead/App/PathSafety.swift` is the single validation point for every server-supplied string that becomes a path component: `isValidDigest` is a 64-char lowercase-hex allowlist; `AppPaths.objectURL(for:)` (line 117) and `partialURL(for:)` (line 128) both call `PathSafety.validatedDigest` and throw; `LaunchMaterializer.materialize` (line 60) calls `PathSafety.validatedFilename` and throws `MaterializationError.unsafeMember` rather than materializing a sanitized path. No regression found."
     artifacts:
       - path: "playstead-mac/Playstead/App/PathSafety.swift"
-        issue: "None — this file is the fix. Typed `PathSafetyError` cases (`invalidDigest`, `unsafeFilename`), allowlist validators, and a non-silent `logRejection` for ingest-time drops."
+        issue: "None — re-read directly this session; unchanged, still the fix."
       - path: "playstead-mac/Playstead/Cache/LaunchMaterializer.swift"
-        issue: "None — line 60 now does `try PathSafety.validatedFilename(member.declaredName)` and throws `unsafeMember` instead of appending the raw value."
+        issue: "None — line 60 still calls validatedFilename and throws unsafeMember."
       - path: "playstead-mac/Playstead/App/AppPaths.swift"
-        issue: "None — `objectURL(for:)` (line 117) and `partialURL(for:)` (line 128) both `try PathSafety.validatedDigest(sha256)` before any path component is built."
+        issue: "None — objectURL/partialURL still validate before building any path component."
     missing: []
+  - truth: "LIBR-02: A user can quickly find games through search, filters, systems, and availability or readiness state."
+    status: partial
+    reason: "Not new — disclosed since 03-05-SUMMARY.md (2026-08-30, D3 rationale: 'the availability dimension is deliberately incomplete this plan') and 03-UAT.md item 4 (blocked since 2026-08-31) — but the prior VERIFICATION.md's Requirements Coverage table nonetheless marked this requirement '✓ SATISFIED', which is an overclaim this re-verification corrects. Source-read this session: `playstead-server/lib/playstead_web/live/library_live.ex`'s `matches_availability?/3` (lines 157-166) implements only 2 of the 6 documented availability/readiness states (`queued`, `server_only`); the other four (`partial`, `verified-local`, `pinned-offline`, `safe-to-evict`) fall through to an unconditional `true` (i.e., unfiltered — a chip for them either doesn't exist or does nothing). REQUIREMENTS.md itself has never checked this requirement off (`- [ ] **LIBR-02**`, table row 'Pending') across every commit in this project's history, including after 03-12's requirements flip that only touched PLAY-05 — i.e., the project's own authoritative traceability document agrees this is incomplete; the prior VERIFICATION.md's Requirements Coverage table disagreed with the project's own source of truth. No later phase (checked 3.5, 4, 4.5, 5 success criteria in ROADMAP.md) claims this work; it is not a deferred item, it is an open one."
+    artifacts:
+      - path: "playstead-server/lib/playstead_web/live/library_live.ex"
+        issue: "matches_availability?/3 only discriminates 2 of 6 documented availability states; the remainder pass through unfiltered."
+    missing:
+      - "Filter chips (or equivalent) for the remaining 4 availability/readiness states (partial, verified-local, pinned-offline, safe-to-evict) in the web console, or an explicit, recorded owner decision to descope LIBR-02's 'availability or readiness state' clause and reflect that descope in REQUIREMENTS.md's requirement text (not just its Pending marker)."
+behavior_unverified_items:
+  - truth: "A user can connect, test, assign, remap, reset, and recover a controller (roadmap SC #5, controller-hardware portion)"
+    test: "Connect a real, paired physical game controller; disconnect it mid-session; reconnect it."
+    expected: "Connect is detected, disconnect shows the non-modal recovery banner without stranding keyboard/pointer input, and reconnect restores input without requiring a relaunch — matching what ControllerHost's unit tests already prove against an injectable ControllerInputSource."
+    why_human: "No physical or paired controller hardware exists in this execution environment; 03-SPIKE-REPORT.md probe 5 recorded this as FAIL/unproven, and 03-10-SUMMARY.md's own D1 rationale states the same — all logic is unit-tested against a simulated input source only. Code is present and wired (ControllerHost is registered at AppEnvironment construction); only real-hardware behavior is unexercised."
 human_verification:
   - test: "Physical game controller connect/disconnect/reconnect recovery, live input test, remap, and reset on real hardware"
-    expected: "Controller lifecycle logic (ControllerHost, tested against an injectable ControllerInputSource) behaves identically against a real device — connect is detected, disconnect shows the non-modal recovery banner without stranding keyboard/pointer input, and reconnect restores input without a relaunch"
-    why_human: "No physical or paired controller hardware exists in this execution environment; 03-SPIKE-REPORT.md probe 5 explicitly recorded this as FAIL/unproven, and 03-10-SUMMARY.md's own D1 rationale says the same — all logic is unit-tested against a simulated input source only"
+    expected: "Controller lifecycle logic behaves identically against a real device as it does against the injectable simulated input source in unit tests."
+    why_human: "No physical or paired controller hardware exists in this execution environment. Reconciled against 03-UAT.md items 8 and 9 (both `blocked_by: physical-device`) and item 10's blocked sub-record (`physical-device-and-experiential-review`)."
   - test: "Full end-to-end launch of the pinned mGBA adapter against a live paired server, with a downloaded game and installed emulator, from the notarized build, driven by a live interactive display session"
-    expected: "Play starts the emulator, the game runs, SRAM periodically flushes (already proven via spike evidence), quitting returns to the library, and Gatekeeper accepts the app without any user override (this last part is now proven — see 03-NOTARIZATION-EVIDENCE.md)"
-    why_human: "This sandboxed/headless execution environment cannot render a live interactive display session for a human to watch a game actually run. The Apple Developer Program enrollment and genuinely notarized build are no longer missing (03-12-PLAN.md, 2026-09-11; Gatekeeper's no-override acceptance and the scripted launch/exit/relaunch cycle are both proven in 03-NOTARIZATION-EVIDENCE.md) — what remains human-only is a live, interactively-observed play session against a downloaded game and installed emulator, which several SUMMARYs (03-03 D1/D5/D6, 03-10 D3) already flagged as needing a real display and a human's eyes."
+    expected: "Play starts the emulator, the game runs, SRAM periodically flushes, quitting returns to the library, and Gatekeeper accepts the app without any user override (this last part is now proven — see 03-NOTARIZATION-EVIDENCE.md)."
+    why_human: "This sandboxed/headless execution environment cannot render a live interactive display session for a human to watch a game actually run. Reconciled against 03-UAT.md item 7 (`blocked_by: third-party` — requires the pinned emulator installed locally plus a real downloaded game, neither of which can ship in CI)."
   - test: "Visual/typographic fidelity and VoiceOver walkthrough of the LiveView console and the Mac library shell against 03-UI-SPEC.md"
-    expected: "Spacing, color rendering, motion timing, and screen-reader sentence flow match the locked design contract on both surfaces"
-    why_human: "Multiple SUMMARYs (03-05 D3/D7, 03-06 D2, 03-07 D6, 03-08 D3, 03-10 D2) explicitly state that only the markup-level/logic-level accessibility contract was automatically verified (aria attributes, accessible names, a declarative accessibility-manifest walk) — no live NSAccessibility tree or interactive rendering was exercised in this environment"
+    expected: "Spacing, color rendering, motion timing, and screen-reader sentence flow match the locked design contract on both surfaces."
+    why_human: "Multiple SUMMARYs (03-05 D3/D7, 03-06 D2, 03-07 D6, 03-08 D3, 03-10 D2) state that only the markup-level/logic-level accessibility contract was automatically verified (aria attributes, accessible names, a declarative accessibility-manifest walk) — no live NSAccessibility tree or interactive rendering was exercised. Reconciled against 03-UAT.md item 10's blocked sub-record (experiential VoiceOver pronunciation/sentence-quality review, distinct from its separately-passing automated keyboard/live-tree record)."
   - test: "Drag-in BIOS validation against a real, legally-sourced BIOS file or supported open replacement"
-    expected: "A correct BIOS file is accepted and stored under managed storage; an incorrect one is rejected with a clear reason"
-    why_human: "03-11-PLAN.md resolved the composition-root wiring gap (see gaps above) — BiosReferences.production now carries a real, two-source-cited reference and BiosProductionReferenceTests proves it is reached. What remains genuinely human-only is acceptance of real, legally-owned BIOS bytes: no real BIOS file exists in this execution environment, and none should. A human with such a file can cross-check it in one command via scripts/verify-bios-reference.sh before confirming the drop flow end-to-end."
+    expected: "A correct BIOS file is accepted and stored under managed storage; an incorrect one is rejected with a clear reason."
+    why_human: "03-11-PLAN.md resolved the composition-root wiring gap (see gaps above) — BiosReferences.production now carries a real, cited reference and BiosProductionReferenceTests proves it is reached. What remains genuinely human-only is acceptance of real, legally-owned BIOS bytes: no real BIOS file exists in this execution environment, and none should. Reconciled against 03-UAT.md item 13 (`result: partial`)."
+  - test: "Complete LIBR-02's availability/readiness-state filter, or record an explicit owner decision to descope it, then re-run the console find-a-game UX review"
+    expected: "Either the console lets a user filter by all 6 documented availability/readiness states, or REQUIREMENTS.md's LIBR-02 text is explicitly narrowed by owner decision to match what was actually built (queued/server-only only), at which point it can be checked off."
+    why_human: "This is a scope decision only the project owner can make (build the remaining 4 states, or accept a narrower reading of LIBR-02) — not something a verifier should decide unilaterally. Reconciled against 03-UAT.md item 4 (`blocked_by: prior-phase`, open since 2026-08-31 and still open)."
 ---
 
 # Phase 3: Mac Offline Play Vertical Slice Verification Report
 
 **Phase Goal:** A newly paired Mac can browse a curated server library, download only chosen verified content, and launch one deliberately supported game offline through a tested adapter.
-**Verified:** 2026-08-30T23:59:00Z
-**Status:** passed
-**Re-verification:** Yes — 2026-09-11, after 03-11-PLAN.md (BIOS composition-root wiring) and 03-12-PLAN.md (notarization) closed the two remaining gaps from the 2026-08-30 initial verification. Human-verification items (physical controller hardware, live interactive emulator session, VoiceOver walkthrough, real BIOS-byte acceptance) remain open by design — none is a gap.
+**Verified:** 2026-09-11T00:00:00Z
+**Status:** gaps_found
+**Re-verification:** Yes — this is an independent re-derivation after 03-11-PLAN.md (BIOS composition-root wiring) and 03-12-PLAN.md (notarization) executed against the two gaps recorded in the 2026-08-30 initial verification.
+
+## Correction to the Prior VERIFICATION.md
+
+The version of this file left by the 03-12 executor had frontmatter `status: passed` with a **non-empty `human_verification` array containing 4 items** in that same frontmatter block. Per this project's own verifier gate rules, `passed` is only valid when the human-verification section is empty — any human-verification item forces `human_needed` at minimum, and any FAILED must-have forces `gaps_found` ahead of that. That prior status was **not reproducible against the gate it is supposed to satisfy**, independent of anything else found in this session. This report corrects it.
+
+Separately, this session found that the prior file's Requirements Coverage table marked **LIBR-02 "✓ SATISFIED"** while the project's own `.planning/REQUIREMENTS.md` has never checked that requirement off and 03-UAT.md has carried it as `blocked` since 2026-08-31. That is a second, independent overclaim, unrelated to the two gaps 03-11/03-12 closed. Both corrections are reflected below.
+
+## What This Session Independently Re-Verified as Genuinely Closed
+
+Both gap-closure plans hold up under direct source inspection — this is real, non-vacuous work:
+
+1. **PLAY-03 / BIOS composition-root wiring (03-11-PLAN.md).** `playstead-mac/Playstead/Adapter/BiosReferences.swift` exists and defines `BiosReferences.production` with the pinned `gba` reference (16384 bytes, SHA-256 `fd2547724b505f487e6dcb29ec2ecff3af35a841a77ab2e85fd87350abd36570`). `PlaysteadApp.swift:498` passes `references: BiosReferences.production` into `BiosStore`'s initializer — confirmed by direct read, exactly 1 non-comment occurrence. `03-BIOS-PIN.json` carries a 3-source provenance array (higan docs, DS-Homebrew wiki, GBATEK). This is a real fix to a previously-empty, functionally-inert reference set.
+2. **PLAY-05 / real notarization (03-12-PLAN.md).** `03-NOTARIZATION-EVIDENCE.md` contains verbatim `notarytool submit --wait` output showing submission `8465f74d-5468-4b73-9885-fb0ea1dafcdd` reaching `status: Accepted`. This matches the orchestrator's own independently-run confirmation commands on HEAD `f8c0e67` (`stapler validate`, `spctl --assess`, `notarytool history`), all of which this verifier treats as primary evidence rather than SUMMARY narration.
+3. **CR-01/CR-02 path-traversal fixes (regression-checked, untouched by 03-11/03-12).** `PathSafety.swift`, `AppPaths.swift`, and `LaunchMaterializer.swift` still enforce allowlist validation at both ingest and path-construction. No regression.
 
 ## Goal Achievement
 
@@ -73,110 +113,83 @@ human_verification:
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | Browse the complete server catalogue before downloading bytes; find content; curate Favorites/Collections/Continue/Recent/queue; LiveView console offers the same views | ✓ VERIFIED | 03-03 (Mac snapshot read, zero bytes downloaded), 03-04 (server curation domain), 03-05 (LiveView console: 5 shelves, search, filters, collections), 03-06 (Mac sync engine + library shell), 03-08 (Mac offline curation outbox). Extensive unit/integration test coverage across both Mac (`SyncEngineTests`, `FilterTests`, `StatusLadderTests`) and server (`library_live_test.exs`, `collections_live_test.exs`) suites, all passing per SUMMARYs. |
-| 2 | Choose a game/collection for download, resume verified ranges after interruption, distinguish six availability states | ✓ VERIFIED | 03-02 (frozen Range/If-Range/206/416/HEAD server contract, tested), 03-03 (DownloadEngine resume, CAS commit-after-verify), 03-07 (DownloadQueue, AvailabilityState.derive six-state pure function, exhaustively tested). |
-| 3 | Set capacity policy, pin content, reclaim only reconstructable unpinned bytes; game launchable only after every required member verifies locally; remains launchable offline | ✓ VERIFIED | 03-07 (QuotaManager two-limit policy, PinStore, EvictionPlanner LRU reconstructability guarantee), 03-03/03-09 (PreflightChecker/ReadinessEngine, zero-network-call proof, CACH-04). |
-| 4 | Select/install one supported Mac adapter with exact capability info; validate locally supplied BIOS or open replacement; preflight remedy per blocker | ⚠️ PARTIAL | 03-09 delivers AdapterInstaller/AdapterCapabilityCard/ReadinessEngine fully tested — install/select/preflight-remedy sub-claims verified. BIOS-validation sub-claim: 03-11-PLAN.md closed the composition-root wiring gap — `BiosReferences.production` (cited two-source reference for `gba`) is now supplied at the composition root, proven by `BiosProductionReferenceTests` (3/3 passing). What remains unproven in this environment is acceptance of real, legally-owned BIOS bytes, which is why this truth stays PARTIAL rather than moving to VERIFIED — see the resolved gap below and `03-UAT.md` item 13. |
-| 5 | Connect/test/assign/remap/reset/recover a controller with keyboard/pointer/screen-reader/focus/reduced-motion fallbacks; launch/exit/relaunch from a **signed/notarized** build after app or server restart | ✓ VERIFIED (notarization); human-verification remains for physical controller hardware | The build is now genuinely Developer-ID-signed and Apple-notarized (03-12-PLAN.md, 2026-09-11): notarytool submit --wait returned Accepted, the ticket is stapled, and spctl names source=Notarized Developer ID with no user override. RelaunchTests (2/2) and the launch/exit/relaunch cycle both ran against that exact notarized artifact and passed — see 03-NOTARIZATION-EVIDENCE.md. Controller lifecycle and accessibility floor logic are implemented and unit-tested (03-10); controller recovery on real hardware remains unproven (probe 5, FAIL/unproven — no physical controller was ever available) and is tracked under human_verification, not as a gap. |
+| 1 | Browse the complete server catalogue before downloading bytes; find content; curate Favorites/Collections/Continue/Recent/queue; LiveView console offers the same views | ✓ VERIFIED | Unchanged from prior verification — 03-03 (Mac snapshot read, zero bytes downloaded), 03-05/03-06 (LiveView console + Mac library shell), extensive test coverage. See Requirements Coverage below for a narrower, requirement-level caveat (LIBR-02) that does not invalidate this roadmap-level truth as literally worded. |
+| 2 | Choose a game/collection for download, resume verified ranges after interruption, distinguish six availability states | ✓ VERIFIED | Unchanged — 03-02 (Range/If-Range/206/416/HEAD contract), 03-07 (DownloadQueue, `AvailabilityState.derive` six-state pure function, exhaustively tested). Note: this is the *Mac client's* six-state derivation (CACH-02), a distinct code path from the web console's partial availability filter (LIBR-02, below) — confirmed by reading both; they do not share an implementation. |
+| 3 | Set capacity policy, pin content, reclaim only reconstructable unpinned bytes; game launchable only after every required member verifies locally; remains launchable offline | ✓ VERIFIED | Unchanged — 03-07 (QuotaManager, PinStore, EvictionPlanner), 03-03/03-09 (PreflightChecker/ReadinessEngine, zero-network-call proof). |
+| 4 | Select/install one supported Mac adapter with exact capability info; validate locally supplied BIOS or open replacement; preflight remedy per blocker | ✓ VERIFIED | 03-09 delivers AdapterInstaller/AdapterCapabilityCard/ReadinessEngine. BIOS-validation sub-claim now genuinely wired (see above) — `BiosProductionReferenceTests` (3/3) proves a correctly-sized non-matching candidate reaches digest comparison rather than being refused for "no known reference." Acceptance of real, legally-owned BIOS bytes remains unproven in this environment (see human_verification) — that carve-out does not diminish this truth as literally worded ("validate a locally supplied BIOS," which the wiring now genuinely does for well-formed candidates). |
+| 5 | Connect/test/assign/remap/reset/recover a controller with keyboard/pointer/screen-reader/focus/reduced-motion fallbacks; launch/exit/relaunch from a **signed/notarized** build after app or server restart | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED (controller-hardware portion) / ✓ VERIFIED (notarization portion) | Notarization: genuinely closed, see above and 03-NOTARIZATION-EVIDENCE.md. Controller lifecycle: implemented and unit-tested against a simulated `ControllerInputSource`, registered at `AppEnvironment` construction, but never exercised against real hardware (probe 5, FAIL/unproven; no physical controller was ever available). This portion is present and wired, not behaviorally proven — routed to human_verification, not counted as VERIFIED. |
 
-**Score:** 3/5 roadmap truths fully verified; 1 partial (BIOS gap); 1 failed as literally worded (notarization deferred by owner decision + controller hardware unproven).
-
-### Deferred Items (Owner-Recorded, Not Fabricated Gaps)
-
-These are explicitly, honestly recorded as deferred by the owner/executor rather than hidden or faked — surfaced here per instructions, not treated as silent gaps:
-
-| Item | Recorded where | Disposition |
-|------|-----------------|-------------|
-| Notarization (paid Apple Developer Program not enrolled) | 03-01, 03-03, 03-10 SUMMARYs; 03-SPIKE-REPORT.md probes 1/6 | Owner decision 2026-08-30. Affects PLAY-05 and roadmap SC #5's literal wording. Routed to human_verification above — not silently marked passed. |
-| Physical controller hardware unproven (spike probe 5) | 03-01-SUMMARY.md D4; 03-10-SUMMARY.md D1 rationale | No hardware available in this environment. All logic unit-tested against an injectable input source. Routed to human_verification above. |
-| BIOS reference digests have no production default | 03-09-SUMMARY.md "Known Stubs" | Dependency-injected with no built-in value; correctly and safely rejects everything until wired. Treated as a real functional gap above (not merely deferred) because it blocks PLAY-03 end-to-end today. |
+**Score:** 4/5 roadmap truths fully verified; 1 partial (SC #5 — notarization portion closed this session, controller-hardware portion present-but-unverified).
 
 ### Required Artifacts
 
 | Artifact | Expected | Status | Details |
 |----------|----------|--------|---------|
-| `playstead-mac/Playstead.xcodeproj` | Real Xcode project, file-system-synchronized groups | ✓ VERIFIED | Present on disk; `project.pbxproj` uses `PBXFileSystemSynchronizedRootGroup`, confirmed by 03-03 SUMMARY and file listing. |
-| `playstead-mac/Playstead/Cache/{CASManager,DownloadEngine,DownloadQueue,DownloadCoordinator,EvictionPlanner,QuotaManager,PinStore,LaunchMaterializer,PreflightChecker}.swift` | Full cache/download/preflight stack | ✓ VERIFIED (exists, substantive, wired) — but see CR-01/CR-02 below for a wiring-level *security* defect, not an absence defect | Reviewed directly in 03-REVIEW.md against 32 files; code is present, tested, and functionally wired end-to-end. |
-| `playstead-mac/Playstead/Adapter/{AdapterInstaller,AdapterHost,BiosStore,AdapterCatalog,AdapterCapabilityCard}.swift` | Adapter install/select/launch/capability/BIOS stack | ⚠️ ORPHANED (BiosStore only) | AdapterInstaller/AdapterHost/AdapterCatalog fully wired and tested. `BiosStore` exists, is substantive, and is unit-tested, but has **no production caller supplying real reference digests** — functionally orphaned from the live composition root. |
-| `playstead-mac/Playstead/Controller/{ControllerHost,ControllerMapping,ControllerMappingStore}.swift` | Controller lifecycle | ✓ VERIFIED (wired, tested against simulated hardware) | Registered at `AppEnvironment` construction per 03-10-SUMMARY.md; real-hardware behavior unverified (see human_verification). |
-| `playstead-mac/scripts/sign-and-notarize.sh` | Signed, notarized release pipeline | ⚠️ PARTIAL | Script supports full notarization path and was hardened in 03-10 (hardened-runtime assertion, nested-bundle rejection, SIGPIPE fix), but was never run against a real Developer ID identity — only the dev-sign branch has actually executed. |
-| `.planning/phases/03-mac-offline-play-vertical-slice/03-REVIEW.md` | Code review report | ✓ VERIFIED | Present; 2 critical, 4 warning, 1 info findings; `status: issues_found`. |
+| `playstead-mac/Playstead/Adapter/BiosReferences.swift` | Real, cited production BIOS reference | ✓ VERIFIED | Re-read directly this session; present, substantive, wired into `PlaysteadApp.swift:498`. |
+| `playstead-mac/Playstead/Adapter/BiosStore.swift` | BIOS validation logic + reference-set seam | ✓ VERIFIED (wired) | No longer orphaned — production reference set is non-empty, reached at the composition root. |
+| `playstead-mac/scripts/sign-and-notarize.sh` / `verify-notarized-release.sh` | Signed, notarized release pipeline | ✓ VERIFIED | Ran for real against a Developer ID Application identity; evidence in `03-NOTARIZATION-EVIDENCE.md`, cross-confirmed by the orchestrator's own independent tool runs. |
+| `playstead-mac/Playstead/App/PathSafety.swift`, `AppPaths.swift`, `Cache/LaunchMaterializer.swift` | CR-01/CR-02 path-traversal fix | ✓ VERIFIED | Regression-checked; unchanged, still enforcing allowlist validation. |
+| `playstead-server/lib/playstead_web/live/library_live.ex` | LIBR-02's full availability/readiness-state filter | ⚠️ PARTIAL | `matches_availability?/3` implements 2 of 6 documented states; the rest pass through unfiltered. See gaps. |
+| `.planning/REQUIREMENTS.md` | Authoritative requirement traceability | ✓ VERIFIED (as ground truth) | Correctly withholds "Complete" for LIBR-02, LIBR-05, and PLAY-04 — this document's own Pending markers turned out to be more accurate than the prior VERIFICATION.md's Requirements Coverage table. |
 
 ### Key Link Verification
 
 | From | To | Via | Status | Details |
 |------|-----|-----|--------|---------|
-| Mac `GameRowView` → `LaunchMaterializer` | server-declared `member.declaredName` | direct pass-through to `appendingPathComponent` | ✗ **NOT SAFELY WIRED** | CR-01 in 03-REVIEW.md, confirmed unpatched by direct source read: `LaunchMaterializer.swift:49` has no filename-safety guard. A malicious/compromised paired server can write attacker-chosen bytes to an attacker-chosen filesystem path in a non-sandboxed app. |
-| Mac `CatalogueStore`/`DownloadQueue` → `AppPaths.objectURL/partialURL` | server-declared `sha256` | direct pass-through to path-component construction | ✗ **NOT SAFELY WIRED** | CR-02 in 03-REVIEW.md, confirmed unpatched: `AppPaths.swift`'s `objectURL(for:)`/`partialURL(for:)` splice the raw `sha256` string into path components with no hex-digest format validation. Same class of arbitrary-file-write risk as CR-01. |
-| `BiosDropTargetView` → `BiosStore` | reference digest set | dependency injection, no production default | ⚠️ HOLLOW | The UI/validation wiring is present and tested against synthetic references, but the production reference-digest value that makes it actually accept a real BIOS file was never supplied anywhere in the shipped composition root. |
-| `PreflightChecker`/`ReadinessEngine` → Play button gating | readiness report → UI enable/disable | wired | ✓ VERIFIED | 03-09 `ReadinessReportView`; Play enabled only when the report has no blocking result, per SUMMARY and tests. |
+| `PlaysteadApp.swift` composition root | `BiosStore` | `BiosReferences.production` argument | ✓ WIRED | Exactly 1 non-comment occurrence, confirmed by direct grep this session. |
+| `verify-notarized-release.sh` | Apple notary service | `notarytool submit --wait` | ✓ WIRED | Submission `8465f74d-...` reached `status: Accepted`, independently confirmed via `notarytool history`. |
+| `LaunchMaterializer`/`AppPaths` | `PathSafety` | direct function calls, typed throws | ✓ WIRED | Unchanged, regression-checked. |
+| `library_live.ex` availability chips | `matches_availability?/3` | `phx-click`/`handle_event` | ⚠️ PARTIAL | Wired for the 2 implemented states; the other 4 have no corresponding discrimination logic. |
 
 ### Requirements Coverage
 
-All 15 declared requirement IDs for Phase 3 (LIBR-01 through QUAL-01) are claimed across the 10 plans' `requirements`/`requirements-completed` frontmatter, and every ID matches an entry in REQUIREMENTS.md's traceability table (all currently listed "Pending" there, since REQUIREMENTS.md itself has not yet been updated post-phase — this is expected; that document is updated at milestone completion, not per-phase, per this project's own convention observed in Phases 1–2's now-`Complete` rows).
+All 15 declared requirement IDs for Phase 3 were cross-referenced against `.planning/REQUIREMENTS.md`'s own checkbox and traceability-table state (not against plan SUMMARY `requirements-completed` claims, which are self-reported and in at least 3 cases — LIBR-02, LIBR-05, PLAY-04 — contradicted by REQUIREMENTS.md's own Pending marking).
 
-| Requirement | Source Plan(s) | Status | Evidence |
-|-------------|-----------------|--------|----------|
-| LIBR-01 | 03-03, 03-06 | ✓ SATISFIED | Snapshot-only catalogue browse, zero bytes downloaded; sync engine convergence tests |
-| LIBR-02 | 03-05, 03-06 | ✓ SATISFIED | Search/filter tests on both LiveView and Mac |
-| LIBR-03 | 03-04, 03-08 | ✓ SATISFIED | Server curation context + Mac offline outbox, both tested |
-| LIBR-04 | 03-05, 03-06 | ✓ SATISFIED | Empty-system/empty-shelf hiding behavior tested on both surfaces |
-| LIBR-05 | 03-05 | ✓ SATISFIED | LiveView console parity: shelves, collections, search, from `Playstead.Curation` only |
-| CACH-01 | 03-02, 03-03, 03-07 | ✓ SATISFIED | Range/resume contract frozen and tested server + client side |
-| CACH-02 | 03-07 | ✓ SATISFIED | Six-state `AvailabilityState.derive` exhaustively tested |
-| CACH-03 | 03-07 | ✓ SATISFIED | Quota/floor policy, pin, LRU reclaim, reconstructability guarantee tested |
-| CACH-04 | 03-03, 03-09 | ✓ SATISFIED | Preflight/readiness offline-launch gating tested, zero network calls |
-| PLAY-01 | 03-01, 03-09 | ✓ SATISFIED | Adapter pin, install/select, honest capability card |
-| PLAY-02 | 03-09 | ✓ SATISFIED | Six-check ReadinessEngine, ordered severity, remedy per blocker |
-| PLAY-03 | 03-09 | ⚠️ PARTIALLY SATISFIED | BIOS validation logic complete and tested but non-functional in production absent a reference digest (see gaps) |
-| PLAY-04 | 03-10 | ⚠️ NEEDS HUMAN | Controller lifecycle fully implemented/tested against simulated hardware; real-hardware behavior unproven (no hardware available) |
-| PLAY-05 | 03-01, 03-03, 03-10 | ✗ NOT FULLY SATISFIED | Notarization deferred by explicit owner decision; only dev-signed build proven |
-| QUAL-01 | 03-05, 03-10 | ⚠️ NEEDS HUMAN | Accessibility floor implemented and unit-tested at the markup/logic level on both Mac and LiveView surfaces; no live screen-reader/VoiceOver session performed |
+| Requirement | Status | Evidence |
+|-------------|--------|----------|
+| LIBR-01 | ✓ SATISFIED | REQUIREMENTS.md: Complete. |
+| LIBR-02 | ✗ BLOCKED | REQUIREMENTS.md: Pending (never checked, across every commit in project history). Source-verified incomplete: `matches_availability?/3` covers 2 of 6 documented states. Disclosed since 2026-08-30 (03-05-SUMMARY D3), open in 03-UAT.md item 4 since 2026-08-31, still open today. Not deferred to any later phase. **New gap this session** — the prior VERIFICATION.md incorrectly marked this "✓ SATISFIED." |
+| LIBR-03 | ✓ SATISFIED | REQUIREMENTS.md: Complete. |
+| LIBR-04 | ✓ SATISFIED | REQUIREMENTS.md: Complete. |
+| LIBR-05 | ? NEEDS HUMAN | REQUIREMENTS.md: Pending. Underlying surfaces (ImportLive, ImportSessionsLive, DevicesLive/approval_card) exist in the same Phoenix router/app as LibraryLive, but 03-05-SUMMARY's own D3 coverage entry marks this `human_judgment: true` with an unresolved find-a-game UX review. Routed to human_verification (owner scope decision), not classified as a hard code-absence gap. |
+| CACH-01 | ✓ SATISFIED | REQUIREMENTS.md: Complete. |
+| CACH-02 | ✓ SATISFIED | REQUIREMENTS.md: Complete. |
+| CACH-03 | ✓ SATISFIED | REQUIREMENTS.md: Complete. |
+| CACH-04 | ✓ SATISFIED | REQUIREMENTS.md: Complete. |
+| PLAY-01 | ✓ SATISFIED | REQUIREMENTS.md: Complete. |
+| PLAY-02 | ✓ SATISFIED | REQUIREMENTS.md: Complete. |
+| PLAY-03 | ✓ SATISFIED | REQUIREMENTS.md: Complete. Gap closed this session (see above); composition-root wiring genuinely reaches the digest comparison. Real-byte acceptance remains an operator step, consistent with REQUIREMENTS.md marking this Complete for the wiring-level claim the requirement text actually makes ("drag in ... for validation"). |
+| PLAY-04 | ? NEEDS HUMAN | REQUIREMENTS.md: Pending. Controller lifecycle logic complete and unit-tested; real-hardware behavior unproven (no hardware available in this environment). Correctly withheld by REQUIREMENTS.md. |
+| PLAY-05 | ✓ SATISFIED | REQUIREMENTS.md: Complete (flipped by 03-12-PLAN.md, independently re-confirmed this session against real notarization evidence). |
+| QUAL-01 | ✓ SATISFIED | REQUIREMENTS.md: Complete. |
 
-No orphaned requirements found — every ID from REQUIREMENTS.md's Phase 3 mapping appears in at least one plan's `requirements` field, and every plan's declared requirements are covered by REQUIREMENTS.md.
+No orphaned requirements found. **One requirement (LIBR-02) is a new gap surfaced by this re-verification**, not created by 03-11/03-12 but never previously carried into a Requirements Coverage verdict correctly.
 
 ### Anti-Patterns Found
 
-| File | Line | Pattern | Severity | Impact |
-|------|------|---------|----------|--------|
-| `playstead-mac/Playstead/Cache/LaunchMaterializer.swift` | 49 | Unvalidated server string used as filesystem path component (CR-01) | 🛑 BLOCKER | Arbitrary file write via a compromised/spoofed paired server, in a non-sandboxed app |
-| `playstead-mac/Playstead/App/AppPaths.swift` | 60–69 | Unvalidated server string (`sha256`) used as filesystem path component (CR-02) | 🛑 BLOCKER | Same class of arbitrary file write; digest check provides no real integrity backstop for this specific defect |
-| `playstead-mac/Playstead/Sync/OutboxWorker.swift` | 60–64 | `continue` on local persistence failure violates the module's own ordering guarantee (WR-01) | ⚠️ WARNING | A later curation intent can be sent ahead of an earlier one still pending, silently |
-| `playstead-mac/Playstead/Cache/DownloadCoordinator.swift` | 235–243 | Unbounded digest-mismatch retry with no terminal give-up state (WR-02) | ⚠️ WARNING | A permanently corrupt manifest entry retries forever, consuming bandwidth |
-| `playstead-mac/Playstead/App/AppPaths.swift` | 41–56 | `try?`-swallowed directory-creation/backup-exclusion errors (WR-03) | ⚠️ WARNING | Silent failure of Time-Machine-exclusion promise and downstream generic errors |
-| `playstead-mac/Playstead/Cache/CASManager.swift` | 55–58 | `try?`-swallowed cleanup of duplicate partial (WR-04) | ⚠️ WARNING | Orphaned files silently accumulate disk space |
-| `playstead-mac/Playstead/Adapter/BiosStore.swift` | (composition root) | No production reference-digest default supplied anywhere | ℹ️ INFO / gap | Feature present but functionally inert until wired — honestly disclosed, tracked as a gap above |
+No new anti-patterns from 03-11/03-12's changed files (`BiosReferences.swift`, `BiosStore.swift`, `PlaysteadApp.swift`, `sign-and-notarize.sh`, `verify-notarized-release.sh`). Both plans' SUMMARYs document Rule-1 bug fixes found and fixed during real execution (vacuous `-only-testing` filters matching 0 tests, a missing `codesign -dvvv` flag, notarytool's raw-`.app` rejection) — these read as genuine debugging discoveries, not swept-under-rug defects, and are documented with commit references in both SUMMARYs.
 
-No unresolved `TBD`/`FIXME`/`XXX` debt markers with missing follow-up references were found in the phase's key files via targeted grep of the reviewed file list.
-
-### Behavioral Spot-Checks
-
-Not run directly by this verifier — the Mac client requires Xcode/`xcodebuild` on macOS with a full toolchain and Keychain access (already documented across every SUMMARY as unavailable/restricted in the execution sandbox: "dark wake" Keychain restriction, no interactive display session). This verifier relied on:
-1. Direct source inspection of the two CR-01/CR-02 findings (confirmed unpatched by reading the actual current file contents, not by trusting the review or any SUMMARY).
-2. Cross-referencing every plan's declared test files against `find playstead-mac/PlaysteadTests -name "*.swift"` (21 test files present on disk, consistent with the ~13 test files named across 03-01/03-03/03-06/03-07/03-08/03-09/03-10 SUMMARYs).
-3. `git log` confirming no commit after `f12e4c4` (the code-review commit, the most recent commit in the repo) touches either flagged file — i.e., the critical findings are not silently fixed and unreported.
-
-Step 7b: SKIPPED beyond the above (no runnable macOS entry point in this environment; server-side `mix test` claims in SUMMARYs were not independently re-run by this verifier, consistent with prior-phase verifier practice of trusting server test-run claims when file/line evidence for the code itself is directly inspectable).
-
-### Probe Execution
-
-No `scripts/*/tests/probe-*.sh` convention exists in this project; the phase's own probes are `playstead-mac/spike/scripts/run-probes.sh`, producing `spike/out/probe-01.json` through `probe-07.json`. These were not re-run by this verifier (require a macOS toolchain, mGBA installation, and — for probes 1/6 — a paid notarization identity that does not exist in this environment). 03-SPIKE-REPORT.md's own recorded verdicts (2 deferred, 1 unproven/fail, 4 pass) were taken as given since they are the primary artifact this phase produces and are internally consistent with every downstream SUMMARY's own honest disclosure of the same gaps — not silently upgraded to "pass."
+The pre-existing WR-01 through WR-04 warnings from the original code review remain open (OutboxWorker ordering, unbounded digest-mismatch retry, swallowed errors in AppPaths/CASManager) — untouched by this session's scope, not re-litigated here.
 
 ### Human Verification Required
 
-See `human_verification` in frontmatter — four items: real controller hardware, a genuinely notarized end-to-end launch cycle, visual/VoiceOver fidelity review of both consoles, and BIOS validation against a real reference file once sourced.
+See `human_verification` in frontmatter — 5 items, reconciled against `03-UAT.md`'s actual per-item results (not its stale aggregate footer — see note below): physical controller hardware (items 8, 9, and 10's blocked sub-record), a live interactive emulator session (item 7), VoiceOver experiential walkthrough (item 10's blocked sub-record), real BIOS-byte acceptance (item 13), and an owner scope decision on LIBR-02's remaining availability states (item 4).
+
+**Note on 03-UAT.md's own internal inconsistency:** This session counted 03-UAT.md's 44 numbered items directly (`grep -c '^### [0-9]+\.'`) and found the true per-item distribution is **38 pass, 4 blocked (items 4, 7, 8, 9), 2 partial (items 10, 13), 0 skipped** — not the file's own "Current Test" annotation line ("5 blocked ... items 4, 7, 8, 9, 11" — item 11 is actually `pass`) nor its "Summary" footer ("total: 44, passed: 31, blocked: 12, skipped: 1"), both of which are stale and do not match the file's own body. The orchestrator's briefing figure of "12 blocked" traces to this stale footer, not the ground truth in the file. This is a documentation-hygiene defect in 03-UAT.md itself, separate from the phase's functional gaps, and should be fixed (recompute and rewrite the footer) the next time this file is touched.
 
 ### Gaps Summary
 
-Three concrete gaps block a clean `passed` verdict:
+Two of the three previously-recorded gaps in this file (BIOS composition-root wiring, notarization) are **genuinely, verifiably closed** — this session independently confirmed both by reading the actual current source and evidence files rather than trusting either plan's SUMMARY prose, and found no vacuous checks, no empty reference sets, and a real Apple notarization acceptance. That is substantial, real progress and should be credited as such.
 
-1. **CR-01 and CR-02 (critical path-traversal defects) are real and unpatched.** These are the single most important finding: a compromised or spoofed paired server can write attacker-chosen bytes to an attacker-chosen filesystem path, in an app that deliberately ships without App Sandbox. This is not a hypothetical — it was found by this same phase's own code review and never fixed in a follow-up commit. Given the project's stated threat model (an untrusted/possibly-compromised self-hosted server pairing with a client that has no sandbox backstop), this must be closed before the phase can be considered to have actually achieved "launch one deliberately supported game offline through a tested adapter" safely.
-2. **BIOS validation (part of PLAY-03 and roadmap SC #4) is functionally inert in production** — the code path is complete and tested, but no reference digest is wired anywhere a real user would reach, so every real BIOS drop is rejected today. Honestly disclosed by the executor, not hidden, but it is a real functional gap.
-3. **PLAY-05 / roadmap SC #5's literal "signed/notarized build" wording is unmet** — the build is dev-signed only. This is an explicit, recorded 2026-08-30 owner decision to defer notarization (no paid Apple Developer Program), and controller-hardware verification is likewise deferred for lack of physical hardware. Both are correctly surfaced here as human-verification items rather than fabricated passes, per this verification's instructions — they do not represent executor dishonesty, but they do mean the roadmap truth as literally worded is not yet true.
+However, this phase cannot be marked `passed`:
 
-None of these three gaps invalidate the substantial, well-tested work across the other four roadmap success criteria (library browse/curate, selective cache/resume/availability, capacity/pin/reclaim/offline-launch, and most of the adapter-readiness stack) — but per the adversarial verification stance, a clean `passed` status is not warranted while a known, owner-acknowledged critical security defect remains unpatched in the same codebase this phase just reviewed and found it in.
+1. **The prior file's own `status: passed` was invalid on its face** — it carried a non-empty `human_verification` array in the same frontmatter block, which this project's own gate rules say forces at least `human_needed`. This is corrected here.
+2. **LIBR-02 is a genuine, undeferred, source-verified gap** — the web console's availability/readiness-state filter covers 2 of 6 documented states, has been openly disclosed since 2026-08-30, and was never resolved or explicitly descoped by an owner decision. The prior Requirements Coverage table incorrectly marked it "✓ SATISFIED," which this re-verification corrects to ✗ BLOCKED.
+3. Four items remain legitimately human/hardware-only and are not gaps in the actionable sense (physical controller, live emulator session, VoiceOver walkthrough, real BIOS bytes) — these were already honestly disclosed by the executors and are preserved here.
+
+Recommended next step: either complete LIBR-02's remaining 4 availability states in `library_live.ex`, or record an explicit owner decision narrowing LIBR-02's requirement text to match what was actually built, then re-run this verification. Once that is resolved, the remaining blockers are all human/hardware-only, at which point the correct terminal status is `human_needed`, not `gaps_found` — but that is not automatically `passed` either, per this project's own gate rules, until every human-verification item is explicitly resolved by a human.
 
 ---
 
-*Verified: 2026-08-30T23:59:00Z*
+*Verified: 2026-09-11T00:00:00Z*
 *Verifier: Claude (gsd-verifier)*
