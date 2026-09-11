@@ -179,7 +179,7 @@ Plans:
 **Wave 7 — gap closure** *(from 03-VERIFICATION.md; CR-01/CR-02 already resolved by 03-REVIEW-FIX.md and need no plan)*
 
 - [x] 03-11-PLAN.md — PLAY-03 gap A: source and pin a cited BIOS reference, wire it through the composition root, and make a drop all-or-nothing under interruption and concurrency
-- [ ] 03-12-PLAN.md — PLAY-05 gap B: one end-to-end release proof that refuses to certify an unnotarized build, behind a blocking Apple Developer Program enrolment checkpoint
+- [x] 03-12-PLAN.md — PLAY-05 gap B: one end-to-end release proof that refuses to certify an unnotarized build, behind a blocking Apple Developer Program enrolment checkpoint
 
 **UI hint**: yes
 

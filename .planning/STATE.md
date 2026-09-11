@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 03
 current_phase_name: Mac Offline Play Vertical Slice
 status: executing
-stopped_at: "Completed 03-11-PLAN.md (Gap A: BIOS reference wiring)"
-last_updated: "2026-09-10T19:26:47.992Z"
+stopped_at: "Completed 03-12-PLAN.md (Gap B: notarization, PLAY-05 closed)"
+last_updated: "2026-09-11T02:38:25.666Z"
 last_activity: 2026-09-10
 last_activity_desc: Phase 03 execution started
-state_head: 1d34282288cfa5b36c354a30336acaf23c7f9d44
+state_head: b3430a2e2ea90436015f76b2683ec6ea0b3a5dff
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 71
-  completed_plans: 70
+  completed_plans: 71
 milestone_name: milestone
 ---
 
@@ -29,8 +29,8 @@ See: `.planning/PROJECT.md` (updated 2026-08-30)
 ## Current Position
 
 Phase: 03 (Mac Offline Play Vertical Slice) — EXECUTING
-Plan: 11 of 12 (gap-closure plan, executed out of sequence)
-Status: Executing Phase 03 gap-closure plans
+Plan: 12 of 12 (gap-closure plan, executed out of sequence)
+Status: Ready to execute
 Last activity: 2026-09-10 — 03-11-PLAN.md complete (Gap A: BIOS reference wiring)
 
 **03-11-PLAN.md is COMPLETE.** Sourced and pinned a real, three-source-cited
@@ -145,6 +145,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 | Phase 04.5 P05 | 35min | 3 tasks | 3 files |
 | Phase 04.5 P06 | 25min | 3 tasks | 8 files |
 | Phase 03 P11 | 50min | 3 tasks | 11 files |
+| Phase 03-mac-offline-play-vertical-slice P12 | 55min | 1 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -278,6 +279,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 - [Phase 04.5]: 04.5-06: pinned trust wired at both real APIClient construction sites via AppPaths.pinnedCertificate; secure-by-default parameter instead of non-optional to avoid churning ~18 stub-backed unit tests.
 - [Phase 03]: [Phase 03]: Closed Gap A (BIOS reference wiring) via 03-11-PLAN.md: pinned a real, three-source-cited gba BIOS reference (16384 bytes, SHA-256 fd254772...) into BiosReferences.production and wired it at PlaysteadApp's composition root; a correctly-sized non-matching candidate is now refused for its contents, not for having no reference at all.
 - [Phase 03]: [Phase 03]: BiosStore.validateAndAccept hardened to be all-or-nothing under interruption and concurrency (03-11): a shared incomingPrefix constant backs both the temp-file writer and a new init-time sweep, and the managed-file move race is closed so concurrent identical drops converge on exactly one managed file and one bios_files row.
+- [Phase 03]: PLAY-05 closed by 03-12-PLAN.md: real Developer ID notarization achieved (submission 8465f74d-5468-4b73-9885-fb0ea1dafcdd, Accepted), fixing three genuine release-script bugs found while proving it for real (codesign -dv missing Authority chain, notarytool rejecting raw .app, wrong RelaunchTests test identifier).
 
 ### Pending Todos
 
@@ -311,6 +313,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-10T19:26:47.596Z
-Stopped at: Completed 03-11-PLAN.md (Gap A: BIOS reference wiring)
+Last session: 2026-09-11T02:38:24.820Z
+Stopped at: Completed 03-12-PLAN.md (Gap B: notarization, PLAY-05 closed)
 Resume file: None
