@@ -43,6 +43,16 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
+      # Cheap, dependency-free guard (no toolchain needed): every phase
+      # UAT file's Summary footer must agree with its own body, or this
+      # fails closed before any real work starts (plan 03-14). Runs from
+      # the repo root, not `playstead-server` (this job's default
+      # working-directory) — the UAT files it checks live under
+      # `.planning/`, one level up.
+      - name: UAT tally footers match their own bodies
+        working-directory: .
+        run: bash scripts/check-uat-tally.sh
+
       - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124  # v1.24.1
         with:
           version-file: playstead-server/.tool-versions

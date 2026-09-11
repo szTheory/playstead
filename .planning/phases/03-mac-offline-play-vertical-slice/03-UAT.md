@@ -8,7 +8,7 @@ updated: 2026-09-11T00:00:00Z
 
 ## Current Test
 
-[testing paused — 7 items outstanding: 5 blocked (items 4, 7, 8, 9, 11), 2 partial (item 10's live VoiceOver pass and item 13's real-BIOS-bytes acceptance remain operator-verified). 03-12-PLAN.md closed the notarization gap (items 14-16 now pass); notarization is no longer an outstanding item.]
+[testing paused — 6 items outstanding: 4 blocked (items 4, 7, 8, 9), 2 partial (item 10's live VoiceOver pass and item 13's real-BIOS-bytes acceptance remain operator-verified). 03-12-PLAN.md closed the notarization gap (items 14-16 now pass); notarization is no longer an outstanding item. This annotation and the Summary footer below are recomputed by `scripts/check-uat-tally.sh` from this file's own per-item results, not hand-maintained (plan 03-14) — item 11 is `pass`, not blocked, contrary to a stale prior version of this line.]
 
 ## Tests
 
@@ -461,11 +461,12 @@ coverage_id: 03-09/D3
 ## Summary
 
 total: 44
-passed: 31
+passed: 38
 issues: 0
 pending: 0
-skipped: 1
-blocked: 12
+skipped: 0
+blocked: 4
+partial: 2
 
 ## Gaps
 
