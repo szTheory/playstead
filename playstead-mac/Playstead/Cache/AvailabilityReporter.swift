@@ -132,12 +132,48 @@ final class AvailabilityReporter {
             // or none was injected) — never a fabricated number.
             let percent = isDownloading ? (await activeTransferPercent(game.id) ?? 0) : 0
 
+            let queueItems = downloadQueue.itemsForAssetSet(game.id)
+            let isPinned = pinnedAssetSetIDs.contains(game.id)
+
+            // `missing_dependency` (plan 03-15): a required member the
+            // catalogue manifest names but that is absent locally and is
+            // neither currently downloading nor queued (03-VERIFICATION.md's
+            // own operative definition), guarded by an explicit engagement
+            // conjunct so an untouched, never-downloaded game does not
+            // outrank `server_only` on StatusSlot's frozen ladder.
+            //
+            // (a) An orphaned required member exists: some required SHA
+            //     is absent from the CAS and has no queue row in an
+            //     in-queue state (`waiting`, `active`, `paused` — reusing
+            //     `AvailabilityInputs`' own doc-commented definition of
+            //     "queued"; `cancelled` is excluded).
+            let hasOrphanedRequiredMember = requiredSHAs.contains { sha in
+                !self.cas.contains(sha) && !queueItems.contains { item in
+                    item.sha256 == sha && item.state != .cancelled
+                }
+            }
+
+            // (b) The device has actually engaged this game: at least
+            //     one required member is cached, OR the game is pinned,
+            //     OR some row is in an in-queue state. Without this
+            //     conjunct, every never-downloaded game (which trivially
+            //     satisfies (a) over its whole required set) would report
+            //     `missing_dependency` true, making `server_only`
+            //     structurally unreachable — the identical defect one
+            //     ladder slot down. `test_untouchedGame_reportsMissing
+            //     DependencyFalseSoServerOnlyStaysReachable` pins this.
+            let hasEngaged = requiredSHAs.contains { self.cas.contains($0) }
+                || isPinned
+                || queueItems.contains { $0.state != .cancelled }
+
+            let missingDependency = !requiredSHAs.isEmpty && hasOrphanedRequiredMember && hasEngaged
+
             entries.append(AvailabilityReportEntry(
                 assetSetID: game.id,
                 downloading: isDownloading,
                 verified: allRequiredCached,
-                pinned: pinnedAssetSetIDs.contains(game.id),
-                missingDependency: false,
+                pinned: isPinned,
+                missingDependency: missingDependency,
                 downloadPercent: percent
             ))
         }
