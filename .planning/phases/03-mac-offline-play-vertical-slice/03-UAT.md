@@ -200,7 +200,24 @@ evidence: |
 #### Blocked physical-controller/experiential record
 result: blocked
 blocked_by: physical-device-and-experiential-review
-reason: "Physical controller d-pad/shoulder behavior needs real controller hardware, and experiential VoiceOver pronunciation, rotor behavior, sentence quality, and comprehension are human judgment. Both remain blocked and unclaimed; the automated record above must not be read as covering them."
+reason: |
+  Physical controller d-pad/shoulder behavior needs real controller hardware, and experiential VoiceOver pronunciation, rotor behavior, sentence quality, and comprehension are human judgment. Both remain blocked and unclaimed; the automated record above must not be read as covering them.
+  (The two phrases above are pinned verbatim by validate-phase-3-uat-evidence.py and must stay on one line each: it substring-matches the raw block, so re-wrapping them silently breaks the guard.)
+
+  Paths to closing each, recorded so this does not stay a bare "needs
+  hardware" the way items 7/8/9 did before their own entries were expanded:
+
+  1. The controller half is closable by the same route as items 8 and 9: an
+     `IOHIDUserDevice` virtual gamepad that the GameController framework
+     enumerates as a real device, which would close 8, 9 and this half
+     together. One plan's worth of work, not a permanent blocker.
+
+  2. The VoiceOver half stays human judgment and there is no honest path to
+     automating it. The machine-checkable floor — labels, roles, state,
+     hierarchy, focus order, audits — is already closed above by
+     `SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit`.
+     What remains is whether the result is actually comprehensible to listen
+     to, which no assertion settles.
 coverage_id: 03-10/D2
 
 ### 11. Web console keyboard + screen-reader walkthrough
@@ -255,11 +272,57 @@ evidence: |
   Run summary: "Test Suite 'BiosProductionReferenceTests' passed ... Executed 3
   tests, with 0 failures (0 unexpected)". BiosTests (22/22 passing, including the
   new discriminator, concurrency, and interruption-safety tests added by
-  03-11-PLAN.md Tasks 2 and 3) confirms no regression.
-  Remaining operator step: acceptance of real, legally-owned BIOS bytes has not
-  been exercised in this environment. Cross-check a real file in one command via
-  scripts/verify-bios-reference.sh <path> once you have one.
+  03-11-PLAN.md Tasks 2 and 3) confirms no regression. BiosTests is 25 tests as
+  of this entry.
 coverage_id: 03-09/D2
+
+#### Automated no-acquisition-path record
+result: pass
+source: automated
+evidence: |
+  `BiosTests/testNoShippedBiosCopyAnywhereOffersAnAcquisitionPath` sweeps EVERY
+  shipped Swift file under `Playstead/`, not the two the previous grep covered.
+  This item claims no acquisition path is offered anywhere in the UI; eight
+  shipped files carry user-facing BIOS copy, and the six the old grep never
+  looked at include `ReadinessEngine.swift`, whose remedy text "Drop in a BIOS
+  file" is the most tempting place in the app to add "...you can get one here".
+  The claim was broad and the proof was narrow.
+
+  It reads string literals rather than raw source because that is what the
+  requirement is about: `BiosReferences.swift` cites three URLs in a doc comment
+  as provenance for the pinned digest, which is scholarship, not an offer, and a
+  raw-source grep cannot tell the two apart.
+
+  Falsified: planting `https://example.invalid/bios` into ReadinessEngine's BIOS
+  remedy leaves the OLD two-file grep GREEN and fails this sweep — the gap was
+  real, not theoretical. Non-vacuity is asserted too (>=20 BIOS literals found,
+  and ReadinessEngine/AdapterCapabilityCard/BiosDropTarget each still present);
+  renaming ReadinessEngine's five BIOS literals away fails it with "the remedy
+  copy is no longer being swept". Registered as a `--required-test` on the unit
+  layer, so a zero-discovery run fails closed.
+
+#### Blocked real-BIOS-acceptance record
+result: blocked
+blocked_by: legally-owned-artifact-required
+reason: |
+  Acceptance of real, legally-owned BIOS bytes against the PRODUCTION reference
+  has never been exercised. This is not automatable, and not for want of effort:
+  the pinned gba reference is a SHA-256
+  (fd2547724b505f487e6dcb29ec2ecff3af35a841a77ab2e85fd87350abd36570), so bytes
+  that satisfy it cannot be fabricated by any test — that is the entire point of
+  pinning a digest. `BiosProductionReferenceTests/testStoreBuiltFromProduction\
+  ReferencesReachesTheDigestComparison` proves the production set is wired and
+  REJECTS a correctly-sized non-matching candidate; the accept branch against the
+  production digest needs the real file and nothing else will do.
+
+  Recorded here as an explicit sub-record rather than, as before, a sentence of
+  prose at the end of the `evidence:` block, where no audit could see it.
+
+  Path to closing it: obtain a legally-owned dump of the operator's own console
+  and run `scripts/verify-bios-reference.sh <path>`, which performs exactly the
+  length-then-digest comparison the store performs. Same class as items 7/8/9 —
+  it needs a physical artifact, not more test code — and it must NOT be read as
+  covered by the automated records above.
 
 ### 14. Notarized release pipeline, relaunch, and orphan prevention
 expected: The Developer-ID-signed, notarized hardened-runtime release build launches; Gatekeeper accepts it without a user override; quitting prevents orphan emulator processes; relaunch after an application restart works with zero network calls; support documentation matches actual behavior.
