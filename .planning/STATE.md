@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 current_phase: 03
-current_phase_name: mac-offline-play-vertical-slice
+current_phase_name: Mac Offline Play Vertical Slice
 status: executing
-stopped_at: "Completed 03-12-PLAN.md (Gap B: notarization, PLAY-05 closed)"
-last_updated: "2026-09-11T03:30:08.596Z"
-last_activity: 2026-09-10
+stopped_at: Completed 03-13-PLAN.md (LIBR-02 gap closure, server-side)
+last_updated: "2026-09-11T04:32:43.831Z"
+last_activity: 2026-09-11
 last_activity_desc: Phase 03 execution started
-state_head: 6e5a3e5fe766d852022a8cc0814c618ba6893345
+state_head: 35152e9aa319c799f83d5529c18b73cb85a73c38
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 73
-  completed_plans: 71
+  completed_plans: 72
 milestone_name: milestone
 ---
 
@@ -28,10 +28,22 @@ See: `.planning/PROJECT.md` (updated 2026-08-30)
 
 ## Current Position
 
-Phase: 03 (mac-offline-play-vertical-slice) — READY TO EXECUTE
-Plan: 12 of 12 (gap-closure plan, executed out of sequence)
-Status: Ready to execute
-Last activity: 2026-09-10 — 03-11-PLAN.md complete (Gap A: BIOS reference wiring)
+Phase: 03 (Mac Offline Play Vertical Slice) — EXECUTING
+Plan: 13 of 14 (gap-closure plan, executed out of sequence)
+Status: Executing Phase 03
+Last activity: 2026-09-11 — 03-13-PLAN.md complete (LIBR-02 gap closure, server-side)
+
+**03-13-PLAN.md is COMPLETE.** Closed the actionable half of the LIBR-02
+gap: added a device-reported, per-user-merged availability read model
+(`Playstead.Availability`, `device_asset_availability`, `PUT
+/api/v1/devices/me/availability`) and rewrote `LibraryLive`'s
+`matches_availability?/3` so all six frozen filter values
+(`needs_attention`, `missing_dependency`, `downloading`, `ready_offline`,
+`queued`, `server_only`) genuinely discriminate the browse set — the
+unconditional pass-through clause that caused the gap is gone. See
+`.planning/phases/03-mac-offline-play-vertical-slice/03-13-SUMMARY.md`.
+`LIBR-02` stays unchecked in `REQUIREMENTS.md` by design — the Mac client
+report and the requirement flip are `03-14-PLAN.md`'s job.
 
 **03-11-PLAN.md is COMPLETE.** Sourced and pinned a real, three-source-cited
 BIOS reference (gba, 16384 bytes, SHA-256
@@ -146,6 +158,7 @@ Progress: [█████████░] 90% (Phase 03.5)
 | Phase 04.5 P06 | 25min | 3 tasks | 8 files |
 | Phase 03 P11 | 50min | 3 tasks | 11 files |
 | Phase 03-mac-offline-play-vertical-slice P12 | 55min | 1 tasks | 8 files |
+| Phase 03-mac-offline-play-vertical-slice P13 | 95min | 3 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -280,6 +293,8 @@ Progress: [█████████░] 90% (Phase 03.5)
 - [Phase 03]: [Phase 03]: Closed Gap A (BIOS reference wiring) via 03-11-PLAN.md: pinned a real, three-source-cited gba BIOS reference (16384 bytes, SHA-256 fd254772...) into BiosReferences.production and wired it at PlaysteadApp's composition root; a correctly-sized non-matching candidate is now refused for its contents, not for having no reference at all.
 - [Phase 03]: [Phase 03]: BiosStore.validateAndAccept hardened to be all-or-nothing under interruption and concurrency (03-11): a shared incomingPrefix constant backs both the temp-file writer and a new init-time sweep, and the managed-file move race is closed so concurrent identical drops converge on exactly one managed file and one bios_files row.
 - [Phase 03]: PLAY-05 closed by 03-12-PLAN.md: real Developer ID notarization achieved (submission 8465f74d-5468-4b73-9885-fb0ea1dafcdd, Accepted), fixing three genuine release-script bugs found while proving it for real (codesign -dv missing Authority chain, notarytool rejecting raw .app, wrong RelaunchTests test identifier).
+- [Phase 03]: Task 1 checkpoint (03-13, auto-selected under yolo/blocking gate): six UI-SPEC availability values fed by any-device merge (boolean OR / percent max), not the verifier's literal CACH-02 four.
+- [Phase 03]: cache capability namespace bumped to 1.1.0 additively (transfer-1.1.0 precedent) to advertise availability-report support (03-13).
 
 ### Pending Todos
 
@@ -313,6 +328,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-11T02:38:24.820Z
-Stopped at: Completed 03-12-PLAN.md (Gap B: notarization, PLAY-05 closed)
+Last session: 2026-09-11T04:32:43.515Z
+Stopped at: Completed 03-13-PLAN.md (LIBR-02 gap closure, server-side)
 Resume file: None

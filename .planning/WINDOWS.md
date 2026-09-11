@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 40
+open_count: 42
 waived_count: 1
 fixed_count: 22
-total_count: 63
-last_updated: 2026-09-09T00:53:50.372Z
+total_count: 65
+last_updated: 2026-09-11T04:31:57.416Z
 ---
 
 # Broken Windows Ledger
@@ -78,6 +78,8 @@ last_updated: 2026-09-09T00:53:50.372Z
 | 59 | 04 | deviation | playstead-mac/scripts/ci/run-mac-verification.sh |  | CI GAP (fixed same day, 266015e): the hosted UI layer's 1800s deadline sat 9% above its own observed runtime (1631s in the last green run, 50960ba), and run 34264338508 was SIGTERMed at exactly 1800s on a commit whose diff touched no file in the UI test plan. Raised to 2700s with four-layer-topology-test.sh's pinned expectation and ceiling moved with it. Recorded because the failure mode is a gate that reports red for reasons unrelated to the code under test, which trains readers to discount it. | fixed |  | 2026-09-08T20:58:18.772Z | 2026-09-08T20:58:25.464Z |
 | 62 | 04.5 | unrun-verify | playstead-mac/PlaysteadUITests/PairingCeremonyTests.swift |  | PairingCeremonyTests (the live-server pairing ceremony proof) is registered in LiveServer.xctestplan and compiles, but has not been executed against a real hosted Phoenix+Postgres mac_ci server in this session; not yet promoted to run-mac-verification.sh's --required-test list per WINDOWS #58's lesson. | open |  | 2026-09-09T00:53:41.765Z |  |
 | 63 | 04.5 | stub | playstead-mac/Playstead/Pairing/PinnedCertificateCapture.swift |  | PinnedCertificateCapture has no dedicated unit test — its real trust-anchor capture path only fires on a genuine TLS handshake, which StubURLProtocol never performs. Coverage is structural/code-review only until the live-server proof (window #62) is run. | open |  | 2026-09-09T00:53:50.372Z |  |
+| 64 | 03 | stub | playstead-server/lib/playstead_web/live/library_live.ex |  | list-view status_slot only passes queued fact, not the full device-reported status map status_for/2 now returns | open |  | 2026-09-11T04:31:57.324Z |  |
+| 65 | 03 | unrun-verify | playstead-server/lib/playstead_web/live/library_live.ex |  | 03-13 backstop truths (500-entry stress toggle, download-in-progress uses existing indicator) not exercised by a dedicated automated fixture | open |  | 2026-09-11T04:31:57.416Z |  |
 
 ````json
 [
@@ -835,6 +837,30 @@ last_updated: 2026-09-09T00:53:50.372Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-09T00:53:50.372Z",
+    "resolved_at": null
+  },
+  {
+    "id": 64,
+    "kind": "stub",
+    "phase": "03",
+    "file": "playstead-server/lib/playstead_web/live/library_live.ex",
+    "line": null,
+    "description": "list-view status_slot only passes queued fact, not the full device-reported status map status_for/2 now returns",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-11T04:31:57.324Z",
+    "resolved_at": null
+  },
+  {
+    "id": 65,
+    "kind": "unrun-verify",
+    "phase": "03",
+    "file": "playstead-server/lib/playstead_web/live/library_live.ex",
+    "line": null,
+    "description": "03-13 backstop truths (500-entry stress toggle, download-in-progress uses existing indicator) not exercised by a dedicated automated fixture",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-11T04:31:57.416Z",
     "resolved_at": null
   }
 ]

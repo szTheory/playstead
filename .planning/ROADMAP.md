@@ -183,7 +183,7 @@ Plans:
 
 **Wave 8 — gap closure** *(from the 2026-09-11 re-verification of 03-VERIFICATION.md)*
 
-- [ ] 03-13-PLAN.md — LIBR-02 gap: a device-reported availability read model, a frozen six-value filter vocabulary shared across both codebases, and a console filter where all six values discriminate and none falls through
+- [x] 03-13-PLAN.md — LIBR-02 gap: a device-reported availability read model, a frozen six-value filter vocabulary shared across both codebases, and a console filter where all six values discriminate and none falls through
 - [ ] 03-14-PLAN.md — LIBR-02 close-out: the Mac client actually reports its availability with a two-sided wire contract, the UAT tally becomes a fail-closed command, and the requirement and verification records flip only for what was proven
 
 **UI hint**: yes
