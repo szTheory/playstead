@@ -480,12 +480,13 @@ coverage_id: 03-09/D3
 
 ### 45. BIOS drop surface renders the exact no-blame rejection reason
 expected: Drag a non-matching BIOS file onto the BIOS drop surface. The surface renders the store's exact no-blame rejection reason as explanatory copy — never a blank pane and never a generic failure string.
-result: partial
+result: pass
 source: automated
 evidence: |
-  Closed at the logic layer, written-and-registered but NOT YET EXECUTED at
-  the rendered-surface layer. Recorded as partial rather than pass on that
-  basis (see the sub-records below).
+  Closed at BOTH layers. The logic layer was closed locally; the
+  rendered-surface layer was closed by its first-ever execution on the
+  hosted runner in CI run 34636187313 (2026-09-11), which is what flipped
+  this item from partial to pass (see the sub-records below).
 coverage_id: 03-11/D7
 
 #### Automated store-reason record
@@ -506,9 +507,28 @@ evidence: |
   satisfies. Evidence boundary: the reason `BiosDropTarget` produces; NOT that
   the view renders it.
 
-#### Written-but-unexecuted rendered-surface record
-result: blocked
-blocked_by: xcuitest-automation-permission
+#### Rendered-surface record
+result: pass
+source: automated
+evidence: |
+  EXECUTED AND PASSING on the hosted runner. CI run 34636187313, job
+  "macOS 26 unit + rendering + UI + live server", UI layer:
+  `ui: verified 53 required test(s) across 113 executed test(s)` then
+  `ui: PASSED`. Both features of `BiosRejectionCopyTests` are registered
+  as `--required-test` entries, and the layer verifier emits one
+  `required test did not pass: <identifier> (<result>)` line per failing
+  or undiscovered required test before it will print its summary — the
+  same mechanism that failed the live-server layer in this very run for
+  `SaveEndToEndTests`. The UI layer emitted no such line, so both
+  features were discovered and both passed. Executed count rose 111 -> 113,
+  matching the two features this plan added: a zero-discovery run would
+  have failed closed rather than passed quietly.
+
+  This is the first execution of these features anywhere. The local
+  blocker recorded below was environmental, never a defect in the test,
+  and the hosted runner is exactly the path it was registered for.
+
+previously_blocked_by: xcuitest-automation-permission
 reason: |
   `playstead-mac/PlaysteadUITests/BiosRejectionCopyTests.swift` (new) drives
   the real packaged app: `.storage` profile -> production readiness route ->
@@ -678,12 +698,12 @@ coverage_id: 03-15/D7
 ## Summary
 
 total: 49
-passed: 43
+passed: 44
 issues: 0
 pending: 0
 skipped: 0
 blocked: 3
-partial: 3
+partial: 2
 
 ## Gaps
 
