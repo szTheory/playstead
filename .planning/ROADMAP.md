@@ -145,7 +145,7 @@ Plans:
   5. A user can connect, test, assign, remap, reset, and recover a controller while retaining keyboard, pointer, screen-reader, focus, and reduced-motion fallbacks; from a signed/notarized build they can launch, exit, and relaunch one legally testable game after app or server restart.
 
 **Research / spike flags**: Required Mac adapter gate before commitment: empirically choose the first system/emulator and direct-notarized versus sandboxed distribution posture using legal homebrew content. Demonstrate Keychain, external-process launch/recovery, controller recovery, BIOS handling, and safe persistent-save location/flush; do not promise the current GBA/mGBA hypothesis until this passes.
-**Plans**: 14/14 plans executed (12 executed; 2 gap-closure plans pending from the 2026-09-11 re-verification)
+**Plans**: 16 plans (14 executed; 2 gap-closure plans pending from the 2026-09-11 re-verification of 03-VERIFICATION.md)
 
 Plans:
 **Wave 1**
@@ -185,6 +185,11 @@ Plans:
 
 - [x] 03-13-PLAN.md — LIBR-02 gap: a device-reported availability read model, a frozen six-value filter vocabulary shared across both codebases, and a console filter where all six values discriminate and none falls through
 - [x] 03-14-PLAN.md — LIBR-02 close-out: the Mac client actually reports its availability with a two-sided wire contract, the UAT tally becomes a fail-closed command, and the requirement and verification records flip only for what was proven
+
+**Wave 9 — gap closure** *(from the independent re-verification that rejected 03-14's LIBR-02 claim: missing_dependency was still a hardcoded constant, plus review warnings WR-04 and WR-05)*
+
+- [ ] 03-15-PLAN.md — LIBR-02 real signal: missing_dependency computed from catalogue membership, CAS presence, download-queue rows, and the pin flag, proved through buildEntries and through the real HTTP endpoint with one shared report fixture
+- [ ] 03-16-PLAN.md — WR-04's 422 shape guard, WR-05's newest-wins outbox supersede, and the LIBR-02 requirement flip gated on the Mac-client-driven tests
 
 **UI hint**: yes
 
