@@ -8,7 +8,10 @@ defmodule Playstead.Config.MacCiConfigTest do
 
   setup do
     root =
-      Path.join(System.tmp_dir!(), "playstead-mac-ci-config-test-#{System.unique_integer([:positive])}")
+      Path.join(
+        System.tmp_dir!(),
+        "playstead-mac-ci-config-test-#{System.unique_integer([:positive])}"
+      )
 
     previous_root = System.get_env("PLAYSTEAD_MAC_CI_ROOT")
     previous_port = System.get_env("PORT")

@@ -80,7 +80,9 @@ defmodule PlaysteadWeb.LibraryAvailabilityE2ETest do
       |> Plug.Conn.put_req_header("authorization", "Bearer #{token}")
       |> Plug.Conn.put_req_header("content-type", "application/json")
       |> Plug.Conn.put_req_header("idempotency-key", idempotency_key)
-      |> Phoenix.ConnTest.put(~p"/api/v1/devices/me/availability", %{"entries" => rewritten_entries})
+      |> Phoenix.ConnTest.put(~p"/api/v1/devices/me/availability", %{
+        "entries" => rewritten_entries
+      })
 
     assert put_resp.status == 200
 
