@@ -372,6 +372,48 @@ required = "PlaysteadTests.DeterministicProfileTests/testQuotaBlockReclaimProfil
 if required in unit or required not in rendering:
     raise SystemExit("quota decision contract must be required by Rendering and excluded from Unit")
 PY
+
+# The most expensive test in the Unit layer must not be paid for twice.
+# `ReleaseHookAbsenceTests` shells out to a full Release `xcodebuild`. On run
+# 34663361104 it cost 59.39s in Unit and 46.62s in Rendering -- the same build,
+# twice, and 88% of Rendering's entire in-test time. Unit selects every
+# PlaysteadTests case except three named skips, so Rendering naming it again
+# bought no coverage whatsoever. It stays required by Unit, where it runs, and
+# absent from Rendering, where it only duplicated.
+python3 - "$RUNNER" "${MAC_ROOT}/TestPlans/Rendering.xctestplan" "${MAC_ROOT}/TestPlans/Unit.xctestplan" <<'RELEASE_HOOK_PY'
+import json, pathlib, sys
+
+source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+unit = source.split("run_test_layer unit Unit", 1)[1].split("run_test_layer rendering Rendering", 1)[0]
+rendering = source.split("run_test_layer rendering Rendering", 1)[1].split("run_test_layer ui UI", 1)[0]
+scan = "PlaysteadTests.ReleaseHookAbsenceTests/testNonTestingReleaseBinaryAndSymbolsContainNoBootstrapProfileOrEnvironmentKey"
+if scan not in unit:
+    raise SystemExit("the Release-absence scan must be required by the Unit layer")
+if scan in rendering:
+    raise SystemExit("the Release-absence scan must not be required by the Rendering layer")
+
+rendering_plan = json.loads(pathlib.Path(sys.argv[2]).read_text(encoding="utf-8"))
+for target in rendering_plan["testTargets"]:
+    for selected in target.get("selectedTests", []):
+        if selected.split("/")[0] == "ReleaseHookAbsenceTests":
+            raise SystemExit("Rendering re-selected ReleaseHookAbsenceTests; Unit already runs that Release build")
+
+# Dropping it from Rendering is only safe while Unit still reaches it. A skip
+# added there would leave the Release-absence scan running in no layer at all,
+# which is a far worse outcome than the duplication this removed.
+unit_plan = json.loads(pathlib.Path(sys.argv[3]).read_text(encoding="utf-8"))
+reached = False
+for target in unit_plan["testTargets"]:
+    if target["target"]["name"] != "PlaysteadTests":
+        continue
+    if "ReleaseHookAbsenceTests" in {entry.split("/")[0] for entry in target.get("skippedTests", [])}:
+        raise SystemExit("Unit skips ReleaseHookAbsenceTests, so nothing runs the Release-absence scan")
+    selected = target.get("selectedTests")
+    if selected is None or any(entry.split("/")[0] == "ReleaseHookAbsenceTests" for entry in selected):
+        reached = True
+if not reached:
+    raise SystemExit("Unit no longer selects ReleaseHookAbsenceTests")
+RELEASE_HOOK_PY
 grep -F 'let attempt = await environment.attemptDownload(for: target)' "$PROFILE_TEST" >/dev/null
 grep -F 'XCTAssertEqual(attempt, .blocked(expected))' "$PROFILE_TEST" >/dev/null
 python3 - "$APP_ENTRY" <<'PY'

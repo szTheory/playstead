@@ -1317,7 +1317,9 @@ PY
     --required-test PlaysteadTests.AvailabilityReporterTests/test_unchangedSecondPassEncodesToTheSamePayloadAsTheFirst \
     --required-test PlaysteadTests.BiosTests/testRejectionMessageQuotesTheStoreReasonVerbatim \
     --required-test PlaysteadTests.BiosTests/testEveryRejectionIsDistinguishableAndNoneIsTheGenericFallback \
-    --required-test PlaysteadTests.BiosTests/testNoShippedBiosCopyAnywhereOffersAnAcquisitionPath
+    --required-test PlaysteadTests.BiosTests/testNoShippedBiosCopyAnywhereOffersAnAcquisitionPath \
+    --required-test PlaysteadTests.ReleaseHookAbsenceTests/testScannerRejectsSeededForbiddenHookToken \
+    --required-test PlaysteadTests.ReleaseHookAbsenceTests/testNonTestingReleaseBinaryAndSymbolsContainNoBootstrapProfileOrEnvironmentKey
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
 
   run_test_layer rendering Rendering 600 \
