@@ -268,11 +268,32 @@ enum UITestBootstrap {
             localPath: capture.localPath
         ))
 
-        guard let apiClient = await appEnvironment.apiClient else {
+        // Still asserted: an unpaired app would fail the upload for a reason
+        // that has nothing to do with what this test proves. The client
+        // itself is no longer needed here, since the lane below is the app's
+        // own and already holds it.
+        guard await appEnvironment.apiClient != nil else {
             throw DeterministicProfileError.stateMismatch("save-e2e: no paired APIClient")
         }
 
-        let lane = SaveUploadLane(apiClient: apiClient, saveStore: saveStore)
+        // The APP'S OWN lane, never a second one built here.
+        //
+        // This is the root cause of the SaveEndToEndTests flake, and it is a
+        // race, not a timeout and not a transient error. The running app
+        // drains save uploads on a reachability transition
+        // (PlaysteadApp.swift: `Task { await uploadLane.drainOnce() }` inside
+        // `reachability.onChange`), which in CI fires right after pairing --
+        // exactly when this harness is inserting its revision. `drainOnce`'s
+        // own doc comment says "the lane is an actor, so overlapping calls
+        // serialize rather than racing the same revision", and that is true;
+        // constructing a SECOND lane over the same store is what defeated it,
+        // because two actor instances serialize nothing. Whichever lane lost
+        // the race saw an empty pending set and reported `sent == 0`.
+        //
+        // Run 34663361104 named it exactly: `upload-nothing-pending`, which
+        // is what the three-way split was added to distinguish. Sharing the
+        // one actor restores the serialization the comment already promised.
+        let lane = appEnvironment.saveUploadLane
 
         // Drive the lane the way PRODUCTION does, not the way a single pass
         // does. `drainOnce` is ONE attempt by a component whose entire job
@@ -304,14 +325,21 @@ enum UITestBootstrap {
             drainResult = await lane.drainOnce(at: Date().addingTimeInterval(Double(attempt) * 3600))
         }
 
-        if drainResult.sent == 0, drainResult.stoppedForRetry, lane.lastFailureClassification == .none {
+        // Assert the OUTCOME, not this lane's counter. The claim under test
+        // is "one save round trips capture -> upload -> journal -> sync", not
+        // "the lane object I happen to hold incremented `sent`". With the
+        // app's own lane also draining, `sent` belongs to whichever pass did
+        // the work, while the revision's durability is the fact either way.
+        let uploaded = saveStore.fetchRevision(id: revisionID)?.durability == SaveDurability.uploaded.rawValue
+
+        if !uploaded, drainResult.stoppedForRetry, lane.lastFailureClassification == .none {
             // Retryable, and still failing after every attempt. That is no
             // longer a blip -- it is a server that is genuinely not
             // accepting this upload.
             throw DeterministicProfileError.stateMismatch("save-e2e: upload still retryable-failing after all attempts")
         }
 
-        guard drainResult.sent == 1 else {
+        guard uploaded else {
             // `drainOnce` is ONE pass over a lane whose whole job is to
             // retry: any single error inside it sets `stoppedForRetry`,
             // schedules a backoff, and returns with `sent == 0`. So a
