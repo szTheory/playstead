@@ -72,7 +72,7 @@ final class BiosRejectionCopyTests: XCTestCase {
             "a status readout was present before any file was chosen"
         )
 
-        harness.element(AccessibilityIdentifiers.chooseBios, type: .button).click()
+        harness.element(AccessibilityIdentifiers.chooseBios, type: .button).clickWhenHittable()
 
         let status = harness.app.descendants(matching: .any)[statusIdentifier]
         XCTAssertTrue(
@@ -101,7 +101,7 @@ final class BiosRejectionCopyTests: XCTestCase {
         // returns. A cancel must not fabricate a rejection.
         openBiosSurface(candidate: URL(fileURLWithPath: "/etc/hosts"))
 
-        harness.element(AccessibilityIdentifiers.chooseBios, type: .button).click()
+        harness.element(AccessibilityIdentifiers.chooseBios, type: .button).clickWhenHittable()
 
         let status = harness.app.descendants(matching: .any)[statusIdentifier]
         XCTAssertFalse(
@@ -119,10 +119,10 @@ final class BiosRejectionCopyTests: XCTestCase {
         )
         harness.launch(settledAt: AccessibilityIdentifiers.library)
 
-        harness.element(AccessibilityIdentifiers.openReadiness, type: .button).click()
+        harness.element(AccessibilityIdentifiers.openReadiness, type: .button).clickWhenHittable()
         harness.require([AccessibilityIdentifiers.readinessSurface])
 
-        harness.element(AccessibilityIdentifiers.openBios, type: .button).click()
+        harness.element(AccessibilityIdentifiers.openBios, type: .button).clickWhenHittable()
         harness.require([AccessibilityIdentifiers.biosSurface])
     }
 }

@@ -89,20 +89,20 @@ final class PairingCeremonyTests: XCTestCase {
         // action button WINDOWS #54 required actually behind its string.
         XCTAssertTrue(launched.descendants(matching: .any)["playstead.surface.library"].awaitExistence(timeout: 20))
         XCTAssertTrue(launched.buttons["playstead.control.show-list"].awaitExistence(timeout: 10))
-        launched.buttons["playstead.control.show-list"].click()
+        launched.buttons["playstead.control.show-list"].clickWhenHittable()
 
         let openPairing = launched.buttons["playstead.control.open-pairing"]
         XCTAssertTrue(openPairing.awaitExistence(timeout: 10), "the empty state must offer a reachable pairing action")
-        openPairing.click()
+        openPairing.clickWhenHittable()
 
         let serverURLField = launched.textFields["playstead.control.pairing-server-url"]
         XCTAssertTrue(serverURLField.awaitExistence(timeout: 10))
-        serverURLField.click()
+        serverURLField.clickWhenHittable()
         serverURLField.typeText("https://127.0.0.1:4010")
 
         let requestButton = launched.buttons["playstead.control.request-pairing"]
         XCTAssertTrue(requestButton.awaitExistence(timeout: 5))
-        requestButton.click()
+        requestButton.clickWhenHittable()
 
         let displayCodeElement = launched.descendants(matching: .any)["playstead.control.pairing-display-code"]
         XCTAssertTrue(displayCodeElement.awaitExistence(timeout: 15), "expected the server-issued display code to render")
@@ -136,7 +136,7 @@ final class PairingCeremonyTests: XCTestCase {
             "criterion 5: pinned-ca.der must be non-empty after a successful pairing"
         )
 
-        launched.buttons["playstead.control.done"].click()
+        launched.buttons["playstead.control.done"].clickWhenHittable()
 
         // The evidence, not the confirmation: a working credential landed
         // in the exact scoped Keychain `APIClient` reads from -- proven by
@@ -146,7 +146,7 @@ final class PairingCeremonyTests: XCTestCase {
         launched.launch()
         XCTAssertTrue(launched.descendants(matching: .any)["playstead.surface.library"].awaitExistence(timeout: 20))
         XCTAssertTrue(launched.buttons["playstead.control.show-list"].awaitExistence(timeout: 10))
-        launched.buttons["playstead.control.show-list"].click()
+        launched.buttons["playstead.control.show-list"].clickWhenHittable()
         // A relaunch that is still unpaired would show the same empty-state
         // action button; its absence here is the proof the credential
         // persisted and `APIClient` is reading it.

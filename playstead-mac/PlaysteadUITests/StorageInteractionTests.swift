@@ -88,7 +88,7 @@ final class StorageInteractionTests: XCTestCase {
 
     func testReclaimRouteDirectActivationDispatchesQuotaEffect() {
         navigateToQuotaFixtureList()
-        waitForUniqueDownloadAction().click()
+        waitForUniqueDownloadAction().clickWhenHittable()
         XCTAssertTrue(
             harness.element("playstead.surface.reclaim").awaitExistence(timeout: 5),
             "direct Download activation did not present the quota reclaim effect"
@@ -396,7 +396,7 @@ final class StorageInteractionTests: XCTestCase {
         // prompt journey that starts in List. Reveal the same production
         // GameRow identities without relaunching or reseeding; the mutation
         // proof above therefore remains the state being inspected.
-        harness.element("playstead.control.show-list", type: .button).click()
+        harness.element("playstead.control.show-list", type: .button).clickWhenHittable()
         XCTAssertTrue(harness.element("playstead.surface.game-list").awaitExistence(timeout: 5))
         assertCanonicalRow(assetID: quotaReclaimAssetID, title: "Synthetic Reclaim Candidate")
         assertCanonicalRow(assetID: quotaDownloadAssetID, title: "Synthetic Quota Download")
@@ -409,7 +409,7 @@ final class StorageInteractionTests: XCTestCase {
     }
 
     private func openSurface(control: String, root: String) {
-        harness.element(control, type: .button).click()
+        harness.element(control, type: .button).clickWhenHittable()
         XCTAssertTrue(harness.element(root).awaitExistence(timeout: 5))
     }
 

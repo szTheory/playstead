@@ -383,3 +383,44 @@ extension XCUIElement {
         exists || waitForExistence(timeout: timeout)
     }
 }
+
+extension XCUIElement {
+    /// Click only once the control can actually receive the click.
+    ///
+    /// `exists` is not `isHittable`. A control can sit in the accessibility
+    /// tree while it is still laying out, or while a sheet covers it, and
+    /// XCUITest's `click()` on a non-hittable element does nothing at all --
+    /// silently, with no error. The test then fails much later at whatever
+    /// the click was supposed to produce, pointing at the wrong line
+    /// entirely.
+    ///
+    /// This became worth stating because `awaitExistence` removed an
+    /// accidental ~1s pause that used to precede every click and papered
+    /// over the gap. That pause was never the contract, and relying on it
+    /// was always a race -- it simply had not been observed yet. Hittability
+    /// is the actual precondition, so it is now asserted rather than
+    /// approximated by a sleep.
+    ///
+    /// `file`/`line` are forwarded so a failure lands on the CALLER's click,
+    /// not on this helper: CI keeps file:line and discards assertion
+    /// messages, so a shared helper that owned the line number would make
+    /// every stuck click in the suite look like the same defect.
+    func clickWhenHittable(
+        timeout: TimeInterval = 10,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        if !isHittable {
+            let ready = NSPredicate(format: "exists == true AND isHittable == true")
+            let settled = XCTNSPredicateExpectation(predicate: ready, object: self)
+            XCTAssertEqual(
+                XCTWaiter.wait(for: [settled], timeout: timeout),
+                .completed,
+                "control never became hittable, so the click would have been silently dropped",
+                file: file,
+                line: line
+            )
+        }
+        click()
+    }
+}

@@ -58,7 +58,7 @@ final class LiveServerSnapshotTests: XCTestCase {
         XCTAssertTrue(launched.descendants(matching: .any)["playstead.surface.library"].awaitExistence(timeout: 20))
         XCTAssertFalse(FileManager.default.fileExists(atPath: handoff.path))
         XCTAssertTrue(launched.buttons["playstead.control.show-list"].awaitExistence(timeout: 10))
-        launched.buttons["playstead.control.show-list"].click()
+        launched.buttons["playstead.control.show-list"].clickWhenHittable()
         let row = launched.descendants(matching: .any)["playstead.game.\(first.assetSetID).summary"]
         XCTAssertTrue(row.awaitExistence(timeout: 10))
         XCTAssertTrue(row.readableText.contains(first.title))
@@ -82,7 +82,7 @@ final class LiveServerSnapshotTests: XCTestCase {
 
         XCTAssertTrue(launched.descendants(matching: .any)["playstead.surface.library"].awaitExistence(timeout: 20))
         XCTAssertTrue(launched.buttons["playstead.control.show-list"].awaitExistence(timeout: 10))
-        launched.buttons["playstead.control.show-list"].click()
+        launched.buttons["playstead.control.show-list"].clickWhenHittable()
         for sentinel in [first, second] {
             let refreshedRow = launched.descendants(matching: .any)["playstead.game.\(sentinel.assetSetID).summary"]
             XCTAssertTrue(refreshedRow.awaitExistence(timeout: 10))
