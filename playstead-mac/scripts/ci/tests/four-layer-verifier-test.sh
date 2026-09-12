@@ -45,12 +45,14 @@ case = {
     "nodeIdentifier": "KeychainScopingTests/testScopedMatchQueryRestrictsSearchWithoutSelectingAnAddDestination()",
     "name": "testScopedMatchQueryRestrictsSearchWithoutSelectingAnAddDestination()",
     "result": result,
+    "durationInSeconds": 1.5,
 }
 non_required_failure = {
     "nodeType": "Test Case",
     "nodeIdentifier": "SurfaceAccessibilityTests/testSyntheticFailure()",
     "name": "testSyntheticFailure()",
     "result": "Failed",
+    "durationInSeconds": 4.25,
     "children": [
         {
             "nodeType": "Failure Message",
@@ -96,7 +98,16 @@ assert summary["audit_issues"] == [
     {"test_identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "category": "parentChild", "element_identifier": "playstead.surface.library", "element_role": "role-3"},
     {"test_identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "category": "parentChild", "element_identifier": "unidentified", "element_role": "role-64"},
 ]
-assert set(summary) == {"schema_version", "layer", "executed_test_count", "required_tests", "failed_test_count", "failed_tests_truncated", "failed_tests", "failure_diagnostic_count", "failure_diagnostics_truncated", "failure_diagnostics", "audit_issue_count", "audit_issues_truncated", "audit_issues"}
+# Per-test timings. Asserted by value, not merely by presence: a profiling
+# field that silently reads 0 is worse than none, because the next person
+# optimises against it. The fixture's two cases are 1.5s and 4.25s.
+assert summary["timed_test_count"] == 2
+assert summary["in_test_seconds_total"] == 5.8  # 5.75, rounded to one place
+assert summary["slowest_tests"] == [
+    {"identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "seconds": 4.25},
+    {"identifier": "KeychainScopingTests/testScopedMatchQueryRestrictsSearchWithoutSelectingAnAddDestination()", "seconds": 1.5},
+]
+assert set(summary) == {"schema_version", "layer", "executed_test_count", "required_tests", "failed_test_count", "failed_tests_truncated", "failed_tests", "failure_diagnostic_count", "failure_diagnostics_truncated", "failure_diagnostics", "audit_issue_count", "audit_issues_truncated", "audit_issues", "in_test_seconds_total", "timed_test_count", "slowest_tests"}
 PY
 PASS_COUNT=$((PASS_COUNT + 1))
 

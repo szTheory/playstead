@@ -629,6 +629,7 @@ def normalized_outcome(result):
 
 nodes = []
 audit_issues = []
+durations = []
 failure_diagnostics = []
 failure_stages = set()
 audit_pattern = re.compile(r"PLAYSTEAD_A11Y_ISSUES\[([A-Za-z]+)\]=([a-z0-9.,@-]+)")
@@ -745,6 +746,15 @@ def walk(value):
                 raise SystemExit(f"{layer}: malformed Test Case node")
             test_identifier = canonical(node_identifier)
             nodes.append((test_identifier, result))
+            # Per-test wall time, straight off the node. Summed and compared
+            # against the layer's own wall clock below, this is what
+            # separates "the tests are slow" from "the harness around them
+            # is slow" -- a distinction every optimisation of this layer
+            # needs and nobody could make from the job log, which drops
+            # xcodebuild's per-test timings entirely.
+            seconds = value.get("durationInSeconds")
+            if isinstance(seconds, (int, float)) and seconds >= 0:
+                durations.append((test_identifier, float(seconds)))
             for failure_record in failure_records(value):
                 diagnostic = bounded_failure_diagnostic(failure_record, test_identifier)
                 if diagnostic is not None:
@@ -835,10 +845,23 @@ summary = {
     "audit_issue_count": len(all_audit_issues),
     "audit_issues_truncated": len(all_audit_issues) > max_audit_issues,
     "audit_issues": [dict(fields) for fields in all_audit_issues[:max_audit_issues]],
+    # Rounded: this is a profiling aid, and full float precision would make
+    # the evidence manifest churn on every run for no readable gain.
+    "in_test_seconds_total": round(sum(seconds for _, seconds in durations), 1),
+    "timed_test_count": len(durations),
+    "slowest_tests": [
+        {"identifier": identifier, "seconds": round(seconds, 2)}
+        for identifier, seconds in sorted(durations, key=lambda row: (-row[1], row[0]))[:20]
+    ],
 }
 pathlib.Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 pathlib.Path(output_path).write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 print(f"{layer}: verified {len(required)} required test(s) across {len(nodes)} executed test(s)")
+if durations:
+    in_test_total = sum(seconds for _, seconds in durations)
+    print(f"{layer}: IN_TEST_SECONDS {in_test_total:.1f} across {len(durations)} timed test(s)")
+    for identifier, seconds in sorted(durations, key=lambda row: (-row[1], row[0]))[:5]:
+        print(f"{layer}: SLOWEST {seconds:8.2f}s {identifier}")
 for stage in sorted(failure_stages):
     print(f"{layer}: FAILURE_STAGE {stage}")
 if verification_errors:
