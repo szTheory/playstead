@@ -583,7 +583,7 @@ source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
 storage = source.split("private func dismissStorageAndAssertCanonicalRows()", 1)[1].split("private func launchStorageProfile", 1)[0]
 markers = [
     storage.find('dismissSheet(root: "playstead.surface.storage")'),
-    storage.find('harness.element("playstead.control.show-list", type: .button).click()'),
+    storage.find('harness.element("playstead.control.show-list", type: .button).clickWhenHittable()'),
     storage.find('harness.element("playstead.surface.game-list").awaitExistence'),
     storage.find('assertCanonicalRow(assetID: quotaReclaimAssetID'),
 ]

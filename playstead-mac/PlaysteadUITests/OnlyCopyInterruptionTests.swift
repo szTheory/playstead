@@ -153,7 +153,7 @@ final class OnlyCopyInterruptionTests: XCTestCase {
 
     func testChoosingCancelLeavesEveryRevisionAndCachedByteInPlace() {
         let app = launchHarness(context: "remove_local_copy")
-        app.buttons[ID.cancel].click()
+        app.buttons[ID.cancel].clickWhenHittable()
         XCTAssertTrue(app.staticTexts[ID.result].awaitExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts[ID.result].readableText, "cancelled")
         XCTAssertEqual(app.staticTexts[ID.revisionsRemaining].readableText, "3")
@@ -163,7 +163,7 @@ final class OnlyCopyInterruptionTests: XCTestCase {
 
     func testChoosingRemoveAnywayLeavesEverySaveRevisionPresent() {
         let app = launchHarness(context: "remove_local_copy")
-        app.buttons[ID.removeAnyway].click()
+        app.buttons[ID.removeAnyway].clickWhenHittable()
         XCTAssertTrue(app.staticTexts[ID.result].awaitExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts[ID.result].readableText, "removed")
         // Choosing "Remove anyway" removes cached game bytes and still

@@ -56,7 +56,7 @@ final class SaveFrontDoorJourneyTests: XCTestCase {
             play.awaitExistence(timeout: 5),
             "the seeded restorable-revision game never reached a ready Play action -- readiness must be blocking somewhere upstream of SAVE-03"
         )
-        play.click()
+        play.clickWhenHittable()
 
         let lastExit = harness.app.staticTexts
             // GameRowView renders this as a bare Text inside a
@@ -102,7 +102,7 @@ final class SaveFrontDoorJourneyTests: XCTestCase {
         let reclaim = harness.element("playstead.storage.reclaim", type: .button)
         XCTAssertTrue(reclaim.awaitExistence(timeout: 5))
         XCTAssertTrue(reclaim.isEnabled, "reclaim never became available for the selected only-copy candidate")
-        reclaim.click()
+        reclaim.clickWhenHittable()
 
         let interruption = harness.element("playstead.save.only-copy-interruptive")
         XCTAssertTrue(
@@ -185,7 +185,7 @@ final class SaveFrontDoorJourneyTests: XCTestCase {
             remedy.awaitExistence(timeout: 5),
             "the readiness Save row never surfaced a 'Review versions…' remedy for the diverged line"
         )
-        remedy.click()
+        remedy.clickWhenHittable()
 
         let comparison = harness.element("playstead.surface.conflict-comparison")
         XCTAssertTrue(
@@ -263,12 +263,12 @@ final class SaveFrontDoorJourneyTests: XCTestCase {
     }
 
     private func showList() {
-        harness.element("playstead.control.show-list", type: .button).click()
+        harness.element("playstead.control.show-list", type: .button).clickWhenHittable()
         XCTAssertTrue(harness.element("playstead.surface.game-list").awaitExistence(timeout: 5))
     }
 
     private func openSurface(control: String, root: String) {
-        harness.element(control, type: .button).click()
+        harness.element(control, type: .button).clickWhenHittable()
         XCTAssertTrue(harness.element(root).awaitExistence(timeout: 5), "navigation dead-ended before reaching \(root)")
     }
 

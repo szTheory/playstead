@@ -111,7 +111,7 @@ final class CurationInteractionTests: XCTestCase {
         XCTAssertTrue(action.awaitExistence(timeout: 5))
         XCTAssertTrue(action.isEnabled)
         XCTAssertTrue(action.isHittable)
-        action.click()
+        action.clickWhenHittable()
         let order = [memberID(2), memberID(1), memberID(3)]
         assertEvidence(order: order, outboxCount: 1, in: harness)
         assertExactCollectionOrder(order, in: harness)
@@ -305,14 +305,14 @@ final class CurationInteractionTests: XCTestCase {
         selectSidebar("Collections", in: harness)
         let collection = harness.element(collectionRowID, type: .button)
         XCTAssertTrue(collection.awaitExistence(timeout: 5))
-        collection.click()
+        collection.clickWhenHittable()
         XCTAssertTrue(harness.element("playstead.surface.collection-detail").awaitExistence(timeout: 5))
     }
 
     private func selectSidebar(_ label: String, in harness: UITestHarness) {
         let entry = harness.app.staticTexts[label]
         XCTAssertTrue(entry.awaitExistence(timeout: 5), "sidebar entry missing: \(label)")
-        entry.click()
+        entry.clickWhenHittable()
     }
 
     private func assertExactCollectionOrder(_ expected: [String], in harness: UITestHarness) {

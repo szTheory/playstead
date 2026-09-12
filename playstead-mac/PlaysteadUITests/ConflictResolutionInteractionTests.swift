@@ -84,7 +84,7 @@ final class ConflictResolutionInteractionTests: XCTestCase {
 
     func testNoUndoControlRendersAfterChoosing() {
         let app = launchHarness()
-        app.buttons[ID.chooseR1].click()
+        app.buttons[ID.chooseR1].clickWhenHittable()
         XCTAssertTrue(app.staticTexts[ID.result].awaitExistence(timeout: 5))
 
         // Matched on both attributes: a macOS AXStaticText keeps its content

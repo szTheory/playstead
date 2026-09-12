@@ -38,9 +38,9 @@ final class SurfaceAccessibilityTests: XCTestCase {
 
     func testDownloadsSheetOpensAndDismisses() {
         launchLibrary(profile: .populatedCurationReorder)
-        harness.element("playstead.control.open-downloads", type: .button).click()
+        harness.element("playstead.control.open-downloads", type: .button).clickWhenHittable()
         XCTAssertTrue(harness.element("playstead.surface.downloads").awaitExistence(timeout: 5))
-        harness.element("playstead.control.done", type: .button).click()
+        harness.element("playstead.control.done", type: .button).clickWhenHittable()
         XCTAssertFalse(harness.element("playstead.surface.downloads").waitForExistence(timeout: 2))
     }
 
@@ -196,7 +196,7 @@ final class SurfaceAccessibilityTests: XCTestCase {
             type: .button
         )
         XCTAssertTrue(collection.awaitExistence(timeout: 5))
-        collection.click()
+        collection.clickWhenHittable()
         recordRequired(["playstead.surface.collection-detail"], in: &visited)
         let memberIDs = (1...3).map { "00000000-0000-7000-8000-00000000020\($0)" }
         let collectionControls = [
@@ -252,7 +252,7 @@ final class SurfaceAccessibilityTests: XCTestCase {
 
         launchLibrary(profile: .pausedActiveQueue)
         let downloadsOpener = harness.element("playstead.control.open-downloads", type: .button)
-        downloadsOpener.click()
+        downloadsOpener.clickWhenHittable()
         recordRequired(["playstead.surface.downloads"], in: &visited)
         let downloadControls = (0...2).flatMap { slot in
             [
@@ -268,7 +268,7 @@ final class SurfaceAccessibilityTests: XCTestCase {
 
         launchLibrary(profile: .quotaBlockReclaim)
         let storageOpener = harness.element("playstead.control.open-storage", type: .button)
-        storageOpener.click()
+        storageOpener.clickWhenHittable()
         recordRequired(["playstead.quota.root", "playstead.surface.storage"], in: &visited)
         harness.validateSemanticTargets([
             .init("playstead.quota.decrease", type: .button),
@@ -301,7 +301,7 @@ final class SurfaceAccessibilityTests: XCTestCase {
 
         launchLibrary(profile: .storage)
         let adapterOpener = harness.element("playstead.control.open-adapter", type: .button)
-        adapterOpener.click()
+        adapterOpener.clickWhenHittable()
         recordRequired(["playstead.surface.adapter"], in: &visited)
         harness.validateSemanticTargets(adapterTargets)
         harness.traverseExactFocusSequence(
@@ -388,18 +388,18 @@ final class SurfaceAccessibilityTests: XCTestCase {
     private func launchAdapterSheet() -> XCUIElement {
         launchLibrary(profile: .storage)
         let opener = harness.element("playstead.control.open-adapter", type: .button)
-        opener.click()
+        opener.clickWhenHittable()
         harness.require(["playstead.surface.adapter"])
         return opener
     }
 
     private func launchReadinessRoutes() {
         launchLibrary(profile: .storage)
-        harness.element("playstead.control.open-readiness", type: .button).click()
+        harness.element("playstead.control.open-readiness", type: .button).clickWhenHittable()
         harness.require(["playstead.surface.readiness"])
-        harness.element("playstead.control.open-bios", type: .button).click()
+        harness.element("playstead.control.open-bios", type: .button).clickWhenHittable()
         harness.require(["playstead.surface.bios"])
-        harness.element("playstead.control.open-controller-settings", type: .button).click()
+        harness.element("playstead.control.open-controller-settings", type: .button).clickWhenHittable()
         harness.require(["playstead.surface.controller-settings"])
     }
 
@@ -413,7 +413,7 @@ final class SurfaceAccessibilityTests: XCTestCase {
     private func selectSidebar(_ label: String) {
         let destination = harness.app.staticTexts[label]
         XCTAssertTrue(destination.awaitExistence(timeout: 5), "sidebar destination missing: \(label)")
-        destination.click()
+        destination.clickWhenHittable()
     }
 
     private func dismissSheet(root: String, opener: XCUIElement) {
