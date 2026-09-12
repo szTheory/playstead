@@ -179,6 +179,8 @@ final class SaveEndToEndTests: XCTestCase {
         // not a product defect. The other two are real defects.
         case "save-e2e: upload stopped for retry, retryable":
             XCTAssertTrue(false, "save-e2e-harness=upload-stopped-retryable")
+        case "save-e2e: upload still retryable-failing after all attempts":
+            XCTAssertTrue(false, "save-e2e-harness=upload-exhausted-retries")
         case "save-e2e: upload stopped for retry, server refused":
             XCTAssertTrue(false, "save-e2e-harness=upload-server-refused")
         case "save-e2e: upload found nothing pending":

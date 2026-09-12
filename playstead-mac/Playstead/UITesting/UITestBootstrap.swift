@@ -219,6 +219,10 @@ enum UITestBootstrap {
     /// The sibling file the harness writes its failure reason to. A
     /// sibling of an already-contained destination is contained by the
     /// same check, so this needs no second validation pass.
+    /// Bounded so a genuinely broken upload still fails, and fails fast.
+    /// A healthy server needs one attempt; one transient error needs two.
+    private static let saveEndToEndMaxUploadAttempts = 3
+
     static func saveEndToEndErrorURL(for resultURL: URL) -> URL {
         resultURL.deletingPathExtension().appendingPathExtension("error.txt")
     }
@@ -269,7 +273,44 @@ enum UITestBootstrap {
         }
 
         let lane = SaveUploadLane(apiClient: apiClient, saveStore: saveStore)
-        let drainResult = await lane.drainOnce()
+
+        // Drive the lane the way PRODUCTION does, not the way a single pass
+        // does. `drainOnce` is ONE attempt by a component whose entire job
+        // is retrying: any single error inside it schedules a backoff and
+        // returns `sent == 0`. Asserting first-attempt success asserted
+        // something this product never promises, and that -- not the server,
+        // and not a timeout -- is what made SaveEndToEndTests flaky in runs
+        // 34648546919 and 34658266643. The mechanism is pinned in
+        // SaveUploadLaneTests
+        // .test_oneTransientFailure_makesASinglePassSendNothing_thoughTheNextPassSucceeds,
+        // which reproduces it in under a second.
+        //
+        // Only the RETRYABLE case loops. A server that refused for one of
+        // D-40's unfixable reasons, or a pending set that never contained
+        // this revision, still fails on the first pass: retrying those would
+        // be the "green by persistence" that hides the defect class e6316d5
+        // caught, where uploads 404'd against every real server.
+        //
+        // `at:` advances past the lane's own backoff instead of sleeping, so
+        // this costs no wall-clock: the backoff schedule has its own tests
+        // and is not what this check is about.
+        var drainResult = await lane.drainOnce()
+        var attempt = 1
+        while drainResult.sent == 0,
+              drainResult.stoppedForRetry,
+              lane.lastFailureClassification == .none,
+              attempt < Self.saveEndToEndMaxUploadAttempts {
+            attempt += 1
+            drainResult = await lane.drainOnce(at: Date().addingTimeInterval(Double(attempt) * 3600))
+        }
+
+        if drainResult.sent == 0, drainResult.stoppedForRetry, lane.lastFailureClassification == .none {
+            // Retryable, and still failing after every attempt. That is no
+            // longer a blip -- it is a server that is genuinely not
+            // accepting this upload.
+            throw DeterministicProfileError.stateMismatch("save-e2e: upload still retryable-failing after all attempts")
+        }
+
         guard drainResult.sent == 1 else {
             // `drainOnce` is ONE pass over a lane whose whole job is to
             // retry: any single error inside it sets `stoppedForRetry`,
