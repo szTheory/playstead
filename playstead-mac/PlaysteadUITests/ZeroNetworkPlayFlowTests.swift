@@ -39,7 +39,7 @@ final class ZeroNetworkPlayFlowTests: XCTestCase {
         launched.launchEnvironment["PLAYSTEAD_UI_TEST_ZERO_NETWORK_PLAY_FLOW_RESULT_PATH"] = resultURL.path
         launched.launch()
 
-        XCTAssertTrue(launched.descendants(matching: .any)["playstead.surface.library"].waitForExistence(timeout: 20))
+        XCTAssertTrue(launched.descendants(matching: .any)["playstead.surface.library"].awaitExistence(timeout: 20))
 
         let deadline = Date().addingTimeInterval(60)
         while !FileManager.default.fileExists(atPath: resultURL.path), Date() < deadline {

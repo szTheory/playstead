@@ -541,7 +541,7 @@ storage = source.split("private func dismissStorageAndAssertCanonicalRows()", 1)
 markers = [
     storage.find('dismissSheet(root: "playstead.surface.storage")'),
     storage.find('harness.element("playstead.control.show-list", type: .button).click()'),
-    storage.find('harness.element("playstead.surface.game-list").waitForExistence'),
+    storage.find('harness.element("playstead.surface.game-list").awaitExistence'),
     storage.find('assertCanonicalRow(assetID: quotaReclaimAssetID'),
 ]
 if any(marker < 0 for marker in markers) or markers != sorted(markers):

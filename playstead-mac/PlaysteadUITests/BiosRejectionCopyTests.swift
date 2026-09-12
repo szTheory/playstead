@@ -76,7 +76,7 @@ final class BiosRejectionCopyTests: XCTestCase {
 
         let status = harness.app.descendants(matching: .any)[statusIdentifier]
         XCTAssertTrue(
-            status.waitForExistence(timeout: 5),
+            status.awaitExistence(timeout: 5),
             "the BIOS surface rendered no status at all after a rejected candidate — a blank pane"
         )
 
@@ -105,7 +105,7 @@ final class BiosRejectionCopyTests: XCTestCase {
 
         let status = harness.app.descendants(matching: .any)[statusIdentifier]
         XCTAssertFalse(
-            status.waitForExistence(timeout: 2),
+            status.awaitExistence(timeout: 2),
             "cancelling the chooser produced a status readout: \(status.readableText)"
         )
     }

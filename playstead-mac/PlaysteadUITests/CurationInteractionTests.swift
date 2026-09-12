@@ -20,22 +20,22 @@ final class CurationInteractionTests: XCTestCase {
     func testSidebarExposesAllFiveCurationDestinations() throws {
         let harness = launchPersistentCurationHarness()
         for label in ["Continue", "Favorites", "Collections", "Queue", "Recent"] {
-            XCTAssertTrue(harness.app.staticTexts[label].waitForExistence(timeout: 5), "sidebar entry missing: \(label)")
+            XCTAssertTrue(harness.app.staticTexts[label].awaitExistence(timeout: 5), "sidebar entry missing: \(label)")
         }
     }
 
     func testContinueShelfRendersHonestEmptyFixture() throws {
         let harness = launchPersistentCurationHarness()
         selectSidebar("Continue", in: harness)
-        XCTAssertTrue(harness.element("playstead.surface.shelf.continue").waitForExistence(timeout: 5))
-        XCTAssertTrue(harness.app.staticTexts["Play something, and pick up where you left off here."].waitForExistence(timeout: 5))
+        XCTAssertTrue(harness.element("playstead.surface.shelf.continue").awaitExistence(timeout: 5))
+        XCTAssertTrue(harness.app.staticTexts["Play something, and pick up where you left off here."].awaitExistence(timeout: 5))
         assertSyntheticGamesVisible(0, in: harness)
     }
 
     func testFavoritesShelfRootExists() throws {
         let harness = launchPersistentCurationHarness()
         selectSidebar("Favorites", in: harness)
-        XCTAssertTrue(harness.element("playstead.surface.shelf.favorites").waitForExistence(timeout: 5))
+        XCTAssertTrue(harness.element("playstead.surface.shelf.favorites").awaitExistence(timeout: 5))
     }
 
     func testFavoritesShelfRendersExactSeededCard() throws {
@@ -49,7 +49,7 @@ final class CurationInteractionTests: XCTestCase {
     func testCollectionsShelfRootExists() throws {
         let harness = launchPersistentCurationHarness()
         selectSidebar("Collections", in: harness)
-        XCTAssertTrue(harness.element("playstead.surface.collections").waitForExistence(timeout: 5))
+        XCTAssertTrue(harness.element("playstead.surface.collections").awaitExistence(timeout: 5))
     }
 
     func testCollectionsShelfRendersExactSeededRoute() throws {
@@ -63,16 +63,16 @@ final class CurationInteractionTests: XCTestCase {
     func testQueueShelfRendersHonestEmptyFixture() throws {
         let harness = launchPersistentCurationHarness()
         selectSidebar("Queue", in: harness)
-        XCTAssertTrue(harness.element("playstead.surface.shelf.play-queue").waitForExistence(timeout: 5))
-        XCTAssertTrue(harness.app.staticTexts["Add a game to your queue to keep it in mind."].waitForExistence(timeout: 5))
+        XCTAssertTrue(harness.element("playstead.surface.shelf.play-queue").awaitExistence(timeout: 5))
+        XCTAssertTrue(harness.app.staticTexts["Add a game to your queue to keep it in mind."].awaitExistence(timeout: 5))
         assertSyntheticGamesVisible(0, in: harness)
     }
 
     func testRecentShelfRendersHonestEmptyFixture() throws {
         let harness = launchPersistentCurationHarness()
         selectSidebar("Recent", in: harness)
-        XCTAssertTrue(harness.element("playstead.surface.shelf.recent").waitForExistence(timeout: 5))
-        XCTAssertTrue(harness.app.staticTexts["Play a game to see it here."].waitForExistence(timeout: 5))
+        XCTAssertTrue(harness.element("playstead.surface.shelf.recent").awaitExistence(timeout: 5))
+        XCTAssertTrue(harness.app.staticTexts["Play a game to see it here."].awaitExistence(timeout: 5))
         assertSyntheticGamesVisible(0, in: harness)
     }
 
@@ -88,7 +88,7 @@ final class CurationInteractionTests: XCTestCase {
         let harness = launchPersistentCurationHarness()
         openSyntheticCollection(in: harness)
         let cells = (1...3).map { listCell(containing: rowID($0), in: harness) }
-        for cell in cells { XCTAssertTrue(cell.waitForExistence(timeout: 5)) }
+        for cell in cells { XCTAssertTrue(cell.awaitExistence(timeout: 5)) }
         XCTAssertEqual(Set(cells.map { $0.frame.minY }).count, 3)
     }
 
@@ -96,7 +96,7 @@ final class CurationInteractionTests: XCTestCase {
         let harness = launchPersistentCurationHarness()
         openSyntheticCollection(in: harness)
         let action = harness.element(moveID(memberID(2), direction: "up"), type: .button)
-        XCTAssertTrue(action.waitForExistence(timeout: 5))
+        XCTAssertTrue(action.awaitExistence(timeout: 5))
         XCTAssertTrue(action.isEnabled)
         XCTAssertEqual(action.readableText, "Move Synthetic Game 2 up")
     }
@@ -108,7 +108,7 @@ final class CurationInteractionTests: XCTestCase {
         assertEvidence(order: initialOrder, outboxCount: 0, in: harness)
         assertExactCollectionOrder(initialOrder, in: harness)
         let action = harness.element(moveID(memberID(2), direction: "up"), type: .button)
-        XCTAssertTrue(action.waitForExistence(timeout: 5))
+        XCTAssertTrue(action.awaitExistence(timeout: 5))
         XCTAssertTrue(action.isEnabled)
         XCTAssertTrue(action.isHittable)
         action.click()
@@ -238,8 +238,8 @@ final class CurationInteractionTests: XCTestCase {
         // List cell owns SwiftUI's onMove drag interaction.
         let first = listCell(containing: rowID(1), in: harness)
         let third = listCell(containing: rowID(3), in: harness)
-        XCTAssertTrue(first.waitForExistence(timeout: 5))
-        XCTAssertTrue(third.waitForExistence(timeout: 5))
+        XCTAssertTrue(first.awaitExistence(timeout: 5))
+        XCTAssertTrue(third.awaitExistence(timeout: 5))
 
         // Last-to-first has one unambiguous destination boundary. Dropping the
         // first row on the last row's center can resolve on either side of it.
@@ -304,14 +304,14 @@ final class CurationInteractionTests: XCTestCase {
     private func openSyntheticCollection(in harness: UITestHarness) {
         selectSidebar("Collections", in: harness)
         let collection = harness.element(collectionRowID, type: .button)
-        XCTAssertTrue(collection.waitForExistence(timeout: 5))
+        XCTAssertTrue(collection.awaitExistence(timeout: 5))
         collection.click()
-        XCTAssertTrue(harness.element("playstead.surface.collection-detail").waitForExistence(timeout: 5))
+        XCTAssertTrue(harness.element("playstead.surface.collection-detail").awaitExistence(timeout: 5))
     }
 
     private func selectSidebar(_ label: String, in harness: UITestHarness) {
         let entry = harness.app.staticTexts[label]
-        XCTAssertTrue(entry.waitForExistence(timeout: 5), "sidebar entry missing: \(label)")
+        XCTAssertTrue(entry.awaitExistence(timeout: 5), "sidebar entry missing: \(label)")
         entry.click()
     }
 
@@ -325,7 +325,7 @@ final class CurationInteractionTests: XCTestCase {
         )
         XCTAssertEqual(allRows.count, 3)
         let rows = expected.map { harness.element("playstead.curation.collection-member.\($0)") }
-        for row in rows { XCTAssertTrue(row.waitForExistence(timeout: 5)) }
+        for row in rows { XCTAssertTrue(row.awaitExistence(timeout: 5)) }
         let visualOrder = rows.sorted { $0.frame.minY < $1.frame.minY }.map(\.identifier)
         XCTAssertEqual(visualOrder, expected.map { "playstead.curation.collection-member.\($0)" })
         for (row, memberID) in zip(rows, expected) {
@@ -348,11 +348,11 @@ final class CurationInteractionTests: XCTestCase {
 
     private func selectCollectionMemberByKeyboard(_ memberID: String, in harness: UITestHarness) -> XCUIElement {
         let list = harness.element("playstead.curation.collection-member-list")
-        XCTAssertTrue(list.waitForExistence(timeout: 5), "curation-keyboard-stage=list-missing")
+        XCTAssertTrue(list.awaitExistence(timeout: 5), "curation-keyboard-stage=list-missing")
         waitForKeyboardFocus(list, stage: "list-focus-not-owned")
 
         let selection = harness.element("playstead.curation.collection-selection")
-        XCTAssertTrue(selection.waitForExistence(timeout: 5), "curation-keyboard-stage=selection-missing")
+        XCTAssertTrue(selection.awaitExistence(timeout: 5), "curation-keyboard-stage=selection-missing")
         for _ in 0..<3 where selection.value as? String != memberID {
             list.typeKey(.downArrow, modifierFlags: [])
         }
@@ -364,7 +364,7 @@ final class CurationInteractionTests: XCTestCase {
         waitForKeyboardFocus(list, stage: "list-focus-lost-during-selection")
 
         let command = harness.element("playstead.curation.collection-command.move-up", type: .button)
-        XCTAssertTrue(command.waitForExistence(timeout: 5), "curation-keyboard-stage=command-missing")
+        XCTAssertTrue(command.awaitExistence(timeout: 5), "curation-keyboard-stage=command-missing")
         XCTAssertTrue(command.isEnabled, "curation-keyboard-stage=command-disabled")
         assertEnabled(
             false,
@@ -397,7 +397,7 @@ final class CurationInteractionTests: XCTestCase {
     }
 
     private func assertEnabled(_ expected: Bool, element: XCUIElement) {
-        XCTAssertTrue(element.waitForExistence(timeout: 5))
+        XCTAssertTrue(element.awaitExistence(timeout: 5))
         let predicate = NSPredicate(format: "enabled == %@", NSNumber(value: expected))
         let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
         XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed)

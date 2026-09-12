@@ -90,7 +90,7 @@ final class SaveEndToEndTests: XCTestCase {
         launched.launchEnvironment["PLAYSTEAD_UI_TEST_SAVE_RESULT_PATH"] = resultURL.path
         launched.launch()
 
-        XCTAssertTrue(launched.descendants(matching: .any)["playstead.surface.library"].waitForExistence(timeout: 20))
+        XCTAssertTrue(launched.descendants(matching: .any)["playstead.surface.library"].awaitExistence(timeout: 20))
 
         // The harness writes exactly one of these two files. Polling for
         // both means a failure is reported by its cause on the run it

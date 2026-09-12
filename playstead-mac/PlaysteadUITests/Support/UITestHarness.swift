@@ -89,7 +89,7 @@ final class UITestHarness {
     func launch(settledAt identifier: String, timeout: TimeInterval = 15) {
         app.launch()
         let sentinel = app.descendants(matching: .any)[identifier]
-        XCTAssertTrue(sentinel.waitForExistence(timeout: timeout), "settled sentinel was not reached: \(identifier)")
+        XCTAssertTrue(sentinel.awaitExistence(timeout: timeout), "settled sentinel was not reached: \(identifier)")
         XCTAssertEqual(app.state, .runningForeground)
         identifierTrace.append(identifier)
     }
@@ -106,7 +106,7 @@ final class UITestHarness {
     func require(_ identifiers: [String]) {
         XCTAssertFalse(identifiers.isEmpty, "surface inventory must be independently nonempty")
         for identifier in identifiers {
-            XCTAssertTrue(element(identifier).waitForExistence(timeout: 5), "missing production identifier: \(identifier)")
+            XCTAssertTrue(element(identifier).awaitExistence(timeout: 5), "missing production identifier: \(identifier)")
             identifierTrace.append(identifier)
         }
     }
@@ -120,7 +120,7 @@ final class UITestHarness {
         let marker = "PLAYSTEAD_FAILURE_STAGE[\(failureStage)]"
         XCTAssertFalse(identifiers.isEmpty, "focus order must be test-owned and nonempty \(marker)")
         let expected = identifiers.map { element($0, type: .button) }
-        for target in expected { XCTAssertTrue(target.waitForExistence(timeout: 5), marker) }
+        for target in expected { XCTAssertTrue(target.awaitExistence(timeout: 5), marker) }
 
         var foundStart = false
         for _ in 0..<24 {
@@ -189,7 +189,7 @@ final class UITestHarness {
         XCTAssertFalse(targets.isEmpty, "live audit inventory must be independently nonempty")
         for target in targets {
             let element = element(target.identifier, type: target.elementType)
-            XCTAssertTrue(element.waitForExistence(timeout: 5), "audit target missing: \(target.identifier)")
+            XCTAssertTrue(element.awaitExistence(timeout: 5), "audit target missing: \(target.identifier)")
             XCTAssertEqual(element.elementType, target.elementType, "role drift: \(target.identifier)")
             if target.requiresLabel { XCTAssertFalse(element.label.isEmpty, "empty label: \(target.identifier)") }
             if target.requiresValue { XCTAssertFalse((element.value as? String ?? "").isEmpty, "empty value: \(target.identifier)") }
@@ -205,7 +205,7 @@ final class UITestHarness {
         exclusions: [AuditExclusion] = []
     ) throws {
         let root = element(rootIdentifier)
-        XCTAssertTrue(root.waitForExistence(timeout: 5), "audit root missing: \(rootIdentifier)")
+        XCTAssertTrue(root.awaitExistence(timeout: 5), "audit root missing: \(rootIdentifier)")
         let rootFrame = root.frame.insetBy(dx: -1, dy: -1)
         XCTAssertTrue(rootFrame.width > 0 && rootFrame.height > 0 && rootFrame.isFinite)
         let auditedElements = [root] + root.descendants(matching: .any).allElementsBoundByIndex
@@ -264,7 +264,7 @@ final class UITestHarness {
 
     func assertSheetFocusContained(rootIdentifier: String) {
         let root = element(rootIdentifier)
-        XCTAssertTrue(root.waitForExistence(timeout: 5))
+        XCTAssertTrue(root.awaitExistence(timeout: 5))
         let descendantIDs = Set(
             root.descendants(matching: .button).allElementsBoundByIndex
                 .map(\.identifier)
@@ -292,8 +292,8 @@ final class UITestHarness {
     func focusContainedAction(_ identifier: String, rootIdentifier: String) {
         let root = element(rootIdentifier)
         let target = element(identifier, type: .button)
-        XCTAssertTrue(root.waitForExistence(timeout: 5))
-        XCTAssertTrue(target.waitForExistence(timeout: 5))
+        XCTAssertTrue(root.awaitExistence(timeout: 5))
+        XCTAssertTrue(target.awaitExistence(timeout: 5))
         let descendantIDs = Set(
             root.descendants(matching: .button).allElementsBoundByIndex
                 .map(\.identifier)
@@ -359,5 +359,27 @@ extension XCUIElement {
     /// Prefers `label` so a view that does set one explicitly still wins.
     var readableText: String {
         label.isEmpty ? (value as? String ?? "") : label
+    }
+}
+
+/// Waiting for something that is already there is the single most expensive
+/// habit in this suite. `waitForExistence` has a ~1s polling floor: measured
+/// over `testKeyboardOnlySurfaceInventoryAndLiveAudit`, 146 calls cost 148.9s
+/// -- 57% of that test's 262s -- at ~1.02s each, and every one of them was
+/// against an element already on screen. The same question asked as `exists`
+/// resolves in ~0.08s.
+///
+/// This is not a weaker check. It is the same predicate with the same timeout:
+/// an element that is genuinely not there yet still gets the full wait. Only
+/// the already-settled path, which is almost every call, stops paying for a
+/// poll interval it never needed.
+///
+/// Absence assertions deliberately keep `waitForExistence`, because there the
+/// timeout is the point -- it is the settle window that makes "still not
+/// present" mean something. `ax-value-semantics`-style guards aside, the rule
+/// is simply: `XCTAssertTrue` waits cheaply, `XCTAssertFalse` waits fully.
+extension XCUIElement {
+    func awaitExistence(timeout: TimeInterval = 5) -> Bool {
+        exists || waitForExistence(timeout: timeout)
     }
 }

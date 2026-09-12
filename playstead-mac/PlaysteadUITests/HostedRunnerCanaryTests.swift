@@ -22,7 +22,7 @@ final class HostedRunnerCanaryTests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(
-            app.staticTexts["ci.canary.launch.ready"].waitForExistence(timeout: 15),
+            app.staticTexts["ci.canary.launch.ready"].awaitExistence(timeout: 15),
             "The ad-hoc-signed Playstead launch canary must expose its isolated ready sentinel"
         )
         XCTAssertEqual(app.state, .runningForeground)
@@ -42,7 +42,7 @@ final class HostedRunnerCanaryTests: XCTestCase {
             app.buttons["Adapter setup"]
         ]
         for element in expected {
-            XCTAssertTrue(element.waitForExistence(timeout: 15))
+            XCTAssertTrue(element.awaitExistence(timeout: 15))
         }
 
         // Establish a deterministic starting point without trusting the
@@ -70,7 +70,7 @@ final class HostedRunnerCanaryTests: XCTestCase {
         }
 
         app.typeKey(.space, modifierFlags: [])
-        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5), "focused canary control did not activate")
+        XCTAssertTrue(app.buttons["Done"].awaitExistence(timeout: 5), "focused canary control did not activate")
         app.buttons["Done"].typeKey(.space, modifierFlags: [])
         XCTAssertFalse(app.buttons["Done"].waitForExistence(timeout: 2))
         app.terminate()
