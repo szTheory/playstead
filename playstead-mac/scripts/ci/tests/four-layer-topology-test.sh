@@ -373,6 +373,49 @@ if required in unit or required not in rendering:
     raise SystemExit("quota decision contract must be required by Rendering and excluded from Unit")
 PY
 
+# The save-e2e harness must ask "is this retryable?" in the product's own
+# vocabulary, never by comparing against `.none`.
+#
+# `SaveUploadFailureClassification` has seven cases and its own doc says three
+# of them -- `.none`, `.offlineQueue`, `.slowUpload` -- are the product working
+# correctly. Branching on `== .none` collapses that to two and reports an
+# unreachable server as `save-e2e-harness=upload-server-refused`, which is what
+# run 34670123715 did. `.offlineQueue` is the EXPECTED state at pairing time,
+# when the app drains on the reachability transition.
+#
+# Requiring `OnlyCopyEscalationReason(classification:)` is what keeps the
+# harness and the shipped escalation panel from ever disagreeing about which
+# verdicts are unfixable: they gate on the same initializer.
+python3 - "$UI_BOOTSTRAP" <<'RETRYABLE_PY'
+import pathlib, sys
+
+raw = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+
+# Comment lines are stripped before any of this is judged. The first draft of
+# this guard passed a probe that gutted the helper body, because the phrase it
+# searched for still appeared in the doc comment above it -- a guard satisfied
+# by prose rather than by code, which is the same defect class it exists to
+# catch.
+source = "\n".join(
+    line for line in raw.splitlines() if not line.lstrip().startswith("//")
+)
+if "lastFailureClassification == .none" in source:
+    raise SystemExit("save-e2e must not treat `.none` as the whole retryable set; .offlineQueue and .slowUpload are retryable too")
+body = source.split("private static func isRetryable(", 1)
+if len(body) != 2:
+    raise SystemExit("save-e2e retry predicate `isRetryable` is missing")
+if "OnlyCopyEscalationReason(classification:" not in body[1].split("}", 1)[0]:
+    raise SystemExit("isRetryable must gate on OnlyCopyEscalationReason, the same gate the escalation panel uses")
+
+# ...and the predicate must actually be consulted at each of the three
+# decision points, not merely defined. A helper nothing calls is the exact
+# shape of a fix that passes its own guard and changes no behaviour.
+region = source.split("func runSaveEndToEnd", 1)[1]
+uses = region.count("isRetryable(lane.lastFailureClassification)")
+if uses != 3:
+    raise SystemExit(f"save-e2e must consult the retryable predicate at all 3 decision points, found {uses}")
+RETRYABLE_PY
+
 # The most expensive test in the Unit layer must not be paid for twice.
 # `ReleaseHookAbsenceTests` shells out to a full Release `xcodebuild`. On run
 # 34663361104 it cost 59.39s in Unit and 46.62s in Rendering -- the same build,

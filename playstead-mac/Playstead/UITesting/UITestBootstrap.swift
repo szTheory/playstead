@@ -223,6 +223,31 @@ enum UITestBootstrap {
     /// A healthy server needs one attempt; one transient error needs two.
     private static let saveEndToEndMaxUploadAttempts = 3
 
+    /// Whether the lane's latest verdict is one this harness should keep
+    /// retrying, in the ONLY vocabulary this repo owns for that question.
+    ///
+    /// `== .none` is not that question, and reading it as if it were is the
+    /// defect run 34670123715 caught at `save-e2e-harness=upload-server-refused`.
+    /// `SaveUploadFailureClassification` has seven cases, and its own doc
+    /// states that three of them -- `.none`, `.offlineQueue`, `.slowUpload` --
+    /// "are the product working correctly and must never escalate". Only
+    /// D-40's four unfixable reasons are a refusal.
+    ///
+    /// `.offlineQueue` is not a corner case here, it is the expected state:
+    /// the app drains on the reachability transition at pairing time, when
+    /// the server may not be reachable yet. Treating that as "your server
+    /// has refused this Mac" both skipped the retry and named the wrong
+    /// cause.
+    ///
+    /// This asks via `OnlyCopyEscalationReason(classification:)` rather than
+    /// listing cases again, because that initializer is the same gate the
+    /// shipped escalation panel uses. A new classification therefore cannot
+    /// drift between the product and this harness: whatever the panel would
+    /// escalate is exactly what this refuses to retry.
+    private static func isRetryable(_ classification: SaveUploadFailureClassification) -> Bool {
+        OnlyCopyEscalationReason(classification: classification) == nil
+    }
+
     static func saveEndToEndErrorURL(for resultURL: URL) -> URL {
         resultURL.deletingPathExtension().appendingPathExtension("error.txt")
     }
@@ -319,7 +344,7 @@ enum UITestBootstrap {
         var attempt = 1
         while drainResult.sent == 0,
               drainResult.stoppedForRetry,
-              lane.lastFailureClassification == .none,
+              Self.isRetryable(lane.lastFailureClassification),
               attempt < Self.saveEndToEndMaxUploadAttempts {
             attempt += 1
             drainResult = await lane.drainOnce(at: Date().addingTimeInterval(Double(attempt) * 3600))
@@ -332,7 +357,7 @@ enum UITestBootstrap {
         // the work, while the revision's durability is the fact either way.
         let uploaded = saveStore.fetchRevision(id: revisionID)?.durability == SaveDurability.uploaded.rawValue
 
-        if !uploaded, drainResult.stoppedForRetry, lane.lastFailureClassification == .none {
+        if !uploaded, drainResult.stoppedForRetry, Self.isRetryable(lane.lastFailureClassification) {
             // Retryable, and still failing after every attempt. That is no
             // longer a blip -- it is a server that is genuinely not
             // accepting this upload.
@@ -354,7 +379,7 @@ enum UITestBootstrap {
             // error's own description can carry paths and must never reach
             // the reason channel.
             if drainResult.stoppedForRetry {
-                if lane.lastFailureClassification == .none {
+                if Self.isRetryable(lane.lastFailureClassification) {
                     // Retryable by design: transport loss, 5xx, rate
                     // limiting. Production would simply try again.
                     throw DeterministicProfileError.stateMismatch("save-e2e: upload stopped for retry, retryable")
