@@ -39,7 +39,7 @@ final class SurfaceAccessibilityTests: XCTestCase {
     func testDownloadsSheetOpensAndDismisses() {
         launchLibrary(profile: .populatedCurationReorder)
         harness.element("playstead.control.open-downloads", type: .button).click()
-        XCTAssertTrue(harness.element("playstead.surface.downloads").waitForExistence(timeout: 5))
+        XCTAssertTrue(harness.element("playstead.surface.downloads").awaitExistence(timeout: 5))
         harness.element("playstead.control.done", type: .button).click()
         XCTAssertFalse(harness.element("playstead.surface.downloads").waitForExistence(timeout: 2))
     }
@@ -195,7 +195,7 @@ final class SurfaceAccessibilityTests: XCTestCase {
             "playstead.curation.collection.00000000-0000-7000-8000-000000000200",
             type: .button
         )
-        XCTAssertTrue(collection.waitForExistence(timeout: 5))
+        XCTAssertTrue(collection.awaitExistence(timeout: 5))
         collection.click()
         recordRequired(["playstead.surface.collection-detail"], in: &visited)
         let memberIDs = (1...3).map { "00000000-0000-7000-8000-00000000020\($0)" }
@@ -210,7 +210,7 @@ final class SurfaceAccessibilityTests: XCTestCase {
         }
         harness.validateSemanticTargets(collectionControls.map { .init($0, type: .button) })
         let memberList = harness.element("playstead.curation.collection-member-list")
-        XCTAssertTrue(memberList.waitForExistence(timeout: 5))
+        XCTAssertTrue(memberList.awaitExistence(timeout: 5))
         waitForKeyboardFocus(memberList, stage: "all-surface-collection-list-focus")
         let selection = harness.element("playstead.curation.collection-selection")
         for _ in 0..<3 where selection.value as? String != memberIDs[2] {
@@ -412,7 +412,7 @@ final class SurfaceAccessibilityTests: XCTestCase {
 
     private func selectSidebar(_ label: String) {
         let destination = harness.app.staticTexts[label]
-        XCTAssertTrue(destination.waitForExistence(timeout: 5), "sidebar destination missing: \(label)")
+        XCTAssertTrue(destination.awaitExistence(timeout: 5), "sidebar destination missing: \(label)")
         destination.click()
     }
 
@@ -426,15 +426,15 @@ final class SurfaceAccessibilityTests: XCTestCase {
     private func selectQuotaDownloadByKeyboard() {
         let assetID = "00000000-0000-7000-8000-000000000042"
         let list = harness.element("playstead.surface.game-list")
-        XCTAssertTrue(list.waitForExistence(timeout: 5))
+        XCTAssertTrue(list.awaitExistence(timeout: 5))
         let selection = harness.element("playstead.library.list-selection")
-        XCTAssertTrue(selection.waitForExistence(timeout: 5))
+        XCTAssertTrue(selection.awaitExistence(timeout: 5))
         for _ in 0..<2 where selection.value as? String != assetID {
             list.typeKey(.downArrow, modifierFlags: [])
         }
         XCTAssertEqual(selection.value as? String, assetID)
         let command = harness.element("playstead.control.download-selected", type: .button)
-        XCTAssertTrue(command.waitForExistence(timeout: 5))
+        XCTAssertTrue(command.awaitExistence(timeout: 5))
         XCTAssertTrue(command.isEnabled)
     }
 

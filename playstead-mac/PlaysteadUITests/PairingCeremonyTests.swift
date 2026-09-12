@@ -87,25 +87,25 @@ final class PairingCeremonyTests: XCTestCase {
 
         // Unpaired, fresh-install state: the empty library, with the
         // action button WINDOWS #54 required actually behind its string.
-        XCTAssertTrue(launched.descendants(matching: .any)["playstead.surface.library"].waitForExistence(timeout: 20))
-        XCTAssertTrue(launched.buttons["playstead.control.show-list"].waitForExistence(timeout: 10))
+        XCTAssertTrue(launched.descendants(matching: .any)["playstead.surface.library"].awaitExistence(timeout: 20))
+        XCTAssertTrue(launched.buttons["playstead.control.show-list"].awaitExistence(timeout: 10))
         launched.buttons["playstead.control.show-list"].click()
 
         let openPairing = launched.buttons["playstead.control.open-pairing"]
-        XCTAssertTrue(openPairing.waitForExistence(timeout: 10), "the empty state must offer a reachable pairing action")
+        XCTAssertTrue(openPairing.awaitExistence(timeout: 10), "the empty state must offer a reachable pairing action")
         openPairing.click()
 
         let serverURLField = launched.textFields["playstead.control.pairing-server-url"]
-        XCTAssertTrue(serverURLField.waitForExistence(timeout: 10))
+        XCTAssertTrue(serverURLField.awaitExistence(timeout: 10))
         serverURLField.click()
         serverURLField.typeText("https://127.0.0.1:4010")
 
         let requestButton = launched.buttons["playstead.control.request-pairing"]
-        XCTAssertTrue(requestButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(requestButton.awaitExistence(timeout: 5))
         requestButton.click()
 
         let displayCodeElement = launched.descendants(matching: .any)["playstead.control.pairing-display-code"]
-        XCTAssertTrue(displayCodeElement.waitForExistence(timeout: 15), "expected the server-issued display code to render")
+        XCTAssertTrue(displayCodeElement.awaitExistence(timeout: 15), "expected the server-issued display code to render")
         let displayCode = displayCodeElement.readableText
         XCTAssertFalse(displayCode.isEmpty)
 
@@ -117,7 +117,7 @@ final class PairingCeremonyTests: XCTestCase {
         }
 
         let success = launched.descendants(matching: .any)["playstead.control.pairing-success"]
-        XCTAssertTrue(success.waitForExistence(timeout: 20), "expected the ceremony to complete and report success")
+        XCTAssertTrue(success.awaitExistence(timeout: 20), "expected the ceremony to complete and report success")
 
         // The trust anchor, not merely the confirmation: criterion 5
         // (VERIFICATION gap 1) requires the server's certificate to have
@@ -144,8 +144,8 @@ final class PairingCeremonyTests: XCTestCase {
         launched.terminate()
         launched.launchEnvironment.removeValue(forKey: "PLAYSTEAD_UI_TEST_LIVE_SERVER_UNPAIRED")
         launched.launch()
-        XCTAssertTrue(launched.descendants(matching: .any)["playstead.surface.library"].waitForExistence(timeout: 20))
-        XCTAssertTrue(launched.buttons["playstead.control.show-list"].waitForExistence(timeout: 10))
+        XCTAssertTrue(launched.descendants(matching: .any)["playstead.surface.library"].awaitExistence(timeout: 20))
+        XCTAssertTrue(launched.buttons["playstead.control.show-list"].awaitExistence(timeout: 10))
         launched.buttons["playstead.control.show-list"].click()
         // A relaunch that is still unpaired would show the same empty-state
         // action button; its absence here is the proof the credential

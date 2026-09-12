@@ -219,6 +219,35 @@ enum UITestBootstrap {
     /// The sibling file the harness writes its failure reason to. A
     /// sibling of an already-contained destination is contained by the
     /// same check, so this needs no second validation pass.
+    /// Bounded so a genuinely broken upload still fails, and fails fast.
+    /// A healthy server needs one attempt; one transient error needs two.
+    private static let saveEndToEndMaxUploadAttempts = 3
+
+    /// Whether the lane's latest verdict is one this harness should keep
+    /// retrying, in the ONLY vocabulary this repo owns for that question.
+    ///
+    /// `== .none` is not that question, and reading it as if it were is the
+    /// defect run 34670123715 caught at `save-e2e-harness=upload-server-refused`.
+    /// `SaveUploadFailureClassification` has seven cases, and its own doc
+    /// states that three of them -- `.none`, `.offlineQueue`, `.slowUpload` --
+    /// "are the product working correctly and must never escalate". Only
+    /// D-40's four unfixable reasons are a refusal.
+    ///
+    /// `.offlineQueue` is not a corner case here, it is the expected state:
+    /// the app drains on the reachability transition at pairing time, when
+    /// the server may not be reachable yet. Treating that as "your server
+    /// has refused this Mac" both skipped the retry and named the wrong
+    /// cause.
+    ///
+    /// This asks via `OnlyCopyEscalationReason(classification:)` rather than
+    /// listing cases again, because that initializer is the same gate the
+    /// shipped escalation panel uses. A new classification therefore cannot
+    /// drift between the product and this harness: whatever the panel would
+    /// escalate is exactly what this refuses to retry.
+    private static func isRetryable(_ classification: SaveUploadFailureClassification) -> Bool {
+        OnlyCopyEscalationReason(classification: classification) == nil
+    }
+
     static func saveEndToEndErrorURL(for resultURL: URL) -> URL {
         resultURL.deletingPathExtension().appendingPathExtension("error.txt")
     }
@@ -264,14 +293,105 @@ enum UITestBootstrap {
             localPath: capture.localPath
         ))
 
-        guard let apiClient = await appEnvironment.apiClient else {
+        // Still asserted: an unpaired app would fail the upload for a reason
+        // that has nothing to do with what this test proves. The client
+        // itself is no longer needed here, since the lane below is the app's
+        // own and already holds it.
+        guard await appEnvironment.apiClient != nil else {
             throw DeterministicProfileError.stateMismatch("save-e2e: no paired APIClient")
         }
 
-        let lane = SaveUploadLane(apiClient: apiClient, saveStore: saveStore)
-        let drainResult = await lane.drainOnce()
-        guard drainResult.sent == 1 else {
-            throw DeterministicProfileError.stateMismatch("save-e2e: upload did not complete")
+        // The APP'S OWN lane, never a second one built here.
+        //
+        // This is the root cause of the SaveEndToEndTests flake, and it is a
+        // race, not a timeout and not a transient error. The running app
+        // drains save uploads on a reachability transition
+        // (PlaysteadApp.swift: `Task { await uploadLane.drainOnce() }` inside
+        // `reachability.onChange`), which in CI fires right after pairing --
+        // exactly when this harness is inserting its revision. `drainOnce`'s
+        // own doc comment says "the lane is an actor, so overlapping calls
+        // serialize rather than racing the same revision", and that is true;
+        // constructing a SECOND lane over the same store is what defeated it,
+        // because two actor instances serialize nothing. Whichever lane lost
+        // the race saw an empty pending set and reported `sent == 0`.
+        //
+        // Run 34663361104 named it exactly: `upload-nothing-pending`, which
+        // is what the three-way split was added to distinguish. Sharing the
+        // one actor restores the serialization the comment already promised.
+        let lane = appEnvironment.saveUploadLane
+
+        // Drive the lane the way PRODUCTION does, not the way a single pass
+        // does. `drainOnce` is ONE attempt by a component whose entire job
+        // is retrying: any single error inside it schedules a backoff and
+        // returns `sent == 0`. Asserting first-attempt success asserted
+        // something this product never promises, and that -- not the server,
+        // and not a timeout -- is what made SaveEndToEndTests flaky in runs
+        // 34648546919 and 34658266643. The mechanism is pinned in
+        // SaveUploadLaneTests
+        // .test_oneTransientFailure_makesASinglePassSendNothing_thoughTheNextPassSucceeds,
+        // which reproduces it in under a second.
+        //
+        // Only the RETRYABLE case loops. A server that refused for one of
+        // D-40's unfixable reasons, or a pending set that never contained
+        // this revision, still fails on the first pass: retrying those would
+        // be the "green by persistence" that hides the defect class e6316d5
+        // caught, where uploads 404'd against every real server.
+        //
+        // `at:` advances past the lane's own backoff instead of sleeping, so
+        // this costs no wall-clock: the backoff schedule has its own tests
+        // and is not what this check is about.
+        var drainResult = await lane.drainOnce()
+        var attempt = 1
+        while drainResult.sent == 0,
+              drainResult.stoppedForRetry,
+              Self.isRetryable(lane.lastFailureClassification),
+              attempt < Self.saveEndToEndMaxUploadAttempts {
+            attempt += 1
+            drainResult = await lane.drainOnce(at: Date().addingTimeInterval(Double(attempt) * 3600))
+        }
+
+        // Assert the OUTCOME, not this lane's counter. The claim under test
+        // is "one save round trips capture -> upload -> journal -> sync", not
+        // "the lane object I happen to hold incremented `sent`". With the
+        // app's own lane also draining, `sent` belongs to whichever pass did
+        // the work, while the revision's durability is the fact either way.
+        let uploaded = saveStore.fetchRevision(id: revisionID)?.durability == SaveDurability.uploaded.rawValue
+
+        if !uploaded, drainResult.stoppedForRetry, Self.isRetryable(lane.lastFailureClassification) {
+            // Retryable, and still failing after every attempt. That is no
+            // longer a blip -- it is a server that is genuinely not
+            // accepting this upload.
+            throw DeterministicProfileError.stateMismatch("save-e2e: upload still retryable-failing after all attempts")
+        }
+
+        guard uploaded else {
+            // `drainOnce` is ONE pass over a lane whose whole job is to
+            // retry: any single error inside it sets `stoppedForRetry`,
+            // schedules a backoff, and returns with `sent == 0`. So a
+            // failure here means one of three quite different things, and
+            // reporting them all as "upload did not complete" is what made
+            // this an opaque flake -- both `stoppedForRetry` and
+            // `lastFailureClassification` were already sitting here
+            // unread.
+            //
+            // These stay FIXED LITERALS, per this file's rule: a `Bool` and
+            // a closed enum this repo owns are safe to branch on, but an
+            // error's own description can carry paths and must never reach
+            // the reason channel.
+            if drainResult.stoppedForRetry {
+                if Self.isRetryable(lane.lastFailureClassification) {
+                    // Retryable by design: transport loss, 5xx, rate
+                    // limiting. Production would simply try again.
+                    throw DeterministicProfileError.stateMismatch("save-e2e: upload stopped for retry, retryable")
+                }
+                // One of D-40's genuinely unfixable server reasons. This
+                // is a real defect, never a flake.
+                throw DeterministicProfileError.stateMismatch("save-e2e: upload stopped for retry, server refused")
+            }
+            // Not stopped, yet nothing sent: the pending set was empty, so
+            // the revision this harness just inserted was not visible to
+            // the lane at all. Also a real defect.
+            throw DeterministicProfileError.stateMismatch("save-e2e: upload found nothing pending")
         }
 
         // Drive a fresh sync so the revision is observed coming back

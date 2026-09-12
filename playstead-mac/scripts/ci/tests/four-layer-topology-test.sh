@@ -242,6 +242,54 @@ live_stage_count="$(sed -n 's/^    \([a-z|-]*\)) ;;$/\1/p' "$LIVE_SERVER_FIXTURE
 [ "$(grep -c 'XCTAssertEqual(status, 0, "live-server-stage=' "$LIVE_SERVER_TEST")" -eq "$((live_stage_count + 1))" ]
 [ "$(grep -c 'guard try runFixture' "$LIVE_SERVER_TEST")" -eq 3 ]
 
+# The save-e2e harness reason channel is a pinned mirror across two targets,
+# and nothing enforced it. UITestBootstrap THROWS fixed literals; the UI test
+# SWITCHES on them to pick one assertion site per cause, because CI keeps
+# file:line and discards assertion text. A literal that drifts on either side
+# falls through to `default` and reports every distinct cause at the same
+# line -- the exact diagnosis-destroying shape the switch exists to prevent,
+# and it would do so silently while still "passing".
+python3 - "$MAC_ROOT" <<'GUARD'
+import pathlib, re, sys
+
+mac_root = pathlib.Path(sys.argv[1])
+producer = (mac_root / "Playstead/UITesting/UITestBootstrap.swift").read_text(encoding="utf-8")
+consumer = (mac_root / "PlaysteadUITests/SaveEndToEndTests.swift").read_text(encoding="utf-8")
+
+thrown = set(re.findall(r'stateMismatch\("(save-e2e: [^"]+)"\)', producer))
+# Every literal on a `case` line, including the `case "A", "B":` form --
+# matching only `"...":` would miss all but the last of a combined case and
+# misreport it as drift, when the real fault is two causes sharing a site.
+handled = set()
+for line in consumer.splitlines():
+    if re.match(r'\s*case "save-e2e: ', line):
+        handled.update(re.findall(r'"(save-e2e: [^"]+)"', line))
+
+if not thrown:
+    raise SystemExit("found no save-e2e reason literals in UITestBootstrap -- the scan is broken")
+if thrown != handled:
+    unhandled = sorted(thrown - handled)
+    stale = sorted(handled - thrown)
+    raise SystemExit(
+        f"save-e2e reason literals drifted. thrown-but-unhandled={unhandled} handled-but-never-thrown={stale}"
+    )
+
+# One assertion SITE per cause: two causes sharing a line diagnose nothing,
+# which is the whole reason this switch is not a single XCTFail(reason).
+lines = consumer.splitlines()
+sites = []
+for i, line in enumerate(lines):
+    if re.match(r'\s*case "save-e2e: ', line):
+        for j in range(i + 1, min(len(lines), i + 4)):
+            if "XCTAssertTrue(false" in lines[j]:
+                sites.append(j)
+                break
+if len(sites) != len(handled):
+    raise SystemExit(f"{len(handled)} reason cases but {len(sites)} assertion sites")
+if len(set(sites)) != len(sites):
+    raise SystemExit("two save-e2e causes share an assertion line; CI could not tell them apart")
+GUARD
+
 # Every caller of the shared `verify` stage must state its own snapshot
 # expectation, and the fixture must refuse to guess.
 #
@@ -324,6 +372,91 @@ required = "PlaysteadTests.DeterministicProfileTests/testQuotaBlockReclaimProfil
 if required in unit or required not in rendering:
     raise SystemExit("quota decision contract must be required by Rendering and excluded from Unit")
 PY
+
+# The save-e2e harness must ask "is this retryable?" in the product's own
+# vocabulary, never by comparing against `.none`.
+#
+# `SaveUploadFailureClassification` has seven cases and its own doc says three
+# of them -- `.none`, `.offlineQueue`, `.slowUpload` -- are the product working
+# correctly. Branching on `== .none` collapses that to two and reports an
+# unreachable server as `save-e2e-harness=upload-server-refused`, which is what
+# run 34670123715 did. `.offlineQueue` is the EXPECTED state at pairing time,
+# when the app drains on the reachability transition.
+#
+# Requiring `OnlyCopyEscalationReason(classification:)` is what keeps the
+# harness and the shipped escalation panel from ever disagreeing about which
+# verdicts are unfixable: they gate on the same initializer.
+python3 - "$UI_BOOTSTRAP" <<'RETRYABLE_PY'
+import pathlib, sys
+
+raw = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+
+# Comment lines are stripped before any of this is judged. The first draft of
+# this guard passed a probe that gutted the helper body, because the phrase it
+# searched for still appeared in the doc comment above it -- a guard satisfied
+# by prose rather than by code, which is the same defect class it exists to
+# catch.
+source = "\n".join(
+    line for line in raw.splitlines() if not line.lstrip().startswith("//")
+)
+if "lastFailureClassification == .none" in source:
+    raise SystemExit("save-e2e must not treat `.none` as the whole retryable set; .offlineQueue and .slowUpload are retryable too")
+body = source.split("private static func isRetryable(", 1)
+if len(body) != 2:
+    raise SystemExit("save-e2e retry predicate `isRetryable` is missing")
+if "OnlyCopyEscalationReason(classification:" not in body[1].split("}", 1)[0]:
+    raise SystemExit("isRetryable must gate on OnlyCopyEscalationReason, the same gate the escalation panel uses")
+
+# ...and the predicate must actually be consulted at each of the three
+# decision points, not merely defined. A helper nothing calls is the exact
+# shape of a fix that passes its own guard and changes no behaviour.
+region = source.split("func runSaveEndToEnd", 1)[1]
+uses = region.count("isRetryable(lane.lastFailureClassification)")
+if uses != 3:
+    raise SystemExit(f"save-e2e must consult the retryable predicate at all 3 decision points, found {uses}")
+RETRYABLE_PY
+
+# The most expensive test in the Unit layer must not be paid for twice.
+# `ReleaseHookAbsenceTests` shells out to a full Release `xcodebuild`. On run
+# 34663361104 it cost 59.39s in Unit and 46.62s in Rendering -- the same build,
+# twice, and 88% of Rendering's entire in-test time. Unit selects every
+# PlaysteadTests case except three named skips, so Rendering naming it again
+# bought no coverage whatsoever. It stays required by Unit, where it runs, and
+# absent from Rendering, where it only duplicated.
+python3 - "$RUNNER" "${MAC_ROOT}/TestPlans/Rendering.xctestplan" "${MAC_ROOT}/TestPlans/Unit.xctestplan" <<'RELEASE_HOOK_PY'
+import json, pathlib, sys
+
+source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+unit = source.split("run_test_layer unit Unit", 1)[1].split("run_test_layer rendering Rendering", 1)[0]
+rendering = source.split("run_test_layer rendering Rendering", 1)[1].split("run_test_layer ui UI", 1)[0]
+scan = "PlaysteadTests.ReleaseHookAbsenceTests/testNonTestingReleaseBinaryAndSymbolsContainNoBootstrapProfileOrEnvironmentKey"
+if scan not in unit:
+    raise SystemExit("the Release-absence scan must be required by the Unit layer")
+if scan in rendering:
+    raise SystemExit("the Release-absence scan must not be required by the Rendering layer")
+
+rendering_plan = json.loads(pathlib.Path(sys.argv[2]).read_text(encoding="utf-8"))
+for target in rendering_plan["testTargets"]:
+    for selected in target.get("selectedTests", []):
+        if selected.split("/")[0] == "ReleaseHookAbsenceTests":
+            raise SystemExit("Rendering re-selected ReleaseHookAbsenceTests; Unit already runs that Release build")
+
+# Dropping it from Rendering is only safe while Unit still reaches it. A skip
+# added there would leave the Release-absence scan running in no layer at all,
+# which is a far worse outcome than the duplication this removed.
+unit_plan = json.loads(pathlib.Path(sys.argv[3]).read_text(encoding="utf-8"))
+reached = False
+for target in unit_plan["testTargets"]:
+    if target["target"]["name"] != "PlaysteadTests":
+        continue
+    if "ReleaseHookAbsenceTests" in {entry.split("/")[0] for entry in target.get("skippedTests", [])}:
+        raise SystemExit("Unit skips ReleaseHookAbsenceTests, so nothing runs the Release-absence scan")
+    selected = target.get("selectedTests")
+    if selected is None or any(entry.split("/")[0] == "ReleaseHookAbsenceTests" for entry in selected):
+        reached = True
+if not reached:
+    raise SystemExit("Unit no longer selects ReleaseHookAbsenceTests")
+RELEASE_HOOK_PY
 grep -F 'let attempt = await environment.attemptDownload(for: target)' "$PROFILE_TEST" >/dev/null
 grep -F 'XCTAssertEqual(attempt, .blocked(expected))' "$PROFILE_TEST" >/dev/null
 python3 - "$APP_ENTRY" <<'PY'
@@ -451,7 +584,7 @@ storage = source.split("private func dismissStorageAndAssertCanonicalRows()", 1)
 markers = [
     storage.find('dismissSheet(root: "playstead.surface.storage")'),
     storage.find('harness.element("playstead.control.show-list", type: .button).click()'),
-    storage.find('harness.element("playstead.surface.game-list").waitForExistence'),
+    storage.find('harness.element("playstead.surface.game-list").awaitExistence'),
     storage.find('assertCanonicalRow(assetID: quotaReclaimAssetID'),
 ]
 if any(marker < 0 for marker in markers) or markers != sorted(markers):

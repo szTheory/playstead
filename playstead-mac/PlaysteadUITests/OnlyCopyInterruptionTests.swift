@@ -45,7 +45,7 @@ final class OnlyCopyInterruptionTests: XCTestCase {
         app.launch()
         self.app = app
         let root = app.descendants(matching: .any)["playstead.harness.only-copy-interruption"]
-        XCTAssertTrue(root.waitForExistence(timeout: 10), "the only-copy interruption harness did not settle")
+        XCTAssertTrue(root.awaitExistence(timeout: 10), "the only-copy interruption harness did not settle")
         return app
     }
 
@@ -56,7 +56,7 @@ final class OnlyCopyInterruptionTests: XCTestCase {
         app.launch()
         self.app = app
         let root = app.descendants(matching: .any)[ID.neutralRoot]
-        XCTAssertTrue(root.waitForExistence(timeout: 10), "the neutral harness did not settle")
+        XCTAssertTrue(root.awaitExistence(timeout: 10), "the neutral harness did not settle")
         return app
     }
 
@@ -122,7 +122,7 @@ final class OnlyCopyInterruptionTests: XCTestCase {
     func testSameActionsWithZeroOnlyOnThisMacVersionsRaiseNoModal() {
         let app = launchHarness(context: "zero_count")
         XCTAssertFalse(app.staticTexts[ID.title].exists)
-        XCTAssertTrue(app.staticTexts[ID.noModal].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts[ID.noModal].awaitExistence(timeout: 5))
     }
 
     // MARK: - Locked copy, three buttons, default is the escape hatch
@@ -145,7 +145,7 @@ final class OnlyCopyInterruptionTests: XCTestCase {
         let app = launchHarness(context: "remove_local_copy")
         assertExportOwnsFocus(app, "before activating the default")
         app.typeKey(.return, modifierFlags: [])
-        XCTAssertTrue(app.staticTexts[ID.result].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts[ID.result].awaitExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts[ID.result].readableText, "exported")
     }
 
@@ -154,7 +154,7 @@ final class OnlyCopyInterruptionTests: XCTestCase {
     func testChoosingCancelLeavesEveryRevisionAndCachedByteInPlace() {
         let app = launchHarness(context: "remove_local_copy")
         app.buttons[ID.cancel].click()
-        XCTAssertTrue(app.staticTexts[ID.result].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts[ID.result].awaitExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts[ID.result].readableText, "cancelled")
         XCTAssertEqual(app.staticTexts[ID.revisionsRemaining].readableText, "3")
     }
@@ -164,7 +164,7 @@ final class OnlyCopyInterruptionTests: XCTestCase {
     func testChoosingRemoveAnywayLeavesEverySaveRevisionPresent() {
         let app = launchHarness(context: "remove_local_copy")
         app.buttons[ID.removeAnyway].click()
-        XCTAssertTrue(app.staticTexts[ID.result].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts[ID.result].awaitExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts[ID.result].readableText, "removed")
         // Choosing "Remove anyway" removes cached game bytes and still
         // keeps every save revision (the never-evictable rule, D-40) --
@@ -199,7 +199,7 @@ final class OnlyCopyInterruptionTests: XCTestCase {
         XCTAssertTrue(reachedCancel, "Tab never reached Cancel")
 
         app.typeKey(.space, modifierFlags: [])
-        XCTAssertTrue(app.staticTexts[ID.result].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts[ID.result].awaitExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts[ID.result].readableText, "cancelled")
     }
 

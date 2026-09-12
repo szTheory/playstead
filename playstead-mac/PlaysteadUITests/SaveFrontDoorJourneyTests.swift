@@ -53,7 +53,7 @@ final class SaveFrontDoorJourneyTests: XCTestCase {
 
         let play = uniqueButton(labeled: "Play")
         XCTAssertTrue(
-            play.waitForExistence(timeout: 5),
+            play.awaitExistence(timeout: 5),
             "the seeded restorable-revision game never reached a ready Play action -- readiness must be blocking somewhere upstream of SAVE-03"
         )
         play.click()
@@ -67,12 +67,12 @@ final class SaveFrontDoorJourneyTests: XCTestCase {
                                   "Last exit:", "Last exit:"))
             .firstMatch
         XCTAssertTrue(
-            lastExit.waitForExistence(timeout: 15),
+            lastExit.awaitExistence(timeout: 15),
             "Play never completed a launch -- the front door to SAVE-03's restore branch is unreachable"
         )
 
         let summary = harness.element(GameRowSummaryIdentifier.saveRestorable)
-        XCTAssertTrue(summary.waitForExistence(timeout: 5))
+        XCTAssertTrue(summary.awaitExistence(timeout: 5))
         XCTAssertFalse(
             (summary.readableText).contains("Launch failed"),
             "the launch path reported an error instead of completing the restore: \(summary.readableText)"
@@ -100,18 +100,18 @@ final class SaveFrontDoorJourneyTests: XCTestCase {
             .typeKey(.space, modifierFlags: [])
 
         let reclaim = harness.element("playstead.storage.reclaim", type: .button)
-        XCTAssertTrue(reclaim.waitForExistence(timeout: 5))
+        XCTAssertTrue(reclaim.awaitExistence(timeout: 5))
         XCTAssertTrue(reclaim.isEnabled, "reclaim never became available for the selected only-copy candidate")
         reclaim.click()
 
         let interruption = harness.element("playstead.save.only-copy-interruptive")
         XCTAssertTrue(
-            interruption.waitForExistence(timeout: 5),
+            interruption.awaitExistence(timeout: 5),
             "reclaiming an only-on-this-Mac game must present the D-40 interruptive modal, but it never appeared"
         )
 
         let export = harness.element("playstead.save.only-copy-interruptive.export", type: .button)
-        XCTAssertTrue(export.waitForExistence(timeout: 5))
+        XCTAssertTrue(export.awaitExistence(timeout: 5))
         // One assertion per hypothesis, on its own line: the CI evidence
         // sanitizer keeps file:line and discards the message, so the line number
         // has to carry the diagnosis by itself.
@@ -138,7 +138,7 @@ final class SaveFrontDoorJourneyTests: XCTestCase {
         export.typeKey(.space, modifierFlags: [])
 
         XCTAssertFalse(
-            interruption.waitForExistence(timeout: 2),
+            interruption.awaitExistence(timeout: 2),
             "the interruptive modal did not dismiss after choosing the default action"
         )
 
@@ -148,7 +148,7 @@ final class SaveFrontDoorJourneyTests: XCTestCase {
         // recorded attempt AppEnvironment.openConsoleSavesExport leaves
         // in its place.
         let exportAttempt = harness.element("playstead.harness.console-export-attempt")
-        XCTAssertTrue(exportAttempt.waitForExistence(timeout: 5))
+        XCTAssertTrue(exportAttempt.awaitExistence(timeout: 5))
         XCTAssertFalse(
             (exportAttempt.value as? String ?? "").isEmpty,
             "the default 'Export saves…' button must perform a real export, but no export attempt was recorded -- MC-02's silent no-op"
@@ -166,7 +166,7 @@ final class SaveFrontDoorJourneyTests: XCTestCase {
         launch(.saveDiverged)
 
         let card = harness.element("library.card")
-        XCTAssertTrue(card.waitForExistence(timeout: 5), "the seeded diverged game's card never rendered")
+        XCTAssertTrue(card.awaitExistence(timeout: 5), "the seeded diverged game's card never rendered")
         // GameCardView deliberately collapses to a single accessibility element
         // (`children: .ignore`) and composes the status ladder's sentence into
         // its own label, so `library.status-slot` cannot be addressed inside the
@@ -182,14 +182,14 @@ final class SaveFrontDoorJourneyTests: XCTestCase {
 
         let remedy = harness.element("playstead.readiness.row.saveState.remedy", type: .button)
         XCTAssertTrue(
-            remedy.waitForExistence(timeout: 5),
+            remedy.awaitExistence(timeout: 5),
             "the readiness Save row never surfaced a 'Review versions…' remedy for the diverged line"
         )
         remedy.click()
 
         let comparison = harness.element("playstead.surface.conflict-comparison")
         XCTAssertTrue(
-            comparison.waitForExistence(timeout: 5),
+            comparison.awaitExistence(timeout: 5),
             "'Review versions…' must open the comparison sheet for a diverged line, but it never appeared"
         )
         assertDismissalOwnsFocus(
@@ -213,7 +213,7 @@ final class SaveFrontDoorJourneyTests: XCTestCase {
 
         let saveRow = harness.element("playstead.readiness.row.saveState")
         XCTAssertTrue(
-            saveRow.waitForExistence(timeout: 5),
+            saveRow.awaitExistence(timeout: 5),
             "the readiness surface never rendered a Save row at all"
         )
         XCTAssertFalse(
@@ -264,12 +264,12 @@ final class SaveFrontDoorJourneyTests: XCTestCase {
 
     private func showList() {
         harness.element("playstead.control.show-list", type: .button).click()
-        XCTAssertTrue(harness.element("playstead.surface.game-list").waitForExistence(timeout: 5))
+        XCTAssertTrue(harness.element("playstead.surface.game-list").awaitExistence(timeout: 5))
     }
 
     private func openSurface(control: String, root: String) {
         harness.element(control, type: .button).click()
-        XCTAssertTrue(harness.element(root).waitForExistence(timeout: 5), "navigation dead-ended before reaching \(root)")
+        XCTAssertTrue(harness.element(root).awaitExistence(timeout: 5), "navigation dead-ended before reaching \(root)")
     }
 
     private func uniqueButton(labeled label: String) -> XCUIElement {

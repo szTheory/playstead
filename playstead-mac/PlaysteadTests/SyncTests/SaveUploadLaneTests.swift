@@ -242,7 +242,67 @@ final class SaveUploadLaneTests: XCTestCase {
         XCTAssertEqual(stillThere?.durability, SaveDurability.queued.rawValue)
     }
 
+    /// The save-e2e harness's single-pass assumption, isolated.
+    ///
+    /// `UITestBootstrap.runSaveEndToEnd` calls `drainOnce()` exactly once
+    /// and requires `sent == 1`. This is what that costs: ONE transient
+    /// error -- precisely the kind this lane exists to absorb -- makes that
+    /// pass report nothing sent, while the very next pass succeeds against
+    /// the same server. The upload was never broken; the assertion was.
+    ///
+    /// This is the mechanism behind the SaveEndToEndTests flake (runs
+    /// 34648546919 and 34658266643, 2 failures in 5). Proving it here means
+    /// it never again costs a 40-minute hosted run to observe.
+    func test_oneTransientFailure_makesASinglePassSendNothing_thoughTheNextPassSucceeds() async throws {
+        let revision = try makeLocalOnlyRevision(bytes: Data(repeating: 0x22, count: 1024))
+
+        // Fail the first request, then behave perfectly. A 503 is the
+        // canonical retryable answer: `classify` must keep it `.none`,
+        // because escalating a condition that fixes itself is what D-40
+        // forbids.
+        let attempts = Counter()
+        StubURLProtocol.responder = { request in
+            if attempts.next() == 1 {
+                return StubURLProtocol.Stub(
+                    statusCode: 503, headers: [:], body: Data("{\"code\":\"unavailable\"}".utf8)
+                )
+            }
+            return StubURLProtocol.Stub(
+                statusCode: request.httpMethod == "PUT" ? 200 : 201,
+                headers: ["Content-Type": "application/json"],
+                body: Data("{\"save_line_id\":\"\(revision.saveLineID)\",\"recorded_at\":\"2026-09-03T00:00:00Z\"}".utf8)
+            )
+        }
+
+        let lane = SaveUploadLane(apiClient: apiClient, saveStore: saveStore)
+        var now = Date(timeIntervalSince1970: 1_700_000_000)
+
+        // One clause per fact: CI keeps file:line and drops assertion text.
+        let first = await lane.drainOnce(at: now)
+        XCTAssertEqual(first.sent, 0, "a single transient error makes one pass send nothing")
+        XCTAssertTrue(first.stoppedForRetry, "the lane stopped to retry rather than failing terminally")
+        XCTAssertEqual(lane.lastFailureClassification, .none, "a 503 is retryable and must never escalate")
+
+        now = now.addingTimeInterval(3600) // past any backoff
+        let second = await lane.drainOnce(at: now)
+        XCTAssertEqual(second.sent, 1, "same server, one pass later — the upload was never broken")
+        XCTAssertEqual(saveStore.fetchRevision(id: revision.id)?.durability, SaveDurability.uploaded.rawValue)
+    }
+
     // MARK: - Helpers
+
+    /// `StubURLProtocol.responder` is a `@Sendable` closure, so it cannot
+    /// capture a mutable local.
+    private final class Counter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = 0
+        func next() -> Int {
+            lock.lock(); defer { lock.unlock() }
+            value += 1
+            return value
+        }
+    }
+
 
     @discardableResult
     private func makeLocalOnlyRevision(bytes: Data) throws -> SaveRevisionRow {

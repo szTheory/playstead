@@ -90,7 +90,7 @@ final class SaveEndToEndTests: XCTestCase {
         launched.launchEnvironment["PLAYSTEAD_UI_TEST_SAVE_RESULT_PATH"] = resultURL.path
         launched.launch()
 
-        XCTAssertTrue(launched.descendants(matching: .any)["playstead.surface.library"].waitForExistence(timeout: 20))
+        XCTAssertTrue(launched.descendants(matching: .any)["playstead.surface.library"].awaitExistence(timeout: 20))
 
         // The harness writes exactly one of these two files. Polling for
         // both means a failure is reported by its cause on the run it
@@ -173,8 +173,18 @@ final class SaveEndToEndTests: XCTestCase {
             XCTAssertTrue(false, "save-e2e-harness=capture-did-not-quiesce")
         case "save-e2e: no paired APIClient":
             XCTAssertTrue(false, "save-e2e-harness=no-paired-api-client")
-        case "save-e2e: upload did not complete":
-            XCTAssertTrue(false, "save-e2e-harness=upload-did-not-complete")
+        // Three distinct sites, because these are three distinct verdicts
+        // and CI keeps only file:line. `retryable` is the lane being asked
+        // to succeed on a single un-retried pass -- a harness limitation,
+        // not a product defect. The other two are real defects.
+        case "save-e2e: upload stopped for retry, retryable":
+            XCTAssertTrue(false, "save-e2e-harness=upload-stopped-retryable")
+        case "save-e2e: upload still retryable-failing after all attempts":
+            XCTAssertTrue(false, "save-e2e-harness=upload-exhausted-retries")
+        case "save-e2e: upload stopped for retry, server refused":
+            XCTAssertTrue(false, "save-e2e-harness=upload-server-refused")
+        case "save-e2e: upload found nothing pending":
+            XCTAssertTrue(false, "save-e2e-harness=upload-nothing-pending")
         case "save-e2e: revision not found after sync":
             XCTAssertTrue(false, "save-e2e-harness=revision-missing-after-sync")
         default:

@@ -30,6 +30,24 @@ else
   exec 2>/dev/null
 fi
 
+# The single place that decides the marker path is safe to touch. Both the
+# writer and the clearer go through it: a clearer with weaker checks than the
+# writer would be an arbitrary-path `rm`.
+validated_marker() {
+  local marker="${PLAYSTEAD_LIVE_SERVER_STAGE_FILE:-}"
+  local evidence_root="${PLAYSTEAD_LIVE_SERVER_STAGE_ROOT:-}"
+  [ -n "$marker" ] && [ -n "$evidence_root" ] || return 1
+  [ "${marker#/}" != "$marker" ] && [ "${evidence_root#/}" != "$evidence_root" ] || return 1
+  [ "$(basename "$marker")" = "live-server-failure-stage" ] || return 1
+
+  local resolved_root resolved_parent
+  resolved_root="$(cd "$evidence_root" 2>/dev/null && pwd -P)" || return 1
+  resolved_parent="$(cd "$(dirname "$marker")" 2>/dev/null && pwd -P)" || return 1
+  [ "$resolved_parent" = "$resolved_root" ] || return 1
+
+  printf '%s' "$marker"
+}
+
 write_failure_stage() {
   case "$stage" in
     validate-input|resolve-server-root|create-control-root|create-server-control|secure-roots) ;;
@@ -37,21 +55,34 @@ write_failure_stage() {
     *) return ;;
   esac
 
-  local marker="${PLAYSTEAD_LIVE_SERVER_STAGE_FILE:-}"
-  local evidence_root="${PLAYSTEAD_LIVE_SERVER_STAGE_ROOT:-}"
-  [ -n "$marker" ] && [ -n "$evidence_root" ] || return
-  [ "${marker#/}" != "$marker" ] && [ "${evidence_root#/}" != "$evidence_root" ] || return
-  [ "$(basename "$marker")" = "live-server-failure-stage" ] || return
-
-  local resolved_root resolved_parent temporary
-  resolved_root="$(cd "$evidence_root" 2>/dev/null && pwd -P)" || return
-  resolved_parent="$(cd "$(dirname "$marker")" 2>/dev/null && pwd -P)" || return
-  [ "$resolved_parent" = "$resolved_root" ] || return
+  local marker temporary
+  marker="$(validated_marker)" || return
 
   temporary="${marker}.tmp.$$"
   (umask 077; printf '%s\n' "$stage" >"$temporary") || return
   chmod 0600 "$temporary" || return
   mv -f "$temporary" "$marker"
+}
+
+# A successful action must leave NO marker behind.
+#
+# The marker was written on entering every stage and never cleared on success,
+# so after any action completed it still held that action's last stage. The
+# runner reads the marker on ANY live-server layer failure, including one in
+# Swift test code the fixture never touched -- and reports it as the stage the
+# fixture died at. Run 34648546919 reported `FAILURE_STAGE redeem-pairing` for
+# a `prepare` that had completed fine; the real failure was
+# save-e2e-harness=upload-did-not-complete, four stages and one process later.
+# A diagnostic that points confidently at the wrong place is worse than none,
+# because it is believed: it sent that run's first diagnosis at the fixture
+# instead of the save harness.
+#
+# The runner already prints "FAILURE_STAGE unavailable" when no marker exists,
+# which is the honest answer for a failure that did not happen in the fixture.
+clear_failure_stage() {
+  local marker
+  marker="$(validated_marker)" || return
+  rm -f "$marker"
 }
 
 enter_stage() {
@@ -63,7 +94,7 @@ enter_stage() {
   printf '=== stage %s ===\n' "$stage" >&2 || true
 }
 
-trap 'status=$?; if [ "$status" -ne 0 ]; then write_failure_stage || true; printf "live-server fixture failed at %s\n" "$stage" >&3; fi' EXIT
+trap 'status=$?; if [ "$status" -ne 0 ]; then write_failure_stage || true; printf "live-server fixture failed at %s\n" "$stage" >&3; else clear_failure_stage || true; fi' EXIT
 enter_stage "validate-input"
 
 die() { exit 1; }

@@ -42,7 +42,7 @@ final class ConflictResolutionInteractionTests: XCTestCase {
         app.launch()
         self.app = app
         let surface = app.descendants(matching: .any)[ID.surface]
-        XCTAssertTrue(surface.waitForExistence(timeout: 10), "the conflict comparison harness did not settle")
+        XCTAssertTrue(surface.awaitExistence(timeout: 10), "the conflict comparison harness did not settle")
         return app
     }
 
@@ -76,8 +76,8 @@ final class ConflictResolutionInteractionTests: XCTestCase {
         XCTAssertEqual(app.sheets.count, 0, "no confirmation dialog may follow a choice either")
         XCTAssertEqual(app.dialogs.count, 0)
 
-        XCTAssertTrue(app.staticTexts[ID.chosenR1].waitForExistence(timeout: 5), "the chosen side must render its chosen state")
-        XCTAssertTrue(app.staticTexts[ID.result].waitForExistence(timeout: 5), "a result message must render after choosing")
+        XCTAssertTrue(app.staticTexts[ID.chosenR1].awaitExistence(timeout: 5), "the chosen side must render its chosen state")
+        XCTAssertTrue(app.staticTexts[ID.result].awaitExistence(timeout: 5), "a result message must render after choosing")
     }
 
     // MARK: - No Undo control anywhere after a resolution
@@ -85,7 +85,7 @@ final class ConflictResolutionInteractionTests: XCTestCase {
     func testNoUndoControlRendersAfterChoosing() {
         let app = launchHarness()
         app.buttons[ID.chooseR1].click()
-        XCTAssertTrue(app.staticTexts[ID.result].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts[ID.result].awaitExistence(timeout: 5))
 
         // Matched on both attributes: a macOS AXStaticText keeps its content
         // in `value`, so a label-only predicate would sweep the static texts
@@ -116,7 +116,7 @@ final class ConflictResolutionInteractionTests: XCTestCase {
         XCTAssertTrue(reachedKeepBoth, "Tab never reached Keep Both")
         app.typeKey(.space, modifierFlags: [])
 
-        XCTAssertTrue(app.staticTexts[ID.result].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts[ID.result].awaitExistence(timeout: 5))
         let result = app.staticTexts[ID.result]
         XCTAssertTrue(
             result.readableText.contains("Keeping both"),

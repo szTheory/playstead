@@ -90,7 +90,7 @@ final class StorageInteractionTests: XCTestCase {
         navigateToQuotaFixtureList()
         waitForUniqueDownloadAction().click()
         XCTAssertTrue(
-            harness.element("playstead.surface.reclaim").waitForExistence(timeout: 5),
+            harness.element("playstead.surface.reclaim").awaitExistence(timeout: 5),
             "direct Download activation did not present the quota reclaim effect"
         )
     }
@@ -99,7 +99,7 @@ final class StorageInteractionTests: XCTestCase {
         navigateToQuotaFixtureList()
         activateSelectedDownloadByKeyboard()
         XCTAssertTrue(
-            harness.element("playstead.surface.reclaim").waitForExistence(timeout: 5),
+            harness.element("playstead.surface.reclaim").awaitExistence(timeout: 5),
             "focused Download action did not present the quota reclaim effect"
         )
     }
@@ -272,7 +272,7 @@ final class StorageInteractionTests: XCTestCase {
         activateSelectedDownloadByKeyboard()
 
         let reclaimRoot = harness.element("playstead.surface.reclaim")
-        XCTAssertTrue(reclaimRoot.waitForExistence(timeout: 5))
+        XCTAssertTrue(reclaimRoot.awaitExistence(timeout: 5))
     }
 
     private func navigateToQuotaFixtureList() {
@@ -397,7 +397,7 @@ final class StorageInteractionTests: XCTestCase {
         // GameRow identities without relaunching or reseeding; the mutation
         // proof above therefore remains the state being inspected.
         harness.element("playstead.control.show-list", type: .button).click()
-        XCTAssertTrue(harness.element("playstead.surface.game-list").waitForExistence(timeout: 5))
+        XCTAssertTrue(harness.element("playstead.surface.game-list").awaitExistence(timeout: 5))
         assertCanonicalRow(assetID: quotaReclaimAssetID, title: "Synthetic Reclaim Candidate")
         assertCanonicalRow(assetID: quotaDownloadAssetID, title: "Synthetic Quota Download")
     }
@@ -410,7 +410,7 @@ final class StorageInteractionTests: XCTestCase {
 
     private func openSurface(control: String, root: String) {
         harness.element(control, type: .button).click()
-        XCTAssertTrue(harness.element(root).waitForExistence(timeout: 5))
+        XCTAssertTrue(harness.element(root).awaitExistence(timeout: 5))
     }
 
     private func dismissSheet(root: String) {
@@ -437,7 +437,7 @@ final class StorageInteractionTests: XCTestCase {
         XCTAssertEqual(downloads.count, 1)
         let action = downloads.firstMatch
         let exactIdentity = harness.element(quotaDownloadAction, type: .button)
-        XCTAssertTrue(exactIdentity.waitForExistence(timeout: 5))
+        XCTAssertTrue(exactIdentity.awaitExistence(timeout: 5))
         XCTAssertEqual(exactIdentity.readableText, "Download")
         XCTAssertEqual(
             action.frame,
@@ -450,14 +450,14 @@ final class StorageInteractionTests: XCTestCase {
     private func selectQuotaDownloadByKeyboard() {
         _ = waitForUniqueDownloadAction()
         let list = harness.element("playstead.surface.game-list")
-        XCTAssertTrue(list.waitForExistence(timeout: 5))
+        XCTAssertTrue(list.awaitExistence(timeout: 5))
         XCTAssertTrue(
             list.value(forKey: "hasKeyboardFocus") as? Bool == true,
             "activating List must transfer keyboard focus to its production selection model"
         )
 
         let selection = harness.element("playstead.library.list-selection")
-        XCTAssertTrue(selection.waitForExistence(timeout: 5))
+        XCTAssertTrue(selection.awaitExistence(timeout: 5))
         for _ in 0..<2 {
             let currentSelection = selection.value as? String
             if currentSelection == quotaDownloadAssetID { break }
@@ -468,7 +468,7 @@ final class StorageInteractionTests: XCTestCase {
         XCTAssertTrue(list.value(forKey: "hasKeyboardFocus") as? Bool == true)
 
         let command = harness.element("playstead.control.download-selected", type: .button)
-        XCTAssertTrue(command.waitForExistence(timeout: 5))
+        XCTAssertTrue(command.awaitExistence(timeout: 5))
         XCTAssertTrue(command.isEnabled)
     }
 
@@ -492,19 +492,19 @@ final class StorageInteractionTests: XCTestCase {
 
     private func assertValue(_ identifier: String, equals expected: String) {
         let element = harness.element(identifier)
-        XCTAssertTrue(element.waitForExistence(timeout: 5), "missing value element: \(identifier)")
+        XCTAssertTrue(element.awaitExistence(timeout: 5), "missing value element: \(identifier)")
         XCTAssertEqual(element.value as? String, expected)
     }
 
     private func assertEnabled(_ identifier: String) {
         let action = harness.element(identifier, type: .button)
-        XCTAssertTrue(action.waitForExistence(timeout: 5), "missing action: \(identifier)")
+        XCTAssertTrue(action.awaitExistence(timeout: 5), "missing action: \(identifier)")
         XCTAssertTrue(action.isEnabled, "action is disabled: \(identifier)")
     }
 
     private func assertCanonicalRow(assetID: String, title: String) {
         let row = harness.element("playstead.game.\(assetID).summary")
-        XCTAssertTrue(row.waitForExistence(timeout: 5), "canonical row missing: \(title)")
+        XCTAssertTrue(row.awaitExistence(timeout: 5), "canonical row missing: \(title)")
         XCTAssertTrue(row.readableText.hasPrefix(title), "canonical row label drifted: \(title)")
     }
 
