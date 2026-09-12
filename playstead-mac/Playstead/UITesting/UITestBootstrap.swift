@@ -271,7 +271,33 @@ enum UITestBootstrap {
         let lane = SaveUploadLane(apiClient: apiClient, saveStore: saveStore)
         let drainResult = await lane.drainOnce()
         guard drainResult.sent == 1 else {
-            throw DeterministicProfileError.stateMismatch("save-e2e: upload did not complete")
+            // `drainOnce` is ONE pass over a lane whose whole job is to
+            // retry: any single error inside it sets `stoppedForRetry`,
+            // schedules a backoff, and returns with `sent == 0`. So a
+            // failure here means one of three quite different things, and
+            // reporting them all as "upload did not complete" is what made
+            // this an opaque flake -- both `stoppedForRetry` and
+            // `lastFailureClassification` were already sitting here
+            // unread.
+            //
+            // These stay FIXED LITERALS, per this file's rule: a `Bool` and
+            // a closed enum this repo owns are safe to branch on, but an
+            // error's own description can carry paths and must never reach
+            // the reason channel.
+            if drainResult.stoppedForRetry {
+                if lane.lastFailureClassification == .none {
+                    // Retryable by design: transport loss, 5xx, rate
+                    // limiting. Production would simply try again.
+                    throw DeterministicProfileError.stateMismatch("save-e2e: upload stopped for retry, retryable")
+                }
+                // One of D-40's genuinely unfixable server reasons. This
+                // is a real defect, never a flake.
+                throw DeterministicProfileError.stateMismatch("save-e2e: upload stopped for retry, server refused")
+            }
+            // Not stopped, yet nothing sent: the pending set was empty, so
+            // the revision this harness just inserted was not visible to
+            // the lane at all. Also a real defect.
+            throw DeterministicProfileError.stateMismatch("save-e2e: upload found nothing pending")
         }
 
         // Drive a fresh sync so the revision is observed coming back

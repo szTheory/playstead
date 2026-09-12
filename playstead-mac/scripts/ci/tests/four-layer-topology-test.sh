@@ -242,6 +242,54 @@ live_stage_count="$(sed -n 's/^    \([a-z|-]*\)) ;;$/\1/p' "$LIVE_SERVER_FIXTURE
 [ "$(grep -c 'XCTAssertEqual(status, 0, "live-server-stage=' "$LIVE_SERVER_TEST")" -eq "$((live_stage_count + 1))" ]
 [ "$(grep -c 'guard try runFixture' "$LIVE_SERVER_TEST")" -eq 3 ]
 
+# The save-e2e harness reason channel is a pinned mirror across two targets,
+# and nothing enforced it. UITestBootstrap THROWS fixed literals; the UI test
+# SWITCHES on them to pick one assertion site per cause, because CI keeps
+# file:line and discards assertion text. A literal that drifts on either side
+# falls through to `default` and reports every distinct cause at the same
+# line -- the exact diagnosis-destroying shape the switch exists to prevent,
+# and it would do so silently while still "passing".
+python3 - "$MAC_ROOT" <<'GUARD'
+import pathlib, re, sys
+
+mac_root = pathlib.Path(sys.argv[1])
+producer = (mac_root / "Playstead/UITesting/UITestBootstrap.swift").read_text(encoding="utf-8")
+consumer = (mac_root / "PlaysteadUITests/SaveEndToEndTests.swift").read_text(encoding="utf-8")
+
+thrown = set(re.findall(r'stateMismatch\("(save-e2e: [^"]+)"\)', producer))
+# Every literal on a `case` line, including the `case "A", "B":` form --
+# matching only `"...":` would miss all but the last of a combined case and
+# misreport it as drift, when the real fault is two causes sharing a site.
+handled = set()
+for line in consumer.splitlines():
+    if re.match(r'\s*case "save-e2e: ', line):
+        handled.update(re.findall(r'"(save-e2e: [^"]+)"', line))
+
+if not thrown:
+    raise SystemExit("found no save-e2e reason literals in UITestBootstrap -- the scan is broken")
+if thrown != handled:
+    unhandled = sorted(thrown - handled)
+    stale = sorted(handled - thrown)
+    raise SystemExit(
+        f"save-e2e reason literals drifted. thrown-but-unhandled={unhandled} handled-but-never-thrown={stale}"
+    )
+
+# One assertion SITE per cause: two causes sharing a line diagnose nothing,
+# which is the whole reason this switch is not a single XCTFail(reason).
+lines = consumer.splitlines()
+sites = []
+for i, line in enumerate(lines):
+    if re.match(r'\s*case "save-e2e: ', line):
+        for j in range(i + 1, min(len(lines), i + 4)):
+            if "XCTAssertTrue(false" in lines[j]:
+                sites.append(j)
+                break
+if len(sites) != len(handled):
+    raise SystemExit(f"{len(handled)} reason cases but {len(sites)} assertion sites")
+if len(set(sites)) != len(sites):
+    raise SystemExit("two save-e2e causes share an assertion line; CI could not tell them apart")
+GUARD
+
 # Every caller of the shared `verify` stage must state its own snapshot
 # expectation, and the fixture must refuse to guess.
 #
