@@ -371,6 +371,10 @@ final class AppEnvironment {
     /// a resolved divergence recorded its intent durably and locally but
     /// never reached the server (WINDOWS #42).
     let saveOutboxDrainTrigger: SaveOutboxDrainTrigger
+    /// Drain trigger 4/4: time. The other three are edges, and between them
+    /// they miss a server that goes away and comes back without this Mac's
+    /// network changing -- see `OutboxDrainTicker` (WINDOWS #77).
+    nonisolated let outboxDrainTicker: OutboxDrainTicker
     let playSessionRecorder: PlaySessionRecorder
     /// Reports this device's own per-asset-set availability facts
     /// (plan 03-14, LIBR-02 gap closure) — an after-the-fact outbox
@@ -419,7 +423,10 @@ final class AppEnvironment {
         /// Keychain (the live-server harness) must supply the *same*
         /// scoped instance here, or pairing would write somewhere
         /// `apiClient` never reads from.
-        pairingKeychain: KeychainStore? = nil
+        pairingKeychain: KeychainStore? = nil,
+        /// Injectable so a test can prove the periodic drain actually
+        /// delivers without waiting a real minute for it.
+        outboxDrainInterval: TimeInterval = OutboxDrainTicker.defaultInterval
     ) {
         let store = (try? LocalStore(paths: paths)) ?? LocalStore.inMemoryFallback()
         let keychain = pairingKeychain ?? KeychainStore()
@@ -430,7 +437,8 @@ final class AppEnvironment {
             apiClient: client,
             reachability: reachability,
             downloadSession: downloadSession,
-            pairingKeychain: keychain
+            pairingKeychain: keychain,
+            outboxDrainInterval: outboxDrainInterval
         )
     }
 
@@ -498,7 +506,8 @@ final class AppEnvironment {
         apiClient: APIClient,
         reachability: Reachability,
         downloadSession: URLSession?,
-        pairingKeychain: KeychainStore?
+        pairingKeychain: KeychainStore?,
+        outboxDrainInterval: TimeInterval = OutboxDrainTicker.defaultInterval
     ) {
         self.appPaths = paths
         self.downloadSessionOverride = downloadSession
@@ -656,6 +665,20 @@ final class AppEnvironment {
             Task { await uploadLane.drainOnce() }
         }
 
+        // Drain trigger 4/4: time. Fires exactly what the reachability
+        // edge fires, for the case no edge covers -- the server, not the
+        // network, having come back (WINDOWS #77). Captures the triggers
+        // and the lane directly rather than `self`, like the closures
+        // above, and every pass with nothing due is one indexed query
+        // inside `OutboxWorker.drainOnce()` that sends no request.
+        let ticker = OutboxDrainTicker(interval: outboxDrainInterval) {
+            trigger.fire()
+            saveTrigger.fire()
+            Task { await uploadLane.drainOnce() }
+        }
+        self.outboxDrainTicker = ticker
+        ticker.start()
+
         // Wired last, once every property this weak-`self` closure reads
         // (`downloadCoordinator`) is in scope — the coordinator itself is
         // still built lazily on first use (see "Download coordination"
@@ -677,6 +700,7 @@ final class AppEnvironment {
 
     deinit {
         reachability.removeObserver(reachabilityToken)
+        outboxDrainTicker.stop()
     }
 
 #if UI_TESTING
