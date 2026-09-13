@@ -544,7 +544,9 @@ final class AppEnvironment {
         // `CASManager` is constructed here, ahead of the saves block
         // below, because `SaveSessionRecovery` now needs one too (WINDOWS
         // #52) -- moved up rather than making the property optional.
-        let cas = CASManager(paths: paths)
+        // The ledger makes every commit visible to the quota gate and the
+        // reclaim planner, whichever path did the committing (WINDOWS #75).
+        let cas = CASManager(paths: paths, objectLedger: CacheObjectStore(localStore: store))
         self.casManager = cas
         self.preflightChecker = PreflightChecker(cas: cas)
         self.launchMaterializer = LaunchMaterializer(paths: paths, cas: cas)
@@ -1585,8 +1587,6 @@ final class AppEnvironment {
         let coordinator = DownloadCoordinator(
             queue: downloadQueue,
             engine: DownloadEngine(session: session, paths: appPaths, cas: casManager),
-            cas: casManager,
-            localStore: localStore,
             reachability: reachability,
             blobURL: { sha256 in
                 // The digest is server-supplied and becomes a URL path

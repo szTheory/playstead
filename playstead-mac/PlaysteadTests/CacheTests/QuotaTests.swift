@@ -105,7 +105,7 @@ final class QuotaTests: XCTestCase {
         let queue = DownloadQueue(localStore: localStore)
 
         let coordinator = DownloadCoordinator(
-            queue: queue, engine: engine, cas: cas, localStore: localStore, reachability: reachability,
+            queue: queue, engine: engine, reachability: reachability,
             blobURL: { URL(string: "https://blobs.test/api/v1/blobs/\($0)")! }
         )
         await coordinator.setQuotaCheck { _ in (false, "quota") }
@@ -144,7 +144,7 @@ final class QuotaTests: XCTestCase {
         StubURLProtocol.responder = { _ in .init(statusCode: 200, headers: [:], bodyChunks: [Data(repeating: 1, count: 10)], failAfter: false) }
 
         let coordinator = DownloadCoordinator(
-            queue: queue, engine: engine, cas: cas, localStore: localStore, reachability: reachability,
+            queue: queue, engine: engine, reachability: reachability,
             blobURL: { URL(string: "https://blobs.test/api/v1/blobs/\($0)")! }
         )
         await coordinator.setIsPinned(pinStore.isPinned)
