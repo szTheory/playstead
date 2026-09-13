@@ -1480,6 +1480,67 @@ final class AppEnvironment {
         try? evictionPlanner.removeQuarantined(atPath: path)
     }
 
+    // MARK: - Library availability (D-21)
+
+    /// The four facts `AvailabilityState.derive(_:)` needs for one game,
+    /// read fresh from the stores that own them — never from a remembered
+    /// state column (D-21).
+    ///
+    /// This is the production construction site `AvailabilityInputs` did
+    /// not have: `grep 'AvailabilityInputs('` outside the test target
+    /// returned nothing, so the six-state derivation whose own doc comment
+    /// calls itself "the read-time derivation every card, list row, and
+    /// rebuild-from-disk test calls" was called by no card and no list row
+    /// in the shipped app (WINDOWS #73).
+    ///
+    /// Membership is read from `CASManager`, not `cache_objects`: the
+    /// files on disk are the truth a custody claim rests on, and a badge
+    /// must not be able to say "ready offline" because a row says so.
+    func availabilityInputs(for entry: CatalogueEntry) -> AvailabilityInputs {
+        let requiredSHAs = Self.requiredMembers(of: entry).map(\.sha256)
+        // A cancelled row is no longer "in the queue" for availability
+        // purposes -- `AvailabilityInputs`' own doc comment requires the
+        // caller to exclude them before building this.
+        let liveItems = downloadQueue.itemsForAssetSet(entry.id).filter { $0.state != .cancelled }
+        let activeSHA = liveItems.first { $0.state == .active }?.sha256
+        return AvailabilityInputs(
+            requiredMemberSHAs: requiredSHAs,
+            queuedMemberSHAs: Set(liveItems.map(\.sha256)),
+            activeMemberSHA: activeSHA,
+            activeMemberProgressPercent: activeSHA == nil ? nil : downloadProgressByAssetSet[entry.id],
+            cachedMemberSHAs: Set(requiredSHAs.filter { casManager.contains($0) }),
+            isPinned: pinStore.isPinned(entry.id)
+        )
+    }
+
+    func availability(for entry: CatalogueEntry) -> AvailabilityState {
+        AvailabilityState.derive(availabilityInputs(for: entry))
+    }
+
+    /// Every status condition that currently applies to one game, in the
+    /// shape `StatusSlotView`/`GameCardView` consume. More than one may
+    /// apply; the ladder picks exactly one to render (D-13/D-17).
+    ///
+    /// Both library layouts call this, so the badge on a card and the
+    /// label on a row can never disagree about the same game — before
+    /// this, the grid was handed a hardcoded `.serverOnly` for every
+    /// entry, so every card showed the "on your server, choose Download"
+    /// cloud over content that was downloaded and playable (WINDOWS #72).
+    func libraryStatuses(for entry: CatalogueEntry) -> [LibraryStatus] {
+        let inputs = availabilityInputs(for: entry)
+        let availability = AvailabilityState.derive(inputs)
+        return [
+            LibraryStatus.forCard(
+                availability: availability,
+                activeMemberProgressPercent: inputs.activeMemberProgressPercent
+            ),
+            // MC-03: unions the D-38 divergence badge into the ladder --
+            // `highestPriority` picks `.needsAttention` over any
+            // availability status whenever both are present.
+            LibraryStatus.forSaveState(conflicted: hasUnacknowledgedSaveDivergence(assetSetID: entry.id)),
+        ].compactMap { $0 }
+    }
+
     // MARK: - Pins
 
     func isPinned(assetSetID: String) -> Bool {

@@ -339,7 +339,20 @@ struct LibraryShellView: View {
         case .continuePlaying:
             ScrollView { ContinueShelfView(viewModel: environment.continueViewModel, catalogueByAssetSetID: catalogueByAssetSetID) }
         case .favorites:
-            ScrollView { FavoritesShelfView(viewModel: environment.favoritesViewModel, catalogueByAssetSetID: catalogueByAssetSetID) }
+            ScrollView {
+                FavoritesShelfView(
+                    viewModel: environment.favoritesViewModel,
+                    catalogueByAssetSetID: catalogueByAssetSetID,
+                    // The shelf has always taken this closure and has
+                    // always been constructed without it, so its cards
+                    // defaulted to no status at all -- the quieter sibling
+                    // of the grid's hardcoded `.serverOnly` (WINDOWS #72).
+                    statuses: { assetSetID in
+                        guard let entry = catalogueByAssetSetID[assetSetID] else { return [] }
+                        return environment.libraryStatuses(for: entry)
+                    }
+                )
+            }
         case .collections:
             collectionsDetail
         case .queue:
@@ -415,15 +428,14 @@ struct LibraryShellView: View {
                                 title: $0.displayTitle,
                                 systemID: $0.system,
                                 isUnidentified: LibraryViewModel.isUnidentified($0),
-                                // MC-03: unions the D-38 divergence badge
-                                // into the card's existing rank-1 rung —
-                                // `highestPriority` still picks
-                                // `.needsAttention` over `.serverOnly`
-                                // whenever both are present, never the
-                                // reverse.
-                                statuses: [LibraryStatus?.some(.serverOnly), LibraryStatus.forSaveState(
-                                    conflicted: environment.hasUnacknowledgedSaveDivergence(assetSetID: $0.id)
-                                )].compactMap { $0 }
+                                // The real read-time derivation (D-21),
+                                // including MC-03's divergence rung. This
+                                // was a hardcoded `.serverOnly` for every
+                                // entry, so every card claimed "on your
+                                // server, choose Download to play it
+                                // offline" over content already downloaded
+                                // and playable (WINDOWS #72/#73).
+                                statuses: environment.libraryStatuses(for: $0)
                             )
                         },
                         layout: .grid,
