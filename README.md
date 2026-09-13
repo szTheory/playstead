@@ -2,6 +2,24 @@
 
 Playstead is an open-source, self-hostable personal game-library and continuity system. Its first proof is a polished Mac client connected to a private Phoenix server: import user-supplied game files without changing the originals, browse without mirroring the full library, selectively cache and play offline, preserve compatible persistent saves, and export everything as ordinary verifiable files.
 
+## Running it locally
+
+```sh
+scripts/dev-up.sh
+```
+
+Starts the server, prints the owner-setup link, offers to pair this Mac, then
+builds and launches the app. Idempotent — re-run it to see where you are, and
+`--status` / `--down` / `--reset` to inspect or unwind. The server half is
+containerized by default (Docker is its only prerequisite); `--native` runs it
+with `mix phx.server` instead. Xcode is required either way, because the Mac
+client is a native app and cannot be containerized.
+
+Full walkthrough, and what to do when a step fails:
+[`playstead-mac/docs/LOCAL-DEV.md`](playstead-mac/docs/LOCAL-DEV.md). For a real
+deployment instead of a dev stand-up, see
+[`playstead-server/docs/DEPLOY.md`](playstead-server/docs/DEPLOY.md).
+
 ## Workspace
 
 This repository is the Playstead workspace and planning root. The first implementation boundaries are tracked as directories in one repository:

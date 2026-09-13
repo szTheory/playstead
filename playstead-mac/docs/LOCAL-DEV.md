@@ -11,23 +11,99 @@ work first try.
 
 ---
 
+## The short version
+
+```sh
+scripts/dev-up.sh
+```
+
+From the repo root. It does every step below that can be automated: starts the
+server, prints the `/setup` link with a pre-set setup token, reports what the
+inbox holds, offers to pair this Mac, then builds and launches the app.
+
+It is **idempotent** — re-run it any time. On a stack that is already up it
+reports state and moves on rather than rebuilding, so the normal way to find out
+where you are is to run it again.
+
+| | |
+|---|---|
+| `scripts/dev-up.sh` | stand everything up (containerized server) |
+| `scripts/dev-up.sh --native` | run the server with `mix phx.server` on the host instead |
+| `scripts/dev-up.sh --status` | what is and is not running |
+| `scripts/dev-up.sh --down` | stop the stack, keep the data |
+| `scripts/dev-up.sh --reset` | drop the dev database and start over |
+| `scripts/dev-up.sh --server-only` | skip pairing and the Mac app |
+| `scripts/dev-up.sh --xcode` | open the project in Xcode instead of building |
+
+**Four things it cannot do for you**, because no script can:
+
+1. **Walk the `/setup` wizard.** It prints the URL and the token; the owner
+   credentials and recovery codes are yours to enter and save.
+2. **Put ROMs in the inbox**, or decide which of your files those are.
+3. **Approve the pairing request.** The whole point of the ceremony is that a
+   human compares the code on the Mac to the code in the browser. It runs the
+   script and waits; you click **Approve** at `/devices`.
+4. **Clear Gatekeeper's quarantine on the emulator.** It detects the condition
+   and names it (see [broken window #8](#troubleshooting) — the Play path
+   appears to hang), but clearing it is a deliberate, once-only decision you
+   make in Finder.
+
+What follows is the same path by hand, and the reference for when a step of the
+script goes wrong.
+
+---
+
+### Containerized or native?
+
+`dev-up.sh` defaults to a **containerized** server
+(`playstead-server/docker-compose.dev.yml` + `Dockerfile.dev`): Docker is then
+the only prerequisite for the server half — no Elixir, no Erlang, no Postgres,
+no secrets to generate. Its Postgres lives in a `playstead-dev_dev_db` volume of
+its own and can never touch the `playstead_db` volume `docker-compose.yml` calls
+YOUR LIBRARY.
+
+Use `--native` when you are iterating on server code: `mix phx.server` on the
+host gives faster recompiles and readable stack traces, at the cost of needing
+Elixir 1.19.5 / Erlang 28.4.1 and a local Postgres.
+
+> **The Mac app is never containerized, in either mode.** Playstead is a native
+> SwiftUI app: it needs Xcode to build, the login Keychain to read its pairing
+> credential, and a real macOS process to launch the emulator. Containerization
+> covers the server half only, and that is the whole of what it can cover.
+>
+> Note also that **`docker-compose.dev.yml` is not a deployment topology.** It
+> runs `MIX_ENV=dev` — plain HTTP, `check_origin: false`, a hardcoded
+> `secret_key_base`, root inside the container. Those are exactly what make a
+> one-command local stand-up possible and exactly what must never ship.
+> `docker-compose.yml` remains the deployment path; see
+> `playstead-server/docs/DEPLOY.md`.
+
+---
+
 ## 0. Prerequisites
 
 | Need | Why |
 |---|---|
 | macOS 14.0+ | `MACOSX_DEPLOYMENT_TARGET = 14.0` |
 | Xcode (with Command Line Tools) | building the Mac app; also supplies `swift`, `xcodebuild` |
-| Elixir 1.19.5 / Erlang 28.4.1 | `playstead-server/.tool-versions` (mix.exs only requires `~> 1.17`) |
-| A local PostgreSQL you can reach on `localhost:5432` | the dev server expects one; see below |
+| Docker | the default containerized server path (`scripts/dev-up.sh`) |
+| Elixir 1.19.5 / Erlang 28.4.1 | **`--native` only** — `playstead-server/.tool-versions` (mix.exs only requires `~> 1.17`) |
+| A local PostgreSQL you can reach on `localhost:5432` | **`--native` only** — the containerized path brings its own |
 | `curl`, `python3` | used by `scripts/pair-dev.sh` |
+
+Docker *or* the Elixir/Postgres pair — not both. Xcode is required either way.
 
 ---
 
 ## 1. Start the server
 
-There are two paths. **For local development, use the native `mix` path.**
+`scripts/dev-up.sh` does this for you — containerized by default, or on the host
+with `--native`. What follows is the by-hand native path, which is what
+`--native` automates and the right thing to understand when a boot goes wrong.
 
-### Why the `mix` path (recommended)
+Of the two *by-hand* paths, **use the native `mix` path for local development.**
+
+### Why the `mix` path (recommended over `docker-compose.yml`)
 
 - **No secrets to generate.** `config/dev.exs` hardcodes `secret_key_base`, and
   every "you must set a real secret" guard in `lib/playstead/application.ex` and
@@ -57,11 +133,12 @@ cd playstead-server
 mix setup
 
 # The inbox defaults to this repo's own ./inbox in dev, so nothing to do
-# there — drop ROMs straight into playstead-server/inbox/. The export path
-# still defaults to the *container* path /app/exports, which does not exist
-# on a Mac, so point it at a real local directory.
-mkdir -p exports
+# there — drop ROMs straight into playstead-server/inbox/. Two other paths
+# still default to *container* paths that do not exist on a Mac, so point
+# both at real local directories.
+mkdir -p exports blobs
 export PLAYSTEAD_EXPORT_PATH="$PWD/exports"
+export PLAYSTEAD_BLOB_PATH="$PWD/blobs"
 
 # Optional: PLAYSTEAD_INBOX_PATH still overrides the default in every
 # environment, if you keep your ROMs somewhere else.
@@ -71,6 +148,14 @@ mix phx.server
 
 The server is up when `curl http://127.0.0.1:4000/healthz` returns
 `{"status":"ok"}`.
+
+> **Do not skip `PLAYSTEAD_BLOB_PATH`.** `Playstead.Readiness` and
+> `Playstead.Blobs.Store.LocalDisk` both default it to `/app/blobs` — the
+> container path. On a Mac that directory does not exist and cannot be created,
+> so the setup wizard's last step reports *"/app/blobs is not writable: no such
+> file or directory"* and no blob can ever be stored. `healthz` returns
+> `{"status":"ok"}` either way: it does not check storage. `scripts/dev-up.sh`
+> sets this for you in both modes.
 
 > **Postgres is not provided for you.** `docker-compose.yml` defines a `db`
 > service only on the internal compose network with no published port, so it
@@ -345,19 +430,29 @@ Rows sort blocked-first. Work top-down until Play enables.
 Be skeptical of these; they are the places reality is most likely to diverge
 from what the test suite asserts.
 
-1. **The pinned mGBA DMG has never actually been downloaded in this
-   environment.** Installs were exercised against a *stubbed* archive. The URL
-   and digest above are what the code will use, but the real download →
-   digest-check → `hdiutil` → `ditto` sequence has not run against the genuine
-   0.10.5 DMG. If the digest mismatches, the release asset changed and the pin
-   needs updating — do not work around it by disabling the check.
+1. ~~**The pinned mGBA DMG has never actually been downloaded in this
+   environment.**~~ **Now proven.** The real download → digest-check →
+   `hdiutil` → `ditto` sequence has run against the genuine 0.10.5 DMG. Evidence:
+   `~/Library/Application Support/Playstead/emulators/mgba/0.10.5/.install-verify.json`
+   records `archive_sha256` = `443b490e…74b09c`, byte-identical to the `sha256`
+   in `AdapterPin.json`, alongside the installed `mGBA.app` and its own
+   `executable_sha256`. So the pin is correct and the install path works.
+   `scripts/dev-up.sh` re-checks that digest against the pin on every run and
+   says so. (If it ever mismatches, the release asset changed and the pin needs
+   updating — do not work around it by disabling the check.) What this does
+   *not* prove is item 2.
 2. **No real ROM has ever been launched.** `/bin/echo` stood in for the
    emulator in every test. The process-launch plumbing is tested; mGBA actually
    starting, finding the ROM, and writing a save to the expected directory is
    not.
-3. **`BiosStore` has no production reference digests.** Harmless for GBA
-   (`biosRequired == false`, so the `bios` check never blocks), but any system
-   that needs a BIOS will not validate one today.
+3. ~~**`BiosStore` has no production reference digests.**~~ **Out of date.** A
+   real two-source-cited reference for `gba` is pinned (16384 bytes, SHA-256
+   `fd254772…d36570`) and wired into the composition root —
+   `PlaysteadApp.swift` constructs `BiosStore(… references:
+   BiosReferences.production)`. What remains unexercised is the *accept* branch
+   against that digest, which by construction needs the real BIOS bytes: no test
+   can fabricate a preimage of a SHA-256. Rejection of a wrong-but-correctly-sized
+   candidate is covered. Still moot for GBA, where `biosRequired == false`.
 4. **Controller behavior is unproven on real hardware.** The
    `controllerAndInput` check and the input path have not been exercised with a
    physical controller.

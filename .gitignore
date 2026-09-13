@@ -4,3 +4,6 @@
 # GSD runtime scratch
 .gsd/
 .planning/milestone.lock
+
+# macOS Finder metadata
+.DS_Store
