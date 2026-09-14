@@ -130,7 +130,7 @@ final class AdapterPinTests: XCTestCase {
         )
         try JSONEncoder().encode(mismatchRecord).write(to: emulatorDir.appendingPathComponent(".install-verify.json"))
 
-        let host = AdapterHost(pin: pin, emulatorsRoot: tempRoot.appendingPathComponent("emulators"))
+        let host = AdapterHost(pin: pin, emulatorsRoot: tempRoot.appendingPathComponent("emulators"), processRegistry: .isolatedForTesting())
 
         do {
             _ = try await host.launch(assetSetID: uniqueAssetSetID(), romPath: "/tmp/rom.gba", saveDir: "/tmp/saves") { _ in }

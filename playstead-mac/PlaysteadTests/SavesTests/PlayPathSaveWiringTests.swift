@@ -489,7 +489,10 @@ final class PlayPathSaveWiringTests: XCTestCase {
         let emulatorsRoot = tempRoot.appendingPathComponent("emulators")
         let emulatorDir = emulatorsRoot.appendingPathComponent(pin.emulator).appendingPathComponent(pin.version)
         try FileManager.default.createDirectory(at: emulatorDir, withIntermediateDirectories: true)
-        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/usr/bin/true"), to: emulatorDir.appendingPathComponent("true"))
+        try StandInExecutable.install(
+            from: URL(fileURLWithPath: "/usr/bin/true"),
+            to: emulatorDir.appendingPathComponent("true")
+        )
 
         var trueHasher = try StreamingSHA256.resume(from: emulatorDir.appendingPathComponent("true"))
         let trueDigest = trueHasher.finalizeHex()
@@ -497,7 +500,7 @@ final class PlayPathSaveWiringTests: XCTestCase {
             archiveSHA256: pin.sha256, executableSHA256: trueDigest, executablePath: emulatorDir.appendingPathComponent("true").path
         )).write(to: emulatorDir.appendingPathComponent(".install-verify.json"))
 
-        return AdapterHost(pin: pin, emulatorsRoot: emulatorsRoot)
+        return AdapterHost(pin: pin, emulatorsRoot: emulatorsRoot, processRegistry: .isolatedForTesting())
     }
 
     // MARK: - A throwing plan prevents the emulator from spawning

@@ -194,8 +194,7 @@ final class PlaySessionTests: XCTestCase {
         let emulatorDirForDigest = tempRoot.appendingPathComponent("emulators").appendingPathComponent("mgba").appendingPathComponent("0.10.5")
         try FileManager.default.createDirectory(at: emulatorDirForDigest, withIntermediateDirectories: true)
         let echoDestination = emulatorDirForDigest.appendingPathComponent("echo")
-        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/bin/echo"), to: echoDestination)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: echoDestination.path)
+        try StandInExecutable.install(from: URL(fileURLWithPath: "/bin/echo"), to: echoDestination)
         var echoHasher = try StreamingSHA256.resume(from: echoDestination)
         let echoDigest = echoHasher.finalizeHex()
 
@@ -221,7 +220,7 @@ final class PlaySessionTests: XCTestCase {
             executablePath: echoDestination.path
         )).write(to: emulatorDir.appendingPathComponent(".install-verify.json"))
 
-        let host = AdapterHost(pin: pin, emulatorsRoot: tempRoot.appendingPathComponent("emulators"))
+        let host = AdapterHost(pin: pin, emulatorsRoot: tempRoot.appendingPathComponent("emulators"), processRegistry: .isolatedForTesting())
 
         let exitExpectation = expectation(description: "process exits")
         _ = try await host.launch(assetSetID: uniqueAssetSetID(), romPath: "/tmp/rom.gba", saveDir: "/tmp/saves") { _ in

@@ -227,7 +227,7 @@ final class InstallerTests: XCTestCase {
     // MARK: - AdapterHost refuses launch against an unverified selection
 
     func testAdapterHostRefusesLaunchWhenInstallStateIsUnverified() async throws {
-        let host = AdapterHost(pin: pin, emulatorsRoot: emulatorsRoot)
+        let host = AdapterHost(pin: pin, emulatorsRoot: emulatorsRoot, processRegistry: .isolatedForTesting())
         await host.setInstallState(.installed(executablePath: "/tmp/does-not-matter", verified: false))
 
         do {
