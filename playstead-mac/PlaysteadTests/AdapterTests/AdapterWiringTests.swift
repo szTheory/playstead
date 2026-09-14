@@ -15,6 +15,19 @@ import CryptoKit
 /// removing the wiring fails them.
 @MainActor
 final class AdapterWiringTests: XCTestCase {
+
+    /// A launch id no other test can collide with.
+    ///
+    /// `AdapterLaunchMutex.shared` is process-global and keyed by asset-set
+    /// id, and its key is released by the spawned process's termination
+    /// handler. Five tests across four suites used the literal
+    /// "test-asset-set", so ONE launch whose process never exited leaked that
+    /// key for the rest of the run and every later test throwing
+    /// `launchInProgress` instead of doing its job -- including
+    /// InstallerTests' digest-mismatch refusal, whose real assertion was
+    /// silently replaced by the wrong error (WINDOWS #86). Unique ids make
+    /// that cross-test coupling impossible.
+    private func uniqueAssetSetID() -> String { "test-asset-set-\(UUID().uuidString)" }
     private var tempRoot: URL!
     private var paths: AppPaths!
     private var environment: AppEnvironment!
@@ -171,7 +184,7 @@ final class AdapterWiringTests: XCTestCase {
         let saveDir = tempRoot.appendingPathComponent("saves", isDirectory: true)
         try FileManager.default.createDirectory(at: saveDir, withIntermediateDirectories: true)
         let exited = expectation(description: "the adapter process exits")
-        _ = try await host.launch(assetSetID: "test-asset-set", romPath: "/tmp/rom.gba", saveDir: saveDir.path) { _ in
+        _ = try await host.launch(assetSetID: uniqueAssetSetID(), romPath: "/tmp/rom.gba", saveDir: saveDir.path) { _ in
             exited.fulfill()
         }
         await fulfillment(of: [exited], timeout: Self.firstLaunchTimeout)
@@ -243,7 +256,7 @@ final class AdapterWiringTests: XCTestCase {
         let saveDir = tempRoot.appendingPathComponent("fixture-saves", isDirectory: true)
         try FileManager.default.createDirectory(at: saveDir, withIntermediateDirectories: true)
         let exited = expectation(description: "the installed adapter process exits")
-        _ = try await host.launch(assetSetID: "test-asset-set", romPath: "/tmp/rom.gba", saveDir: saveDir.path) { _ in exited.fulfill() }
+        _ = try await host.launch(assetSetID: uniqueAssetSetID(), romPath: "/tmp/rom.gba", saveDir: saveDir.path) { _ in exited.fulfill() }
         await fulfillment(of: [exited], timeout: Self.firstLaunchTimeout)
     }
 

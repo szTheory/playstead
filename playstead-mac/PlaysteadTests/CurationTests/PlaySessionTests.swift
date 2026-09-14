@@ -6,6 +6,19 @@ import XCTest
 /// touching the launch path, delivered through the outbox after the
 /// fact, individually deletable.
 final class PlaySessionTests: XCTestCase {
+
+    /// A launch id no other test can collide with.
+    ///
+    /// `AdapterLaunchMutex.shared` is process-global and keyed by asset-set
+    /// id, and its key is released by the spawned process's termination
+    /// handler. Five tests across four suites used the literal
+    /// "test-asset-set", so ONE launch whose process never exited leaked that
+    /// key for the rest of the run and every later test throwing
+    /// `launchInProgress` instead of doing its job -- including
+    /// InstallerTests' digest-mismatch refusal, whose real assertion was
+    /// silently replaced by the wrong error (WINDOWS #86). Unique ids make
+    /// that cross-test coupling impossible.
+    private func uniqueAssetSetID() -> String { "test-asset-set-\(UUID().uuidString)" }
     private var tempRoot: URL!
     private var paths: AppPaths!
     private var localStore: LocalStore!
@@ -211,26 +224,17 @@ final class PlaySessionTests: XCTestCase {
         let host = AdapterHost(pin: pin, emulatorsRoot: tempRoot.appendingPathComponent("emulators"))
 
         let exitExpectation = expectation(description: "process exits")
-        _ = try await host.launch(assetSetID: "test-asset-set", romPath: "/tmp/rom.gba", saveDir: "/tmp/saves") { _ in
+        _ = try await host.launch(assetSetID: uniqueAssetSetID(), romPath: "/tmp/rom.gba", saveDir: "/tmp/saves") { _ in
             exitExpectation.fulfill()
         }
-        // Liveness only, and deliberately generous. What this test asserts is
-        // that the exit callback fires AT ALL without a session recorder in
-        // the picture -- the wall-clock bound is not part of the criterion,
-        // and `echo` exits in milliseconds on an idle machine.
-        //
-        // Five seconds was not generous enough. Captured 2026-09-14 running
-        // this layer while the full Elixir suite saturated the same machine:
-        // "Asynchronous wait failed: Exceeded timeout of 5 seconds, with
-        // unfulfilled expectations: \"process exits\"" (WINDOWS #85). The
-        // same layer took 422s instead of its usual 62s in that run.
-        //
-        // This is NOT the widening WINDOWS #82 warns against. There, the
-        // hittability timeout carries the diagnostic -- a dropped click used
-        // to pass silently, so the wait IS the assertion. Here the assertion
-        // is the fulfillment itself. If spawning and reaping a trivial binary
-        // ever takes longer than this, that is a real hang worth a failure.
-        await fulfillment(of: [exitExpectation], timeout: 30)
+        // WINDOWS #85/#86: this wait was raised to 30s on the theory that the
+        // failure was machine load. That was wrong, and the bigger number did
+        // not fix it -- the test failed again at 30s inside a 69-second run on
+        // an idle machine. Back to 5s, because the bound was never the
+        // problem: `echo` exits in milliseconds here, and a spawn that has not
+        // called back in five seconds is not slow, it is stuck. #86 carries
+        // what is actually known.
+        await fulfillment(of: [exitExpectation], timeout: 5)
     }
 
     // MARK: - Source-level: AdapterHost never references any

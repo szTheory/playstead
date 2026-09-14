@@ -2,6 +2,19 @@ import XCTest
 @testable import Playstead
 
 final class AdapterPinTests: XCTestCase {
+
+    /// A launch id no other test can collide with.
+    ///
+    /// `AdapterLaunchMutex.shared` is process-global and keyed by asset-set
+    /// id, and its key is released by the spawned process's termination
+    /// handler. Five tests across four suites used the literal
+    /// "test-asset-set", so ONE launch whose process never exited leaked that
+    /// key for the rest of the run and every later test throwing
+    /// `launchInProgress` instead of doing its job -- including
+    /// InstallerTests' digest-mismatch refusal, whose real assertion was
+    /// silently replaced by the wrong error (WINDOWS #86). Unique ids make
+    /// that cross-test coupling impossible.
+    private func uniqueAssetSetID() -> String { "test-asset-set-\(UUID().uuidString)" }
     /// Mirrors `.planning/phases/03-mac-offline-play-vertical-slice/03-ADAPTER-PIN.json`
     /// exactly, so decode-shape assertions don't depend on bundle
     /// resource resolution during the test run.
@@ -120,7 +133,7 @@ final class AdapterPinTests: XCTestCase {
         let host = AdapterHost(pin: pin, emulatorsRoot: tempRoot.appendingPathComponent("emulators"))
 
         do {
-            _ = try await host.launch(assetSetID: "test-asset-set", romPath: "/tmp/rom.gba", saveDir: "/tmp/saves") { _ in }
+            _ = try await host.launch(assetSetID: uniqueAssetSetID(), romPath: "/tmp/rom.gba", saveDir: "/tmp/saves") { _ in }
             XCTFail("expected digestMismatch")
         } catch let error as AdapterHost.LaunchError {
             guard case .digestMismatch = error else {
