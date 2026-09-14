@@ -101,18 +101,71 @@ struct AdapterSaveContract: Codable, Equatable {
     }
 }
 
-/// The observed `(terminationStatus, terminationReason)` signature for
-/// one exit category, exactly as the plan 03-01 spike measured it —
-/// this client never guesses signal semantics independently.
+/// One observed `(terminationStatus, terminationReason)` signature for an
+/// exit category, exactly as the plan 03-01 spike measured it — this
+/// client never guesses signal semantics independently.
+///
+/// `note` carries the spike's own recorded evidence about *this*
+/// signature. It sits here rather than on the category because a category
+/// now holds several signatures and the evidence is almost always about
+/// one of them (SIGTERM's lack of a graceful-quit path, for instance, is a
+/// fact about SIGTERM, not about every way the app can end a process).
 struct AdapterExitSignature: Codable, Equatable {
     let terminationStatus: Int32
     let terminationReason: String
+    let note: String?
+
+    init(terminationStatus: Int32, terminationReason: String, note: String? = nil) {
+        self.terminationStatus = terminationStatus
+        self.terminationReason = terminationReason
+        self.note = note
+    }
 }
 
+/// The signatures for each exit category.
+///
+/// A category holds a *list*, because more than one real termination maps
+/// to the same meaning: this app ends an emulator with SIGTERM and
+/// escalates to SIGKILL, and both are "Playstead killed it". A single
+/// signature per category is what produced WINDOWS #76 — with only one
+/// slot for `clean`, the slot was spent on `15 / uncaughtSignal` (the
+/// SIGTERM *we* send) and the user's own normal quit, `0 / exit`, matched
+/// nothing and fell through to `AdapterExit.unknown`.
+///
+/// Decoding accepts either shape for each category: a bare signature
+/// object (what every pin looked like before this) or an array of them.
+/// The shapes mean the same thing, so an older pin keeps decoding and
+/// nothing has to be migrated.
 struct AdapterExitDetection: Codable, Equatable {
-    let clean: AdapterExitSignature
-    let crash: AdapterExitSignature
-    let killed: AdapterExitSignature
+    let clean: [AdapterExitSignature]
+    let crash: [AdapterExitSignature]
+    let killed: [AdapterExitSignature]
+
+    init(clean: [AdapterExitSignature], crash: [AdapterExitSignature], killed: [AdapterExitSignature]) {
+        self.clean = clean
+        self.crash = crash
+        self.killed = killed
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case clean, crash, killed
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        clean = try Self.signatures(in: container, forKey: .clean)
+        crash = try Self.signatures(in: container, forKey: .crash)
+        killed = try Self.signatures(in: container, forKey: .killed)
+    }
+
+    private static func signatures(
+        in container: KeyedDecodingContainer<CodingKeys>, forKey key: CodingKeys
+    ) throws -> [AdapterExitSignature] {
+        if let list = try? container.decode([AdapterExitSignature].self, forKey: key) {
+            return list
+        }
+        return [try container.decode(AdapterExitSignature.self, forKey: key)]
+    }
 }
 
 /// The full pinned adapter contract, decoded from `03-ADAPTER-PIN.json`

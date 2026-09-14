@@ -32,9 +32,12 @@ final class AdapterPinTests: XCTestCase {
         "worst_case_loss_seconds": 24
       },
       "exit_detection": {
-        "clean": {"terminationStatus": 15, "terminationReason": "uncaughtSignal"},
-        "crash": {"terminationStatus": 11, "terminationReason": "uncaughtSignal"},
-        "killed": {"terminationStatus": 9, "terminationReason": "uncaughtSignal"}
+        "clean": [{"terminationStatus": 0, "terminationReason": "exit"}],
+        "crash": [{"terminationStatus": 11, "terminationReason": "uncaughtSignal"}],
+        "killed": [
+          {"terminationStatus": 9, "terminationReason": "uncaughtSignal"},
+          {"terminationStatus": 15, "terminationReason": "uncaughtSignal"}
+        ]
       }
     }
     """
@@ -61,10 +64,16 @@ final class AdapterPinTests: XCTestCase {
         XCTAssertTrue(rendered.contains("/tmp/launch/game.gba"))
     }
 
+    /// Note what this test can and cannot do: it decodes the fixture below
+    /// and asserts the classification that fixture describes, so it is
+    /// green for any self-consistent pin. That closed loop is why WINDOWS
+    /// #76 survived -- see `AdapterExitBoundaryTests`, which classifies
+    /// real child-process terminations against the pin that actually
+    /// ships.
     func testExitDetectionClassifiesAllThreeKnownSignatures() throws {
         let pin = try JSONDecoder().decode(AdapterPin.self, from: Data(pinJSON.utf8))
 
-        XCTAssertEqual(AdapterExit.classify(status: 15, reason: .uncaughtSignal, against: pin.exitDetection), .clean)
+        XCTAssertEqual(AdapterExit.classify(status: 0, reason: .exit, against: pin.exitDetection), .clean)
         XCTAssertEqual(AdapterExit.classify(status: 11, reason: .uncaughtSignal, against: pin.exitDetection), .crashed)
         XCTAssertEqual(AdapterExit.classify(status: 9, reason: .uncaughtSignal, against: pin.exitDetection), .killed)
         XCTAssertEqual(

@@ -328,6 +328,32 @@ evidence: |
   Cosmetic, external to Playstead, and noted only so the next person running this
   is not surprised.
 
+  AMENDED 2026-09-14 -- the caveat above has since been fixed, and the observations
+  recorded here are now HISTORY, not current behaviour. The owner authorized the pin
+  change (WINDOWS #76, option A): `exit_detection` categories now hold a LIST of
+  signatures, `0 / exit` is `clean`, and `15 / uncaughtSignal` moved to `killed`
+  alongside `9 / uncaughtSignal`, because `AdapterHost.terminateAll()` sends SIGTERM
+  and escalates to SIGKILL -- both are Playstead ending the process, and the pin's
+  own note says neither is graceful.
+
+  So re-running the exact same three commands today yields:
+
+    kill -TERM  ->  "Last exit: killed"   (was "Last exit: clean")
+    kill -SEGV  ->  "Last exit: crashed"  (unchanged)
+    kill -KILL  ->  "Last exit: killed"   (unchanged)
+
+  and Cmd-Q inside mGBA now yields "Last exit: clean" instead of
+  `unknown(status: 0, reason: "exit")`. The clause this record satisfies -- exits
+  classify into clean/crashed/killed per the pin -- is still satisfied, by a pin
+  that now describes the exit a player actually performs. The manual evidence above
+  is deliberately left verbatim rather than rewritten: it is what was observed on
+  the day, and a UAT record that silently tracks later code is not evidence.
+
+  This is no longer only a hand-verifiable clause. `AdapterExitBoundaryTests` now
+  spawns real child processes over {0, 9, 11, 15} x {exit, uncaughtSignal} and
+  classifies them against the shipped bundle pin, so the next regression here fails
+  in CI rather than waiting for someone to notice a wrong word in the UI.
+
 #### Digest-mismatch refusal record
 result: pass
 source: manual
