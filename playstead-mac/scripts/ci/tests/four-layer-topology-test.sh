@@ -607,6 +607,34 @@ if grep -F '.accessibilityIdentifier("playstead.game.\(entry.id).row")' "$LIBRAR
   printf 'selectable List row identity must not overwrite descendant Download AX identity\n' >&2
   exit 1
 fi
+# WINDOWS #83: the "no matches" state promised by 03-UI-SPEC's Copywriting
+# Contract was computed, unit-tested and snapshot-tested while no view read it,
+# so a search miss showed the empty-library pairing prompt over a full library.
+# Both layouts must reach `NoMatchesView` from `library.searchResultState`.
+#
+# Comments are stripped before matching on purpose. This file's own prose names
+# `searchResultState`, and so does LibraryShellView's -- a whole-file grep here
+# would be satisfied by a doc comment over a gutted body, which is exactly how
+# a guard goes vacuous.
+python3 - "$LIBRARY_SHELL" <<'NOMATCH'
+import re, sys
+
+source = open(sys.argv[1]).read()
+code = "\n".join(re.sub(r"//.*$", "", line) for line in source.splitlines())
+
+binding = code.count("if let state = library.searchResultState {")
+renders = code.count("NoMatchesView(state: state) { library.clearSearch() }")
+if binding != 2 or renders != 2:
+    sys.exit(
+        "both layouts must render NoMatchesView from searchResultState "
+        f"(bindings={binding}, renders={renders}, expected 2 and 2)"
+    )
+
+# The pairing prompt must stay behind an empty catalogue, never be the
+# fall-through for a search that matched nothing.
+if "} else if !library.catalogue.isEmpty {" not in code:
+    sys.exit("the empty-list pane no longer distinguishes an empty library from an empty filter result")
+NOMATCH
 grep -F '.focused($libraryListHasFocus)' "$LIBRARY_SHELL" >/dev/null
 grep -F '.onAppear { libraryListHasFocus = true }' "$LIBRARY_SHELL" >/dev/null
 grep -F '.keyboardShortcut("d", modifiers: .command)' "$LIBRARY_SHELL" >/dev/null

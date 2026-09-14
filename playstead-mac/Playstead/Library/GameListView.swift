@@ -133,7 +133,10 @@ struct NoMatchesView: View {
             Text(state.body).font(.psBody).foregroundStyle(DesignTokens.textMuted)
             Button(state.clearControlLabel, action: onClear)
                 .accessibilityLabel(state.clearControlLabel)
+                .accessibilityIdentifier(AccessibilityIdentifiers.Control.clearSearch)
         }
         .padding(DesignTokens.Spacing.lg)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier(AccessibilityIdentifiers.Surface.noMatches)
     }
 }

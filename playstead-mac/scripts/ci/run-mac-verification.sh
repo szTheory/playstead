@@ -1391,6 +1391,9 @@ PY
     --required-test PlaysteadUITests.BiosRejectionCopyTests/testRejectedDropRendersTheStoresExactReasonAsVisibleCopy \
     --required-test PlaysteadUITests.BiosRejectionCopyTests/testAnUnusableCandidatePathLeavesTheSurfaceUntouchedRatherThanShowingAGenericFailure \
     --required-test PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit \
+    --required-test PlaysteadUITests.LibraryEmptyStateTests/testListLayoutSearchWithNoMatchesShowsTheContractCopyNotThePairingPrompt \
+    --required-test PlaysteadUITests.LibraryEmptyStateTests/testCardsLayoutSearchWithNoMatchesShowsTheSameContractCopy \
+    --required-test PlaysteadUITests.LibraryEmptyStateTests/testClearSearchControlIsReachableAndRestoresTheLibrary \
     --required-test PlaysteadUITests.ZeroNetworkPlayFlowTests/testWholePlayFlowRecordsZeroHTTPRequests
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
 
