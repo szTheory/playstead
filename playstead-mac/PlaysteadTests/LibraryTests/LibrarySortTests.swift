@@ -1,10 +1,11 @@
 import XCTest
 @testable import Playstead
 
-/// WINDOWS #79: `LibrarySortOption` and `GameListView.sorted(_:by:)`
-/// existed, were tested, and could not be reached from the shipped app,
-/// because the list layout renders `GameRowView` over `CatalogueEntry` and
-/// nothing offered a sort control at all.
+/// WINDOWS #79: `LibrarySortOption` existed, was tested, and could not be
+/// reached from the shipped app, because the list layout renders
+/// `GameRowView` over `CatalogueEntry` and nothing offered a sort control at
+/// all. The control is real now, and the unreachable `dateAdded` case that
+/// sat beside it has been deleted rather than left documented.
 final class LibrarySortTests: XCTestCase {
     private func entry(_ id: String, title: String, system: String) -> CatalogueEntry {
         CatalogueEntry(id: id, system: system, displayTitle: title, tags: [:], members: [])
@@ -47,17 +48,16 @@ final class LibrarySortTests: XCTestCase {
         XCTAssertEqual(once, twice, "the same set in a different input order must produce the same output order")
     }
 
-    /// The control must not offer an ordering the data cannot answer:
-    /// nothing local knows when a game was added.
-    func testDateAddedIsNotOfferedAndOrdersNothing() {
+    /// Every case the enum has must be one the picker offers.
+    ///
+    /// Strictly stronger than the assertion it replaces. That one pinned
+    /// `selectable` against a hardcoded list while `dateAdded` sat in the enum
+    /// unreachable and unordered -- it certified the gap instead of closing
+    /// it. This fails if a case is ever added without being offered, which is
+    /// the mistake that produced #79.
+    func testEveryCaseIsOfferedByTheControl() {
+        XCTAssertEqual(LibrarySortOption.selectable, LibrarySortOption.allCases)
         XCTAssertEqual(LibrarySortOption.selectable, [.title, .system])
-        XCTAssertFalse(LibrarySortOption.selectable.contains(.dateAdded))
-
-        let entries = [entry("b", title: "B", system: "gba"), entry("a", title: "A", system: "gba")]
-        XCTAssertEqual(
-            LibrarySortOption.sortedEntries(entries, by: .dateAdded).map(\.id), ["b", "a"],
-            "with no dates available, the catalogue's own order is kept rather than a fabricated one"
-        )
     }
 
     func testEverySelectableOptionHasADistinctLabelAndIdentifier() {

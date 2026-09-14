@@ -238,7 +238,7 @@ final class CurationInteractionTests: XCTestCase {
 
     // MARK: - The list layout's sort control (WINDOWS #79)
 
-    /// `LibrarySortOption` and `GameListView.sorted(_:by:)` existed and were
+    /// `LibrarySortOption` existed and was
     /// tested for the whole of phase 03 while nothing in the shipped app
     /// could reach either: the list layout renders `GameRowView`, and no
     /// sort control was offered anywhere. This asserts the control exists

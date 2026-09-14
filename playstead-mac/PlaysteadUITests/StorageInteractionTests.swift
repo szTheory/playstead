@@ -261,7 +261,7 @@ final class StorageInteractionTests: XCTestCase {
 
         // The list layout is what the shipped app renders for the list
         // view, and QUAL-01 requires it to pair the glyph with a text
-        // label. Those strings previously existed only in `GameListView`,
+        // label. Those strings previously existed only in `GameListView`, since deleted,
         // which nothing in production renders.
         harness.element(showListControl, type: .button).clickWhenHittable()
         let slot = harness.element("library.status-slot")

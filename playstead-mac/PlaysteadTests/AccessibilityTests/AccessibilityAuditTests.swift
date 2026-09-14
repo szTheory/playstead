@@ -264,17 +264,6 @@ final class AccessibilityAuditTests: XCTestCase {
         XCTAssertTrue(chooseFileCalled)
     }
 
-    // MARK: List view — a row's accessible name matches the card composition rule
-
-    func testGameListRowAccessibleNameContainsTitleSystemAndStatusSentence() {
-        let row = GameListRow(id: "1", title: "Kirby", systemID: "gba", statuses: [.pinned], addedAt: Date())
-        let statusSentence = LibraryStatus.pinned.accessibleName(title: "Kirby")
-        let label = "\(row.title), \(SystemRegistry.entry(for: row.systemID).displayName), \(statusSentence)"
-        XCTAssertTrue(label.contains("Kirby"))
-        XCTAssertTrue(label.contains("Game Boy Advance"))
-        XCTAssertTrue(label.contains(statusSentence))
-    }
-
     // MARK: docs/ACCESSIBILITY.md — states the controller text-entry limitation
 
     func testAccessibilityDocsStateTheControllerTextEntryLimitation() throws {

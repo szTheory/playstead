@@ -184,7 +184,7 @@ struct GameRowView: View {
     /// QUAL-01 (03-UI-SPEC.md): a list row pairs the status glyph with its
     /// own text label, never colour or glyph alone.
     ///
-    /// This pairing existed only in `GameListView`, which has no
+    /// This pairing existed only in the deleted `GameListView`, which had no
     /// production call site -- the shipped list layout renders this row --
     /// so the strings "Ready offline", "On server", "Downloading — n%",
     /// "Pinned" and "Queued" appeared nowhere in the app, and the

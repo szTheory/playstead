@@ -22,9 +22,10 @@ struct LibraryShellView: View {
     /// The list layout's ordering. Lives here rather than in
     /// `LibraryViewModel` because it is presentation state, and it governs
     /// the rows `catalogueList` renders -- which is the whole of WINDOWS
-    /// #79: `LibrarySortOption` existed, `GameListView.sorted(_:by:)`
-    /// existed and was tested, and nothing in the shipped app could reach
-    /// either, because the shipped list renders `GameRowView`.
+    /// #79: `LibrarySortOption` existed and was tested, and nothing in the
+    /// shipped app could reach it, because the shipped list renders
+    /// `GameRowView`. The unreachable `GameListView` it was written for has
+    /// since been deleted.
     @State private var librarySort: LibrarySortOption = .title
     @State private var selectedListEntryID: String?
     @State private var downloadCommand: LibraryDownloadCommand?
