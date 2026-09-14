@@ -595,7 +595,14 @@ PY
 grep -F 'action.frame,' "$STORAGE_TEST" >/dev/null
 grep -F 'exactIdentity.frame,' "$STORAGE_TEST" >/dev/null
 grep -F 'List(selection: $selectedListEntryID)' "$LIBRARY_SHELL" >/dev/null
-grep -F 'ForEach(entries) { entry in' "$LIBRARY_SHELL" >/dev/null
+# The List iterates the entries it was handed, through the sort the user
+# chose (WINDOWS #79) -- `ordered` is `LibrarySortOption.sortedEntries(entries,
+# by: librarySort)` on the line above, so this still pins "one row per
+# catalogue entry, tagged by id", which is what the selection and
+# Download-selected paths below depend on. Both halves are asserted so a
+# future edit cannot silently drop the ordering and keep the ForEach.
+grep -F 'let ordered = LibrarySortOption.sortedEntries(entries, by: librarySort)' "$LIBRARY_SHELL" >/dev/null
+grep -F 'ForEach(ordered) { entry in' "$LIBRARY_SHELL" >/dev/null
 if grep -F '.accessibilityIdentifier("playstead.game.\(entry.id).row")' "$LIBRARY_SHELL" >/dev/null; then
   printf 'selectable List row identity must not overwrite descendant Download AX identity\n' >&2
   exit 1

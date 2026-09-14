@@ -273,7 +273,7 @@ final class CurationInteractionTests: XCTestCase {
         let rendered = harness.app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier BEGINSWITH %@ AND identifier ENDSWITH %@", "playstead.game.", ".summary"))
             .allElementsBoundByIndex
-            .map(\.label)
+            .map(\.readableText)
         for title in titles {
             XCTAssertTrue(
                 rendered.contains(where: { $0.hasPrefix(title) }),
