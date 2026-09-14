@@ -214,7 +214,23 @@ final class PlaySessionTests: XCTestCase {
         _ = try await host.launch(assetSetID: "test-asset-set", romPath: "/tmp/rom.gba", saveDir: "/tmp/saves") { _ in
             exitExpectation.fulfill()
         }
-        await fulfillment(of: [exitExpectation], timeout: 5)
+        // Liveness only, and deliberately generous. What this test asserts is
+        // that the exit callback fires AT ALL without a session recorder in
+        // the picture -- the wall-clock bound is not part of the criterion,
+        // and `echo` exits in milliseconds on an idle machine.
+        //
+        // Five seconds was not generous enough. Captured 2026-09-14 running
+        // this layer while the full Elixir suite saturated the same machine:
+        // "Asynchronous wait failed: Exceeded timeout of 5 seconds, with
+        // unfulfilled expectations: \"process exits\"" (WINDOWS #85). The
+        // same layer took 422s instead of its usual 62s in that run.
+        //
+        // This is NOT the widening WINDOWS #82 warns against. There, the
+        // hittability timeout carries the diagnostic -- a dropped click used
+        // to pass silently, so the wait IS the assertion. Here the assertion
+        // is the fulfillment itself. If spawning and reaping a trivial binary
+        // ever takes longer than this, that is a real hang worth a failure.
+        await fulfillment(of: [exitExpectation], timeout: 30)
     }
 
     // MARK: - Source-level: AdapterHost never references any
