@@ -43,7 +43,17 @@ final class CurationInteractionTests: XCTestCase {
         selectSidebar("Favorites", in: harness)
         let cards = harness.app.descendants(matching: .any).matching(identifier: "library.card")
         XCTAssertEqual(cards.count, 1)
-        XCTAssertEqual(cards.element(boundBy: 0).readableText, "Synthetic Game 1, Unidentified")
+        // The shelf was constructed without its `statuses` closure, so its
+        // cards carried no status rung at all and this label ended after
+        // the system name (WINDOWS #72). It now composes the same three
+        // facts the grid's cards do -- title, system, status sentence --
+        // and the seeded fixture is uncached, so the sentence is the
+        // server-only one. Asserted as an exact whole, matching this
+        // suite's posture, rather than loosened to a prefix.
+        XCTAssertEqual(
+            cards.element(boundBy: 0).readableText,
+            "Synthetic Game 1, Unidentified, Synthetic Game 1 is on your server. Choose Download to play it offline."
+        )
     }
 
     func testCollectionsShelfRootExists() throws {
@@ -224,6 +234,54 @@ final class CurationInteractionTests: XCTestCase {
         openSyntheticCollection(in: harness)
         assertEvidence(order: keyboardOrder, outboxCount: 2, in: harness)
         assertExactCollectionOrder(keyboardOrder, in: harness)
+    }
+
+    // MARK: - The list layout's sort control (WINDOWS #79)
+
+    /// `LibrarySortOption` and `GameListView.sorted(_:by:)` existed and were
+    /// tested for the whole of phase 03 while nothing in the shipped app
+    /// could reach either: the list layout renders `GameRowView`, and no
+    /// sort control was offered anywhere. This asserts the control exists
+    /// where a user can actually press it, that pressing it takes effect,
+    /// and that the rows come out in the order it names.
+    func testListLayoutOffersAWorkingSortControl() {
+        let harness = launchPersistentCurationHarness()
+
+        harness.element("playstead.control.show-list", type: .button).clickWhenHittable()
+
+        let byTitle = harness.element("playstead.control.sort-title", type: .button)
+        let bySystem = harness.element("playstead.control.sort-system", type: .button)
+        XCTAssertTrue(byTitle.awaitExistence(timeout: 5), "the list layout offers no way to sort")
+        XCTAssertTrue(bySystem.exists)
+        XCTAssertEqual(byTitle.value as? String, "selected", "title is the default ordering")
+        XCTAssertEqual(bySystem.value as? String, "not selected")
+
+        // Pressing it must actually change the state the list body reads --
+        // a control that renders and does nothing is the defect one level
+        // up from having no control at all.
+        bySystem.clickWhenHittable()
+        XCTAssertEqual(bySystem.value as? String, "selected")
+        XCTAssertEqual(byTitle.value as? String, "not selected")
+
+        // And the rows are ordered. The seeded fixture is three games whose
+        // titles sort the same way their ids do, so this pins the ordering
+        // that is observable here rather than claiming more than the
+        // fixture can show; `LibrarySortTests` covers the orderings
+        // themselves against inputs built for the purpose.
+        byTitle.clickWhenHittable()
+        let titles = (1...3).map { "Synthetic Game \($0)" }
+        let rendered = harness.app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@ AND identifier ENDSWITH %@", "playstead.game.", ".summary"))
+            .allElementsBoundByIndex
+            .map(\.label)
+        for title in titles {
+            XCTAssertTrue(
+                rendered.contains(where: { $0.hasPrefix(title) }),
+                "the sorted list dropped \(title): \(rendered)"
+            )
+        }
+        let positions = titles.compactMap { title in rendered.firstIndex(where: { $0.hasPrefix(title) }) }
+        XCTAssertEqual(positions, positions.sorted(), "rows are not in title order: \(rendered)")
     }
 
     private func launchPersistentCurationHarness() -> UITestHarness {

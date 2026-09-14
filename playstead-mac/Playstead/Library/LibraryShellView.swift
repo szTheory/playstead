@@ -19,6 +19,13 @@ struct LibraryShellView: View {
     @State private var presentedSurface: ShellSurface?
     @State private var searchText = ""
     @State private var libraryLayout: LibraryLayout = .cards
+    /// The list layout's ordering. Lives here rather than in
+    /// `LibraryViewModel` because it is presentation state, and it governs
+    /// the rows `catalogueList` renders -- which is the whole of WINDOWS
+    /// #79: `LibrarySortOption` existed, `GameListView.sorted(_:by:)`
+    /// existed and was tested, and nothing in the shipped app could reach
+    /// either, because the shipped list renders `GameRowView`.
+    @State private var librarySort: LibrarySortOption = .title
     @State private var selectedListEntryID: String?
     @State private var downloadCommand: LibraryDownloadCommand?
     @State private var downloadCommandSequence = 0
@@ -405,6 +412,16 @@ struct LibraryShellView: View {
                         .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.openReadiness)
                 }
                 if libraryLayout == .list {
+                    // Buttons rather than a Picker, matching the
+                    // Cards/List controls beside them: one identifier per
+                    // option, keyboard-reachable through the same
+                    // `playsteadFocusable` path, and drivable by a UI test
+                    // without a pop-up menu in the way.
+                    ForEach(LibrarySortOption.selectable, id: \.self) { option in
+                        Button("Sort: \(option.controlLabel)") { librarySort = option }
+                            .accessibilityValue(librarySort == option ? "selected" : "not selected")
+                            .playsteadFocusable(identifier: option.controlIdentifier)
+                    }
                     Text(selectedListEntryTitle.map { "Selected: \($0)" } ?? "No game selected")
                         .font(.psLabel)
                         .foregroundStyle(.secondary)
@@ -486,8 +503,9 @@ struct LibraryShellView: View {
     }
 
     private func catalogueList(_ entries: [CatalogueEntry]) -> some View {
-        List(selection: $selectedListEntryID) {
-            ForEach(entries) { entry in
+        let ordered = LibrarySortOption.sortedEntries(entries, by: librarySort)
+        return List(selection: $selectedListEntryID) {
+            ForEach(ordered) { entry in
                 GameRowView(entry: entry, downloadCommand: downloadCommand)
                     .tag(entry.id)
             }
