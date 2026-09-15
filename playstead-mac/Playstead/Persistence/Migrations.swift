@@ -230,7 +230,8 @@ enum Migrations {
                 attempt_count INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
                 last_error_code TEXT,
-                next_retry_at TEXT
+                next_retry_at TEXT,
+                enqueue_seq INTEGER NOT NULL DEFAULT 0
             );
             """
         )
@@ -256,10 +257,34 @@ enum Migrations {
             """
             CREATE TABLE IF NOT EXISTS outbox_delivered_watermark (
                 kind TEXT PRIMARY KEY,
-                created_at TEXT NOT NULL
+                delivered_seq INTEGER NOT NULL
             );
             """
         )
+        // Defensive, for a dev database that already has the first cut of
+        // this table (keyed on `created_at`) from an earlier build.
+        try? connection.execute("ALTER TABLE outbox_delivered_watermark ADD COLUMN delivered_seq INTEGER NOT NULL DEFAULT 0;")
+
+        // `created_at` is ISO-8601 at SECOND granularity, so two entries
+        // enqueued less than a second apart genuinely share one — it is a
+        // partial order being asked a total-order question, and the
+        // supersede rule needs a total one. Comparing on `created_at`
+        // alone left a real window in which a stale report still won;
+        // comparing non-strictly would instead drop a delivery nothing
+        // newer replaced. Both are lossy, so the key changes rather than
+        // the comparison.
+        //
+        // NOT `rowid`: outbox rows are deleted on delivery and SQLite
+        // reuses the rowids of deleted rows without AUTOINCREMENT, so a
+        // NEW row could take a LOWER rowid than the watermark and be
+        // mistaken for an old one. `enqueue_seq` is assigned as one past
+        // the highest value ANY live row or watermark has ever held, so
+        // it survives the deletes that make rowid unsafe here.
+        try? connection.execute("ALTER TABLE outbox_entries ADD COLUMN enqueue_seq INTEGER NOT NULL DEFAULT 0;")
+        // One-time backfill for rows predating the column: rowid is a
+        // sound *historical* order for rows that already exist together.
+        try? connection.execute("UPDATE outbox_entries SET enqueue_seq = rowid WHERE enqueue_seq = 0;")
+        try connection.execute("CREATE INDEX IF NOT EXISTS idx_outbox_entries_enqueue_seq ON outbox_entries(kind, enqueue_seq);")
 
         // Plan 03-08 task 3: coarse play sessions recorded locally by
         // `PlaySessionRecorder`, delivered through the outbox after the

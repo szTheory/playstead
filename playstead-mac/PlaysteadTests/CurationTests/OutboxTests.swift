@@ -523,22 +523,57 @@ final class OutboxTests: XCTestCase {
         )
     }
 
-    /// The delivered-watermark must not swallow a report that is merely
-    /// OLDER-LOOKING by tie. Two reports enqueued inside the same
-    /// ISO-8601 second share a `created_at`; dropping on a tie would lose
-    /// a delivery nothing newer actually replaced.
-    func test_aRetryWhoseCreatedAtTiesTheDeliveredWatermarkIsStillRetried() throws {
-        let sameInstant = Date(timeIntervalSince1970: 1_700_000_000)
-        let first = try outbox.enqueue(makeReport(assetSetID: "asset-1", id: "report-1"), at: sameInstant)
+    /// The tie window the re-verification probed, now answerable.
+    ///
+    /// `ISO8601DateFormatter()` emits no fractional seconds, so two
+    /// entries enqueued less than a second apart genuinely share one
+    /// `created_at` -- this is not a test artifact of passing the same
+    /// `Date` twice. While the supersede rule compared timestamps, that
+    /// window had no right answer: strict let the stale report through,
+    /// non-strict would have dropped a delivery nothing replaced.
+    ///
+    /// `enqueue_seq` is a total order, so the newer report wins here even
+    /// though both rows carry the identical `created_at`.
+    func test_aRetrySharingTheDeliveredReportsTimestampIsStillDroppedAsOlder() throws {
+        let sameSecond = Date(timeIntervalSince1970: 1_700_000_000)
+        let first = try outbox.enqueue(makeReport(assetSetID: "asset-1", id: "report-1"), at: sameSecond)
         try outbox.markInFlight(first.id)
-        let second = try outbox.enqueue(makeReport(assetSetID: "asset-2", id: "report-2"), at: sameInstant)
+        let second = try outbox.enqueue(makeReport(assetSetID: "asset-2", id: "report-2"), at: sameSecond)
+        XCTAssertEqual(first.createdAt, second.createdAt, "the premise: second granularity really does collapse these")
         try outbox.markInFlight(second.id)
         try outbox.markDone(second.id)
 
-        try outbox.markPendingForRetry(first, at: sameInstant.addingTimeInterval(60))
+        try outbox.markPendingForRetry(first, at: sameSecond.addingTimeInterval(60))
 
-        XCTAssertEqual(outbox.listAll().count, 1, "a tie is not newer, so this retry survives")
-        XCTAssertEqual(outbox.listAll().first?.state, .pending)
+        // One clause per fact: CI keeps file:line and drops assertion text.
+        XCTAssertEqual(outbox.listAll().count, 0, "a shared timestamp must not rescue a genuinely older report")
+        XCTAssertTrue(
+            outbox.listPending(at: sameSecond.addingTimeInterval(100_000)).isEmpty,
+            "and no backoff window may deliver it later either"
+        )
+    }
+
+    /// The opposite failure the total order must not introduce: the
+    /// watermark belongs to ONE kind, and an unrelated kind's retry must
+    /// be untouched by it even though sequences are global.
+    func test_aDeliveredReportsWatermarkDoesNotDropAnUnrelatedKindsRetry() throws {
+        let favorite = try outbox.enqueue(
+            .favoriteAdd(id: "fav-1", assetSetID: "asset-1"),
+            at: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        try outbox.markInFlight(favorite.id)
+        let report = try outbox.enqueue(
+            makeReport(assetSetID: "asset-2", id: "report-1"),
+            at: Date(timeIntervalSince1970: 1_700_000_060)
+        )
+        try outbox.markInFlight(report.id)
+        try outbox.markDone(report.id)
+
+        try outbox.markPendingForRetry(favorite, at: Date(timeIntervalSince1970: 1_700_000_120))
+
+        XCTAssertEqual(outbox.listAll().count, 1, "superseding is scoped to the one kind for which newest-wins is true")
+        XCTAssertEqual(outbox.listAll().first?.id, favorite.id)
+        XCTAssertEqual(outbox.listAll().first?.state, .pending, "and it is still retried")
     }
 
     /// The other half of the same rule: a retry with nothing newer behind

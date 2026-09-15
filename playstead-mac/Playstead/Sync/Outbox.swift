@@ -133,11 +133,20 @@ class Outbox {
                 )
             }
 
+            // One past the highest sequence any live row or watermark has
+            // held. Both terms are needed: live rows alone go BACKWARDS as
+            // entries are delivered and deleted, and the watermark alone
+            // says nothing about rows still waiting.
             try self.localStore.connection.execute(
                 """
                 INSERT INTO outbox_entries
-                    (id, kind, payload_json, idempotency_key, state, attempt_count, created_at, last_error_code, next_retry_at)
-                VALUES (?, ?, ?, ?, 'pending', 0, ?, NULL, NULL);
+                    (id, kind, payload_json, idempotency_key, state, attempt_count, created_at, last_error_code, next_retry_at, enqueue_seq)
+                VALUES (?, ?, ?, ?, 'pending', 0, ?, NULL, NULL, (
+                    SELECT MAX(
+                        COALESCE((SELECT MAX(enqueue_seq) FROM outbox_entries), 0),
+                        COALESCE((SELECT MAX(delivered_seq) FROM outbox_delivered_watermark), 0)
+                    ) + 1
+                ));
                 """,
                 params: [entryID, intent.kind.rawValue, payloadJSON, idempotencyKey, createdAt]
             )
@@ -203,7 +212,7 @@ class Outbox {
         let delivered = rows(where: "id = ?", orderBy: "rowid ASC", params: [entryID]).first
         try localStore.transaction {
             if let delivered, delivered.kind.supersedesPending {
-                try self.recordDeliveredWatermark(kind: delivered.kind, createdAt: delivered.createdAt)
+                try self.recordDeliveredWatermark(kind: delivered.kind, entryID: entryID)
             }
             try self.localStore.connection.execute(
                 "DELETE FROM outbox_entries WHERE id = ?;", params: [entryID]
@@ -211,27 +220,36 @@ class Outbox {
         }
     }
 
-    /// Raise the delivered-watermark for `kind` to `createdAt`, never
-    /// lower it. Deliveries can complete out of creation order -- an
+    /// Raise the delivered-watermark for `kind` to this entry's sequence,
+    /// never lower it. Deliveries can complete out of enqueue order -- an
     /// older entry's retry may succeed after a newer entry already did --
     /// so this is a max, not an assignment.
-    private func recordDeliveredWatermark(kind: CurationIntentKind, createdAt: String) throws {
+    private func recordDeliveredWatermark(kind: CurationIntentKind, entryID: String) throws {
         try localStore.connection.execute(
             """
-            INSERT INTO outbox_delivered_watermark (kind, created_at) VALUES (?, ?)
-            ON CONFLICT(kind) DO UPDATE SET created_at = MAX(created_at, excluded.created_at);
+            INSERT INTO outbox_delivered_watermark (kind, delivered_seq)
+            SELECT ?, enqueue_seq FROM outbox_entries WHERE id = ?
+            ON CONFLICT(kind) DO UPDATE SET delivered_seq = MAX(delivered_seq, excluded.delivered_seq);
             """,
-            params: [kind.rawValue, createdAt]
+            params: [kind.rawValue, entryID]
         )
     }
 
-    /// The `created_at` of the newest successfully delivered entry of
+    /// The `enqueue_seq` of the newest successfully delivered entry of
     /// this kind, or `nil` if none has ever been delivered.
-    private func deliveredWatermark(ofKind kind: CurationIntentKind) -> String? {
+    private func deliveredWatermark(ofKind kind: CurationIntentKind) -> Int? {
         (try? localStore.connection.query(
-            "SELECT created_at FROM outbox_delivered_watermark WHERE kind = ?;",
+            "SELECT delivered_seq FROM outbox_delivered_watermark WHERE kind = ?;",
             params: [kind.rawValue]
-        ) { $0.string(0) })?.compactMap { $0 }.first
+        ) { $0.int(0) })?.compactMap { $0 }.first
+    }
+
+    /// This entry's own monotonic sequence, read back from its row.
+    private func enqueueSequence(ofEntry entryID: String) -> Int? {
+        (try? localStore.connection.query(
+            "SELECT enqueue_seq FROM outbox_entries WHERE id = ?;",
+            params: [entryID]
+        ) { $0.int(0) })?.compactMap { $0 }.first
     }
 
     /// A transport failure or 5xx response — the mutation may well have
@@ -297,29 +315,30 @@ class Outbox {
     /// The live-row check alone closes the first and leaves the second
     /// wide open, which is precisely the case the must-have names.
     private func isSupersededForRetry(_ entry: OutboxEntry) -> Bool {
-        if hasNewerLiveEntry(ofKind: entry.kind, thanCreatedAt: entry.createdAt, excluding: entry.id) {
+        // `enqueue_seq`, not `created_at`. The latter is ISO-8601 at
+        // second granularity, so two entries enqueued less than a second
+        // apart share one and neither comparison can be right: strict
+        // lets a stale report through, non-strict drops a delivery
+        // nothing replaced. The sequence is a total order, so the
+        // question has an answer.
+        guard let sequence = enqueueSequence(ofEntry: entry.id) else { return false }
+        if hasNewerLiveEntry(ofKind: entry.kind, thanSequence: sequence, excluding: entry.id) {
             return true
         }
-        // Strictly newer only: a tie means two reports share an ISO-8601
-        // second, and dropping a report on a tie would lose a delivery
-        // that nothing newer actually replaced.
         guard let watermark = deliveredWatermark(ofKind: entry.kind) else { return false }
-        return entry.createdAt < watermark
+        return sequence < watermark
     }
 
-    /// Whether a strictly newer entry of the same kind is still live
-    /// (`pending` or `in_flight`). Ties on `created_at` are NOT newer:
-    /// two reports enqueued inside the same ISO-8601 second must not
-    /// delete each other, so the comparison is strict and `rowid` breaks
-    /// the tie the same way `listPending`'s ordering does.
-    private func hasNewerLiveEntry(ofKind kind: CurationIntentKind, thanCreatedAt createdAt: String, excluding entryID: String) -> Bool {
+    /// Whether a newer entry of the same kind is still live (`pending` or
+    /// `in_flight`), by monotonic sequence rather than by timestamp.
+    private func hasNewerLiveEntry(ofKind kind: CurationIntentKind, thanSequence sequence: Int, excluding entryID: String) -> Bool {
         !rows(
             where: """
             kind = ? AND id != ? AND state IN ('pending', 'in_flight') \
-            AND created_at > ?
+            AND enqueue_seq > ?
             """,
-            orderBy: "created_at ASC, rowid ASC",
-            params: [kind.rawValue, entryID, createdAt]
+            orderBy: "enqueue_seq ASC",
+            params: [kind.rawValue, entryID, sequence]
         ).isEmpty
     }
 
