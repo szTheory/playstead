@@ -449,6 +449,61 @@ final class OutboxTests: XCTestCase {
         XCTAssertTrue(all.contains { $0.id == first.id && $0.state == .inFlight })
     }
 
+    /// WR-07 (03-VERIFICATION.md's one open gap): the exact sequence that
+    /// verification named as untested.
+    ///
+    /// `enqueue`'s supersede deliberately spares an `in_flight` row -- a
+    /// request already on the wire cannot be recalled. But
+    /// `markPendingForRetry` is the path that brings such a row BACK to
+    /// `pending`, and it did not re-ask whether something newer had
+    /// arrived meanwhile. `listPending` orders `created_at ASC`, so the
+    /// revived older report would be delivered AFTER the newer one had
+    /// already succeeded, reasserting stale facts.
+    func test_anInFlightReportRevertedForRetryIsDroppedWhenANewerReportArrivedMeanwhile() throws {
+        let first = try outbox.enqueue(
+            makeReport(assetSetID: "asset-1", id: "report-1"),
+            at: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        try outbox.markInFlight(first.id)
+
+        // Enqueued while the first is genuinely on the wire, so the
+        // enqueue-time supersede correctly leaves the first alone.
+        let second = try outbox.enqueue(
+            makeReport(assetSetID: "asset-2", id: "report-2"),
+            at: Date(timeIntervalSince1970: 1_700_000_060)
+        )
+        XCTAssertEqual(outbox.listAll().count, 2, "the in-flight row survives the enqueue, as it must")
+
+        // The in-flight delivery now fails.
+        try outbox.markPendingForRetry(first, at: Date(timeIntervalSince1970: 1_700_000_120))
+
+        // One clause per fact: CI keeps file:line and drops assertion text.
+        let all = outbox.listAll()
+        XCTAssertEqual(all.count, 1, "the superseded older report must not be revived alongside the newer one")
+        XCTAssertEqual(all.first?.id, second.id, "the survivor is the newer report")
+        XCTAssertTrue(
+            outbox.listPending(at: Date(timeIntervalSince1970: 1_800_000_000)).allSatisfy { $0.id == second.id },
+            "no backoff window may later deliver the stale report after the newer one"
+        )
+    }
+
+    /// The other half of the same rule: a retry with nothing newer behind
+    /// it is an ordinary retry and must still be revived. Without this, the
+    /// fix above would read equally well as "reverting drops the row",
+    /// which would silently stop retrying every failed report.
+    func test_anInFlightReportRevertedForRetryIsKeptWhenNothingNewerArrived() throws {
+        let only = try outbox.enqueue(
+            makeReport(assetSetID: "asset-1", id: "report-1"),
+            at: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        try outbox.markInFlight(only.id)
+        try outbox.markPendingForRetry(only, at: Date(timeIntervalSince1970: 1_700_000_060))
+
+        let all = outbox.listAll()
+        XCTAssertEqual(all.count, 1, "an ordinary retry keeps its row")
+        XCTAssertEqual(all.first?.state, .pending, "and returns it to pending so it is delivered later")
+    }
+
     func test_secondFavoriteIntent_isNotSupersededBecauseOnlyReportsAreNewestWins() throws {
         try outbox.enqueue(.favoriteAdd(id: "fav-1", assetSetID: "asset-1"))
         try outbox.enqueue(.favoriteAdd(id: "fav-2", assetSetID: "asset-2"))

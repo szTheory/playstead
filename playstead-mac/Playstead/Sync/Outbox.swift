@@ -208,6 +208,34 @@ class Outbox {
     /// a poison message that needs manual attention, not indefinite
     /// silent retries.
     func markPendingForRetry(_ entry: OutboxEntry, at now: Date = Date()) throws {
+        // WR-07 (03-VERIFICATION.md gap closure): `enqueue`'s supersede
+        // deletes only rows that are `pending` at that moment, because an
+        // `in_flight` row is a request already on the wire and cannot be
+        // recalled. That is correct going in -- but this is the one path
+        // that brings such a row BACK to `pending`, and it did so without
+        // re-asking the question.
+        //
+        // `OutboxWorker`'s `await apiClient.send(...)` is a suspension
+        // point and `Outbox` is not actor-isolated, so a second
+        // `.availabilityReport` can be enqueued while the first is in
+        // flight. If that first delivery then fails, reverting it here
+        // produced two `pending` rows; `listPending` orders `created_at
+        // ASC`, so the stale older one was delivered AFTER the newer one
+        // had already succeeded, reasserting stale facts until the next
+        // `syncNow()` pass corrected them.
+        //
+        // A superseded row is therefore dropped rather than revived. Only
+        // for kinds that declare `supersedesPending` -- every other kind
+        // still drains in creation order with no entry dropped -- and only
+        // when a strictly newer live row of the same kind exists, so an
+        // ordinary retry with nothing behind it is untouched.
+        if entry.kind.supersedesPending, hasNewerLiveEntry(ofKind: entry.kind, thanCreatedAt: entry.createdAt, excluding: entry.id) {
+            try localStore.connection.execute(
+                "DELETE FROM outbox_entries WHERE id = ?;", params: [entry.id]
+            )
+            return
+        }
+
         let newAttemptCount = entry.attemptCount + 1
         if newAttemptCount >= Self.maxAttempts {
             try localStore.connection.execute(
@@ -222,6 +250,22 @@ class Outbox {
                 params: [newAttemptCount, nextRetryAt, entry.id]
             )
         }
+    }
+
+    /// Whether a strictly newer entry of the same kind is still live
+    /// (`pending` or `in_flight`). Ties on `created_at` are NOT newer:
+    /// two reports enqueued inside the same ISO-8601 second must not
+    /// delete each other, so the comparison is strict and `rowid` breaks
+    /// the tie the same way `listPending`'s ordering does.
+    private func hasNewerLiveEntry(ofKind kind: CurationIntentKind, thanCreatedAt createdAt: String, excluding entryID: String) -> Bool {
+        !rows(
+            where: """
+            kind = ? AND id != ? AND state IN ('pending', 'in_flight') \
+            AND created_at > ?
+            """,
+            orderBy: "created_at ASC, rowid ASC",
+            params: [kind.rawValue, entryID, createdAt]
+        ).isEmpty
     }
 
     /// A permanent (4xx, non-idempotency-conflict) rejection — reverts
