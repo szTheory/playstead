@@ -137,9 +137,37 @@ def validate_test_evidence(data, relative):
     legacy_keys = allowed_keys - {
         "failure_diagnostic_count", "failure_diagnostics_truncated", "failure_diagnostics"
     }
+    # 04-23: the writer grew a timing block (c3f51e1) and this allowlist did not,
+    # so every layer file was rejected. Nothing caught it for three days because
+    # the sanitizer only runs when a layer has already failed -- the one moment
+    # the evidence is needed. Timing is optional (older evidence predates it) but
+    # all-or-nothing, and its values are validated like every other block.
+    timing_keys = {"in_test_seconds_total", "timed_test_count", "slowest_tests"}
     actual_keys = set(data) if isinstance(data, dict) else set()
-    if not isinstance(data, dict) or (actual_keys != allowed_keys and actual_keys != legacy_keys):
+    core_keys = actual_keys - timing_keys
+    if not isinstance(data, dict) or (core_keys != allowed_keys and core_keys != legacy_keys):
         raise SystemExit(f"test evidence has unexpected schema: {relative}")
+    present_timing = actual_keys & timing_keys
+    if present_timing not in (set(), timing_keys):
+        raise SystemExit(f"test evidence timing block is partial: {relative}")
+    if present_timing:
+        total = data.get("in_test_seconds_total")
+        if type(total) not in (int, float) or type(total) is bool or total < 0:
+            raise SystemExit(f"test evidence timing total is malformed: {relative}")
+        if type(data.get("timed_test_count")) is not int or data["timed_test_count"] < 0:
+            raise SystemExit(f"test evidence timed test count is malformed: {relative}")
+        slowest = data.get("slowest_tests")
+        if not isinstance(slowest, list) or len(slowest) > 20:
+            raise SystemExit(f"slowest_tests exceeds its bounded allowlist: {relative}")
+        for record in slowest:
+            if not isinstance(record, dict) or set(record) != {"identifier", "seconds"}:
+                raise SystemExit(f"slowest test record contains non-allowlisted fields: {relative}")
+            identifier = record.get("identifier")
+            if not isinstance(identifier, str) or len(identifier) > 240 or not test_identifier.fullmatch(identifier):
+                raise SystemExit(f"slowest test identifier is not canonical: {relative}")
+            seconds = record.get("seconds")
+            if type(seconds) not in (int, float) or type(seconds) is bool or seconds < 0:
+                raise SystemExit(f"slowest test duration is malformed: {relative}")
     if data.get("schema_version") != 1 or not isinstance(data.get("layer"), str):
         raise SystemExit(f"test evidence identity is malformed: {relative}")
     if type(data.get("executed_test_count")) is not int or data["executed_test_count"] < 0:
