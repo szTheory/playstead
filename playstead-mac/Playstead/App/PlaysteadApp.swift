@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import OSLog
 
 /// App entry point. SwiftUI lifecycle, macOS 14.0 deployment target.
 ///
@@ -208,6 +209,8 @@ enum AdapterSetupPhase: Equatable {
 @MainActor
 @Observable
 final class AppEnvironment {
+    private static let startupLogger = Logger(subsystem: "dev.playstead.mac", category: "startup-recovery")
+
     let appPaths: AppPaths
     let localStore: LocalStore
     let casManager: CASManager
@@ -522,6 +525,31 @@ final class AppEnvironment {
         let catalogueStore = CatalogueStore(localStore: store)
         let curationStore = CurationStore(localStore: store)
         let outbox = Outbox(localStore: store, curationStore: curationStore)
+        // WINDOWS #89: a row left `in_flight` by the previous process is
+        // invisible to every subsequent drain -- `listPending` selects
+        // `pending` only, and quarantine is reachable only through the
+        // retry path -- while its optimistic local write stands. This is
+        // the one point in the process that runs once, before any drain
+        // trigger can fire, so it is where the strand is broken. The
+        // replay is absorbed by the server's per-device idempotency
+        // receipt for the row's persisted key; see the method's own note.
+        //
+        // Not `try?`. A failure here means stranded rows stay stranded,
+        // which is exactly the silent divergence this sweep exists to end,
+        // so it is logged rather than swallowed. It is not fatal either:
+        // the app is still usable, and the next launch sweeps again.
+        do {
+            let recovered = try outbox.recoverStrandedInFlight()
+            if recovered > 0 {
+                Self.startupLogger.notice(
+                    "recovered \(recovered, privacy: .public) outbox entries stranded in_flight by a previous run"
+                )
+            }
+        } catch {
+            Self.startupLogger.error(
+                "could not recover stranded in_flight outbox entries: \(error.localizedDescription, privacy: .public)"
+            )
+        }
         let syncEngine = SyncEngine(apiClient: client, localStore: store)
         let recorder = PlaySessionRecorder(localStore: store, curationStore: curationStore, outbox: outbox)
         // `onEntryDelivered`/`onDestructiveRejection` are wired exactly as

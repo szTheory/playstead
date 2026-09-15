@@ -198,6 +198,59 @@ class Outbox {
         )
     }
 
+    /// Recovers rows stranded `in_flight` by a previous process (WINDOWS
+    /// #89). Returns the number of rows that were stranded, which is not
+    /// the number now `pending` -- a superseded one is dropped and one at
+    /// its attempt ceiling is quarantined.
+    ///
+    /// `markInFlight` is the only writer of that state, and the only ways
+    /// out of it -- `markDone`, `markRejected`, `markPendingForRetry` --
+    /// are all reached from `OutboxWorker.drainOnce`'s in-process handling
+    /// of a response. So a crash, a force-quit, or an ordinary quit while
+    /// a request is on the wire leaves a row that `listPending` (state =
+    /// 'pending' only) can never see again and that `listQuarantined`
+    /// never sees either, since quarantine is reached only through the
+    /// attempt counter. Meanwhile `applyOptimistically` has already
+    /// written the change locally, so the local model and the server
+    /// diverge with nothing left to reconcile them.
+    ///
+    /// REPLAYING IS SAFE, and this is the part worth stating because it
+    /// is the whole justification for reverting a request that may well
+    /// have been received and applied. `idempotencyKey` is `kind:entryID`,
+    /// generated once in `enqueue` and PERSISTED on the row, so it is
+    /// identical across attempts and across restarts. Every route these
+    /// kinds send to -- all of `/api/v1/curation/*`, `/play-sessions`,
+    /// and `PUT /devices/me/availability` -- is on the server's
+    /// `:idempotency` pipeline, which holds a per-device receipt for each
+    /// key (D-20a). A replay is therefore absorbed rather than applied
+    /// twice. The one gap is that receipts expire at ~90 days; a row
+    /// stranded longer than that would genuinely re-execute, which is
+    /// bounded here only by the fact that this sweep runs at the very
+    /// next launch.
+    ///
+    /// Each row goes through `markPendingForRetry` rather than a bare
+    /// `UPDATE ... SET state = 'pending'`, deliberately, for three
+    /// properties a bare update would lose: the attempt counter advances
+    /// so a row that strands every launch eventually quarantines instead
+    /// of replaying forever; backoff keeps a launch from firing every
+    /// recovered request at once; and the WR-07 supersede check runs, so
+    /// a stale report is dropped rather than revived behind a newer one.
+    ///
+    /// That last property is why this window was filed rather than fixed
+    /// in passing: this sweep is exactly what makes WR-07's cross-restart
+    /// case reachable, and the delivered-watermark that protects it
+    /// survives this launch only because the watermark migration's drop
+    /// is CONDITIONAL on the legacy column. Do not "simplify" that gate --
+    /// `test_theWatermarkSurvivesAnOrdinaryRelaunch` pins it.
+    @discardableResult
+    func recoverStrandedInFlight(at now: Date = Date()) throws -> Int {
+        let stranded = rows(where: "state = 'in_flight'", orderBy: "created_at ASC, rowid ASC")
+        for entry in stranded {
+            try markPendingForRetry(entry, at: now)
+        }
+        return stranded.count
+    }
+
     /// A successful send — the entry's job is done, so the row is
     /// deleted. Nothing about the local read model or the server's
     /// eventual journal entry depends on this row continuing to exist;

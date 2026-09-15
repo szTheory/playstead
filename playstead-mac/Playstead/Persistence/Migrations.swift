@@ -455,6 +455,7 @@ enum Migrations {
                 tier TEXT NOT NULL DEFAULT 'promoted',
                 origin TEXT NOT NULL DEFAULT 'session',
                 manifest_digest TEXT,
+                restored_here_at TEXT,
                 session_id TEXT,
                 artifact_set_json TEXT,
                 FOREIGN KEY (save_line_id) REFERENCES save_line(id) ON DELETE CASCADE
@@ -482,7 +483,11 @@ enum Migrations {
         // true in storage, not just in SaveStateModel's helper).
         // Additive ALTER, same no-op-on-duplicate-column shape as the
         // columns above, so an existing install upgrades without a
-        // table rebuild.
+        // table rebuild. The column is ALSO declared in the CREATE
+        // TABLE above, which is what makes this line genuinely
+        // redundant on a fresh database rather than load-bearing; do
+        // not delete it, because an install predating 04-22 still
+        // needs it. See WINDOWS #90.
         try? connection.execute("ALTER TABLE save_revision ADD COLUMN restored_here_at TEXT;")
         try? connection.execute("ALTER TABLE save_revision ADD COLUMN session_id TEXT;")
         try? connection.execute("ALTER TABLE save_revision ADD COLUMN artifact_set_json TEXT;")
