@@ -373,7 +373,12 @@ final class CurationInteractionTests: XCTestCase {
         entry.clickWhenHittable()
     }
 
-    private func assertExactCollectionOrder(_ expected: [String], in harness: UITestHarness) {
+    private func assertExactCollectionOrder(
+        _ expected: [String],
+        in harness: UITestHarness,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
         let allRows = harness.app.descendants(matching: .any).matching(
             NSPredicate(
                 format: "identifier BEGINSWITH %@ AND NOT identifier CONTAINS %@",
@@ -381,27 +386,65 @@ final class CurationInteractionTests: XCTestCase {
                 ".move-"
             )
         )
-        XCTAssertEqual(allRows.count, 3)
+        XCTAssertEqual(allRows.count, 3, file: file, line: line)
         let rows = expected.map { harness.element("playstead.curation.collection-member.\($0)") }
-        for row in rows { XCTAssertTrue(row.awaitExistence(timeout: 5)) }
+        for row in rows { XCTAssertTrue(row.awaitExistence(timeout: 5), file: file, line: line) }
         let visualOrder = rows.sorted { $0.frame.minY < $1.frame.minY }.map(\.identifier)
-        XCTAssertEqual(visualOrder, expected.map { "playstead.curation.collection-member.\($0)" })
+        XCTAssertEqual(
+            visualOrder,
+            expected.map { "playstead.curation.collection-member.\($0)" },
+            file: file,
+            line: line
+        )
         for (row, memberID) in zip(rows, expected) {
-            XCTAssertEqual(row.readableText, "Synthetic Game \(Int(memberID.suffix(1))!)")
+            XCTAssertEqual(
+                row.readableText,
+                "Synthetic Game \(Int(memberID.suffix(1))!)",
+                file: file,
+                line: line
+            )
         }
     }
 
-    private func assertEvidence(order: [String], outboxCount: Int, in harness: UITestHarness) {
+    // WINDOWS #92: every assertEvidence call in this file used to report at
+    // waitForValue's own XCTAssertEqual, so all 17 call sites collapsed onto one
+    // line number. That is not a cosmetic loss. testDragReorderSurvivesRelaunch
+    // asserts evidence twice -- once before relaunch and once after -- and the
+    // two mean opposite things: a pre-relaunch timeout says the drag never
+    // landed, a post-relaunch timeout says the reorder did not durably persist.
+    // CI evidence keeps file:line and discards assertion messages, so the line
+    // number is the only channel that survives to tell them apart. Forward the
+    // caller's, the same way clickWhenHittable already does.
+    private func assertEvidence(
+        order: [String],
+        outboxCount: Int,
+        in harness: UITestHarness,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
         waitForValue(
             harness.element("playstead.test.curation.evidence"),
-            equals: evidence(order: order, outboxCount: outboxCount)
+            equals: evidence(order: order, outboxCount: outboxCount),
+            file: file,
+            line: line
         )
     }
 
-    private func waitForValue(_ element: XCUIElement, equals expected: String) {
+    private func waitForValue(
+        _ element: XCUIElement,
+        equals expected: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
         let predicate = NSPredicate(format: "value == %@", expected)
         let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
-        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed)
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [expectation], timeout: 5),
+            .completed,
+            "evidence never reached \(expected); observed \(element.value as? String ?? "<no value>")",
+            file: file,
+            line: line
+        )
     }
 
     private func selectCollectionMemberByKeyboard(_ memberID: String, in harness: UITestHarness) -> XCUIElement {
