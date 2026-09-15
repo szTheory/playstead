@@ -737,8 +737,16 @@ final class AppEnvironment {
 
     /// Starts one `OutboxWorker.drainOnce()` pass and records the `Task`
     /// so callers (and tests) can await the drain that a trigger actually
-    /// started. The worker is an actor, so overlapping calls serialize
-    /// rather than racing the same entry.
+    /// started. The worker is an actor, so overlapping calls never race
+    /// the same ENTRY -- `markInFlight` runs before the `await`, so a
+    /// second pass's `listPending` skips it.
+    ///
+    /// They are NOT serialized, and reading this comment that way is what
+    /// WR-07 rested on. Actors are reentrant at every `await`, so a second
+    /// pass runs inside the first's suspension at `apiClient.send` and can
+    /// deliver a NEWER entry to completion while an older one is still on
+    /// the wire. `Outbox` is what has to be correct across that, not this
+    /// trigger -- see `markPendingForRetry` and the delivered watermark.
     @discardableResult
     func drainOutbox() -> Task<OutboxDrainResult, Never> {
         drainTrigger.fire()
@@ -752,9 +760,11 @@ final class AppEnvironment {
         saveOutboxDrainTrigger.fire()
     }
 
-    /// Starts one `SaveUploadLane.drainOnce()` pass. The lane is an
-    /// actor, so overlapping calls serialize rather than racing the same
-    /// revision.
+    /// Starts one `SaveUploadLane.drainOnce()` pass. The lane is an actor,
+    /// so overlapping calls never race the same REVISION -- but they are
+    /// not serialized either (actors are reentrant at `await`), which is
+    /// why the save-e2e harness reads its own pass's classification off
+    /// the drain result rather than the lane's shared cell (WINDOWS #87).
     @discardableResult
     func drainSaveUploads() -> Task<OutboxDrainResult, Never> {
         Task { [saveUploadLane] in await saveUploadLane.drainOnce() }

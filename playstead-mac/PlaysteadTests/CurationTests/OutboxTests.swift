@@ -487,6 +487,60 @@ final class OutboxTests: XCTestCase {
         )
     }
 
+    /// WR-07, second round: the must-have's own final clause, "after a
+    /// later one that already succeeded".
+    ///
+    /// The first fix asked "is a newer entry still live?" — but `markDone`
+    /// DELETES the row it delivered, so once the newer report succeeds
+    /// there is no live row left to find and the older one revived exactly
+    /// as before. The independent re-verification caught this and proved
+    /// it with this sequence; it is kept here so it can never regress to
+    /// "closed by a live-row query" again.
+    func test_anInFlightReportRevertedForRetryIsDroppedWhenTheNewerReportAlreadySucceeded() throws {
+        let first = try outbox.enqueue(
+            makeReport(assetSetID: "asset-1", id: "report-1"),
+            at: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        try outbox.markInFlight(first.id)
+
+        let second = try outbox.enqueue(
+            makeReport(assetSetID: "asset-2", id: "report-2"),
+            at: Date(timeIntervalSince1970: 1_700_000_060)
+        )
+        try outbox.markInFlight(second.id)
+        // The newer report succeeds first — its row is now gone.
+        try outbox.markDone(second.id)
+        XCTAssertTrue(outbox.listAll().allSatisfy { $0.id != second.id }, "a delivered entry is deleted, which is what hid it")
+
+        // Only now does the older, still-in-flight delivery fail.
+        try outbox.markPendingForRetry(first, at: Date(timeIntervalSince1970: 1_700_000_120))
+
+        // One clause per fact: CI keeps file:line and drops assertion text.
+        XCTAssertEqual(outbox.listAll().count, 0, "a stale older report must not be delivered after the newer one already succeeded")
+        XCTAssertTrue(
+            outbox.listPending(at: Date(timeIntervalSince1970: 1_800_000_000)).isEmpty,
+            "and no backoff window may deliver it later either"
+        )
+    }
+
+    /// The delivered-watermark must not swallow a report that is merely
+    /// OLDER-LOOKING by tie. Two reports enqueued inside the same
+    /// ISO-8601 second share a `created_at`; dropping on a tie would lose
+    /// a delivery nothing newer actually replaced.
+    func test_aRetryWhoseCreatedAtTiesTheDeliveredWatermarkIsStillRetried() throws {
+        let sameInstant = Date(timeIntervalSince1970: 1_700_000_000)
+        let first = try outbox.enqueue(makeReport(assetSetID: "asset-1", id: "report-1"), at: sameInstant)
+        try outbox.markInFlight(first.id)
+        let second = try outbox.enqueue(makeReport(assetSetID: "asset-2", id: "report-2"), at: sameInstant)
+        try outbox.markInFlight(second.id)
+        try outbox.markDone(second.id)
+
+        try outbox.markPendingForRetry(first, at: sameInstant.addingTimeInterval(60))
+
+        XCTAssertEqual(outbox.listAll().count, 1, "a tie is not newer, so this retry survives")
+        XCTAssertEqual(outbox.listAll().first?.state, .pending)
+    }
+
     /// The other half of the same rule: a retry with nothing newer behind
     /// it is an ordinary retry and must still be revived. Without this, the
     /// fix above would read equally well as "reverting drops the row",

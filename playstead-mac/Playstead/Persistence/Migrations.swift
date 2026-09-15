@@ -242,6 +242,25 @@ enum Migrations {
         try connection.execute("CREATE INDEX IF NOT EXISTS idx_outbox_entries_state ON outbox_entries(state);")
         try connection.execute("CREATE INDEX IF NOT EXISTS idx_outbox_entries_created_at ON outbox_entries(created_at);")
 
+        // WR-07 (03-VERIFICATION.md): the newest `created_at` of a
+        // successfully DELIVERED entry, per newest-wins kind.
+        //
+        // `markDone` deletes the row it delivered, so "is there a newer
+        // one?" cannot be answered by querying live rows alone — once the
+        // newer report succeeds, its row is gone and an older in-flight
+        // row reverting via `markPendingForRetry` finds nothing to defer
+        // to. That is exactly the case the must-have names ("after a
+        // later one that already succeeded"), so the fact has to outlive
+        // the row. One row per kind, overwritten in place; it never grows.
+        try connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS outbox_delivered_watermark (
+                kind TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL
+            );
+            """
+        )
+
         // Plan 03-08 task 3: coarse play sessions recorded locally by
         // `PlaySessionRecorder`, delivered through the outbox after the
         // fact. Kept in its own table (distinct from `outbox_entries`,

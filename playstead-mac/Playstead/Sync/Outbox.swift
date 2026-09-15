@@ -194,7 +194,44 @@ class Outbox {
     /// eventual journal entry depends on this row continuing to exist;
     /// keeping it around would only grow the table unboundedly.
     func markDone(_ entryID: String) throws {
-        try localStore.connection.execute("DELETE FROM outbox_entries WHERE id = ?;", params: [entryID])
+        // WR-07: record the delivery before dropping the row, for a kind
+        // where a later report supersedes an earlier one. The row is
+        // about to cease to exist, so this is the last moment the fact
+        // "something this new was delivered" can be captured -- and it is
+        // the fact `markPendingForRetry` needs in order to refuse to
+        // revive an older entry afterwards.
+        let delivered = rows(where: "id = ?", orderBy: "rowid ASC", params: [entryID]).first
+        try localStore.transaction {
+            if let delivered, delivered.kind.supersedesPending {
+                try self.recordDeliveredWatermark(kind: delivered.kind, createdAt: delivered.createdAt)
+            }
+            try self.localStore.connection.execute(
+                "DELETE FROM outbox_entries WHERE id = ?;", params: [entryID]
+            )
+        }
+    }
+
+    /// Raise the delivered-watermark for `kind` to `createdAt`, never
+    /// lower it. Deliveries can complete out of creation order -- an
+    /// older entry's retry may succeed after a newer entry already did --
+    /// so this is a max, not an assignment.
+    private func recordDeliveredWatermark(kind: CurationIntentKind, createdAt: String) throws {
+        try localStore.connection.execute(
+            """
+            INSERT INTO outbox_delivered_watermark (kind, created_at) VALUES (?, ?)
+            ON CONFLICT(kind) DO UPDATE SET created_at = MAX(created_at, excluded.created_at);
+            """,
+            params: [kind.rawValue, createdAt]
+        )
+    }
+
+    /// The `created_at` of the newest successfully delivered entry of
+    /// this kind, or `nil` if none has ever been delivered.
+    private func deliveredWatermark(ofKind kind: CurationIntentKind) -> String? {
+        (try? localStore.connection.query(
+            "SELECT created_at FROM outbox_delivered_watermark WHERE kind = ?;",
+            params: [kind.rawValue]
+        ) { $0.string(0) })?.compactMap { $0 }.first
     }
 
     /// A transport failure or 5xx response — the mutation may well have
@@ -229,7 +266,7 @@ class Outbox {
         // still drains in creation order with no entry dropped -- and only
         // when a strictly newer live row of the same kind exists, so an
         // ordinary retry with nothing behind it is untouched.
-        if entry.kind.supersedesPending, hasNewerLiveEntry(ofKind: entry.kind, thanCreatedAt: entry.createdAt, excluding: entry.id) {
+        if entry.kind.supersedesPending, isSupersededForRetry(entry) {
             try localStore.connection.execute(
                 "DELETE FROM outbox_entries WHERE id = ?;", params: [entry.id]
             )
@@ -250,6 +287,24 @@ class Outbox {
                 params: [newAttemptCount, nextRetryAt, entry.id]
             )
         }
+    }
+
+    /// Whether this entry has been overtaken and must not be revived.
+    ///
+    /// Two ways, and BOTH are needed. A newer entry may still be waiting
+    /// (live row), or it may already have been delivered -- in which case
+    /// `markDone` deleted its row and only the watermark remembers it.
+    /// The live-row check alone closes the first and leaves the second
+    /// wide open, which is precisely the case the must-have names.
+    private func isSupersededForRetry(_ entry: OutboxEntry) -> Bool {
+        if hasNewerLiveEntry(ofKind: entry.kind, thanCreatedAt: entry.createdAt, excluding: entry.id) {
+            return true
+        }
+        // Strictly newer only: a tie means two reports share an ISO-8601
+        // second, and dropping a report on a tie would lose a delivery
+        // that nothing newer actually replaced.
+        guard let watermark = deliveredWatermark(ofKind: entry.kind) else { return false }
+        return entry.createdAt < watermark
     }
 
     /// Whether a strictly newer entry of the same kind is still live
