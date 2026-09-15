@@ -1,8 +1,8 @@
 ---
 phase: 03-mac-offline-play-vertical-slice
-verified: 2026-09-15T15:05:00Z
+verified: 2026-09-15T16:10:00Z
 status: human_needed
-score: 5/5 roadmap truths verified (SC5's controller-hardware portion present+wired, not behaviorally exercised — unchanged, routed to human verification); WR-07 narrowed twice, still not fully closed
+score: 5/5 roadmap truths verified (SC5's controller-hardware portion present+wired, not behaviorally exercised — unchanged, routed to human verification); WR-07 tie window CLOSED; two architectural residues remain; one new migration defect (WR-08)
 behavior_unverified: 1
 overrides_applied: 0
 covered_files:
@@ -46,29 +46,39 @@ covered_files:
   - "playstead-mac/Playstead/Sync/OutboxWorker.swift"
   - "playstead-mac/PlaysteadTests/CurationTests/OutboxTests.swift"
   - "playstead-server/lib/playstead_web/controllers/api/v1/availability_controller.ex"
-covered_digest: "v1:sha256:78c6cda6cb5e127ee0cf7b8e03fb7fcb9fdcdbba1b7294d86b7c5baf83771a25"
+covered_digest: "v1:sha256:96c4cdbe43cc4ee4f3ab7b20bfe8100e85a3faa03c6b146e510f4a23614ff0a3"
 re_verification:
-  previous_status: "human_needed (one open gap: WR-07, narrowed by 847165b)"
+  previous_status: "human_needed (one open gap: WR-07, narrowed twice)"
   previous_score: "5/5 roadmap truths; WR-07 partial"
   gaps_closed:
-    - "WR-07 residue found at 847165b (a newer report that had ALREADY SUCCEEDED was invisible to the guard, because `markDone` deletes the delivered row): CLOSED at 47ac7b6. The delivered fact now outlives the row in `outbox_delivered_watermark`, written by `markDone` inside the same transaction as the DELETE, and consulted by `markPendingForRetry` via `isSupersededForRetry`. Verified independently by falsification, not by trusting the commit: replacing only the two watermark lines with `return false` fails `test_anInFlightReportRevertedForRetryIsDroppedWhenTheNewerReportAlreadySucceeded` at OutboxTests.swift:519 with exactly (\"1\") is not equal to (\"0\") and at :520, while the tie test and BOTH live-row tests keep passing — so the watermark clause is load-bearing and is not merely duplicating the live-row check. Restored byte-exact; 24/24 green at HEAD."
+    - "WR-07 residue 1, THE TIE WINDOW: CLOSED at 711f866. `created_at` is second-granularity, so it could not answer a total-order question; the key changed rather than the comparison. `outbox_entries.enqueue_seq` is assigned inside `enqueue`'s existing transaction as one past the greatest of (max live `enqueue_seq`, max `delivered_seq`), and BOTH supersede checks now compare on it. Verified by falsification rather than by trusting the commit: flattening the sequence subquery to the literal `1` fails all three supersede tests — `…ArrivedMeanwhile` (:482,:483,:484), `…AlreadySucceeded` (:519,:520) and the inverted tie test `test_aRetrySharingTheDeliveredReportsTimestampIsStillDroppedAsOlder` (:549,:550) — while the new kind-scoping test keeps passing. Restored byte-exact; 25/25 green at HEAD. The inverted tie test is genuine: it asserts `first.createdAt == second.createdAt` as an explicit premise and still requires the newer report to win."
+    - "The decision to reject `(created_at, rowid)` — which my previous report offered as the cheaper option — is CORRECT, and I verified the justification rather than accepting it. SQLite reclaims the rowid of a deleted row when the table has no AUTOINCREMENT, and it reclaims downward when the top rows go: inserting 5 rows, deleting rowid 5 then rowid 4, then inserting, yields rowid 4 for the NEW row. Against a watermark of 5 that new row reads as older and is wrongly dropped — a sporadic wrong-drop, strictly worse than the tie window it would replace. The heavier dedicated sequence was the right call."
   gaps_remaining:
-    - "WR-07 (narrowed a second time, still open): `created_at` is second-granularity, so \"newer\" is a partial order and the watermark cannot resolve a tie. Proven at HEAD, not argued: two enqueues 0.8s apart collapse to the identical `created_at` string, and in that window a stale report stays deliverable after a newer one already succeeded. The new tie test pins this as intended behavior, so it is a deliberate trade, not an oversight — but the must-have sentence is still false inside a one-second window."
+    - "WR-07 residues 2 and 3 (architectural, unchanged, not introduced by any of the three fixes): a late-succeeding in-flight request lands after a newer one and cannot be prevented client-side; and a newer row retired by `markRejected` or quarantine is invisible to both checks. Neither is closable in `Outbox` alone."
+    - "WR-08 (NEW this round, found by this verification, not reported by the commit): the defensive migration for the previous watermark schema does not work. A database that already holds the 47ac7b6-era `outbox_delivered_watermark (kind, created_at NOT NULL)` keeps that table — `CREATE TABLE IF NOT EXISTS` is a no-op — and the new INSERT omits `created_at`, so every `markDone` for an availability report throws SQLITE_CONSTRAINT."
   regressions: []
 overrides: []
 gaps:
   - truth: "03-16-PLAN.md must-have: \"Only the newest full-replacement availability report is ever delivered: enqueuing a new one removes any still-pending or backed-off one, so a backed-off earlier report can no longer land after a later one that already succeeded.\""
     status: partial
-    reason: "Narrowed substantially and correctly a second time by 47ac7b6, but still not the sentence as literally worded. THREE residues remain, in descending order of reachability. (1) THE TIE WINDOW. `Outbox.enqueue` stamps `created_at` with `ISO8601DateFormatter()`, which has no fractional seconds. Proven at HEAD by probe, not by inspection: two enqueues at genuinely distinct instants 0.8s apart both produce `2023-11-14T22:13:20Z` (probe clause A failed: \"(\\\"2023-11-14T22:13:20Z\\\") is equal to (\\\"2023-11-14T22:13:20Z\\\")\"). Because `isSupersededForRetry` compares `entry.createdAt < watermark` strictly, an older report whose `created_at` merely TIES the delivered watermark is revived and stays deliverable after the newer one already succeeded (probe clause B failed at the same run). `test_aRetryWhoseCreatedAtTiesTheDeliveredWatermarkIsStillRetried` pins exactly this as intended. The strictness itself is the RIGHT call given the data available — non-strict would drop a delivery nothing newer actually replaced, a worse failure — so this is not a wrong comparison, it is a comparison made over a key that cannot express the ordering it is being asked about. The codebase already maintains the total order that would resolve it: `listPending` and `hasNewerLiveEntry` both order by `created_at ASC, rowid ASC`, explicitly acknowledging that ties occur. The watermark discards the `rowid` half of that order. Storing a monotonic sequence (or `(created_at, rowid)`) instead of `created_at` alone would let the drop test and the tie test both pass with no trade. (2) AN IN-FLIGHT REQUEST THAT SUCCEEDS LATE. If A is on the wire, B is delivered meanwhile, and A's request then SUCCEEDS, `markDone(A)` records `MAX` (watermark stays at B, correct) and deletes the row — but A has already landed on the server AFTER B. No client-side guard can prevent this; the request was sent before B existed. Only a server-side monotonic guard closes it, and `Availability.replace_for_device/2` has none (blind full replacement, re-confirmed by direct read). This residue is architectural and pre-existing, not introduced by either fix. (3) A NEWER ROW RETIRED WITHOUT BEING DELIVERED. `markRejected` moves a row to `rejected` and quarantine moves it to `quarantined`; neither state is `live` for `hasNewerLiveEntry` and neither writes a watermark (correctly — neither is a delivery). So an older row can be revived and delivered while a newer one sits rejected/quarantined. This does not violate the sentence's final clause (nothing newer succeeded) but does violate its leading clause, \"only the newest ... is ever delivered\". Reachability is very low: quarantine needs 8 failed attempts while the older row stays in flight throughout. Disposition unchanged and deliberately consistent with both prior rounds: narrow, self-correcting on the next successful `syncNow()` pass, no permanent data corruption, no trust boundary crossed, does not contradict any roadmap-level truth — a tracked, NON-BLOCKING warning. But the sentence is not yet true as written, and this verification again does not round that up."
+    reason: "The ordering question is now genuinely settled — residue 1, the tie window I measured last round, is CLOSED by `enqueue_seq` (see re_verification.gaps_closed for the falsification evidence). TWO residues remain, both architectural and neither introduced by any of the three fixes. (2) A LATE-SUCCEEDING IN-FLIGHT REQUEST. If A is on the wire, B is delivered meanwhile, and A's request then SUCCEEDS, `markDone(A)` correctly leaves the watermark at B (MAX) and deletes the row — but A has already landed on the server AFTER B. No client-side guard can prevent this: A was sent before B existed. Only a server-side monotonic guard closes it, and `Availability.replace_for_device/2` still has none (blind full replacement, re-confirmed by direct read). (3) A NEWER ROW RETIRED WITHOUT BEING DELIVERED. `markRejected` moves a row to `rejected`; exhausting `maxAttempts` moves it to `quarantined`. Neither state is live for `hasNewerLiveEntry`, and neither writes a watermark — correctly, since neither is a delivery. So an older row can be revived and delivered while a newer one sits rejected or quarantined. This does not violate the sentence's final clause (nothing newer succeeded) but does violate its leading clause. Reachability is very low. Disposition unchanged across all four rounds: narrow, self-correcting on the next successful `syncNow()` pass, no permanent data corruption, no trust boundary crossed, no roadmap truth contradicted — a tracked, NON-BLOCKING warning. The client-side half of the sentence is now true; the leading clause cannot be made true in `Outbox` alone."
     artifacts:
-      - path: "playstead-mac/Playstead/Sync/Outbox.swift"
-        issue: "`isSupersededForRetry` (lines 298-307) compares second-granularity `created_at` strings, so it cannot distinguish \"older\" from \"same second\". Ties inside a one-second window fall through to revival. The watermark table stores `created_at` only, discarding the `rowid` tiebreaker the sibling ordering queries already rely on."
       - path: "playstead-server/lib/playstead_web/controllers/api/v1/availability_controller.ex"
-        issue: "`replace_for_device/2` is a blind full replacement with no report ordering/monotonic guard, so nothing server-side rejects a stale report that the client could not prevent sending."
+        issue: "`replace_for_device/2` is a blind full replacement with no report ordering/monotonic guard, so nothing server-side rejects a stale report the client could not prevent sending."
     missing:
-      - "Store a total order in `outbox_delivered_watermark` — a monotonic sequence assigned at enqueue, or `(created_at, rowid)` — and compare against that instead of `created_at` alone. This is the one change that would let the drop test and the tie test both hold, closing residue (1) with no trade."
-      - "For residue (2), a server-side monotonic guard on `PUT /api/v1/devices/me/availability` (ignore a report older than the last accepted one for that device). This is the only place it can be closed at all."
-      - "If residues (2) and (3) are instead accepted as permanent limitations, record them in .planning/WINDOWS.md — they are currently described only inside code comments covering the closed halves."
+      - "A server-side monotonic guard on `PUT /api/v1/devices/me/availability` (ignore a report older than the last accepted one for that device). This is the only place residue 2 can be closed at all."
+      - "If residues 2 and 3 are instead accepted as permanent limitations, record them in .planning/WINDOWS.md — they are currently described only inside code comments covering the closed halves."
+  - truth: "A client that already ran the previous build can still deliver an availability report (implied by the WR-07 fix being effective at all on an existing install)."
+    status: failed
+    reason: "WR-08, found by this verification and NOT reported by the commit. The `try? ALTER TABLE outbox_delivered_watermark ADD COLUMN delivered_seq ...` is written specifically to upgrade a database holding the 47ac7b6-era schema, and it does not do the job — it half-does it, which is worse than not trying, because the schema then LOOKS migrated. Proven in sqlite3 against the exact statements, not argued: given the old table `(kind TEXT PRIMARY KEY, created_at TEXT NOT NULL)`, `CREATE TABLE IF NOT EXISTS` is a no-op so the stale `created_at NOT NULL` column survives; the ALTER does add `delivered_seq INTEGER NOT NULL DEFAULT 0`, so the column the question asks about IS present; but `recordDeliveredWatermark`'s `INSERT INTO outbox_delivered_watermark (kind, delivered_seq) SELECT ...` omits `created_at`, which is NOT NULL with no default, and fails with `NOT NULL constraint failed: outbox_delivered_watermark.created_at (19)`. `Migrations.run` is called on every `LocalStore` open with no `user_version` gate (grep: 0 occurrences), so this is the steady-state path for such a database, not a one-shot. The consequence is not a silent no-op: `recordDeliveredWatermark` runs inside `markDone`'s transaction, so the throw rolls the transaction back, the delivered row is NOT deleted, and `markDone` throws out to `OutboxWorker.drainOnce`, where a SQLite error is not an `APIClientError` and lands in the generic `catch` — which calls `markPendingForRetry` and sets `stoppedForRetry`. A delivery that SUCCEEDED is therefore treated as a transport failure: the report is re-sent on every retry, `onEntryDelivered` fires again each time, and after `maxAttempts` the entry is quarantined. On such a database the entire WR-07 fix is inert and availability reports never clear the outbox. Blast radius is genuinely narrow — only a database created or migrated by the 47ac7b6 build, which existed for about 18 minutes and was never released, so in practice the author's own dev machine — and fresh installs are unaffected. But note WHY the 25/25 green cannot see it: `OutboxTests.setUpWithError` builds a fresh `LocalStore` in a fresh temp directory for every test, so the suite only ever exercises the new schema. This defect is structurally invisible to the test suite as written."
+    artifacts:
+      - path: "playstead-mac/Playstead/Persistence/Migrations.swift"
+        issue: "`CREATE TABLE IF NOT EXISTS outbox_delivered_watermark (kind, delivered_seq)` plus `try? ALTER ... ADD COLUMN delivered_seq` leaves a pre-existing `created_at TEXT NOT NULL` column in place with no default, which the new INSERT never populates."
+      - path: "playstead-mac/Playstead/Sync/Outbox.swift"
+        issue: "`recordDeliveredWatermark` inserts only `(kind, delivered_seq)`; on a stale table this throws inside `markDone`'s transaction and is then misclassified by `drainOnce` as a transport failure."
+    missing:
+      - "Drop and recreate the watermark table when its schema is the old one. The watermark is a pure hint that is legitimately reconstructible as empty — losing it fails OPEN (an entry is retried rather than wrongly dropped), so `DROP TABLE IF EXISTS outbox_delivered_watermark` before the CREATE is both safe and simplest. Recreating-and-copying is unnecessary."
+    
 behavior_unverified_items:
   - truth: "A user can connect, test, assign, remap, reset, and recover a controller (roadmap SC #5, controller-hardware portion)"
     test: "Connect a real, paired physical game controller; disconnect it mid-session; reconnect it."
@@ -95,65 +105,68 @@ human_verification:
 # Phase 3: Mac Offline Play Vertical Slice Verification Report
 
 **Phase Goal:** Let a paired Mac browse, selectively cache, preflight, and launch one proven adapter path offline.
-**Verified:** 2026-09-15T15:05:00Z (HEAD `47ac7b6`)
+**Verified:** 2026-09-15T16:10:00Z (HEAD `4c59dc0`; relevant code commit `711f866`)
 **Status:** human_needed
-**Re-verification:** Yes — third independent pass on WR-07, adjudicating commit `47ac7b6` (the delivered-watermark fix) after `847165b` (the live-row fix). Everything outside WR-07 was re-checked and stands.
+**Re-verification:** Yes — fourth independent pass on WR-07, adjudicating `711f866` (the monotonic-sequence fix) after `47ac7b6` (the delivered watermark) and `847165b` (the live-row check). Everything outside WR-07 was re-checked and stands.
 
-## Verdict on WR-07: the residue I found is CLOSED; the must-have is still not true as written
+## Verdict: the tie window is CLOSED; a new migration defect (WR-08) is open
 
-### What `47ac7b6` genuinely closes
+Round 3 on WR-07. You asked me to assume this round has something wrong with it too. It does — but not in the ordering logic, which is now right.
 
-The residue I reported at `847165b` — a newer report that had **already succeeded** was invisible, because `markDone` deletes the delivered row — is properly fixed. The delivered fact now outlives the row:
+### The tie window is genuinely closed
 
-- `Migrations.swift` adds `outbox_delivered_watermark (kind TEXT PRIMARY KEY, created_at TEXT NOT NULL)`. One row per kind, so it cannot grow.
-- `markDone` reads the row, then inside **one** `localStore.transaction` writes the watermark (for a `supersedesPending` kind) and deletes the row.
-- `recordDeliveredWatermark` upserts with `ON CONFLICT(kind) DO UPDATE SET created_at = MAX(created_at, excluded.created_at)` — SQLite's two-argument scalar `max()`, so the watermark only ever rises. Correct, and necessary: deliveries genuinely can complete out of creation order.
-- `isSupersededForRetry` returns true on **either** a strictly newer live row (the old check) **or** `entry.createdAt < deliveredWatermark(ofKind:)`.
+`enqueue_seq` replaces `created_at` as the supersede key, assigned inside `enqueue`'s existing transaction as one past the greatest of (max live `enqueue_seq`, max `delivered_seq`). Both supersede checks compare on it; the watermark stores it.
 
-**I verified this by falsification rather than by reading the commit message.** Replacing only the two watermark lines with `return false` fails the new test on its own lines, with exactly the signature reported:
+**Falsified, not trusted.** Flattening the sequence subquery to the literal `1` fails all three supersede tests on their own lines — `…ArrivedMeanwhile` (:482, :483, :484), `…AlreadySucceeded` (:519, :520), and the inverted tie test (:549, :550) — while the new kind-scoping test keeps passing. 25/25 green at HEAD, restored byte-exact.
+
+The inverted tie test is honest: it asserts `first.createdAt == second.createdAt` as an explicit premise and still demands the newer report win. (I initially misread its diff as omitting the `markInFlight` calls and suspected the arithmetic was wrong; reading the file at HEAD showed the calls are there and the test is sound. Recording that because I nearly reported a false finding.)
+
+### Your reasoning for rejecting `(created_at, rowid)` is correct — I checked it
+
+This mattered, since it justified the heavier change, and my previous report had offered `(created_at, rowid)` as an option. Your reasoning holds, and I confirmed it empirically rather than by reading the docs: SQLite reclaims rowids of deleted rows without `AUTOINCREMENT`, and reclaims *downward* as the top rows go. Inserting 5 rows, deleting rowid 5 then rowid 4, then inserting again yields rowid **4** for the new row. Against a stored watermark of 5 that new row reads as older and is wrongly dropped — a sporadic wrong-drop, strictly worse than the tie window it would have replaced. Declining that option was right; the dedicated sequence was the correct call.
+
+### Your four other questions, answered
+
+**Is `enqueue_seq` monotonic under every removal path?** Not globally — and that is fine, though your comment overstates it. Sequences *are* reused. Two paths retire the highest row without raising the watermark: `enqueue`'s own supersede DELETE (which runs before the INSERT's subquery is evaluated, so the new row can take the just-deleted row's number), and `markDone` for a **non-superseding** kind, which deletes without writing any watermark. So "one past the highest value ANY live row or watermark has **ever** held" is not true — it is one past the highest value currently held.
+
+But the invariant that correctness needs does hold. Every comparison the code performs is against either a live row (`hasNewerLiveEntry`) or the watermark (`deliveredWatermark`), and **both terms are inside the MAX**, so a new sequence is strictly greater than everything it will ever be compared against, and no two *live* rows can share a sequence. A reused number only ever duplicates a row that no longer exists and was never delivered as a superseding kind. So: yes, it collides with an already-used number; no, that collision is never observable. Answering your specific worry — `enqueue`'s supersede deleting the highest live row with no delivery having happened does reuse that number, harmlessly.
+
+**Can the backfill collide?** No. `UPDATE outbox_entries SET enqueue_seq = rowid WHERE enqueue_seq = 0` gives pre-existing rows their rowid; every subsequent `enqueue` takes `MAX(...) + 1`, which exceeds `MAX(rowid)`. And since `enqueue` can never assign 0 (both terms are `COALESCE`d to 0 and the expression is `+ 1`, verified in sqlite3 to yield 1 on empty tables), the re-running backfill can never clobber a real value on a later launch.
+
+**`INSERT ... SELECT` with a missing row?** Correct. Verified in sqlite3: the SELECT yields no rows, so nothing is inserted and no error is raised — matching the previous `nil` behaviour. It is also guarded by `if let delivered` upstream.
+
+**Does anything still compare `created_at` where it should compare the sequence?** The supersede path is fully converted — no `created_at` comparison remains in `isSupersededForRetry` or `hasNewerLiveEntry`. `listPending`/`listAll`/`listRejected`/`listQuarantined` still *order* by `created_at ASC, rowid ASC`. I checked whether that is now a defect and it is not: SQLite reclaims only the maximum rowid, so a new row's rowid is always ≥ every live row's, making `rowid ASC` a valid tiebreaker **over live rows** even though it is unsafe against a stored watermark. So the drain order is still correct. Advisory only: `enqueue_seq ASC` would be simpler and provably right, and would leave one ordering key in the module instead of two.
+
+### WR-08 — the new defect: the defensive migration does not work
+
+The `try? ALTER TABLE outbox_delivered_watermark ADD COLUMN delivered_seq ...` exists specifically to upgrade a database holding the 47ac7b6-era schema. It half-works, which is worse than not trying, because the schema then *looks* migrated.
+
+Proven in sqlite3 against the exact statements, not argued:
 
 ```
-OutboxTests.swift:519: ("1") is not equal to ("0") - a stale older report must not be delivered after the newer one already succeeded
-OutboxTests.swift:520: XCTAssertTrue failed - and no backoff window may deliver it later either
+CREATE TABLE outbox_delivered_watermark (kind TEXT PRIMARY KEY, created_at TEXT NOT NULL);  -- the old DB
+CREATE TABLE IF NOT EXISTS ... (kind, delivered_seq INTEGER NOT NULL);                       -- no-op
+ALTER TABLE outbox_delivered_watermark ADD COLUMN delivered_seq INTEGER NOT NULL DEFAULT 0;  -- succeeds
+-- resulting schema: (kind TEXT PRIMARY KEY, created_at TEXT NOT NULL, delivered_seq INTEGER NOT NULL DEFAULT 0)
+INSERT INTO outbox_delivered_watermark (kind, delivered_seq) SELECT ... ;
+Error: stepping, NOT NULL constraint failed: outbox_delivered_watermark.created_at (19)
 ```
 
-while `test_aRetryWhoseCreatedAtTiesTheDeliveredWatermarkIsStillRetried` and **both** live-row tests (`…ArrivedMeanwhile`, `…NothingNewerArrived`) kept passing. That is the important part: the watermark clause is doing work the live-row clause does not, and it is not over-reaching into cases the other tests own. Restored byte-exact; 24/24 green at HEAD.
+So the literal answer to your question — "does such a database end up with a usable `delivered_seq`?" — is: the **column** is there, the **table** is unwritable. The stale `created_at NOT NULL` has no default and the new INSERT never populates it. `Migrations.run` is called on every `LocalStore` open with no `user_version` gate (grep: 0 occurrences), so this is the steady state for such a database, not a one-shot.
 
-**On the specific mechanics you asked me to check:**
+**The consequence is not a silent no-op.** `recordDeliveredWatermark` runs inside `markDone`'s transaction, so the throw rolls it back and the delivered row is *not* deleted. `markDone` then throws out to `OutboxWorker.drainOnce`, where a SQLite error is not an `APIClientError` and falls into the generic `catch` — which calls `markPendingForRetry` and sets `stoppedForRetry`. A delivery that **succeeded** is therefore treated as a transport failure: the report is re-sent on every retry, `onEntryDelivered` fires again each time, and after `maxAttempts` the entry is quarantined. On such a database the entire WR-07 fix is inert and availability reports never clear the outbox.
 
-- **Is the transaction atomic with respect to the DELETE?** Yes. The upsert and the DELETE are both inside the same `localStore.transaction` closure, so the watermark can never be recorded without the row being dropped, nor the row dropped without the watermark. The *read* (`rows(where: "id = ?")`) is outside the transaction, which is benign: the only paths that delete a row are `markDone` itself, `enqueue`'s supersede (scoped to `state = 'pending'`, and this row is `in_flight`), and `markPendingForRetry`'s own drop (which targets the entry being reverted). None can race this row, and a stale read could only ever record a `created_at` that was genuinely delivered.
-- **Missing row?** `delivered` is `nil`, so no watermark is written and the DELETE no-ops. Correct — a watermark is never invented for a row that does not exist.
-- **Can a watermark row exist while the corresponding entry was never delivered?** No. `recordDeliveredWatermark` has exactly one caller (Outbox.swift:206), inside `markDone`'s transaction, using the delivered row's own `created_at`. Grep-confirmed.
-- **The corrected comments** in `drainOutbox`/`drainSaveUploads` now state the reentrancy fact accurately: overlapping passes never race the same *entry* (because `markInFlight` precedes the `await`), but they are not serialized. That was the belief the defect rested on, and it is properly retired.
+**Blast radius is genuinely narrow** — only a database created or migrated by the 47ac7b6 build, which existed for roughly 18 minutes and was never released; in practice your own dev machine. Fresh installs are unaffected. But note *why* 25/25 green cannot see it: `OutboxTests.setUpWithError` builds a fresh `LocalStore` in a fresh temp directory for every test, so the suite only ever exercises the new schema. **This defect is structurally invisible to the test suite as written** — which is the same shape as the reasoning error in each previous round, just relocated from the comparison to the schema.
 
-### What is still not true
+The fix is smaller than the bug: the watermark is a pure hint, legitimately reconstructible as empty, and losing it fails **open** (an entry is retried rather than wrongly dropped). `DROP TABLE IF EXISTS outbox_delivered_watermark` before the `CREATE` is safe and sufficient; no copy-forward is needed.
 
-**Residue 1 — the tie window. This is the one that matters, and you were right to suspect the trade.**
+### What remains of WR-07 itself
 
-`Outbox.enqueue` stamps `created_at` with `ISO8601DateFormatter()`, which emits no fractional seconds. I probed this at HEAD rather than assuming it:
+Residues 2 and 3 are unchanged and architectural, closable in neither `Outbox` nor this round: a late-succeeding in-flight request lands after a newer one (only a server-side monotonic guard can close it; `replace_for_device/2` still has none), and a newer row retired by `markRejected` or quarantine is invisible to both checks. Disposition unchanged across all four rounds — tracked, non-blocking. The client-side ordering half of the must-have is now true; the leading clause cannot be made true in `Outbox` alone.
 
-```
-OutboxTests.swift:553: XCTAssertNotEqual failed: ("2023-11-14T22:13:20Z") is equal to ("2023-11-14T22:13:20Z")
-  - PROBE-A: two distinct instants 0.8s apart must not collapse to the same created_at
-OutboxTests.swift:562: XCTAssertTrue failed
-  - PROBE-B: the stale report must not stay deliverable after the newer one already succeeded
-```
+### A note on the compromised local evidence
 
-Two enqueues at genuinely distinct wall-clock instants **0.8 seconds apart** produce the identical `created_at` string — so ties are not a test artifact produced by passing the same `Date` twice, they arise from ordinary sub-second-apart enqueues. And inside that window the stale report is revived and stays deliverable after the newer one already succeeded. That is the must-have's final clause, still false.
-
-**Your strict comparison is the right call, and it is still not enough.** Non-strict would drop a delivery that nothing newer actually replaced — a worse failure, and `test_aRetryWhoseCreatedAtTiesTheDeliveredWatermarkIsStillRetried` correctly forbids it. So you did not choose wrongly between two options; both options are lossy, because `created_at` at second granularity is a **partial** order and you are asking it a total-order question. You have not traded one gap for another so much as hit the floor of what this key can answer.
-
-The way out is already in the codebase: `listPending` and `hasNewerLiveEntry` both order by `created_at ASC, rowid ASC` — the code already knows ties happen and already carries a tiebreaker. The watermark stores `created_at` alone and discards it. Storing a monotonic sequence (assigned at enqueue) or `(created_at, rowid)` would make "newer" exact, and the drop test and the tie test would both pass with no trade at all.
-
-**Residue 2 — an in-flight request that succeeds late.** If A is on the wire, B is delivered meanwhile, and A's request then *succeeds*, `markDone(A)` correctly leaves the watermark at B (`MAX`) and deletes the row — but A has already landed on the server **after** B. No client-side guard can prevent this: A was sent before B existed. Only a server-side monotonic guard closes it, and `Availability.replace_for_device/2` has none (blind full replacement, re-confirmed by direct read of the controller). This is architectural and pre-existing, introduced by neither fix — but it is why the sentence's leading clause, "only the newest ... is ever delivered", cannot be made true client-side alone.
-
-**Residue 3 — a newer row retired without being delivered.** `markRejected` moves a row to `rejected`; exhausting `maxAttempts` moves it to `quarantined`. Neither state is live for `hasNewerLiveEntry`, and neither writes a watermark — correctly, since neither is a delivery. So an older row can be revived and delivered while a newer one sits rejected or quarantined. This does not violate the "already succeeded" clause (nothing newer succeeded), only the leading clause. Reachability is very low — quarantine needs 8 failed attempts while the older row stays in flight throughout — so I record it rather than press it.
-
-### Disposition
-
-The fix is real, correctly scoped, atomic, and load-bearing, and it closes the exact residue I reported. It is **still narrower than the must-have sentence**, and I am saying so plainly for the third time rather than rounding up because the previous finding was addressed.
-
-Severity is unchanged across all three rounds: narrow, self-correcting on the next successful `syncNow()` pass, no permanent data corruption, no trust boundary crossed, no roadmap truth contradicted. Same disposition — an open, tracked, **non-blocking** warning, so the phase is not regressed to `gaps_found` for it. Residue 1 is the only one worth another commit, and it is a small one: change what the watermark stores.
+I did not run the full Unit layer, so WINDOWS #88 did not arise and nothing in this report depends on it. Every result cited here comes from `OutboxTests` (which you correctly identify as unaffected — it spawns no child processes), from sqlite3 run directly against the migration statements, or from source reads. I have not cited the 702/697 figures or hosted CI.
 
 ## Regression Re-checks (by source read, not by reading the prior verification)
 
@@ -184,9 +197,9 @@ Severity is unchanged across all three rounds: narrow, self-correcting on the ne
 
 | Artifact | Expected | Status | Details |
 |----------|----------|--------|---------|
-| `playstead-mac/Playstead/Persistence/Migrations.swift` | Durable store for the delivered fact | ✓ VERIFIED | `outbox_delivered_watermark`, one row per kind, `CREATE TABLE IF NOT EXISTS`, bounded. |
-| `playstead-mac/Playstead/Sync/Outbox.swift` | Newest-wins supersede across the full entry lifecycle | ⚠️ PARTIAL | Enqueue-time, live-newer, and delivered-newer cases all implemented, atomic, and tested. The tie window (and residues 2/3) remain — see Verdict. |
-| `playstead-mac/PlaysteadTests/CurationTests/OutboxTests.swift` | Fail-first coverage of both WR-07 rounds | ✓ VERIFIED | 24/24 at HEAD. My probe is kept permanently as `…WhenTheNewerReportAlreadySucceeded`; the tie test correctly prevents watermark over-reach. |
+| `playstead-mac/Playstead/Persistence/Migrations.swift` | Durable store for the delivered fact + a total order to compare on | ✗ DEFECTIVE (WR-08) | `enqueue_seq` column, backfill and index are all correct. The watermark table's upgrade path is not: `CREATE TABLE IF NOT EXISTS` no-ops on a 47ac7b6-era database and the `try? ALTER` leaves a stale `created_at NOT NULL` with no default, making the table unwritable. Proven in sqlite3. |
+| `playstead-mac/Playstead/Sync/Outbox.swift` | Newest-wins supersede across the full entry lifecycle | ⚠️ PARTIAL | Enqueue-time, live-newer and delivered-newer cases implemented, atomic and tested, now on a total order that resolves the tie window. Residues 2/3 remain (architectural); `recordDeliveredWatermark` also throws on a stale schema — see WR-08. |
+| `playstead-mac/PlaysteadTests/CurationTests/OutboxTests.swift` | Fail-first coverage of all three WR-07 rounds | ⚠️ PARTIAL | 25/25 at HEAD; the inverted tie test and the kind-scoping test are both genuine and load-bearing. But every test builds a fresh `LocalStore` in a fresh temp dir, so no test can exercise a schema upgrade — WR-08 is structurally invisible to this suite. |
 | `playstead-mac/Playstead/App/PlaysteadApp.swift` | Comments that do not assert false serialization | ✓ VERIFIED | Both `drainOutbox` and `drainSaveUploads` now state entry/revision-level non-racing without claiming serialization, and point at `Outbox` as the component that must be correct across reentrancy. |
 | `playstead-mac/Playstead/Cache/AvailabilityReporter.swift` | Real, non-constant `missing_dependency` signal | ✓ VERIFIED | Re-confirmed; 0 hardcoded literals in executable code. |
 | `playstead-server/.../availability_controller.ex` | 422 shape guard on malformed `entries` | ✓ VERIFIED (WR-04) | Guard intact. Noted: still no report-ordering guard, which is why residue 2 has no server-side mitigation. |
@@ -197,8 +210,8 @@ Severity is unchanged across all three rounds: narrow, self-correcting on the ne
 | From | To | Via | Status | Details |
 |------|-----|-----|--------|---------|
 | `CurationIntentKind.availabilityReport` → `Outbox.enqueue` | at-most-one-pending-row | `supersedesPending` scoped delete | ✓ WIRED | Unchanged, tested. |
-| `Outbox.markDone` → `outbox_delivered_watermark` | the delivered fact outlives the row | single transaction, `MAX` upsert | ✓ WIRED | One caller, inside the DELETE's transaction; falsification-proven load-bearing. |
-| `Outbox.markPendingForRetry` → `isSupersededForRetry` | drop a superseded revived row | live-row check OR watermark check | ⚠️ PARTIAL | Both clauses independently load-bearing; the watermark comparison is blind inside a one-second tie window. |
+| `Outbox.markDone` → `outbox_delivered_watermark` | the delivered fact outlives the row | single transaction, `INSERT…SELECT` + `MAX` upsert | ⚠️ PARTIAL | Correct on a fresh schema (missing-row case verified safe in sqlite3); throws SQLITE_CONSTRAINT on a 47ac7b6-era schema — WR-08. |
+| `Outbox.markPendingForRetry` → `isSupersededForRetry` | drop a superseded revived row | live-row check OR watermark check, both on `enqueue_seq` | ✓ WIRED | Both clauses independently load-bearing; the tie window is closed — flattening the sequence to a constant fails all three supersede tests. |
 | `Outbox.onEnqueue` → `OutboxWorker.drainOnce` | post-enqueue drain | `OutboxDrainTrigger.fire()` → `Task { await … }` | ✓ WIRED | PlaysteadApp.swift:648. Still the wiring that makes the reentrancy window reachable; now documented accurately. |
 | `AvailabilityReporter.buildEntries` → `missing_dependency` chip | HTTP-driven, no read-model seeding | shared fixture → real controller → LiveView | ✓ WIRED | Re-confirmed by grep (0 bypasses). |
 
@@ -206,14 +219,16 @@ Severity is unchanged across all three rounds: narrow, self-correcting on the ne
 
 | Behavior | Command | Result | Status |
 |---|---|---|---|
-| Full `OutboxTests` at HEAD `47ac7b6` | `xcodebuild test … -only-testing:PlaysteadTests/OutboxTests` | 24 tests, 0 failures | ✓ PASS |
-| Watermark clause is load-bearing (falsification) | watermark lines → `return false`, same command | 24 tests, 2 failures — both on the new drop test, `("1") is not equal to ("0")` at :519 | ✓ PASS (fails as required) |
-| Watermark does not duplicate the live-row check | same falsified run | `…ArrivedMeanwhile` and `…NothingNewerArrived` both passed | ✓ PASS |
-| Watermark does not over-reach | same falsified run | tie test passed | ✓ PASS |
-| Residue: tie window reachable from distinct instants | probe, 0.8s apart | `("2023-11-14T22:13:20Z") is equal to (…)` — collapsed | ✗ FAIL — residue confirmed |
-| Residue: stale report deliverable in the tie window | same probe | stale entry still in `listPending` at far-future | ✗ FAIL — residue confirmed |
-| Byte-exact restore after both probes | `shasum -a 256`, `git status --short` | `43582f28…` / `1e372f83…` match; tree clean | ✓ PASS |
-| Debt-marker scan (TBD/FIXME/XXX) on all files in the three commits | `grep -nE` | no matches | ✓ PASS |
+| Full `OutboxTests` at HEAD `4c59dc0` | `xcodebuild test … -only-testing:PlaysteadTests/OutboxTests` | 25 tests, 0 failures | ✓ PASS |
+| `enqueue_seq` is load-bearing (falsification) | sequence subquery → literal `1` | 25 tests, 7 failures across all three supersede tests (:482,:483,:484,:519,:520,:549,:550) | ✓ PASS (fails as required) |
+| Total order does not over-reach across kinds | same falsified run | kind-scoping test passed | ✓ PASS |
+| `(created_at, rowid)` really is unsafe (justification check) | sqlite3: insert 5, delete rowid 5 then 4, insert | new row got rowid **4** — below a watermark of 5 | ✓ PASS (rejecting rowid was correct) |
+| Watermark upgrade path on a 47ac7b6-era DB | sqlite3: old table → CREATE IF NOT EXISTS → ALTER → new INSERT | `NOT NULL constraint failed: outbox_delivered_watermark.created_at (19)` | ✗ FAIL — WR-08 |
+| `INSERT…SELECT` with a missing row | sqlite3, fresh schema | exit 0, 0 rows inserted, no error | ✓ PASS |
+| Sequence expression on empty tables | sqlite3 `MAX(COALESCE(…),COALESCE(…)) + 1` | `1` — never NULL | ✓ PASS |
+| Migration re-runs every open (no version gate) | `grep -c user_version Migrations.swift` | `0` | ✓ PASS (confirms WR-08 is steady-state) |
+| Byte-exact restore after the probe | `shasum -a 256`, `git status --short` | match; tree clean apart from this report | ✓ PASS |
+| Debt-marker scan (TBD/FIXME/XXX) on all files in `711f866` | `grep -nE` | no matches | ✓ PASS |
 
 Per project convention, every probe restore was done by copying back a saved byte-exact backup, never by `git checkout`.
 
@@ -253,13 +268,13 @@ The `OutboxTests` runs, the falsification of the watermark clause, and the tie p
 
 ### Gaps Summary
 
-One gap, narrowed twice, still open. `47ac7b6` genuinely closes the residue I reported at `847165b`, and I confirmed that independently by falsification rather than by reading the commit message — the watermark clause is load-bearing, atomic with the DELETE, correct on the missing-row path, and cannot invent a watermark for an undelivered entry.
+Two gaps. **WR-07's ordering question is settled.** `711f866` closes the tie window I measured last round by replacing the key rather than the comparison, and I confirmed the sequence is load-bearing by falsification and confirmed — empirically, in sqlite3 — that your reason for rejecting `(created_at, rowid)` was correct rather than merely plausible. What remains of WR-07 is two architectural residues that `Outbox` cannot close: a late-succeeding in-flight request, and a newer row retired by rejection or quarantine. The first wants a server-side monotonic guard; both want a WINDOWS.md entry if they are to be accepted instead.
 
-What remains is a key-granularity problem, not a logic error: `created_at` has one-second resolution, so "newer" is a partial order, and inside a one-second window a stale report is still revived and delivered after a newer one succeeded. The strict comparison is the better of the two available choices, and the tie test correctly forbids the alternative — the fix is to store a total order (monotonic sequence, or `(created_at, rowid)`, which the sibling ordering queries already use) rather than to change the comparison. Two further residues — a late-succeeding in-flight request, and a newer row retired by rejection or quarantine — cannot be closed client-side at all and want either a server-side monotonic guard or an explicit WINDOWS.md entry.
+**WR-08 is new and mine, not the commit's.** The defensive migration for the previous watermark schema does not work: `CREATE TABLE IF NOT EXISTS` no-ops on an existing table and the `try? ALTER` leaves a stale `created_at NOT NULL` with no default, so every `markDone` for an availability report throws, is misread by `drainOnce` as a transport failure, and quarantines a report that already succeeded. Blast radius is one unreleased build's databases, but the test suite cannot see it at all — every test starts from a fresh store. `DROP TABLE IF EXISTS` before the `CREATE` is a safe and sufficient fix, since the watermark is a reconstructible hint whose loss fails open.
 
 Four human verification items carry forward unchanged: physical controller hardware, a live interactive emulator launch session, a live VoiceOver/visual walkthrough, and real BIOS bytes.
 
 ---
 
-_Verified: 2026-09-15T15:05:00Z at HEAD 47ac7b6_
-_Verifier: Claude (gsd-verifier) — third independent pass on WR-07; no source files modified (working tree clean, all probe files restored byte-exact)_
+_Verified: 2026-09-15T16:10:00Z at HEAD 4c59dc0_
+_Verifier: Claude (gsd-verifier) — fourth independent pass on WR-07; no source files modified (working tree clean, probe file restored byte-exact)_

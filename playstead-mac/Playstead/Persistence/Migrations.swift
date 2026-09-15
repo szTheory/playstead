@@ -253,6 +253,23 @@ enum Migrations {
         // to. That is exactly the case the must-have names ("after a
         // later one that already succeeded"), so the fact has to outlive
         // the row. One row per kind, overwritten in place; it never grows.
+        // DROP, not a defensive ALTER. The first cut of this table was
+        // keyed on `created_at TEXT NOT NULL`; `CREATE TABLE IF NOT
+        // EXISTS` no-ops against it, so an ALTER adding `delivered_seq`
+        // leaves the COLUMN present and the TABLE unwritable -- every
+        // INSERT then fails the surviving `created_at NOT NULL` with no
+        // default. That is worse than not upgrading at all, because the
+        // schema looks migrated: `markDone`'s INSERT throws, its
+        // transaction rolls back so the delivered row is NOT deleted,
+        // and `OutboxWorker`'s catch-all -- a SQLite error is not an
+        // `APIClientError` -- routes a SUCCESSFUL delivery into
+        // `markPendingForRetry`, re-sending it until it quarantines.
+        //
+        // Dropping is safe precisely because this table is a hint, not a
+        // record: losing it fails OPEN (an entry is retried rather than
+        // dropped), and it rebuilds on the next delivery. Nothing
+        // reconstructs a wrong answer from its absence.
+        try connection.execute("DROP TABLE IF EXISTS outbox_delivered_watermark;")
         try connection.execute(
             """
             CREATE TABLE IF NOT EXISTS outbox_delivered_watermark (
@@ -261,9 +278,6 @@ enum Migrations {
             );
             """
         )
-        // Defensive, for a dev database that already has the first cut of
-        // this table (keyed on `created_at`) from an earlier build.
-        try? connection.execute("ALTER TABLE outbox_delivered_watermark ADD COLUMN delivered_seq INTEGER NOT NULL DEFAULT 0;")
 
         // `created_at` is ISO-8601 at SECOND granularity, so two entries
         // enqueued less than a second apart genuinely share one — it is a
@@ -275,11 +289,17 @@ enum Migrations {
         // the comparison.
         //
         // NOT `rowid`: outbox rows are deleted on delivery and SQLite
-        // reuses the rowids of deleted rows without AUTOINCREMENT, so a
-        // NEW row could take a LOWER rowid than the watermark and be
-        // mistaken for an old one. `enqueue_seq` is assigned as one past
-        // the highest value ANY live row or watermark has ever held, so
-        // it survives the deletes that make rowid unsafe here.
+        // reclaims the rowids of deleted rows without AUTOINCREMENT --
+        // measured, not assumed: insert 5, delete 5 then 4, insert again
+        // and the new row is rowid 4. Against a stored watermark of 5 it
+        // reads as older and is wrongly dropped.
+        //
+        // `enqueue_seq` is assigned as one past the highest value any
+        // live row or the watermark CURRENTLY holds. That is not globally
+        // monotonic -- a sequence is reused once its row is gone and no
+        // watermark records it -- but it does not need to be: both terms
+        // are inside the MAX, so a new sequence exceeds everything it can
+        // ever be compared against, and no two live rows share one.
         try? connection.execute("ALTER TABLE outbox_entries ADD COLUMN enqueue_seq INTEGER NOT NULL DEFAULT 0;")
         // One-time backfill for rows predating the column: rowid is a
         // sound *historical* order for rows that already exist together.
