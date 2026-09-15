@@ -407,14 +407,46 @@ if len(body) != 2:
 if "OnlyCopyEscalationReason(classification:" not in body[1].split("}", 1)[0]:
     raise SystemExit("isRetryable must gate on OnlyCopyEscalationReason, the same gate the escalation panel uses")
 
-# ...and the predicate must actually be consulted at each of the three
+# ...and the classification must actually be consulted at each of the three
 # decision points, not merely defined. A helper nothing calls is the exact
 # shape of a fix that passes its own guard and changes no behaviour.
+#
+# It must come off the DRAIN RESULT, never off the lane. WINDOWS #87:
+# `lane.lastFailureClassification` is a nonisolated read of one
+# last-writer-wins cell, and WINDOWS #67's fix made this harness share the
+# app's lane -- which drains on the reachability transition at pairing time.
+# So the cell can hold the app pass's classification while `stoppedForRetry`
+# describes this pass's, and an ordinary `.offlineQueue` stop gets reported as
+# a refusal. Reading the lane here is the defect, so the guard forbids it
+# outright rather than counting correct uses.
 region = source.split("func runSaveEndToEnd", 1)[1]
-uses = region.count("isRetryable(lane.lastFailureClassification)")
+if "lane.lastFailureClassification" in region:
+    raise SystemExit("save-e2e must classify from drainResult.failureClassification, not the lane's shared last-writer-wins cell")
+uses = region.count("drainResult.failureClassification")
 if uses != 3:
-    raise SystemExit(f"save-e2e must consult the retryable predicate at all 3 decision points, found {uses}")
+    raise SystemExit(f"save-e2e must consult this pass's classification at all 3 decision points, found {uses}")
 RETRYABLE_PY
+
+# ...and the lane must actually put this pass's classification INTO the result,
+# or every reader above is looking at a field nobody writes. Pinned separately
+# because the harness-side guard passes perfectly well against a struct field
+# that is always `.none` -- which would silently reclassify every refusal as
+# retryable and make this whole test unfailable.
+python3 - "${MAC_ROOT}/Playstead/Saves/SaveUploadLane.swift" "${MAC_ROOT}/Playstead/Sync/OutboxWorker.swift" <<'CLASSIFICATION_PY'
+import pathlib, sys
+
+lane, worker = (pathlib.Path(argument).read_text(encoding="utf-8") for argument in sys.argv[1:3])
+lane_source = "\n".join(line for line in lane.splitlines() if not line.lstrip().startswith("//"))
+worker_source = "\n".join(line for line in worker.splitlines() if not line.lstrip().startswith("//"))
+
+if "var failureClassification: SaveUploadFailureClassification" not in worker_source:
+    raise SystemExit("OutboxDrainResult must carry this pass's failure classification (WINDOWS #87)")
+drain = lane_source.split("func drainOnce(", 1)
+if len(drain) != 2:
+    raise SystemExit("SaveUploadLane.drainOnce is missing")
+if "result.failureClassification = " not in drain[1]:
+    raise SystemExit("drainOnce must record its own failure classification on the result it returns")
+CLASSIFICATION_PY
 
 # The most expensive test in the Unit layer must not be paid for twice.
 # `ReleaseHookAbsenceTests` shells out to a full Release `xcodebuild`. On run

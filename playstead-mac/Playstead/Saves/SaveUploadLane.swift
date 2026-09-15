@@ -153,7 +153,11 @@ actor SaveUploadLane {
                 // Left `queued` — visible and non-terminal (D-32). The
                 // pass stops here so a later revision never uploads
                 // ahead of this still-outstanding one.
-                classificationCell.set(Self.classify(error))
+                let classification = Self.classify(error)
+                classificationCell.set(classification)
+                // Also returned with this pass, not only stored: the cell
+                // is shared and last-writer-wins (WINDOWS #87).
+                result.failureClassification = classification
                 let attempt = (attemptCounts[revision.id] ?? 0) + 1
                 attemptCounts[revision.id] = attempt
                 let delayAttempt = min(attempt, Outbox.maxAttempts)

@@ -181,8 +181,19 @@ final class SaveEndToEndTests: XCTestCase {
             XCTAssertTrue(false, "save-e2e-harness=upload-stopped-retryable")
         case "save-e2e: upload still retryable-failing after all attempts":
             XCTAssertTrue(false, "save-e2e-harness=upload-exhausted-retries")
-        case "save-e2e: upload stopped for retry, server refused":
-            XCTAssertTrue(false, "save-e2e-harness=upload-server-refused")
+        // Four sites, not one, because D-40's four unfixable reasons are
+        // four different verdicts and CI keeps only file:line. WINDOWS #87
+        // cost a whole hosted run to "server refused" without being able to
+        // say which refusal it was -- or whether the classification even
+        // belonged to this pass.
+        case "save-e2e: upload refused, revoked auth":
+            XCTAssertTrue(false, "save-e2e-harness=refused-revoked-auth")
+        case "save-e2e: upload refused, capability skew":
+            XCTAssertTrue(false, "save-e2e-harness=refused-capability-skew")
+        case "save-e2e: upload refused, server refusal":
+            XCTAssertTrue(false, "save-e2e-harness=refused-server-refusal")
+        case "save-e2e: upload refused, compatibility rejection":
+            XCTAssertTrue(false, "save-e2e-harness=refused-compatibility-rejection")
         case "save-e2e: upload found nothing pending":
             XCTAssertTrue(false, "save-e2e-harness=upload-nothing-pending")
         case "save-e2e: revision not found after sync":
