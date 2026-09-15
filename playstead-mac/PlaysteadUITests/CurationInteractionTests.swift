@@ -43,7 +43,17 @@ final class CurationInteractionTests: XCTestCase {
         selectSidebar("Favorites", in: harness)
         let cards = harness.app.descendants(matching: .any).matching(identifier: "library.card")
         XCTAssertEqual(cards.count, 1)
-        XCTAssertEqual(cards.element(boundBy: 0).readableText, "Synthetic Game 1, Unidentified")
+        // The shelf was constructed without its `statuses` closure, so its
+        // cards carried no status rung at all and this label ended after
+        // the system name (WINDOWS #72). It now composes the same three
+        // facts the grid's cards do -- title, system, status sentence --
+        // and the seeded fixture is uncached, so the sentence is the
+        // server-only one. Asserted as an exact whole, matching this
+        // suite's posture, rather than loosened to a prefix.
+        XCTAssertEqual(
+            cards.element(boundBy: 0).readableText,
+            "Synthetic Game 1, Unidentified, Synthetic Game 1 is on your server. Choose Download to play it offline."
+        )
     }
 
     func testCollectionsShelfRootExists() throws {
@@ -226,6 +236,54 @@ final class CurationInteractionTests: XCTestCase {
         assertExactCollectionOrder(keyboardOrder, in: harness)
     }
 
+    // MARK: - The list layout's sort control (WINDOWS #79)
+
+    /// `LibrarySortOption` existed and was
+    /// tested for the whole of phase 03 while nothing in the shipped app
+    /// could reach either: the list layout renders `GameRowView`, and no
+    /// sort control was offered anywhere. This asserts the control exists
+    /// where a user can actually press it, that pressing it takes effect,
+    /// and that the rows come out in the order it names.
+    func testListLayoutOffersAWorkingSortControl() {
+        let harness = launchPersistentCurationHarness()
+
+        harness.element("playstead.control.show-list", type: .button).clickWhenHittable()
+
+        let byTitle = harness.element("playstead.control.sort-title", type: .button)
+        let bySystem = harness.element("playstead.control.sort-system", type: .button)
+        XCTAssertTrue(byTitle.awaitExistence(timeout: 5), "the list layout offers no way to sort")
+        XCTAssertTrue(bySystem.exists)
+        XCTAssertEqual(byTitle.value as? String, "selected", "title is the default ordering")
+        XCTAssertEqual(bySystem.value as? String, "not selected")
+
+        // Pressing it must actually change the state the list body reads --
+        // a control that renders and does nothing is the defect one level
+        // up from having no control at all.
+        bySystem.clickWhenHittable()
+        XCTAssertEqual(bySystem.value as? String, "selected")
+        XCTAssertEqual(byTitle.value as? String, "not selected")
+
+        // And the rows are ordered. The seeded fixture is three games whose
+        // titles sort the same way their ids do, so this pins the ordering
+        // that is observable here rather than claiming more than the
+        // fixture can show; `LibrarySortTests` covers the orderings
+        // themselves against inputs built for the purpose.
+        byTitle.clickWhenHittable()
+        let titles = (1...3).map { "Synthetic Game \($0)" }
+        let rendered = harness.app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@ AND identifier ENDSWITH %@", "playstead.game.", ".summary"))
+            .allElementsBoundByIndex
+            .map(\.readableText)
+        for title in titles {
+            XCTAssertTrue(
+                rendered.contains(where: { $0.hasPrefix(title) }),
+                "the sorted list dropped \(title): \(rendered)"
+            )
+        }
+        let positions = titles.compactMap { title in rendered.firstIndex(where: { $0.hasPrefix(title) }) }
+        XCTAssertEqual(positions, positions.sorted(), "rows are not in title order: \(rendered)")
+    }
+
     private func launchPersistentCurationHarness() -> UITestHarness {
         let harness = UITestHarness(profile: .populatedCurationReorder, persistentSession: true)
         self.harness = harness
@@ -315,7 +373,12 @@ final class CurationInteractionTests: XCTestCase {
         entry.clickWhenHittable()
     }
 
-    private func assertExactCollectionOrder(_ expected: [String], in harness: UITestHarness) {
+    private func assertExactCollectionOrder(
+        _ expected: [String],
+        in harness: UITestHarness,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
         let allRows = harness.app.descendants(matching: .any).matching(
             NSPredicate(
                 format: "identifier BEGINSWITH %@ AND NOT identifier CONTAINS %@",
@@ -323,27 +386,65 @@ final class CurationInteractionTests: XCTestCase {
                 ".move-"
             )
         )
-        XCTAssertEqual(allRows.count, 3)
+        XCTAssertEqual(allRows.count, 3, file: file, line: line)
         let rows = expected.map { harness.element("playstead.curation.collection-member.\($0)") }
-        for row in rows { XCTAssertTrue(row.awaitExistence(timeout: 5)) }
+        for row in rows { XCTAssertTrue(row.awaitExistence(timeout: 5), file: file, line: line) }
         let visualOrder = rows.sorted { $0.frame.minY < $1.frame.minY }.map(\.identifier)
-        XCTAssertEqual(visualOrder, expected.map { "playstead.curation.collection-member.\($0)" })
+        XCTAssertEqual(
+            visualOrder,
+            expected.map { "playstead.curation.collection-member.\($0)" },
+            file: file,
+            line: line
+        )
         for (row, memberID) in zip(rows, expected) {
-            XCTAssertEqual(row.readableText, "Synthetic Game \(Int(memberID.suffix(1))!)")
+            XCTAssertEqual(
+                row.readableText,
+                "Synthetic Game \(Int(memberID.suffix(1))!)",
+                file: file,
+                line: line
+            )
         }
     }
 
-    private func assertEvidence(order: [String], outboxCount: Int, in harness: UITestHarness) {
+    // WINDOWS #92: every assertEvidence call in this file used to report at
+    // waitForValue's own XCTAssertEqual, so all 17 call sites collapsed onto one
+    // line number. That is not a cosmetic loss. testDragReorderSurvivesRelaunch
+    // asserts evidence twice -- once before relaunch and once after -- and the
+    // two mean opposite things: a pre-relaunch timeout says the drag never
+    // landed, a post-relaunch timeout says the reorder did not durably persist.
+    // CI evidence keeps file:line and discards assertion messages, so the line
+    // number is the only channel that survives to tell them apart. Forward the
+    // caller's, the same way clickWhenHittable already does.
+    private func assertEvidence(
+        order: [String],
+        outboxCount: Int,
+        in harness: UITestHarness,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
         waitForValue(
             harness.element("playstead.test.curation.evidence"),
-            equals: evidence(order: order, outboxCount: outboxCount)
+            equals: evidence(order: order, outboxCount: outboxCount),
+            file: file,
+            line: line
         )
     }
 
-    private func waitForValue(_ element: XCUIElement, equals expected: String) {
+    private func waitForValue(
+        _ element: XCUIElement,
+        equals expected: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
         let predicate = NSPredicate(format: "value == %@", expected)
         let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
-        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed)
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [expectation], timeout: 5),
+            .completed,
+            "evidence never reached \(expected); observed \(element.value as? String ?? "<no value>")",
+            file: file,
+            line: line
+        )
     }
 
     private func selectCollectionMemberByKeyboard(_ memberID: String, in harness: UITestHarness) -> XCUIElement {

@@ -193,7 +193,7 @@ final class QueueTests: XCTestCase {
         try queue.enqueueGame(game)
 
         let coordinator = DownloadCoordinator(
-            queue: queue, engine: engine, cas: cas, localStore: localStore, reachability: reachability,
+            queue: queue, engine: engine, reachability: reachability,
             blobURL: { URL(string: "https://blobs.test/api/v1/blobs/\($0)")! }
         )
 

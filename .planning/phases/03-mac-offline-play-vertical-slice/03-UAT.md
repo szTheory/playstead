@@ -3,12 +3,12 @@ status: partial
 phase: 03-mac-offline-play-vertical-slice
 source: 03-01-SUMMARY.md, 03-02-SUMMARY.md, 03-03-SUMMARY.md, 03-04-SUMMARY.md, 03-05-SUMMARY.md, 03-06-SUMMARY.md, 03-07-SUMMARY.md, 03-08-SUMMARY.md, 03-09-SUMMARY.md, 03-10-SUMMARY.md, 03-11-SUMMARY.md, 03-12-SUMMARY.md, 03-13-SUMMARY.md, 03-14-SUMMARY.md, 03-15-SUMMARY.md, 03-16-SUMMARY.md
 started: 2026-08-31T00:00:00Z
-updated: 2026-09-11T18:00:00Z
+updated: 2026-09-14T00:00:00Z
 ---
 
 ## Current Test
 
-[testing paused — 6 items outstanding: 3 blocked (items 7, 8, 9 — real emulator + game bytes, and physical controller hardware), 3 partial (item 10's physical-controller/experiential-VoiceOver half, item 13's real-BIOS-bytes acceptance, item 45's rendered-surface half). Items 45-49 were merged from plans 03-11/03-13/03-15, whose human checkpoints had never reached this file; 46, 47, 48 and 49 were closed by new automation this session, and 48 turned out to be a real defect (see its evidence). This annotation and the Summary footer below are recomputed by `scripts/check-uat-tally.sh` from this file's own per-item results, not hand-maintained.]
+[testing paused — 4 items outstanding: 2 blocked (items 8, 9 — physical controller hardware) and 2 partial (item 10's physical-controller/experiential-VoiceOver half, item 13's real-BIOS-bytes acceptance). Everything still open needs hardware this project does not have or a human listening to VoiceOver; there is no remaining checkpoint here that automation could close. ITEM 7 IS NOW FULLY CLOSED and this annotation said otherwise until 2026-09-14 — it still listed item 7's quit-and-return and refusal-and-exit clauses as partial after they had been closed, and counted 5 outstanding where the per-item records say 4. `scripts/check-uat-tally.sh` reconciles the `## Summary` footer against the per-item results but does NOT read this paragraph, which is why it drifted; it is hand-maintained and should be read as such. Item 7's history, for the record: fully blocked until 2026-09-12, when the owner downloaded and played a real game with the real pinned mGBA — the first real launch this project has had, every prior record having used `/bin/echo` for the emulator — with three clauses recorded as separate blocked sub-records rather than rounded up. The network-disabled clause closed 2026-09-13 (Advance Wars launched with `caddy` stopped thirteen minutes beforehand), and the quit-and-return and digest-mismatch-refusal clauses closed 2026-09-13/14, the run that exposed the eight defects recorded as WINDOWS #72-#80. `playstead-mac/docs/UAT-07-RUNBOOK.md` remains the procedure for re-running it. Items 45-49 were merged from plans 03-11/03-13/03-15, whose human checkpoints had never reached this file; all five are closed, and 48 turned out to be a real defect (see its evidence).]
 
 ## Tests
 
@@ -145,16 +145,244 @@ coverage_id: 03-08/D3
 
 ### 7. Play a game end to end with the real emulator, offline
 expected: With the real pinned emulator installed and a real downloaded game, network disabled: pressing Play starts the emulator, the game runs, and quitting returns to the library. An install-digest mismatch refuses to launch; exits classify into clean/crashed/killed per the pin.
-result: blocked
-blocked_by: third-party
-reason: |
-  Requires the pinned emulator installed locally plus a real downloaded game.
-  Automation path (not yet built, needs an owner decision): a self-hosted Mac
-  runner with the pinned emulator installed, driving the real AdapterHost
-  against a freely-redistributable homebrew GBA ROM committed as a fixture.
-  The homebrew-ROM choice is a licensing decision for the owner, not something
-  to assume; commercial game bytes can never ship in CI.
+result: pass
 coverage_id: 03-03/D5
+
+#### Manual first-launch record — the download-and-play path
+result: pass
+source: manual
+evidence: |
+  2026-09-12, by the owner on their own machine, against their own library on the
+  deployment stack (docker-compose.yml, Caddy at https://localhost:18443). THE
+  FIRST TIME A REAL GAME HAS EVER BEEN LAUNCHED BY THIS APP — every prior record
+  for this item used `/bin/echo` in place of the emulator.
+
+  Adapter: the real pinned mGBA 0.10.5, installed from the genuine release DMG.
+  `.install-verify.json` records `archive_sha256` =
+  443b490ec728293dfcde1cb9db160f73d94c457cb1864f3ce0407e60e174b09c, byte-identical
+  to `sha256` in `Playstead/Adapter/AdapterPin.json`. Quarantine already cleared,
+  so broken window #8 did not bite.
+
+  Download: `GET /api/v1/blobs/d13e6139d28d29b7421b0f68f93c86a4c696427a0beb88555b1b2fbc74fa65f4`
+  -> `Chunked 200 in 6ms` (deployment server log, 03:26:03Z). The blob landed in
+  the content-addressed cache at `objects/sha256/d1/3e/<digest>` and the launch
+  directory `launch/3566c638-343c-4718-b907-c915dadf4a43/` was materialized
+  holding `Max Payne Advance (Europe).gba`.
+
+  Launch: the app spawned the real emulator with the pin's exact
+  `argument_template` (["-C", "savegamePath={saveDir}", "{romPath}"]):
+    mGBA -C savegamePath=.../saves/3566c638-.../ .../launch/3566c638-.../Max Payne Advance (Europe).gba
+  Observed as a live process (pid 29843) under the installed adapter path.
+
+  The game ran: mGBA wrote `Max Payne Advance (Europe).ss1` into the launch
+  directory, and the app staged a 512-byte capture at
+  `save-captures/3566c638-.../session-644C21EF-....staged.sav`. A play session was
+  recorded locally (`play_sessions_pending` id 50B5DD15-..., asset_set 3566c638,
+  started_at 2026-09-13T03:26:06Z).
+
+  Evidence boundary: covers installed-pinned-adapter -> download -> verified cache
+  -> launch-directory materialization -> real emulator start -> game running ->
+  save artifact produced. It covers NOTHING in the three sub-records below, each of
+  which is a separate clause of this item's expected behavior.
+
+#### Offline-launch record — server unreachable
+result: pass
+source: manual
+evidence: |
+  2026-09-13, by the owner on their own machine. THE FIRST TIME THIS APP HAS
+  LAUNCHED A REAL GAME WITH NO SERVER REACHABLE. Supersedes the blocked record this
+  replaces, whose only defect was that the 2026-09-12 run had the server up.
+
+  Server made unreachable first, and by a means that left the rest of the machine
+  online: `docker compose stop caddy` in playstead-server. `caddy` is the only
+  published service in the deployment topology (`0.0.0.0:18443->443/tcp`), so
+  stopping it removes every route to the server while `app` and `db` keep running.
+  Confirmed `Exited (0)`, and `curl -sk --max-time 3 https://localhost:18443/healthz`
+  returned no response.
+
+  Ordering is unambiguous: caddy exited at about 13:45Z; the emulator started at
+  13:58:35Z, roughly thirteen minutes later. Nothing could have been fetched
+  between the two.
+
+  Title: Advance Wars (USA) (v1.1), asset_set 1687f207-8342-4552-adab-6adb5f7b4ede,
+  already in the content-addressed cache from a prior session -- its required member
+  is present in `objects/verify-index.json`, and the ROM was materialized at
+  `launch/1687f207-.../Advance Wars (USA) (v1.1).gba` (4194304 bytes, mtime
+  2026-09-08). No byte of it crossed the network during this run.
+
+  Launch: the real pinned mGBA 0.10.5, pid 39572, spawned with the pin's exact
+  `argument_template`:
+    mGBA -C savegamePath=.../saves/1687f207-.../ .../launch/1687f207-.../Advance Wars (USA) (v1.1).gba
+  Observed alive for 2m31s at `STAT` `S` -- not `T`, so this was a genuinely running
+  process and not the suspended-at-`_dyld_start` shape broken window #8 describes.
+  The owner reports playing it. A play session was recorded locally
+  (`play_sessions_pending` 1EBCB2B1-..., started 2026-09-13T13:58:35Z).
+
+  Evidence boundary: covers exactly "with the real pinned emulator installed and a
+  real downloaded game, network disabled: pressing Play starts the emulator and the
+  game runs." It covers NOTHING about quitting (see the next record, which was still
+  open at the moment this was written -- `ended_at` empty, `delivered` 0, emulator
+  still running), nothing about a digest-mismatch refusal, and nothing about exit
+  classification. It also does not cover a cold app start with no server: the app
+  was already running and already paired when caddy was stopped.
+
+  Reproduce: `playstead-mac/docs/UAT-07-RUNBOOK.md`, Run A. Run A2 there is the
+  cold-start-with-no-server case this record does not reach.
+
+#### Quit-and-return record — closed, with a wording correction
+result: pass
+source: manual
+evidence: |
+  2026-09-13, by the owner, on Pokemon - Version Vert Feuille (France) with their
+  own real battery save. Server up for this run.
+
+  WHAT THIS ITEM'S WORDING GETS WRONG. "Quitting returns to the library" presumes
+  the app navigates away while a game runs. It does not. The emulator is a separate
+  process with its own window; `LibraryShellView` stays exactly where it was for the
+  whole session. The owner said it plainly -- "the app never left the library did
+  it?" -- and they are right. There is no navigation to assert, so the honest
+  reading of this clause is: after the emulator exits, the app is still there and
+  usable, the session is closed, the save is captured, and delivery happens. All
+  four are now observed. Recorded rather than silently reinterpreted, because a
+  future automated version of this item must assert the reachable behaviour and not
+  the wording.
+
+  QUIT. The owner deliberately moved the player to a different starting room before
+  saving, so the save content would be provably different rather than a same-bytes
+  write that might produce no revision at all. Saved from the game's own menu (not
+  an mGBA save state), then Cmd-Q inside the mGBA window. mGBA gone from the process
+  table; library still visible and usable; no modal, no error banner.
+
+  SESSION CLOSED AND DELIVERED. `play_sessions_pending` BDAF2197-... ended
+  2026-09-13T14:24:59Z with `delivered` 1, and the curation outbox went to zero
+  pending entries. Notably the owner had NOT clicked into, or Cmd-Tabbed to, the
+  Playstead window at any point after the quit -- they said so before running the
+  check -- which isolates the trigger: delivery happened on the post-enqueue drain,
+  not on scene activation. Good controlled observation on their part.
+
+  SAVE CAPTURED AND PROMOTED, with a correct revision chain. The battery save at
+  `saves/0a45c792-.../Pokemon - Version Vert Feuille (France).sav` was rewritten at
+  14:24 (131072 bytes, 156 distinct byte values -- real data, not erased flash). A
+  staged capture `session-089FA0FC-....staged.sav` was written and promoted to the
+  content-addressed `2def4156f81c0bda2cf3272ecd77839d2178fb7e6e8119118a2fbece5b76a65d.sav`.
+  `save_revision` shows a properly parented three-link chain on save line
+  01a0821b-... (content_key cc0fa93f..., the ROM's own digest, save_kind battery,
+  slot 0):
+    B2273B37 (no parent)  blob 5c195027...   2026-09-08
+      -> D2617BCB         blob 040f9552...   2026-09-08
+        -> E80B1B61       blob 2def4156...   2026-09-13 14:24
+  The new digest differs from both ancestors, which is what the room move was for.
+  This is the first time the save-continuity spine has been exercised end to end by
+  hand against a real game and a real save.
+
+  EVIDENCE BOUNDARY -- what this run does NOT cover:
+    * The server was up throughout, so this does not prove the
+      queue-while-offline-then-deliver-on-return path. An earlier run on 2026-09-13
+      proved the queueing half (two `play_session_record` entries held with
+      `attempt_count` 2 while caddy was stopped) but NOT the delivery-on-return
+      half: those entries only went out later, when an unrelated enqueue fired the
+      drain. The open broken window about the missing drain trigger therefore still
+      stands and is NOT cleared by this record.
+    * Exit classification is a separate clause -- see the next record. The Cmd-Q
+      half of it is settled there; the signal cases are not.
+    * A save CONFLICT was never created (one device, one line, linear history), so
+      divergence and the conflict-comparison surface remain unexercised here.
+
+  Reproduce: `playstead-mac/docs/UAT-07-RUNBOOK.md`, Run B.
+
+#### Exit-classification record — all three pin signatures
+result: pass
+source: manual
+evidence: |
+  2026-09-13, by the owner, on Advance Wars (USA) (v1.1) -- chosen deliberately
+  because its battery save is erased flash (36 distinct byte values, 98% 0xff), so
+  signalling the emulator mid-write could not cost real save data.
+
+  Each signal was sent to the live emulator process from a terminal, and the string
+  `GameRowView` rendered in the row was read back from the UI each time:
+
+    kill -TERM (pid 59055)  ->  "Last exit: clean"      session 0633BBE7 closed 14:28:32Z, delivered 1
+    kill -SEGV (pid  9420)  ->  "Last exit: crashed"    session E01B6C89 closed 14:29:33Z, delivered 1
+    kill -KILL (pid 74615)  ->  "Last exit: killed"     session E08DF8D8 closed 14:31:47Z, delivered 1
+
+  Those match `AdapterPin.json`'s `exit_detection` exactly (15/uncaughtSignal,
+  11/uncaughtSignal, 9/uncaughtSignal), so this clause -- "exits classify into
+  clean/crashed/killed per the pin" -- is satisfied as written. Each death also
+  closed and delivered its play session with no user action, including the two the
+  app never asked for, so the termination handler is wired on the real path and not
+  only on the app-initiated one.
+
+  CAVEAT THAT THIS CLAUSE'S WORDING DOES NOT REACH, recorded as an open broken
+  window rather than folded in here: a normal user quit (Cmd-Q inside mGBA, status
+  0 / reason exit) has NO signature in the pin and classifies as
+  `unknown(status: 0, reason: "exit")` -- confirmed by hand in the same session. The
+  pin calls 15/uncaughtSignal "clean", but that is the signal the APP sends via
+  `Process.terminate()`, and the pin's own note says mGBA dies on it exactly like a
+  crash. So "clean" currently means "we asked it to stop", and the most common real
+  exit is unclassified. Fixing that is a decision about the frozen pin, not a code
+  change, which is why this record passes the clause and the window stays open.
+
+  SIGSEGV also raises macOS's own crash-reporter dialog ("mGBA a quitte de maniere
+  imprevue"), whose Ignore/Relaunch buttons did nothing -- Relaunch cannot work,
+  since the emulator was spawned as a child process rather than launched as an app.
+  Cosmetic, external to Playstead, and noted only so the next person running this
+  is not surprised.
+
+  AMENDED 2026-09-14 -- the caveat above has since been fixed, and the observations
+  recorded here are now HISTORY, not current behaviour. The owner authorized the pin
+  change (WINDOWS #76, option A): `exit_detection` categories now hold a LIST of
+  signatures, `0 / exit` is `clean`, and `15 / uncaughtSignal` moved to `killed`
+  alongside `9 / uncaughtSignal`, because `AdapterHost.terminateAll()` sends SIGTERM
+  and escalates to SIGKILL -- both are Playstead ending the process, and the pin's
+  own note says neither is graceful.
+
+  So re-running the exact same three commands today yields:
+
+    kill -TERM  ->  "Last exit: killed"   (was "Last exit: clean")
+    kill -SEGV  ->  "Last exit: crashed"  (unchanged)
+    kill -KILL  ->  "Last exit: killed"   (unchanged)
+
+  and Cmd-Q inside mGBA now yields "Last exit: clean" instead of
+  `unknown(status: 0, reason: "exit")`. The clause this record satisfies -- exits
+  classify into clean/crashed/killed per the pin -- is still satisfied, by a pin
+  that now describes the exit a player actually performs. The manual evidence above
+  is deliberately left verbatim rather than rewritten: it is what was observed on
+  the day, and a UAT record that silently tracks later code is not evidence.
+
+  This is no longer only a hand-verifiable clause. `AdapterExitBoundaryTests` now
+  spawns real child processes over {0, 9, 11, 15} x {exit, uncaughtSignal} and
+  classifies them against the shipped bundle pin, so the next regression here fails
+  in CI rather than waiting for someone to notice a wrong word in the UI.
+
+#### Digest-mismatch refusal record
+result: pass
+source: manual
+evidence: |
+  2026-09-13, by the owner. Tests the gate `AdapterHost.verifyInstalledDigest()`
+  exists for: a binary swapped or corrupted after install.
+
+  In-place modification of the installed binary is impossible on this macOS -- append
+  returns "operation not permitted" against the signed bundle -- so the probe was a
+  bundle swap, which is the more faithful shape anyway. The real `mGBA.app` was
+  renamed aside to `mGBA.app.real`, and a copy with a single null byte appended to
+  `Contents/MacOS/mGBA` was moved into its place:
+    live binary     f7f6e37aaf7527e088fd88616ce82f4b16fe4800f5f4cf2de59ff2e0b24ff026
+    record expects  f2f329b4947baa5082fcaf27ced1e2b21f2999ccf73ca481f22b44c4c87d6640
+      (`.install-verify.json` -> executable_sha256)
+
+  Pressing Play produced `Launch failed: digestMismatch(...)` in the row, carrying
+  the two differing digests, and NO mGBA process was spawned -- so the re-hash
+  happens before the emulator starts, as `InstallVerifyRecord`'s doc comment
+  promises ("the app re-proves it every time"). The error was `digestMismatch` and
+  not `emulatorNotInstalled`, which also confirms install state is restored across
+  app launches rather than falling back to the fixed downloaded-install path.
+
+  Restored immediately and verified: the live binary hashes
+  f2f329b4947baa5082fcaf27ced1e2b21f2999ccf73ca481f22b44c4c87d6640, byte-identical
+  to the recorded install, with the tampered copy deleted and nothing else left in
+  the emulator directory.
+
+  Reproduce: `playstead-mac/docs/UAT-07-RUNBOOK.md`, Runs C and D.
 
 ### 8. Controller connect / disconnect recovery on real hardware
 expected: With a real game controller, unplug and reconnect it mid-use. Recovery is non-modal and never strands keyboard or pointer input.
@@ -761,11 +989,11 @@ coverage_id: 03-15/D7
 ## Summary
 
 total: 49
-passed: 44
+passed: 45
 issues: 0
 pending: 0
 skipped: 0
-blocked: 3
+blocked: 2
 partial: 2
 
 ## Gaps

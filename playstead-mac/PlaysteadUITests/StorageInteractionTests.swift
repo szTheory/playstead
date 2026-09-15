@@ -5,6 +5,8 @@ final class StorageInteractionTests: XCTestCase {
     private var harness: UITestHarness!
     private let quotaReclaimAssetID = "00000000-0000-7000-8000-000000000041"
     private let quotaDownloadAssetID = "00000000-0000-7000-8000-000000000042"
+    private let gameCardIdentifier = "library.card"
+    private let showListControl = "playstead.control.show-list"
     private var quotaDownloadAction: String {
         "playstead.game.\(quotaDownloadAssetID).download"
     }
@@ -234,6 +236,46 @@ final class StorageInteractionTests: XCTestCase {
         harness.require(["playstead.storage.pinned.0"])
         XCTAssertEqual(elements("playstead.storage.candidate").count, 0)
         XCTAssertFalse(harness.element("playstead.storage.reclaim", type: .button).isEnabled)
+    }
+
+    /// The front-door gate for WINDOWS #72/#73/#74, at the layer where the
+    /// defect actually lived.
+    ///
+    /// The `.storage` profile seeds one game that is cached AND pinned, so
+    /// every badge in the app should say so. Before this, `ShelfView` was
+    /// handed a hardcoded `[.serverOnly]` for every entry and the shipped
+    /// list row rendered no status at all, so the card claimed "is on your
+    /// server. Choose Download to play it offline." over content that was
+    /// downloaded, verified and pinned -- and no unit test could see it,
+    /// because the derivation those tests exercise had no production
+    /// caller.
+    func testCachedAndPinnedGameIsNotDescribedAsBeingOnTheServer() {
+        launchStorageProfile(.storage)
+
+        let card = harness.element(gameCardIdentifier)
+        XCTAssertTrue(card.awaitExistence(timeout: 5), "the seeded game's card never rendered")
+        XCTAssertTrue(
+            card.readableText.hasSuffix("is pinned and ready to play offline."),
+            "a cached, pinned game's card must not describe it as being on the server: \(card.readableText)"
+        )
+
+        // The list layout is what the shipped app renders for the list
+        // view, and QUAL-01 requires it to pair the glyph with a text
+        // label. Those strings previously existed only in `GameListView`, since deleted,
+        // which nothing in production renders.
+        harness.element(showListControl, type: .button).clickWhenHittable()
+        let slot = harness.element("library.status-slot")
+        XCTAssertTrue(slot.awaitExistence(timeout: 5), "the list row rendered no status indicator at all")
+        XCTAssertTrue(
+            slot.readableText.hasSuffix("is pinned and ready to play offline."),
+            "the list row's status must describe the real state: \(slot.readableText)"
+        )
+        let label = harness.element("library.status-label")
+        XCTAssertTrue(
+            label.exists,
+            "QUAL-01: the list row must show the status's text label, never the glyph alone"
+        )
+        XCTAssertEqual(label.readableText, "Pinned", "the label must state the real status")
     }
 
     private func exerciseQuotaAndFocusRestoration() {

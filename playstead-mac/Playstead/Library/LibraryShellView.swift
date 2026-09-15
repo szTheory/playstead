@@ -19,6 +19,14 @@ struct LibraryShellView: View {
     @State private var presentedSurface: ShellSurface?
     @State private var searchText = ""
     @State private var libraryLayout: LibraryLayout = .cards
+    /// The list layout's ordering. Lives here rather than in
+    /// `LibraryViewModel` because it is presentation state, and it governs
+    /// the rows `catalogueList` renders -- which is the whole of WINDOWS
+    /// #79: `LibrarySortOption` existed and was tested, and nothing in the
+    /// shipped app could reach it, because the shipped list renders
+    /// `GameRowView`. The unreachable `GameListView` it was written for has
+    /// since been deleted.
+    @State private var librarySort: LibrarySortOption = .title
     @State private var selectedListEntryID: String?
     @State private var downloadCommand: LibraryDownloadCommand?
     @State private var downloadCommandSequence = 0
@@ -339,7 +347,20 @@ struct LibraryShellView: View {
         case .continuePlaying:
             ScrollView { ContinueShelfView(viewModel: environment.continueViewModel, catalogueByAssetSetID: catalogueByAssetSetID) }
         case .favorites:
-            ScrollView { FavoritesShelfView(viewModel: environment.favoritesViewModel, catalogueByAssetSetID: catalogueByAssetSetID) }
+            ScrollView {
+                FavoritesShelfView(
+                    viewModel: environment.favoritesViewModel,
+                    catalogueByAssetSetID: catalogueByAssetSetID,
+                    // The shelf has always taken this closure and has
+                    // always been constructed without it, so its cards
+                    // defaulted to no status at all -- the quieter sibling
+                    // of the grid's hardcoded `.serverOnly` (WINDOWS #72).
+                    statuses: { assetSetID in
+                        guard let entry = catalogueByAssetSetID[assetSetID] else { return [] }
+                        return environment.libraryStatuses(for: entry)
+                    }
+                )
+            }
         case .collections:
             collectionsDetail
         case .queue:
@@ -392,6 +413,16 @@ struct LibraryShellView: View {
                         .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.openReadiness)
                 }
                 if libraryLayout == .list {
+                    // Buttons rather than a Picker, matching the
+                    // Cards/List controls beside them: one identifier per
+                    // option, keyboard-reachable through the same
+                    // `playsteadFocusable` path, and drivable by a UI test
+                    // without a pop-up menu in the way.
+                    ForEach(LibrarySortOption.selectable, id: \.self) { option in
+                        Button("Sort: \(option.controlLabel)") { librarySort = option }
+                            .accessibilityValue(librarySort == option ? "selected" : "not selected")
+                            .playsteadFocusable(identifier: option.controlIdentifier)
+                    }
                     Text(selectedListEntryTitle.map { "Selected: \($0)" } ?? "No game selected")
                         .font(.psLabel)
                         .foregroundStyle(.secondary)
@@ -406,33 +437,15 @@ struct LibraryShellView: View {
 
             switch libraryLayout {
             case .cards:
-                ScrollView {
-                    ShelfView(
-                        heading: "All games",
-                        items: library.filteredCatalogue.map {
-                            ShelfItem(
-                                id: $0.id,
-                                title: $0.displayTitle,
-                                systemID: $0.system,
-                                isUnidentified: LibraryViewModel.isUnidentified($0),
-                                // MC-03: unions the D-38 divergence badge
-                                // into the card's existing rank-1 rung —
-                                // `highestPriority` still picks
-                                // `.needsAttention` over `.serverOnly`
-                                // whenever both are present, never the
-                                // reverse.
-                                statuses: [LibraryStatus?.some(.serverOnly), LibraryStatus.forSaveState(
-                                    conflicted: environment.hasUnacknowledgedSaveDivergence(assetSetID: $0.id)
-                                )].compactMap { $0 }
-                            )
-                        },
-                        layout: .grid,
-                        emptyExplanation: "No games match the current search and filters."
-                    )
+                // The cards layout had its own near-miss of the same contract
+                // (WINDOWS #83): ShelfView's emptyExplanation is not blank,
+                // but it echoes no query and offers no clear control, so
+                // `clearSearch()` was unreachable here too.
+                if let state = library.searchResultState {
+                    NoMatchesView(state: state) { library.clearSearch() }
+                } else {
+                    catalogueCards
                 }
-                .accessibilityElement(children: .contain)
-                .accessibilityLabel("Game cards")
-                .accessibilityIdentifier(AccessibilityIdentifiers.Surface.gameCard)
             case .list:
                 catalogueList(library.filteredCatalogue)
             }
@@ -474,8 +487,9 @@ struct LibraryShellView: View {
     }
 
     private func catalogueList(_ entries: [CatalogueEntry]) -> some View {
-        List(selection: $selectedListEntryID) {
-            ForEach(entries) { entry in
+        let ordered = LibrarySortOption.sortedEntries(entries, by: librarySort)
+        return List(selection: $selectedListEntryID) {
+            ForEach(ordered) { entry in
                 GameRowView(entry: entry, downloadCommand: downloadCommand)
                     .tag(entry.id)
             }
@@ -485,20 +499,74 @@ struct LibraryShellView: View {
         .accessibilityLabel("Game list")
         .accessibilityIdentifier(AccessibilityIdentifiers.Surface.gameList)
         .overlay {
-            if entries.isEmpty {
-                VStack(spacing: DesignTokens.Spacing.md) {
-                    ContentUnavailableView(
-                        "No games yet",
-                        systemImage: "square.stack.3d.up",
-                        description: Text(refreshError ?? "Pair with your Playstead server to see your library.")
+            if entries.isEmpty { emptyListPane }
+        }
+    }
+
+    /// The grid layout's cards. Split out of `libraryBody` so the cards case
+    /// can branch to `NoMatchesView` without nesting the whole builder.
+    private var catalogueCards: some View {
+        ScrollView {
+            ShelfView(
+                heading: "All games",
+                items: library.filteredCatalogue.map {
+                    ShelfItem(
+                        id: $0.id,
+                        title: $0.displayTitle,
+                        systemID: $0.system,
+                        isUnidentified: LibraryViewModel.isUnidentified($0),
+                        // The real read-time derivation (D-21), including
+                        // MC-03's divergence rung. This was a hardcoded
+                        // `.serverOnly` for every entry, so every card
+                        // claimed "on your server, choose Download to play
+                        // it offline" over content already downloaded and
+                        // playable (WINDOWS #72/#73).
+                        statuses: environment.libraryStatuses(for: $0)
                     )
-                    // The string above has named this action since Phase 3
-                    // with nothing behind it to reach (WINDOWS #54) — this
-                    // button is what makes it real.
-                    if refreshError == nil {
-                        Button("Pair with Server…") { presentedSurface = .pairing }
-                            .accessibilityIdentifier(AccessibilityIdentifiers.Control.openPairing)
-                    }
+                },
+                layout: .grid,
+                emptyExplanation: "No games match the current search and filters."
+            )
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Game cards")
+        .accessibilityIdentifier(AccessibilityIdentifiers.Surface.gameCard)
+    }
+
+    /// What an empty list actually says. `LibraryViewModel.searchResultState`
+    /// has been computed, unit-tested and snapshot-tested since Phase 3 with
+    /// no view reading it, so a search that matched nothing fell through to
+    /// the "No games yet" pane below and told an already-paired user with a
+    /// full library to go pair (WINDOWS #83). 03-UI-SPEC's Copywriting
+    /// Contract owns the no-matches copy; `NoMatchesView` renders it verbatim
+    /// and is the only place `clearSearch()` is reachable from the UI.
+    @ViewBuilder
+    private var emptyListPane: some View {
+        if let state = library.searchResultState {
+            NoMatchesView(state: state) { library.clearSearch() }
+        } else if !library.catalogue.isEmpty {
+            // Non-empty library, nothing left after the active filters. Not
+            // the search case, so it is not the Copywriting Contract's copy —
+            // but it is emphatically not "No games yet" either.
+            ContentUnavailableView(
+                "No games match the current filters",
+                systemImage: "line.3.horizontal.decrease.circle",
+                description: Text("Clear a filter to see everything.")
+            )
+            .accessibilityIdentifier(AccessibilityIdentifiers.Surface.noMatches)
+        } else {
+            VStack(spacing: DesignTokens.Spacing.md) {
+                ContentUnavailableView(
+                    "No games yet",
+                    systemImage: "square.stack.3d.up",
+                    description: Text(refreshError ?? "Pair with your Playstead server to see your library.")
+                )
+                // The string above has named this action since Phase 3
+                // with nothing behind it to reach (WINDOWS #54) — this
+                // button is what makes it real.
+                if refreshError == nil {
+                    Button("Pair with Server…") { presentedSurface = .pairing }
+                        .accessibilityIdentifier(AccessibilityIdentifiers.Control.openPairing)
                 }
             }
         }

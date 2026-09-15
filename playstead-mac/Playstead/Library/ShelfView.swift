@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// One item in a shelf or grid — the minimal projection `LibraryViewModel`
-/// hands to `ShelfView`/`GameListView`, independent of `CatalogueEntry`
+/// hands to `ShelfView`, independent of `CatalogueEntry`
 /// so those views never need to know about tags/members/decode shape.
 struct ShelfItem: Identifiable, Equatable {
     let id: String

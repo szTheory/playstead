@@ -31,8 +31,6 @@ enum CoordinatorEvent: Equatable, Sendable {
 actor DownloadCoordinator {
     private let queue: DownloadQueue
     private let engine: DownloadEngine
-    private let cas: CASManager
-    private let localStore: LocalStore
     private let reachability: Reachability
     private let blobURL: (String) -> URL
 
@@ -64,8 +62,6 @@ actor DownloadCoordinator {
     init(
         queue: DownloadQueue,
         engine: DownloadEngine,
-        cas: CASManager,
-        localStore: LocalStore,
         reachability: Reachability,
         blobURL: @escaping (String) -> URL,
         sleeper: @escaping (@Sendable (Double) async -> Void) = { seconds in
@@ -74,8 +70,6 @@ actor DownloadCoordinator {
     ) {
         self.queue = queue
         self.engine = engine
-        self.cas = cas
-        self.localStore = localStore
         self.reachability = reachability
         self.blobURL = blobURL
         self.sleeper = sleeper
@@ -219,24 +213,13 @@ actor DownloadCoordinator {
         }
     }
 
+    /// The `cache_objects` row for a completed transfer used to be written
+    /// right here, which is why it existed for this path and for no other:
+    /// `AppEnvironment.attemptDownload`, the Download button's own path,
+    /// calls `DownloadEngine` directly and never came through here at all.
+    /// `CASManager` records every commit now (`CacheObjectStore`, WINDOWS
+    /// #75), so this method is back to being only about the queue.
     private func handleSuccess(_ item: QueueItem) {
-        if let record = cas.verifyRecord(for: item.sha256) {
-            let timestamp = ISO8601DateFormatter().string(from: Date())
-            let mtimeMS = Int(record.mtime * 1000)
-            try? localStore.connection.execute(
-                """
-                INSERT INTO cache_objects
-                    (sha256, size, committed_at, last_used_at, verify_size, verify_inode, verify_mtime_ms)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(sha256) DO UPDATE SET
-                    last_used_at = excluded.last_used_at,
-                    verify_size = excluded.verify_size,
-                    verify_inode = excluded.verify_inode,
-                    verify_mtime_ms = excluded.verify_mtime_ms;
-                """,
-                params: [item.sha256, record.size, timestamp, timestamp, record.size, Int(record.inode), mtimeMS]
-            )
-        }
         try? queue.dequeue(id: item.id)
         emit(.committed(itemID: item.id, assetSetID: item.assetSetID, sha256: item.sha256))
     }

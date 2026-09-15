@@ -133,11 +133,20 @@ class Outbox {
                 )
             }
 
+            // One past the highest sequence any live row or watermark has
+            // held. Both terms are needed: live rows alone go BACKWARDS as
+            // entries are delivered and deleted, and the watermark alone
+            // says nothing about rows still waiting.
             try self.localStore.connection.execute(
                 """
                 INSERT INTO outbox_entries
-                    (id, kind, payload_json, idempotency_key, state, attempt_count, created_at, last_error_code, next_retry_at)
-                VALUES (?, ?, ?, ?, 'pending', 0, ?, NULL, NULL);
+                    (id, kind, payload_json, idempotency_key, state, attempt_count, created_at, last_error_code, next_retry_at, enqueue_seq)
+                VALUES (?, ?, ?, ?, 'pending', 0, ?, NULL, NULL, (
+                    SELECT MAX(
+                        COALESCE((SELECT MAX(enqueue_seq) FROM outbox_entries), 0),
+                        COALESCE((SELECT MAX(delivered_seq) FROM outbox_delivered_watermark), 0)
+                    ) + 1
+                ));
                 """,
                 params: [entryID, intent.kind.rawValue, payloadJSON, idempotencyKey, createdAt]
             )
@@ -189,12 +198,111 @@ class Outbox {
         )
     }
 
+    /// Recovers rows stranded `in_flight` by a previous process (WINDOWS
+    /// #89). Returns the number of rows that were stranded, which is not
+    /// the number now `pending` -- a superseded one is dropped and one at
+    /// its attempt ceiling is quarantined.
+    ///
+    /// `markInFlight` is the only writer of that state, and the only ways
+    /// out of it -- `markDone`, `markRejected`, `markPendingForRetry` --
+    /// are all reached from `OutboxWorker.drainOnce`'s in-process handling
+    /// of a response. So a crash, a force-quit, or an ordinary quit while
+    /// a request is on the wire leaves a row that `listPending` (state =
+    /// 'pending' only) can never see again and that `listQuarantined`
+    /// never sees either, since quarantine is reached only through the
+    /// attempt counter. Meanwhile `applyOptimistically` has already
+    /// written the change locally, so the local model and the server
+    /// diverge with nothing left to reconcile them.
+    ///
+    /// REPLAYING IS SAFE, and this is the part worth stating because it
+    /// is the whole justification for reverting a request that may well
+    /// have been received and applied. `idempotencyKey` is `kind:entryID`,
+    /// generated once in `enqueue` and PERSISTED on the row, so it is
+    /// identical across attempts and across restarts. Every route these
+    /// kinds send to -- all of `/api/v1/curation/*`, `/play-sessions`,
+    /// and `PUT /devices/me/availability` -- is on the server's
+    /// `:idempotency` pipeline, which holds a per-device receipt for each
+    /// key (D-20a). A replay is therefore absorbed rather than applied
+    /// twice. The one gap is that receipts expire at ~90 days; a row
+    /// stranded longer than that would genuinely re-execute, which is
+    /// bounded here only by the fact that this sweep runs at the very
+    /// next launch.
+    ///
+    /// Each row goes through `markPendingForRetry` rather than a bare
+    /// `UPDATE ... SET state = 'pending'`, deliberately, for three
+    /// properties a bare update would lose: the attempt counter advances
+    /// so a row that strands every launch eventually quarantines instead
+    /// of replaying forever; backoff keeps a launch from firing every
+    /// recovered request at once; and the WR-07 supersede check runs, so
+    /// a stale report is dropped rather than revived behind a newer one.
+    ///
+    /// That last property is why this window was filed rather than fixed
+    /// in passing: this sweep is exactly what makes WR-07's cross-restart
+    /// case reachable, and the delivered-watermark that protects it
+    /// survives this launch only because the watermark migration's drop
+    /// is CONDITIONAL on the legacy column. Do not "simplify" that gate --
+    /// `test_theWatermarkSurvivesAnOrdinaryRelaunch` pins it.
+    @discardableResult
+    func recoverStrandedInFlight(at now: Date = Date()) throws -> Int {
+        let stranded = rows(where: "state = 'in_flight'", orderBy: "created_at ASC, rowid ASC")
+        for entry in stranded {
+            try markPendingForRetry(entry, at: now)
+        }
+        return stranded.count
+    }
+
     /// A successful send — the entry's job is done, so the row is
     /// deleted. Nothing about the local read model or the server's
     /// eventual journal entry depends on this row continuing to exist;
     /// keeping it around would only grow the table unboundedly.
     func markDone(_ entryID: String) throws {
-        try localStore.connection.execute("DELETE FROM outbox_entries WHERE id = ?;", params: [entryID])
+        // WR-07: record the delivery before dropping the row, for a kind
+        // where a later report supersedes an earlier one. The row is
+        // about to cease to exist, so this is the last moment the fact
+        // "something this new was delivered" can be captured -- and it is
+        // the fact `markPendingForRetry` needs in order to refuse to
+        // revive an older entry afterwards.
+        let delivered = rows(where: "id = ?", orderBy: "rowid ASC", params: [entryID]).first
+        try localStore.transaction {
+            if let delivered, delivered.kind.supersedesPending {
+                try self.recordDeliveredWatermark(kind: delivered.kind, entryID: entryID)
+            }
+            try self.localStore.connection.execute(
+                "DELETE FROM outbox_entries WHERE id = ?;", params: [entryID]
+            )
+        }
+    }
+
+    /// Raise the delivered-watermark for `kind` to this entry's sequence,
+    /// never lower it. Deliveries can complete out of enqueue order -- an
+    /// older entry's retry may succeed after a newer entry already did --
+    /// so this is a max, not an assignment.
+    private func recordDeliveredWatermark(kind: CurationIntentKind, entryID: String) throws {
+        try localStore.connection.execute(
+            """
+            INSERT INTO outbox_delivered_watermark (kind, delivered_seq)
+            SELECT ?, enqueue_seq FROM outbox_entries WHERE id = ?
+            ON CONFLICT(kind) DO UPDATE SET delivered_seq = MAX(delivered_seq, excluded.delivered_seq);
+            """,
+            params: [kind.rawValue, entryID]
+        )
+    }
+
+    /// The `enqueue_seq` of the newest successfully delivered entry of
+    /// this kind, or `nil` if none has ever been delivered.
+    private func deliveredWatermark(ofKind kind: CurationIntentKind) -> Int? {
+        (try? localStore.connection.query(
+            "SELECT delivered_seq FROM outbox_delivered_watermark WHERE kind = ?;",
+            params: [kind.rawValue]
+        ) { $0.int(0) })?.compactMap { $0 }.first
+    }
+
+    /// This entry's own monotonic sequence, read back from its row.
+    private func enqueueSequence(ofEntry entryID: String) -> Int? {
+        (try? localStore.connection.query(
+            "SELECT enqueue_seq FROM outbox_entries WHERE id = ?;",
+            params: [entryID]
+        ) { $0.int(0) })?.compactMap { $0 }.first
     }
 
     /// A transport failure or 5xx response — the mutation may well have
@@ -208,6 +316,34 @@ class Outbox {
     /// a poison message that needs manual attention, not indefinite
     /// silent retries.
     func markPendingForRetry(_ entry: OutboxEntry, at now: Date = Date()) throws {
+        // WR-07 (03-VERIFICATION.md gap closure): `enqueue`'s supersede
+        // deletes only rows that are `pending` at that moment, because an
+        // `in_flight` row is a request already on the wire and cannot be
+        // recalled. That is correct going in -- but this is the one path
+        // that brings such a row BACK to `pending`, and it did so without
+        // re-asking the question.
+        //
+        // `OutboxWorker`'s `await apiClient.send(...)` is a suspension
+        // point and `Outbox` is not actor-isolated, so a second
+        // `.availabilityReport` can be enqueued while the first is in
+        // flight. If that first delivery then fails, reverting it here
+        // produced two `pending` rows; `listPending` orders `created_at
+        // ASC`, so the stale older one was delivered AFTER the newer one
+        // had already succeeded, reasserting stale facts until the next
+        // `syncNow()` pass corrected them.
+        //
+        // A superseded row is therefore dropped rather than revived. Only
+        // for kinds that declare `supersedesPending` -- every other kind
+        // still drains in creation order with no entry dropped -- and only
+        // when a strictly newer live row of the same kind exists, so an
+        // ordinary retry with nothing behind it is untouched.
+        if entry.kind.supersedesPending, isSupersededForRetry(entry) {
+            try localStore.connection.execute(
+                "DELETE FROM outbox_entries WHERE id = ?;", params: [entry.id]
+            )
+            return
+        }
+
         let newAttemptCount = entry.attemptCount + 1
         if newAttemptCount >= Self.maxAttempts {
             try localStore.connection.execute(
@@ -222,6 +358,41 @@ class Outbox {
                 params: [newAttemptCount, nextRetryAt, entry.id]
             )
         }
+    }
+
+    /// Whether this entry has been overtaken and must not be revived.
+    ///
+    /// Two ways, and BOTH are needed. A newer entry may still be waiting
+    /// (live row), or it may already have been delivered -- in which case
+    /// `markDone` deleted its row and only the watermark remembers it.
+    /// The live-row check alone closes the first and leaves the second
+    /// wide open, which is precisely the case the must-have names.
+    private func isSupersededForRetry(_ entry: OutboxEntry) -> Bool {
+        // `enqueue_seq`, not `created_at`. The latter is ISO-8601 at
+        // second granularity, so two entries enqueued less than a second
+        // apart share one and neither comparison can be right: strict
+        // lets a stale report through, non-strict drops a delivery
+        // nothing replaced. The sequence is a total order, so the
+        // question has an answer.
+        guard let sequence = enqueueSequence(ofEntry: entry.id) else { return false }
+        if hasNewerLiveEntry(ofKind: entry.kind, thanSequence: sequence, excluding: entry.id) {
+            return true
+        }
+        guard let watermark = deliveredWatermark(ofKind: entry.kind) else { return false }
+        return sequence < watermark
+    }
+
+    /// Whether a newer entry of the same kind is still live (`pending` or
+    /// `in_flight`), by monotonic sequence rather than by timestamp.
+    private func hasNewerLiveEntry(ofKind kind: CurationIntentKind, thanSequence sequence: Int, excluding entryID: String) -> Bool {
+        !rows(
+            where: """
+            kind = ? AND id != ? AND state IN ('pending', 'in_flight') \
+            AND enqueue_seq > ?
+            """,
+            orderBy: "enqueue_seq ASC",
+            params: [kind.rawValue, entryID, sequence]
+        ).isEmpty
     }
 
     /// A permanent (4xx, non-idempotency-conflict) rejection — reverts

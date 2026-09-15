@@ -34,7 +34,29 @@ final class AdapterProcessRegistry: @unchecked Sendable {
 
     private let lock = NSLock()
     private var processes: [ObjectIdentifier: Process] = [:]
-    private var observing = false
+    private var observerToken: NSObjectProtocol?
+
+    /// The center this registry listens to `willTerminateNotification`
+    /// on. Production always uses `.default` — the app has exactly one
+    /// termination event and one registry. A test passes a private
+    /// `NotificationCenter()` so that posting the notification sweeps
+    /// only the processes that test registered: the sweep terminates
+    /// **every** registered process, so a shared center plus a shared
+    /// registry lets one test SIGTERM a concurrently-running test's
+    /// child (WINDOWS #86 — observed as
+    /// `unknown(status: 15, reason: "uncaughtSignal")` where `clean`
+    /// was expected).
+    private let notificationCenter: NotificationCenter
+
+    init(notificationCenter: NotificationCenter = .default) {
+        self.notificationCenter = notificationCenter
+    }
+
+    deinit {
+        if let observerToken {
+            notificationCenter.removeObserver(observerToken)
+        }
+    }
 
     func register(_ process: Process) {
         lock.lock()
@@ -50,9 +72,8 @@ final class AdapterProcessRegistry: @unchecked Sendable {
     }
 
     private func ensureObservingLocked() {
-        guard !observing else { return }
-        observing = true
-        NotificationCenter.default.addObserver(
+        guard observerToken == nil else { return }
+        observerToken = notificationCenter.addObserver(
             forName: NSApplication.willTerminateNotification, object: nil, queue: nil
         ) { [weak self] _ in
             self?.terminateAll()
@@ -173,9 +194,23 @@ actor AdapterHost {
     /// against (plan 03-10).
     private var activeControllerMapping: ControllerMapping?
 
-    init(pin: AdapterPin, emulatorsRoot: URL) {
+    /// The registry every launched process is enrolled in, so the app's
+    /// termination sweep can never orphan one. Defaults to the shared
+    /// instance, which is what the app itself uses. Tests that spawn a
+    /// real child inject their own instance (built on a private
+    /// `NotificationCenter`) so one test's sweep cannot terminate
+    /// another test's process — see `AdapterProcessRegistry` above and
+    /// WINDOWS #86.
+    private let processRegistry: AdapterProcessRegistry
+
+    init(
+        pin: AdapterPin,
+        emulatorsRoot: URL,
+        processRegistry: AdapterProcessRegistry = .shared
+    ) {
         self.pin = pin
         self.emulatorsRoot = emulatorsRoot
+        self.processRegistry = processRegistry
     }
 
     /// Records which installation (downloaded or user-selected) launch
@@ -415,7 +450,7 @@ actor AdapterHost {
         proc.arguments = renderedLaunchArguments(romPath: romPath, saveDir: saveDir, biosPath: biosPath)
 
         let detection = pin.exitDetection
-        let registry = AdapterProcessRegistry.shared
+        let registry = processRegistry
         proc.terminationHandler = { finished in
             registry.unregister(finished)
             mutex.release(assetSetID: assetSetID)

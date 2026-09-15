@@ -25,6 +25,7 @@
         "CurationInteractionTests",
         "HostedRunnerCanaryTests/testFullKeyboardAccessCanaryFocusesAndActivatesTwoControls()",
         "HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice()",
+        "LibraryEmptyStateTests",
         "OnlyCopyInterruptionTests",
         "SaveFrontDoorJourneyTests",
         "StorageInteractionTests",

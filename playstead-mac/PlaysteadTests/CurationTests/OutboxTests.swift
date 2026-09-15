@@ -449,6 +449,150 @@ final class OutboxTests: XCTestCase {
         XCTAssertTrue(all.contains { $0.id == first.id && $0.state == .inFlight })
     }
 
+    /// WR-07 (03-VERIFICATION.md's one open gap): the exact sequence that
+    /// verification named as untested.
+    ///
+    /// `enqueue`'s supersede deliberately spares an `in_flight` row -- a
+    /// request already on the wire cannot be recalled. But
+    /// `markPendingForRetry` is the path that brings such a row BACK to
+    /// `pending`, and it did not re-ask whether something newer had
+    /// arrived meanwhile. `listPending` orders `created_at ASC`, so the
+    /// revived older report would be delivered AFTER the newer one had
+    /// already succeeded, reasserting stale facts.
+    func test_anInFlightReportRevertedForRetryIsDroppedWhenANewerReportArrivedMeanwhile() throws {
+        let first = try outbox.enqueue(
+            makeReport(assetSetID: "asset-1", id: "report-1"),
+            at: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        try outbox.markInFlight(first.id)
+
+        // Enqueued while the first is genuinely on the wire, so the
+        // enqueue-time supersede correctly leaves the first alone.
+        let second = try outbox.enqueue(
+            makeReport(assetSetID: "asset-2", id: "report-2"),
+            at: Date(timeIntervalSince1970: 1_700_000_060)
+        )
+        XCTAssertEqual(outbox.listAll().count, 2, "the in-flight row survives the enqueue, as it must")
+
+        // The in-flight delivery now fails.
+        try outbox.markPendingForRetry(first, at: Date(timeIntervalSince1970: 1_700_000_120))
+
+        // One clause per fact: CI keeps file:line and drops assertion text.
+        let all = outbox.listAll()
+        XCTAssertEqual(all.count, 1, "the superseded older report must not be revived alongside the newer one")
+        XCTAssertEqual(all.first?.id, second.id, "the survivor is the newer report")
+        XCTAssertTrue(
+            outbox.listPending(at: Date(timeIntervalSince1970: 1_800_000_000)).allSatisfy { $0.id == second.id },
+            "no backoff window may later deliver the stale report after the newer one"
+        )
+    }
+
+    /// WR-07, second round: the must-have's own final clause, "after a
+    /// later one that already succeeded".
+    ///
+    /// The first fix asked "is a newer entry still live?" — but `markDone`
+    /// DELETES the row it delivered, so once the newer report succeeds
+    /// there is no live row left to find and the older one revived exactly
+    /// as before. The independent re-verification caught this and proved
+    /// it with this sequence; it is kept here so it can never regress to
+    /// "closed by a live-row query" again.
+    func test_anInFlightReportRevertedForRetryIsDroppedWhenTheNewerReportAlreadySucceeded() throws {
+        let first = try outbox.enqueue(
+            makeReport(assetSetID: "asset-1", id: "report-1"),
+            at: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        try outbox.markInFlight(first.id)
+
+        let second = try outbox.enqueue(
+            makeReport(assetSetID: "asset-2", id: "report-2"),
+            at: Date(timeIntervalSince1970: 1_700_000_060)
+        )
+        try outbox.markInFlight(second.id)
+        // The newer report succeeds first — its row is now gone.
+        try outbox.markDone(second.id)
+        XCTAssertTrue(outbox.listAll().allSatisfy { $0.id != second.id }, "a delivered entry is deleted, which is what hid it")
+
+        // Only now does the older, still-in-flight delivery fail.
+        try outbox.markPendingForRetry(first, at: Date(timeIntervalSince1970: 1_700_000_120))
+
+        // One clause per fact: CI keeps file:line and drops assertion text.
+        XCTAssertEqual(outbox.listAll().count, 0, "a stale older report must not be delivered after the newer one already succeeded")
+        XCTAssertTrue(
+            outbox.listPending(at: Date(timeIntervalSince1970: 1_800_000_000)).isEmpty,
+            "and no backoff window may deliver it later either"
+        )
+    }
+
+    /// The tie window the re-verification probed, now answerable.
+    ///
+    /// `ISO8601DateFormatter()` emits no fractional seconds, so two
+    /// entries enqueued less than a second apart genuinely share one
+    /// `created_at` -- this is not a test artifact of passing the same
+    /// `Date` twice. While the supersede rule compared timestamps, that
+    /// window had no right answer: strict let the stale report through,
+    /// non-strict would have dropped a delivery nothing replaced.
+    ///
+    /// `enqueue_seq` is a total order, so the newer report wins here even
+    /// though both rows carry the identical `created_at`.
+    func test_aRetrySharingTheDeliveredReportsTimestampIsStillDroppedAsOlder() throws {
+        let sameSecond = Date(timeIntervalSince1970: 1_700_000_000)
+        let first = try outbox.enqueue(makeReport(assetSetID: "asset-1", id: "report-1"), at: sameSecond)
+        try outbox.markInFlight(first.id)
+        let second = try outbox.enqueue(makeReport(assetSetID: "asset-2", id: "report-2"), at: sameSecond)
+        XCTAssertEqual(first.createdAt, second.createdAt, "the premise: second granularity really does collapse these")
+        try outbox.markInFlight(second.id)
+        try outbox.markDone(second.id)
+
+        try outbox.markPendingForRetry(first, at: sameSecond.addingTimeInterval(60))
+
+        // One clause per fact: CI keeps file:line and drops assertion text.
+        XCTAssertEqual(outbox.listAll().count, 0, "a shared timestamp must not rescue a genuinely older report")
+        XCTAssertTrue(
+            outbox.listPending(at: sameSecond.addingTimeInterval(100_000)).isEmpty,
+            "and no backoff window may deliver it later either"
+        )
+    }
+
+    /// The opposite failure the total order must not introduce: the
+    /// watermark belongs to ONE kind, and an unrelated kind's retry must
+    /// be untouched by it even though sequences are global.
+    func test_aDeliveredReportsWatermarkDoesNotDropAnUnrelatedKindsRetry() throws {
+        let favorite = try outbox.enqueue(
+            .favoriteAdd(id: "fav-1", assetSetID: "asset-1"),
+            at: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        try outbox.markInFlight(favorite.id)
+        let report = try outbox.enqueue(
+            makeReport(assetSetID: "asset-2", id: "report-1"),
+            at: Date(timeIntervalSince1970: 1_700_000_060)
+        )
+        try outbox.markInFlight(report.id)
+        try outbox.markDone(report.id)
+
+        try outbox.markPendingForRetry(favorite, at: Date(timeIntervalSince1970: 1_700_000_120))
+
+        XCTAssertEqual(outbox.listAll().count, 1, "superseding is scoped to the one kind for which newest-wins is true")
+        XCTAssertEqual(outbox.listAll().first?.id, favorite.id)
+        XCTAssertEqual(outbox.listAll().first?.state, .pending, "and it is still retried")
+    }
+
+    /// The other half of the same rule: a retry with nothing newer behind
+    /// it is an ordinary retry and must still be revived. Without this, the
+    /// fix above would read equally well as "reverting drops the row",
+    /// which would silently stop retrying every failed report.
+    func test_anInFlightReportRevertedForRetryIsKeptWhenNothingNewerArrived() throws {
+        let only = try outbox.enqueue(
+            makeReport(assetSetID: "asset-1", id: "report-1"),
+            at: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        try outbox.markInFlight(only.id)
+        try outbox.markPendingForRetry(only, at: Date(timeIntervalSince1970: 1_700_000_060))
+
+        let all = outbox.listAll()
+        XCTAssertEqual(all.count, 1, "an ordinary retry keeps its row")
+        XCTAssertEqual(all.first?.state, .pending, "and returns it to pending so it is delivered later")
+    }
+
     func test_secondFavoriteIntent_isNotSupersededBecauseOnlyReportsAreNewestWins() throws {
         try outbox.enqueue(.favoriteAdd(id: "fav-1", assetSetID: "asset-1"))
         try outbox.enqueue(.favoriteAdd(id: "fav-2", assetSetID: "asset-2"))

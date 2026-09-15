@@ -240,7 +240,7 @@ final class ControllerHostTests: XCTestCase {
 
     func testAdapterHostInjectsMappedControllerValuesIntoLaunchArguments() async throws {
         let pin = try JSONDecoder().decode(AdapterPin.self, from: Data(Self.pinJSON.utf8))
-        let host = AdapterHost(pin: pin, emulatorsRoot: paths.emulators)
+        let host = AdapterHost(pin: pin, emulatorsRoot: paths.emulators, processRegistry: .isolatedForTesting())
 
         var mapping = ControllerMapping.defaultMapping(controllerProductID: Self.controllerA.id)
         mapping = mapping.remapping(adapterInput: "A", to: "buttonB")
@@ -255,7 +255,7 @@ final class ControllerHostTests: XCTestCase {
 
     func testAdapterHostLaunchArgumentsUnchangedWithNoActiveMapping() async throws {
         let pin = try JSONDecoder().decode(AdapterPin.self, from: Data(Self.pinJSON.utf8))
-        let host = AdapterHost(pin: pin, emulatorsRoot: paths.emulators)
+        let host = AdapterHost(pin: pin, emulatorsRoot: paths.emulators, processRegistry: .isolatedForTesting())
 
         let args = await host.renderedLaunchArguments(romPath: "/tmp/game.gba", saveDir: "/tmp/saves")
 

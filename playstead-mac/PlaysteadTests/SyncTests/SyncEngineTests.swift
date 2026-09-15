@@ -356,6 +356,63 @@ final class SyncEngineTests: XCTestCase {
         }
     }
 
+    /// WINDOWS #80. A cursor the server will not accept is unusable
+    /// whichever code says so, and the client must recover from it the
+    /// same way.
+    ///
+    /// Before this, only `cursor_expired` (410) was handled: a 400
+    /// `cursor_invalid` -- which the server returns for a "malformed,
+    /// tampered with, or FOREIGN" cursor, i.e. for this Mac re-paired to a
+    /// different server, or to the same server after its SECRET_KEY_BASE
+    /// was regenerated -- fell through to the generic failure arm. The app
+    /// then reported "offline since <date>" while the server was up, kept
+    /// the rejected cursor byte-identical, and re-sent it forever, with no
+    /// UI anywhere that reaches `forceFullResync()`.
+    func testCursorInvalidAlsoResetsToFreshSnapshotRatherThanStrandingTheClientOffline() async throws {
+        let cursorStore = CursorStore(localStore: localStore)
+        try cursorStore.store(OpaqueCursor(rawValue: "FOREIGN-SERVERS-CURSOR"), syncedAt: Date())
+
+        let catalogueStore = CatalogueStore(localStore: localStore)
+        try catalogueStore.upsert(try makePayload(catalogueEntryJSON(id: "other-servers-game", title: "Other")).decoded(as: CatalogueEntry.self))
+
+        var changesCallCount = 0
+        StubURLProtocol.responder = { request in
+            if request.url?.path == "/api/v1/changes" {
+                changesCallCount += 1
+                return StubURLProtocol.Stub(
+                    statusCode: 400,
+                    headers: ["Content-Type": "application/json"],
+                    body: self.problemJSON(code: "cursor_invalid")
+                )
+            }
+            XCTAssertEqual(request.url?.path, "/api/v1/snapshot")
+            return StubURLProtocol.Stub(
+                statusCode: 200,
+                headers: ["Content-Type": "application/json"],
+                body: self.snapshotResponseJSON(
+                    catalogue: [self.catalogueEntryJSON(id: "game-1", title: "Game One")],
+                    curation: [], cursor: "FRESH", hasMore: false, nextAfterID: nil
+                )
+            )
+        }
+
+        let engine = makeEngine()
+        await engine.syncNow()
+
+        XCTAssertEqual(changesCallCount, 1)
+        XCTAssertEqual(
+            cursorStore.load()?.rawValue, "FRESH",
+            "the rejected cursor must be replaced by one this server issued, or every later pass repeats it"
+        )
+        XCTAssertEqual(
+            catalogueStore.fetchAll().map(\.id), ["game-1"],
+            "the other server's mirror must be replaced, not merged into"
+        )
+        guard case .synced = await engine.state else {
+            return XCTFail("a recoverable cursor rejection must not leave the app reading as offline")
+        }
+    }
+
     // MARK: - Transport failure leaves cursor and read model intact
 
     func testTransportFailureLeavesStoredCursorByteIdenticalAndReadModelIntact() async throws {

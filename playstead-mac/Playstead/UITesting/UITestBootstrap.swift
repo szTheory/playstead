@@ -344,7 +344,7 @@ enum UITestBootstrap {
         var attempt = 1
         while drainResult.sent == 0,
               drainResult.stoppedForRetry,
-              Self.isRetryable(lane.lastFailureClassification),
+              Self.isRetryable(drainResult.failureClassification),
               attempt < Self.saveEndToEndMaxUploadAttempts {
             attempt += 1
             drainResult = await lane.drainOnce(at: Date().addingTimeInterval(Double(attempt) * 3600))
@@ -357,7 +357,7 @@ enum UITestBootstrap {
         // the work, while the revision's durability is the fact either way.
         let uploaded = saveStore.fetchRevision(id: revisionID)?.durability == SaveDurability.uploaded.rawValue
 
-        if !uploaded, drainResult.stoppedForRetry, Self.isRetryable(lane.lastFailureClassification) {
+        if !uploaded, drainResult.stoppedForRetry, Self.isRetryable(drainResult.failureClassification) {
             // Retryable, and still failing after every attempt. That is no
             // longer a blip -- it is a server that is genuinely not
             // accepting this upload.
@@ -370,23 +370,43 @@ enum UITestBootstrap {
             // schedules a backoff, and returns with `sent == 0`. So a
             // failure here means one of three quite different things, and
             // reporting them all as "upload did not complete" is what made
-            // this an opaque flake -- both `stoppedForRetry` and
-            // `lastFailureClassification` were already sitting here
-            // unread.
+            // this an opaque flake -- both `stoppedForRetry` and the
+            // classification were already sitting here unread.
+            //
+            // The classification comes off `drainResult`, NOT off the
+            // lane. `lane.lastFailureClassification` is a nonisolated read
+            // of one last-writer-wins cell, and WINDOWS #67's own fix made
+            // this harness share the app's lane -- which drains on the
+            // reachability transition at pairing time. So the cell could
+            // hold the app pass's classification while `stoppedForRetry`
+            // described this pass's, and an ordinary `.offlineQueue` stop
+            // was reported as "server refused" (WINDOWS #87).
             //
             // These stay FIXED LITERALS, per this file's rule: a `Bool` and
             // a closed enum this repo owns are safe to branch on, but an
             // error's own description can carry paths and must never reach
-            // the reason channel.
+            // the reason channel. That rule is also why the refusal splits
+            // by case rather than interpolating: naming which of D-40's
+            // four reasons refused makes the next occurrence diagnosable in
+            // one run, and each is a fixed literal this repo owns.
             if drainResult.stoppedForRetry {
-                if Self.isRetryable(lane.lastFailureClassification) {
+                guard let refusal = OnlyCopyEscalationReason(classification: drainResult.failureClassification) else {
                     // Retryable by design: transport loss, 5xx, rate
                     // limiting. Production would simply try again.
                     throw DeterministicProfileError.stateMismatch("save-e2e: upload stopped for retry, retryable")
                 }
                 // One of D-40's genuinely unfixable server reasons. This
                 // is a real defect, never a flake.
-                throw DeterministicProfileError.stateMismatch("save-e2e: upload stopped for retry, server refused")
+                switch refusal {
+                case .revokedAuth:
+                    throw DeterministicProfileError.stateMismatch("save-e2e: upload refused, revoked auth")
+                case .capabilitySkew:
+                    throw DeterministicProfileError.stateMismatch("save-e2e: upload refused, capability skew")
+                case .serverRefusal:
+                    throw DeterministicProfileError.stateMismatch("save-e2e: upload refused, server refusal")
+                case .compatibilityRejection:
+                    throw DeterministicProfileError.stateMismatch("save-e2e: upload refused, compatibility rejection")
+                }
             }
             // Not stopped, yet nothing sent: the pending set was empty, so
             // the revision this harness just inserted was not visible to

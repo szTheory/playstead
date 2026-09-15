@@ -9,6 +9,16 @@ struct OutboxDrainResult: Equatable {
     /// rather than racing ahead of that entry — entries must always send
     /// in the creation order they were enqueued in.
     var stoppedForRetry = false
+    /// How *this pass* classified the failure that stopped it, so a caller
+    /// never has to read `SaveUploadLane.lastFailureClassification` to find
+    /// out. That property is a nonisolated read of one last-writer-wins
+    /// cell, and since WINDOWS #67 made the save-e2e harness share the
+    /// app's lane, a concurrent pass can overwrite it between this pass
+    /// failing and the caller looking (WINDOWS #87). `stoppedForRetry` and
+    /// this field are then guaranteed to describe the same failure.
+    ///
+    /// `.none` whenever the pass did not stop for retry.
+    var failureClassification: SaveUploadFailureClassification = .none
 }
 
 /// Drains `Outbox`'s pending entries one at a time, in creation order,

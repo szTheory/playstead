@@ -37,7 +37,7 @@ make_valid() {
   mkdir -p "$root/evidence/snapshot-triplet" "$root/evidence/storage-candidate" "$root/evidence/logs" "$root/raw/Unit.xcresult" "$root/DerivedData"
   printf '%s\n' '{"schema_version":1,"architecture":"arm64","xcode":["Xcode 26.6","Build version 17F113"]}' >"$root/evidence/environment-fingerprint.json"
   printf '%s\n' '{"schema_version":1,"build_count":1,"automatic_retries":0,"aggregate_outcome":"failed","layers":[]}' >"$root/evidence/layers.json"
-  printf '%s\n' '{"schema_version":1,"layer":"ui","executed_test_count":2,"required_tests":[{"identifier":"PlaysteadUITests.HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice","discovered":true,"execution_count":1,"skipped":false,"outcome":"passed"}],"failed_test_count":1,"failed_tests_truncated":false,"failed_tests":[{"identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","outcome":"failed"}],"failure_diagnostic_count":1,"failure_diagnostics_truncated":false,"failure_diagnostics":[{"test_identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","assertion":"XCTAssertTrue","source_file":"PlaysteadUITests/SurfaceAccessibilityTests.swift","source_line":137}],"audit_issue_count":1,"audit_issues_truncated":false,"audit_issues":[{"test_identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","category":"parentChild","element_identifier":"playstead.surface.library","element_role":"role-3"}]}' >"$root/evidence/ui-tests.json"
+  printf '%s\n' '{"schema_version":1,"layer":"ui","executed_test_count":2,"required_tests":[{"identifier":"PlaysteadUITests.HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice","discovered":true,"execution_count":1,"skipped":false,"outcome":"passed"}],"failed_test_count":1,"failed_tests_truncated":false,"failed_tests":[{"identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","outcome":"failed"}],"failure_diagnostic_count":1,"failure_diagnostics_truncated":false,"failure_diagnostics":[{"test_identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","assertion":"XCTAssertTrue","source_file":"PlaysteadUITests/SurfaceAccessibilityTests.swift","source_line":137}],"audit_issue_count":1,"audit_issues_truncated":false,"audit_issues":[{"test_identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","category":"parentChild","element_identifier":"playstead.surface.library","element_role":"role-3"}],"in_test_seconds_total":42.2,"timed_test_count":2,"slowest_tests":[{"identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","seconds":1.5}]}' >"$root/evidence/ui-tests.json"
   printf 'safe app event at /Users/example/private/location\n' >"$root/evidence/logs/app.log"
   printf 'server health passed\n' >"$root/evidence/logs/server.log"
   printf '\211PNG\r\n\032\nreference' >"$root/evidence/snapshot-triplet/reference.png"
@@ -280,6 +280,47 @@ xctest_still_strict="$TMP_ROOT/xctest-still-strict"
 make_valid "$xctest_still_strict"
 printf '%s\n' '{"layer":"ui","outcome":"passed"}' >"$xctest_still_strict/evidence/ui-tests.json"
 expect_fail xctest_evidence_still_strict "$SANITIZER" --input "$xctest_still_strict" --output "$TMP_ROOT/xctest-still-strict-output"
+
+# WINDOWS: the real defect this file exists to prevent recurred anyway. The
+# writer in run-mac-verification.sh grew a timing block (c3f51e1) and the
+# validator's allowlist did not, so EVERY layer file was rejected -- yet this
+# guard stayed green, because make_valid hand-writes its fixture and a test
+# that decodes its own fixture cannot see a wrong shipped shape. Worse, the
+# sanitizer runs only when a layer has already failed, so the breakage was
+# invisible on green runs and destroyed the evidence of exactly the red runs
+# that needed it.
+#
+# So do not assert against a fixture alone. Derive the key set from the
+# SHIPPED writer and require the shipped validator to accept a file carrying
+# it. A key added on either side fails this check on the next run, green or red.
+writer_shape="$TMP_ROOT/writer-shape"
+make_valid "$writer_shape"
+python3 - "${SCRIPT_DIR}/../run-mac-verification.sh" "$writer_shape/evidence/ui-tests.json" <<'WRITERSHAPE'
+import json, pathlib, re, sys
+
+script = pathlib.Path(sys.argv[1]).read_text()
+marker = "\nsummary = {\n"
+if script.count(marker) != 1:
+    raise SystemExit("the per-layer summary literal is not uniquely locatable")
+body = script[script.index(marker) + len(marker):]
+body = body[:body.index("\n}\n")]
+# Keys of the summary dict literal sit at exactly four spaces of indent;
+# nested dict and list entries are indented further and are not keys.
+writer_keys = set(re.findall(r'^    "([a-z_]+)":', body, re.M))
+if len(writer_keys) < 10:
+    raise SystemExit(f"writer key extraction found only {len(writer_keys)} key(s); the literal moved")
+
+data = json.loads(pathlib.Path(sys.argv[2]).read_text())
+missing = sorted(writer_keys - set(data))
+unexpected = sorted(set(data) - writer_keys)
+if missing or unexpected:
+    raise SystemExit(
+        f"evidence fixture has drifted from the shipped writer: "
+        f"missing={missing} unexpected={unexpected}"
+    )
+print(f"writer emits {len(writer_keys)} key(s); fixture carries all of them")
+WRITERSHAPE
+expect_pass writer_shape_accepted_by_validator "$SANITIZER" --input "$writer_shape" --output "$TMP_ROOT/writer-shape-output"
 
 if [ "$FAIL_COUNT" -ne 0 ]; then
   printf 'evidence sanitizer: %d check(s) failed\n' "$FAIL_COUNT" >&2

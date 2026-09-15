@@ -15,6 +15,19 @@ import CryptoKit
 /// removing the wiring fails them.
 @MainActor
 final class AdapterWiringTests: XCTestCase {
+
+    /// A launch id no other test can collide with.
+    ///
+    /// `AdapterLaunchMutex.shared` is process-global and keyed by asset-set
+    /// id, and its key is released by the spawned process's termination
+    /// handler. Five tests across four suites used the literal
+    /// "test-asset-set", so ONE launch whose process never exited leaked that
+    /// key for the rest of the run and every later test throwing
+    /// `launchInProgress` instead of doing its job -- including
+    /// InstallerTests' digest-mismatch refusal, whose real assertion was
+    /// silently replaced by the wrong error (WINDOWS #86). Unique ids make
+    /// that cross-test coupling impossible.
+    private func uniqueAssetSetID() -> String { "test-asset-set-\(UUID().uuidString)" }
     private var tempRoot: URL!
     private var paths: AppPaths!
     private var environment: AppEnvironment!
@@ -54,10 +67,6 @@ final class AdapterWiringTests: XCTestCase {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 
-    /// Raised when the stand-in binary could not be re-signed — see
-    /// `installStandInExecutable` for why that is fatal to the fixture.
-    struct StandInSigningFailure: Error { let status: Int32 }
-
     /// Places a real, runnable stand-in executable at
     /// `appURL/executableRelativePath` — no emulator is available in this
     /// environment, so `/bin/echo` stands in for one, exactly as
@@ -86,23 +95,14 @@ final class AdapterWiringTests: XCTestCase {
         try FileManager.default.createDirectory(
             at: executableURL.deletingLastPathComponent(), withIntermediateDirectories: true
         )
-        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/bin/echo"), to: executableURL)
-        try FileManager.default.setAttributes(
-            [.posixPermissions: 0o755], ofItemAtPath: executableURL.path
+        // The copy + chmod + ad-hoc re-sign now lives in
+        // `StandInExecutable`, so every stand-in in the suite gets the
+        // signing this method used to be alone in doing — which is what
+        // the paragraph above always claimed and, until WINDOWS #86, was
+        // not actually true of any other call site.
+        try StandInExecutable.install(
+            from: URL(fileURLWithPath: "/bin/echo"), to: executableURL
         )
-
-        let codesign = Process()
-        codesign.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
-        codesign.arguments = ["--force", "--sign", "-", executableURL.path]
-        codesign.standardOutput = FileHandle.nullDevice
-        codesign.standardError = FileHandle.nullDevice
-        try codesign.run()
-        codesign.waitUntilExit()
-        // A stand-in that cannot be re-signed would launch and then hang
-        // forever rather than fail, so this refuses loudly and up front.
-        guard codesign.terminationStatus == 0 else {
-            throw StandInSigningFailure(status: codesign.terminationStatus)
-        }
     }
 
     /// A stand-in application bundle laid out exactly as the pin
@@ -171,7 +171,7 @@ final class AdapterWiringTests: XCTestCase {
         let saveDir = tempRoot.appendingPathComponent("saves", isDirectory: true)
         try FileManager.default.createDirectory(at: saveDir, withIntermediateDirectories: true)
         let exited = expectation(description: "the adapter process exits")
-        _ = try await host.launch(assetSetID: "test-asset-set", romPath: "/tmp/rom.gba", saveDir: saveDir.path) { _ in
+        _ = try await host.launch(assetSetID: uniqueAssetSetID(), romPath: "/tmp/rom.gba", saveDir: saveDir.path) { _ in
             exited.fulfill()
         }
         await fulfillment(of: [exited], timeout: Self.firstLaunchTimeout)
@@ -236,14 +236,14 @@ final class AdapterWiringTests: XCTestCase {
             "the expanded executable is a different byte stream from the archive — conflating them was the bug"
         )
 
-        let host = AdapterHost(pin: pin, emulatorsRoot: emulatorsRoot)
+        let host = AdapterHost(pin: pin, emulatorsRoot: emulatorsRoot, processRegistry: .isolatedForTesting())
         await host.setInstallation(installation)
         try await host.verifyInstalledDigest()
 
         let saveDir = tempRoot.appendingPathComponent("fixture-saves", isDirectory: true)
         try FileManager.default.createDirectory(at: saveDir, withIntermediateDirectories: true)
         let exited = expectation(description: "the installed adapter process exits")
-        _ = try await host.launch(assetSetID: "test-asset-set", romPath: "/tmp/rom.gba", saveDir: saveDir.path) { _ in exited.fulfill() }
+        _ = try await host.launch(assetSetID: uniqueAssetSetID(), romPath: "/tmp/rom.gba", saveDir: saveDir.path) { _ in exited.fulfill() }
         await fulfillment(of: [exited], timeout: Self.firstLaunchTimeout)
     }
 

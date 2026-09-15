@@ -46,7 +46,7 @@ enum LibraryStatus: Equatable {
     }
 
     /// The list-view text label, shown alongside the glyph in
-    /// `GameListView` (never color/glyph alone).
+    /// the list layout's row (never color/glyph alone).
     var listViewLabel: String {
         switch self {
         case .needsAttention: return "Needs attention"
