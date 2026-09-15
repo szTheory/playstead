@@ -269,7 +269,21 @@ enum Migrations {
         // record: losing it fails OPEN (an entry is retried rather than
         // dropped), and it rebuilds on the next delivery. Nothing
         // reconstructs a wrong answer from its absence.
-        try connection.execute("DROP TABLE IF EXISTS outbox_delivered_watermark;")
+        // Dropped ONLY when the legacy shape is actually present. An
+        // unconditional `DROP TABLE IF EXISTS` here would run on every
+        // launch, not just an upgrade -- and this table is the only thing
+        // that remembers a delivery across a restart. Wiping it at every
+        // startup would hand WR-07 straight back: a report delivered
+        // before a quit would be forgotten, so an older row still
+        // `in_flight` at quit could revert afterwards and deliver stale
+        // facts. The upgrade has to be a one-time event, not a ritual.
+        let hasLegacyWatermarkColumn = ((try? connection.query(
+            "SELECT 1 FROM pragma_table_info('outbox_delivered_watermark') WHERE name = 'created_at';",
+            params: []
+        ) { $0.int(0) }) ?? []).isEmpty == false
+        if hasLegacyWatermarkColumn {
+            try connection.execute("DROP TABLE outbox_delivered_watermark;")
+        }
         try connection.execute(
             """
             CREATE TABLE IF NOT EXISTS outbox_delivered_watermark (

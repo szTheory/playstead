@@ -66,6 +66,39 @@ final class OutboxWatermarkMigrationTests: XCTestCase {
         XCTAssertTrue(outbox.listAll().isEmpty, "and the delivered row must actually be deleted, not rolled back")
     }
 
+    /// The upgrade must be a one-time event, not something that fires on
+    /// every launch. This table is the only thing that remembers a
+    /// delivery across a restart, so wiping it at startup would hand
+    /// WR-07 straight back for exactly the case it was filed about.
+    func test_theWatermarkSurvivesAnOrdinaryRelaunch() throws {
+        let store = try LocalStore(paths: paths)
+        let outbox = Outbox(localStore: store, curationStore: CurationStore(localStore: store))
+
+        func report(_ id: String, _ asset: String) -> CurationIntent {
+            .availabilityReport(id: id, entries: [AvailabilityReportEntry(assetSetID: asset)])
+        }
+
+        let older = try outbox.enqueue(report("report-1", "asset-1"), at: Date(timeIntervalSince1970: 1_700_000_000))
+        try outbox.markInFlight(older.id)
+        let newer = try outbox.enqueue(report("report-2", "asset-2"), at: Date(timeIntervalSince1970: 1_700_000_060))
+        try outbox.markInFlight(newer.id)
+        try outbox.markDone(newer.id)
+
+        // The app quits and starts again: migrations re-run.
+        let relaunched = try LocalStore(paths: paths)
+        let afterRelaunch = Outbox(localStore: relaunched, curationStore: CurationStore(localStore: relaunched))
+
+        // One clause per fact: CI keeps file:line and drops assertion text.
+        let carried = afterRelaunch.listAll().first { $0.id == older.id }
+        XCTAssertNotNil(carried, "the older in-flight row survives the restart, as it must")
+        try afterRelaunch.markPendingForRetry(XCTUnwrap(carried), at: Date(timeIntervalSince1970: 1_700_000_120))
+
+        XCTAssertTrue(
+            afterRelaunch.listAll().isEmpty,
+            "a delivery recorded before the restart must still supersede after it"
+        )
+    }
+
     /// The upgrade must also leave the WR-07 behaviour working, not merely
     /// leave the table writable.
     func test_theSupersedeRuleStillHoldsAfterUpgradingFromThePreviousSchema() throws {
