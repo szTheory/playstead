@@ -1,8 +1,8 @@
 ---
 phase: 03-mac-offline-play-vertical-slice
-verified: 2026-09-15T17:00:00Z
+verified: 2026-09-16T16:20:00Z
 status: human_needed
-score: 5/5 roadmap truths verified (SC5's controller-hardware portion present+wired, not behaviorally exercised — unchanged, routed to human verification); WR-07 client-side ordering CLOSED; WR-08 CLOSED; two architectural residues remain
+score: 5/5 roadmap truths verified or appropriately routed (SC5's controller-hardware portion present+wired, not behaviorally exercised — unchanged, routed to human verification); WR-07 client-side ordering CLOSED; WR-08 CLOSED; WINDOWS #89 CLOSED and independently falsified; WINDOWS #90 advisory CLOSED; two architectural residues remain
 behavior_unverified: 1
 overrides_applied: 0
 covered_files:
@@ -41,56 +41,69 @@ covered_files:
   - ".planning/phases/03-mac-offline-play-vertical-slice/03-16-SUMMARY.md"
   - "playstead-mac/Playstead/App/PlaysteadApp.swift"
   - "playstead-mac/Playstead/Cache/AvailabilityReporter.swift"
+  - "playstead-mac/Playstead/Persistence/LocalStore.swift"
   - "playstead-mac/Playstead/Persistence/Migrations.swift"
   - "playstead-mac/Playstead/Sync/Outbox.swift"
   - "playstead-mac/Playstead/Sync/OutboxWorker.swift"
-  - "playstead-mac/Playstead/Persistence/LocalStore.swift"
   - "playstead-mac/PlaysteadTests/CurationTests/OutboxTests.swift"
+  - "playstead-mac/PlaysteadTests/SyncTests/OutboxStrandedInFlightTests.swift"
   - "playstead-mac/PlaysteadTests/SyncTests/OutboxWatermarkMigrationTests.swift"
+  - "playstead-mac/scripts/ci/run-mac-verification.sh"
+  - "playstead-mac/scripts/ci/tests/migration-column-declaration-detector.py"
+  - "playstead-mac/scripts/ci/tests/migration-column-declaration-test.sh"
+  - "playstead-server/lib/playstead/availability.ex"
   - "playstead-server/lib/playstead_web/controllers/api/v1/availability_controller.ex"
-covered_digest: "v1:sha256:03c2526bd9889d23f232e8f6cb8819205da714dd4f0ac1ce1c6e9a845b4bc8ff"
+covered_digest: "v1:sha256:d42298c2b685dadb4cb5986e06205abe9dca517f8520a71ae111578de1bc15bc"
 re_verification:
-  previous_status: "human_needed (two gaps: WR-07 architectural residues, WR-08 migration defect)"
-  previous_score: "5/5 roadmap truths; WR-07 partial, WR-08 failed"
+  previous_status: "human_needed (WR-07 architectural residues; WINDOWS #90 advisory open; coincidental_reliance entry asserting the cross-restart watermark path was latent)"
+  previous_score: "5/5 roadmap truths; WR-07 partial"
   gaps_closed:
-    - "WR-08 (the watermark upgrade left the table unwritable): CLOSED at 8d008b4. The broken `try? ALTER` is replaced by a DROP gated on `SELECT 1 FROM pragma_table_info('outbox_delivered_watermark') WHERE name = 'created_at'`. Detection verified complete in sqlite3 against all FOUR reachable schema states, not just the one named: table absent -> no drop, CREATE makes it; current schema -> no drop, watermark preserved; 47ac7b6 legacy `(kind, created_at)` -> drop; 711f866 half-migrated `(kind, created_at, delivered_seq)` -> drop. Falsified both directions: restoring the broken `try? ALTER` fails the two upgrade tests with exactly `NOT NULL constraint failed: outbox_delivered_watermark.created_at` while the 25 OutboxTests stay green; and making the drop UNCONDITIONAL (the instrument the author's own message described) fails `test_theWatermarkSurvivesAnOrdinaryRelaunch` at :96, so the conditional gate is load-bearing and not decorative. Restored byte-exact; 25/25 + 3/3 green at HEAD."
+    - "WINDOWS #89 (a row left `in_flight` at quit was stranded permanently) CLOSED at f2f1cd3, and with it the PREMISE OF THE PRIOR ROUND'S `coincidental_reliance_items` ENTRY. That entry asserted the cross-restart watermark path was unreachable because `Nothing reverts an in_flight row at startup: there is no recovery sweep`. f2f1cd3 added exactly that sweep. Re-derived against HEAD rather than accepted from the commit message: `recoverStrandedInFlight` (Outbox.swift:246) selects `state = 'in_flight'` and routes each row through `markPendingForRetry` (Outbox.swift:318), which runs the WR-07 supersede check FIRST (`if entry.kind.supersedesPending, isSupersededForRetry(entry)` at :340, deleting rather than reviving), then advances the attempt counter (:347) and quarantines at `maxAttempts` (:348). The call site is `AppEnvironment`'s single private designated init (PlaysteadApp.swift:525-550), which every public and UITesting initializer funnels through, and it runs BEFORE `OutboxWorker` is even constructed, so no drain trigger can race it. The cross-restart case is therefore GENUINELY REACHABLE in production, and the prior entry's `currently unexercised`/`latent`/`future-proofing, not dead code` framing is now FALSE. The entry is retired, not re-dated."
+    - "WINDOWS #90 / the `save_revision.restored_here_at` ADVISORY is CLOSED. `restored_here_at TEXT` is now declared in `save_revision`'s own CREATE TABLE block (Migrations.swift:458) with the defensive `try? ALTER` deliberately KEPT and its comment rewritten to say why it must not be deleted. The generalised guard is real, wired, and fails closed — verified by execution, not by reading its header: `playstead-mac/scripts/ci/tests/migration-column-declaration-test.sh` is mode 100755 in the index, is picked up by `run_contract_self_tests`'s `for test_script in \"${SCRIPT_DIR}\"/tests/*.sh` glob (run-mac-verification.sh:1746-1753, each invocation guarded by `|| failed=1` and terminated by `die`, so a 126/127 exit cannot read as clean), and that gate is invoked from .github/workflows/ci.yml:123 as `--self-test-contracts`. Ran it at HEAD: exit 0, `verified 12 ALTER-added columns are each also declared in their CREATE TABLE block`, plus three fail-closed self-tests. INDEPENDENTLY FALSIFIED: ran the detector against 7317752's pre-fix Migrations.swift copied into a temp dir (never `git checkout`), and it exits 1 naming `undeclared=save_revision.restored_here_at`."
   gaps_remaining:
-    - "WR-07 residues 2 and 3 (architectural, unchanged across all four rounds): a late-succeeding in-flight request lands after a newer one and cannot be prevented client-side; and a newer row retired by `markRejected` or quarantine is invisible to both supersede checks. Neither is closable in `Outbox` alone; residue 2 needs a server-side monotonic guard."
+    - "WR-07 residues 2 and 3 (architectural, unchanged across all five rounds): a late-succeeding in-flight request lands after a newer one and cannot be prevented client-side; and a newer row retired by `markRejected` or quarantine is invisible to both supersede checks. Re-confirmed at HEAD by direct read, not carried forward on trust: `Availability.replace_for_device/2` (playstead-server/lib/playstead/availability.ex:56) is still a blind `Ecto.Multi.delete_all` followed by inserts, with no report sequence or monotonic guard anywhere; and `hasNewerLiveEntry` (Outbox.swift:387) still scopes to `state IN ('pending', 'in_flight')`, so `rejected` and `quarantined` rows remain invisible to both checks."
   regressions: []
   evidence_discrepancies:
-    - "The author's message reports `OutboxWatermarkMigrationTests 2/2`. There are THREE tests in that file and all three pass. The third, `test_theWatermarkSurvivesAnOrdinaryRelaunch`, is the one that pins the conditional gate — the author's own stated worry — so the report understated the work rather than overstating it."
-    - "The author's message describes the fix as `try connection.execute(\"DROP TABLE IF EXISTS outbox_delivered_watermark;\")` run unconditionally, and asks whether that is a cross-restart regression. The code at HEAD is NOT unconditional: it is gated on the legacy-column probe. The message is stale relative to the commit; the concern it raises is already guarded in the shipped code and pinned by a test."
-  coincidental_reliance_items:
-    - truth: "The watermark must survive an ordinary relaunch so a pre-restart delivery still supersedes afterwards."
-      reason: undeclared-precondition
-      detail: "Correct and correctly guarded, but currently unexercised in production for an unrelated reason. The scenario the comment and the relaunch test model — an older row still `in_flight` at quit reverting afterwards — requires `markPendingForRetry` to be called for that row in the next session. Nothing reverts an `in_flight` row at startup: there is no recovery sweep (grep confirms the only `in_flight` references outside Outbox.swift are a comment), and `listPending` excludes `in_flight`, so such a row is stranded rather than retried. The conditional drop is the right instrument and is future-proofing, not dead code — but its stated justification overstates present reachability, and the coupling runs the other way: whoever fixes the stranded-`in_flight` gap by adding the obvious startup sweep makes this path live, at which point an unconditional drop would silently reintroduce WR-07."
-      harden: "Note in the migration comment that the cross-restart path is currently latent because `in_flight` rows are stranded at startup, so the coupling is visible to whoever adds a recovery sweep."
+    - "f2f1cd3's message claims: `This makes WR-07's cross-restart case reachable for the first time, and it passes only because the watermark migration's drop stays CONDITIONAL.` The first clause is TRUE. The second is FALSE as a statement about the test suite, and I proved it by mutation rather than by argument. `OutboxStrandedInFlightTests` builds its `relaunchedOutbox()` as a second `Outbox` over the SAME `LocalStore` instance, so it never reopens the store and migrations never re-run. With the drop made unconditional, all 6 `OutboxStrandedInFlightTests` STAY GREEN; only `OutboxWatermarkMigrationTests/test_theWatermarkSurvivesAnOrdinaryRelaunch` goes red. The coupling the message describes is real IN PRODUCTION but is not what any of the six new tests actually pin. See `coincidental_reliance_items` — the regression is still caught, but by a different test for a different reason than the author believes."
+    - "f2f1cd3's message claims the bare-UPDATE mutant `fails exactly the 2 that carry the design choice and passes the other 4`. CONFIRMED by re-running it: replacing `try markPendingForRetry(entry, at: now)` with a bare `UPDATE outbox_entries SET state = 'pending'` turns exactly `test_aRowThatStrandsEveryLaunchEventuallyQuarantinesRatherThanReplayingForever` and `test_aStrandedReportIsDroppedRatherThanRevivedBehindANewerDeliveredOne` red (5 assertion failures across those 2 cases) while the other 4 pass. This is the evidence that the supersede check and the quarantine bound genuinely run on the recovered row; the routing through `markPendingForRetry` is load-bearing, not decorative. Source restored byte-exact (sha1 c9d7e4d8dd2c2cf5aed21cf61a9a72ded8accb08) and `git status` re-checked clean."
+coincidental_reliance_items:
+  - truth: "A report left `in_flight` at quit is dropped rather than revived behind a newer delivered one, across a real relaunch."
+    reason: fixture-only
+    detail: "The behaviour HOLDS at HEAD — I verified it directly rather than inferring it — but no shipped test exercises the composed path, and the coupling f2f1cd3's own comment relies on is pinned by a different test than its author believes. A real relaunch REOPENS `LocalStore`, which re-runs `Migrations.run`, and only then sweeps. `OutboxStrandedInFlightTests` simulates the relaunch with a second `Outbox` over the same live `LocalStore`, so migrations never re-run in any of its six tests; `OutboxWatermarkMigrationTests` reopens the store but contains no stranded row and never calls the sweep. Each half is covered; the seam between them is not. I built the composed probe the suite lacks (session 1: enqueue stale report, `markInFlight`, enqueue newer, `markDone`; session 2: NEW `LocalStore` at the same `AppPaths`, then `recoverStrandedInFlight`) and it PASSES at HEAD — so the composition is sound today. Falsified to confirm the probe is not vacuous: with the watermark drop made unconditional it fails with 2 assertion failures, whereas all six shipped stranded-in-flight tests stay green under that same mutant. The probe was deleted and the tree re-checked clean. NOT A DEFECT: an unconditional-drop regression IS still caught, by `test_theWatermarkSurvivesAnOrdinaryRelaunch`. The exposure is narrower — a change to the sweep's POSITION relative to store construction, or to the composition of the two mechanisms, would be caught by nothing."
+    harden: "Add the composed cross-restart test to `OutboxStrandedInFlightTests` — one scenario that reopens `LocalStore` at the same `AppPaths` between the two sessions instead of reusing the instance — so the coupling f2f1cd3's comment names is pinned by the test that actually models it. Also correct that file's class doc, which states a relaunch is `only the database survives`; a relaunch also re-runs migrations, which is precisely the part it does not model."
 overrides: []
 gaps:
   - truth: "03-16-PLAN.md must-have: \"Only the newest full-replacement availability report is ever delivered: enqueuing a new one removes any still-pending or backed-off one, so a backed-off earlier report can no longer land after a later one that already succeeded.\""
     status: partial
-    reason: "The client-side ordering question is settled and the migration that carries it is now correct. TWO residues remain, both architectural, neither introduced by any of the four fixes and neither closable in `Outbox`. (2) A LATE-SUCCEEDING IN-FLIGHT REQUEST: if A is on the wire, B is delivered meanwhile, and A's request then SUCCEEDS, `markDone(A)` correctly leaves the watermark at B and deletes the row — but A has already landed on the server AFTER B. No client-side guard can prevent this; A was sent before B existed. Only a server-side monotonic guard closes it, and `Availability.replace_for_device/2` still has none (blind full replacement, re-confirmed by direct read). (3) A NEWER ROW RETIRED WITHOUT BEING DELIVERED: `markRejected` moves a row to `rejected` and exhausting `maxAttempts` moves it to `quarantined`; neither state is live for `hasNewerLiveEntry` and neither writes a watermark — correctly, since neither is a delivery. So an older row can be revived and delivered while a newer one sits rejected or quarantined. This does not violate the sentence's final clause (nothing newer succeeded) but does violate its leading clause. Reachability very low. Disposition unchanged across all four rounds: narrow, self-correcting on the next successful `syncNow()` pass, no permanent data corruption, no trust boundary crossed, no roadmap truth contradicted — a tracked, NON-BLOCKING warning. The client-side half of the sentence is now true; the leading clause cannot be made true in `Outbox` alone."
+    reason: "The client-side ordering question is settled, the migration carrying it is correct, and the startup strand that made the cross-restart half unreachable is now closed. TWO residues remain, both architectural, neither introduced by any fix in this lineage and neither closable in `Outbox`. (2) A LATE-SUCCEEDING IN-FLIGHT REQUEST: if A is on the wire, B is delivered meanwhile, and A's request then SUCCEEDS, `markDone(A)` correctly leaves the watermark at B and deletes the row — but A has already landed on the server AFTER B. No client-side guard can prevent this; A was sent before B existed. Only a server-side monotonic guard closes it, and `replace_for_device/2` still has none (re-read at HEAD: blind `delete_all` + inserts). (3) A NEWER ROW RETIRED WITHOUT BEING DELIVERED: `markRejected` moves a row to `rejected` and exhausting `maxAttempts` moves it to `quarantined`; neither state is live for `hasNewerLiveEntry` and neither writes a watermark — correctly, since neither is a delivery. So an older row can be revived and delivered while a newer one sits rejected or quarantined. Reachability very low. NEW THIS ROUND, and it refines rather than widens residue 2: the startup sweep deliberately REPLAYS a request that may already have been applied server-side. That is sound because the row's `idempotency_key` is `kind:entryID`, generated once in `enqueue` and persisted, so it is byte-identical across restarts (pinned by `test_aRecoveredRowKeepsTheIdempotencyKeyTheServerWillDedupeOn`), and `PUT /devices/me/availability` is on the `:idempotency` pipeline (router.ex:181-183), which holds a per-device receipt. The acknowledged gap is that receipts prune at ~90 days, after which a replay genuinely re-executes — bounded only by the sweep running at the next launch, and documented in the method's own comment rather than hidden. Disposition unchanged across all five rounds: narrow, self-correcting on the next successful `syncNow()` pass, no permanent data corruption, no trust boundary crossed, no roadmap truth contradicted — a tracked, NON-BLOCKING warning."
     artifacts:
-      - path: "playstead-server/lib/playstead_web/controllers/api/v1/availability_controller.ex"
-        issue: "`replace_for_device/2` is a blind full replacement with no report ordering/monotonic guard, so nothing server-side rejects a stale report the client could not prevent sending."
+      - path: "playstead-server/lib/playstead/availability.ex"
+        issue: "`replace_for_device/2` (line 56) is a blind full replacement — `Ecto.Multi.delete_all` then per-entry inserts — with no report ordering or monotonic guard, so nothing server-side rejects a stale report the client could not prevent sending."
     missing:
       - "A server-side monotonic guard on `PUT /api/v1/devices/me/availability` (ignore a report older than the last accepted one for that device). This is the only place residue 2 can be closed at all."
       - "If residues 2 and 3 are instead accepted as permanent limitations, record them in .planning/WINDOWS.md — they are currently described only inside code comments covering the closed halves."
 advisory:
-  - finding: "`save_revision.restored_here_at` is the only column in the entire schema declared SOLELY by a `try? ALTER TABLE ... ADD COLUMN` and absent from its own `CREATE TABLE IF NOT EXISTS` block. Verified by extracting every CREATE block and every ALTER in Migrations.swift and diffing them: 11 of the 12 ALTER-added columns also appear in their table's CREATE; `restored_here_at` does not."
+  - finding: "The composed cross-restart path (reopen `LocalStore` -> migrations re-run -> startup sweep -> supersede by watermark) is exercised by no shipped test, and f2f1cd3's comment attributes the protection to a test that does not model it."
     category: architectural
-    reason: "Not a live defect and NOT WR-08's failure mode (that was a reshape leaving a NOT NULL survivor). It works today only because the `try?` ALTER runs unconditionally on every `LocalStore` open, so even a fresh database acquires the column that way. The hazard is its asymmetry with every sibling: it is exactly the line a future cleanup deletes as redundant, after which a fresh database silently lacks a column `SaveStore` reads and writes in four places (SaveStore.swift:224, :248, :275, :305), with the error swallowed by `try?`. This is phase 04 code (save_revision, plans 04-06/04-11), so it is outside phase 03's scope and is recorded rather than gated. Answering the author's scoping question directly: NO other table carries WR-08's hazard — the watermark is the only table ever RESHAPED, and all 19 commits touching Migrations.swift made otherwise purely additive changes, each with a matching ALTER."
-    evidence_status: "verified by schema extraction + git history scan; no runtime failure observed or claimed"
-
+    reason: "Behaviour verified sound at HEAD by a purpose-built probe that was falsified and then deleted; an unconditional-drop regression is still caught by `test_theWatermarkSurvivesAnOrdinaryRelaunch`. Recorded rather than gated. Resolved by the `harden` step in `coincidental_reliance_items`."
+    evidence_status: "probe run green at HEAD; probe falsified red under an unconditional-drop mutant; tree restored clean"
+  - finding: "WINDOWS #92 remains open and its failure mode is, by the ledger's own words, `currently indistinguishable from a real regression in the startup outbox sweep` — the sweep this round verified."
+    category: other
+    reason: "Phase 04 entry against a UI test (`CurationInteractionTests/testDragReorderSurvivesRelaunch`). dfcf029 landed caller-line forwarding so the next red run distinguishes drag-failed-to-land from reorder-failed-to-persist, but by construction that is only visible on a failure and has not yet been exercised. Correctly tracked as open; not a phase-03 gap, but the adjacency is worth naming because a genuine sweep regression could currently arrive wearing this flake's clothes."
+    evidence_status: "read from the WINDOWS ledger JSON (status open); no phase-03 test failure observed at HEAD"
+  - finding: "Hosted-evidence binding cannot presently be cited: the `verify hosted evidence` workflow fails with `complete evidence identity mismatch: head_sha` (run 35000960386), binding RUN_ID 34997782815 at head 8d7e842 while itself checked out at 24491a69."
+    category: other
+    reason: "Evidence-pipeline defect, not phase-03 code. CI itself is green at 8d7e842 (run 34997782815: mix precommit, docker compose cold start, and macOS 26 unit+rendering+UI+live server all success). Every result in this report was produced locally in this verifier's own process and does not depend on the hosted binding."
+    evidence_status: "reported by the launching orchestrator; not independently re-run here"
 behavior_unverified_items:
   - truth: "A user can connect, test, assign, remap, reset, and recover a controller (roadmap SC #5, controller-hardware portion)"
     test: "Connect a real, paired physical game controller; disconnect it mid-session; reconnect it."
     expected: "Connect is detected, disconnect shows the non-modal recovery banner without stranding keyboard/pointer input, and reconnect restores input without requiring a relaunch — matching what ControllerHost's unit tests already prove against an injectable ControllerInputSource."
-    why_human: "No physical or paired controller hardware exists in this execution environment; 03-SPIKE-REPORT.md probe 5 recorded this as FAIL/unproven and 03-10-SUMMARY.md's D1 rationale states the same. Code is present and wired; only real-hardware behavior is unexercised. Unchanged by 847165b/97b1358/47ac7b6, regression-checked."
+    why_human: "No physical or paired controller hardware exists in this execution environment; 03-SPIKE-REPORT.md probe 5 recorded this as FAIL/unproven and 03-10-SUMMARY.md's D1 rationale states the same. Code is present and wired; only real-hardware behavior is unexercised. Regression-checked at HEAD: f2f1cd3 touches only Outbox/Migrations/PlaysteadApp's outbox sweep and does not reach any controller surface."
 human_verification:
   - test: "Physical game controller connect/disconnect/reconnect recovery, live input test, remap, and reset on real hardware"
     expected: "Controller lifecycle logic behaves identically against a real device as it does against the injectable simulated input source in unit tests."
-    why_human: "No physical or paired controller hardware exists in this execution environment. Reconciled against 03-UAT.md items 8 and 9 (both blocked_by: physical-device) and item 10's blocked sub-record. Carried forward unchanged."
+    why_human: "No physical or paired controller hardware exists in this execution environment. Reconciled against 03-UAT.md items 8 and 9 (both blocked_by: physical-device) and item 10's blocked sub-record. Carried forward unchanged; `check-uat-tally.sh` re-run at HEAD reports total=49 pass=45 blocked=2 partial=2."
   - test: "Full end-to-end launch of the pinned mGBA adapter against a live paired server, with a downloaded game and installed emulator, from the notarized build, driven by a live interactive display session"
     expected: "Play starts the emulator, the game runs, SRAM periodically flushes, quitting returns to the library, and Gatekeeper accepts the app without any user override (this last part is proven — see 03-NOTARIZATION-EVIDENCE.md)."
     why_human: "This execution environment cannot render a live interactive display session for a human to watch a game actually run. Reconciled against 03-UAT.md item 7. Carried forward unchanged."
@@ -102,79 +115,72 @@ human_verification:
     why_human: "No real BIOS file exists in this execution environment, and none should. Reconciled against 03-UAT.md item 13 (result: partial, blocked_by: legally-owned-artifact-required). Carried forward unchanged."
   - test: "LIBR-05's remaining human-judgment UX review item and PLAY-04's physical controller hardware requirement"
     expected: "N/A — tracked for completeness; both requirement IDs stay Pending in REQUIREMENTS.md by explicit scope fence."
-    why_human: "PLAY-04 is the same hardware-blocked item above; LIBR-05's remaining scope is a human UX judgment call. Confirmed both still `Pending` at REQUIREMENTS.md lines 137 and 145."
+    why_human: "PLAY-04 is the same hardware-blocked item above; LIBR-05's remaining scope is a human UX judgment call. Re-confirmed both still `Pending` at REQUIREMENTS.md lines 137 and 145."
 ---
 
 # Phase 3: Mac Offline Play Vertical Slice Verification Report
 
-**Phase Goal:** Let a paired Mac browse, selectively cache, preflight, and launch one proven adapter path offline.
-**Verified:** 2026-09-15T17:00:00Z (HEAD `8d008b4`)
+**Phase Goal:** A newly paired Mac can browse a curated server library, download only chosen verified content, and launch one deliberately supported game offline through a tested adapter.
+**Verified:** 2026-09-16T16:20:00Z (HEAD `f4d83ed`; the orchestrator named `8d7e842`, which is one commit behind — `f4d83ed` adds only 03-UAT.md)
 **Status:** human_needed
-**Re-verification:** Yes — fifth independent pass, adjudicating `8d008b4` (the watermark migration fix) for WR-08, after `711f866` (monotonic sequence), `47ac7b6` (delivered watermark) and `847165b` (live-row check) for WR-07. Everything outside these was re-checked and stands.
+**Re-verification:** Yes — round 5, re-derived rather than re-dated. The round-4 report was written at `7317752`; `f2f1cd3` landed nineteen minutes later and modified three of that report's own `covered_files`.
 
-## Verdict: WR-08 is CLOSED; what remains of WR-07 is architectural
+## Verdict: the stale entry was not merely stale — it asserted the opposite of HEAD
 
-Round 4. You asked me to assume this round has something wrong with it too. This time the code is right — the thing that is wrong is your description of it.
+Round 4 recorded a `coincidental_reliance_items` entry whose whole argument was one grep: *"Nothing reverts an `in_flight` row at startup: there is no recovery sweep."* `f2f1cd3` added that sweep. So the entry's conclusions — "currently unexercised in production", "latent", "future-proofing, not dead code" — are all false at HEAD. It is retired, and replaced by a different finding that is true.
 
-### WR-08 is closed
+### Priority 1 — the cross-restart path is genuinely reachable now
 
-The broken `try? ALTER` is gone, replaced by a DROP gated on a legacy-column probe. **Detection is complete across all four reachable schema states, not just the one named** — I checked each in sqlite3 rather than reasoning about them:
+Traced in code, not taken from the commit message:
 
-| Database state | `pragma_table_info … WHERE name='created_at'` | Behaviour |
-|---|---|---|
-| table absent | `[]` | no drop; `CREATE` makes it |
-| current `(kind, delivered_seq)` | `[]` | **no drop — watermark preserved** |
-| 47ac7b6 legacy `(kind, created_at)` | `[1]` | dropped and rebuilt |
-| 711f866 half-migrated `(kind, created_at, delivered_seq)` | `[1]` | dropped and rebuilt |
+| Link | Evidence at HEAD |
+|---|---|
+| Sweep exists and selects the stranded state | `recoverStrandedInFlight` (Outbox.swift:246) → `rows(where: "state = 'in_flight'", …)` |
+| It routes through `markPendingForRetry`, not a bare UPDATE | Outbox.swift:249, calling :318 |
+| The WR-07 supersede check really runs on the recovered row | `markPendingForRetry` :340 — `if entry.kind.supersedesPending, isSupersededForRetry(entry)` **deletes** rather than revives, and it is the FIRST thing in the method |
+| The attempt counter advances and quarantine bounds the replay | :347 `attemptCount + 1`; :348 `>= Self.maxAttempts` → `state = 'quarantined'`, `next_retry_at = NULL` |
+| It is on the production path | `AppEnvironment`'s single private designated init, PlaysteadApp.swift:525-550 — every public and `#if` UITesting initializer funnels here |
+| Nothing can drain before it | The sweep is at :538; `OutboxWorker` is not constructed until :560 |
 
-That fourth row matters and was not in your list: a database that ran the *broken* build carries all three columns, and the probe catches it because it keys on the stale column rather than on the absence of the new one. Had it keyed on `delivered_seq` being missing, that state would have been missed.
+**Falsified, not asserted.** Replacing `try markPendingForRetry(entry, at: now)` with a bare `UPDATE outbox_entries SET state = 'pending'` turns exactly two tests red — `test_aRowThatStrandsEveryLaunchEventuallyQuarantinesRatherThanReplayingForever` and `test_aStrandedReportIsDroppedRatherThanRevivedBehindANewerDeliveredOne` (5 assertion failures across those 2 cases) — while the other 4 stay green. That is the proof that the supersede check and the quarantine bound genuinely execute on a recovered row. Source restored byte-exact (sha1 `c9d7e4d8…`), tree re-checked clean.
 
-**Falsified in both directions.** Restoring the broken `try? ALTER` fails the two upgrade tests with exactly `NOT NULL constraint failed: outbox_delivered_watermark.created_at`, while the 25 `OutboxTests` stay green — confirming your claim. And making the drop **unconditional**, which is what your message says you did, fails `test_theWatermarkSurvivesAnOrdinaryRelaunch` at :96. So the conditional gate is load-bearing, not decorative. 25/25 + 3/3 at HEAD, restored byte-exact.
+### What the commit message gets wrong
 
-### Two discrepancies between your message and your commit
+> "This makes WR-07's cross-restart case reachable for the first time, and it passes only because the watermark migration's drop stays CONDITIONAL."
 
-**Your message describes an unconditional `DROP TABLE IF EXISTS` and asks whether it is a cross-restart regression. The code at HEAD is not unconditional** — it is gated on the legacy-column probe, with a comment that spells out precisely the failure mode you were worried about. The concern is already guarded and already pinned by a test. Your message is stale relative to your own commit; the code is the better of the two.
+First clause true. **Second clause false about the test suite.** `OutboxStrandedInFlightTests` builds its `relaunchedOutbox()` as a second `Outbox` over the *same live* `LocalStore`, so migrations never re-run in any of its six tests. Under an unconditional drop, **all six stay green**; only `test_theWatermarkSurvivesAnOrdinaryRelaunch` goes red — and that test contains no stranded row and never calls the sweep.
 
-**You report `OutboxWatermarkMigrationTests 2/2`. There are three tests, and all three pass.** The third is the one that pins the conditional gate. You understated your own work rather than overstating it — but since you asked me to confirm evidence rather than accept it, the count is wrong.
+So each half is covered and the seam is not. I built the composed probe the suite lacks (session 1: enqueue stale report → `markInFlight` → enqueue newer → `markDone`; session 2: a **new** `LocalStore` at the same `AppPaths`, then sweep). It **passes at HEAD** — the composition is sound. Falsified to prove it is not vacuous: under the unconditional-drop mutant it fails with 2 assertion failures, where all six shipped tests pass. Probe deleted; tree clean. This is not a defect — the regression is still caught, just by a different test for a different reason than the author believes — so it is recorded as advisory with a one-line hardening step.
 
-### Your other three questions
+### Priority 2 — the two WR-07 residues, re-read at HEAD
 
-**Is `DROP` safe in every state — does losing the watermark ever fail CLOSED?** No. Two readers, both safe. `isSupersededForRetry` does `guard let watermark = deliveredWatermark(...) else { return false }` — no watermark means *not superseded*, so the entry is retried. Fails open, as you claim. The second reader is the one your question did not mention: `enqueue`'s sequence subquery takes `COALESCE((SELECT MAX(delivered_seq) …), 0)`. A missing watermark makes that term 0, but the sibling term `MAX(enqueue_seq) FROM outbox_entries` independently guarantees the new sequence exceeds every live row, so a lost watermark can never produce a sequence that collides with, or sorts below, anything still present. No wrong-drop is reachable from the table's absence.
+Both still open, both unchanged, neither carried forward on trust:
 
-**Do the tests actually exercise the upgrade, or does `LocalStore` cache a connection?** They genuinely exercise it. `LocalStore.init` constructs a **new** `SQLiteConnection` per instance and calls `Migrations.run` immediately (LocalStore.swift:17-20); there is no cache, no shared handle, and no path keying. Reopening at the same `AppPaths` therefore re-runs migrations against the same file exactly as a relaunch does. The first instance stays alive holding its own connection, which SQLite handles fine. The `_ = hasLegacyWatermarkColumn` falsification above also proves the second open really does re-run the migration — otherwise neither falsification could have changed a result.
+- **Residue 2** — `Availability.replace_for_device/2` (availability.ex:56) is still `Ecto.Multi.delete_all` followed by per-entry inserts. No report sequence, no monotonic guard, nothing that could reject a stale report.
+- **Residue 3** — `hasNewerLiveEntry` (Outbox.swift:387) still scopes to `state IN ('pending', 'in_flight')`, so `rejected` and `quarantined` rows are invisible to both supersede checks.
 
-**Does anything else carry the same hazard?** No — and I checked rather than assumed. I extracted every `CREATE TABLE IF NOT EXISTS` block and every `ALTER … ADD COLUMN` from Migrations.swift and scanned all 19 commits that touched the file. The watermark is the only table ever **reshaped** (a column replaced); every other change across the file's history is purely additive, and each added column has both a `DEFAULT`-or-nullable declaration and a matching `ALTER`. WR-08's failure mode cannot recur elsewhere as the schema stands.
+**The quarantine bound the commit claims does hold** — proven by the mutant above, not by the message.
 
-### One latent issue, its own entry as you asked
+**One refinement, new this round.** The sweep deliberately replays a request that may already have been applied. That is sound: the key is `kind:entryID`, generated once in `enqueue` and persisted (pinned by `test_aRecoveredRowKeepsTheIdempotencyKeyTheServerWillDedupeOn`), and `PUT /devices/me/availability` is on the `:idempotency` pipeline (router.ex:181-183). The ~90-day receipt-prune window is a real residual, acknowledged in the method's own comment rather than hidden, and bounded by the sweep running next launch.
 
-The scan did turn up an asymmetry, though it is the *mirror* of WR-08 rather than the same hazard. **`save_revision.restored_here_at` is the only column in the whole schema declared solely by a `try? ALTER` and absent from its own `CREATE TABLE` block** — 11 of the 12 ALTER-added columns also appear in their table's CREATE; this one does not.
+### Priority 3 — WINDOWS #90 / the `restored_here_at` advisory is CLOSED
 
-It works today, because the `try?` ALTER runs unconditionally on every open, so even a fresh database acquires the column that way. The hazard is the asymmetry itself: it is exactly the line a future cleanup deletes as redundant, after which a fresh database silently lacks a column `SaveStore` reads and writes in four places (SaveStore.swift:224, :248, :275, :305) — with the failure swallowed by the `try?`. It is phase 04 code, so it is outside this phase's scope and is recorded as advisory rather than gated.
+`restored_here_at TEXT` is now in `save_revision`'s CREATE TABLE (Migrations.swift:458), with the `try? ALTER` kept and its comment rewritten to forbid deletion. The guard is real and **wired**, verified by execution rather than by reading its header:
 
-### A coincidental reliance worth naming before someone trips on it
+- mode `100755` **in the git index**, so it cannot fail to execute on a fresh clone;
+- discovered by `run_contract_self_tests`'s `for test_script in "${SCRIPT_DIR}"/tests/*.sh` glob (run-mac-verification.sh:1746-1753) — a glob, not a hand-kept list, so registration needed no action;
+- **fails closed**: each invocation is `|| failed=1` and the function ends in `die`, so a 126/127 exit from a missing or non-executable script cannot read as clean;
+- invoked in CI at `.github/workflows/ci.yml:123` (`--self-test-contracts`).
 
-The conditional drop is the right instrument and I am not arguing against it. But the scenario its comment and its test model — *"an older row still `in_flight` at quit could revert afterwards and deliver stale facts"* — **cannot currently happen in production**, for a reason unrelated to this change. Nothing reverts an `in_flight` row at startup: there is no recovery sweep (grep confirms the only `in_flight` mention outside `Outbox.swift` is a comment), and `listPending` excludes `in_flight`, so a row in flight at quit is *stranded* — never retried, never superseded. `markPendingForRetry` is therefore never called for it in the next session, and the watermark's cross-restart value goes unexercised.
+Ran at HEAD: exit 0, `verified 12 ALTER-added columns are each also declared in their CREATE TABLE block`, plus three fail-closed self-tests (ALTER-only column, no-ALTER source, missing file). **Independently falsified** against `7317752`'s pre-fix source copied to a temp dir — exits 1 naming `undeclared=save_revision.restored_here_at`.
 
-So the protection is latent rather than active. That is fine — it is future-proofing, not dead code — but the coupling runs in a direction worth writing down: **whoever fixes the stranded-`in_flight` gap by adding the obvious startup sweep makes this path live.** At that moment the conditional gate is what prevents WR-07 from silently returning. Recorded in `coincidental_reliance_items` so the two changes are not made independently.
+### Priority 4 — regression surface
 
-### What remains of WR-07
+Only eleven files changed since the round-4 report, three of them shipped Mac source:
 
-Residues 2 and 3, unchanged and architectural: a late-succeeding in-flight request lands after a newer one (closable only by a server-side monotonic guard, which `replace_for_device/2` still lacks), and a newer row retired by rejection or quarantine is invisible to both checks. Disposition unchanged across all four rounds — tracked, non-blocking.
+`PlaysteadApp.swift`, `Migrations.swift`, `Outbox.swift` (all re-verified above), plus `OutboxStrandedInFlightTests.swift` (new), `CurationInteractionTests.swift` (#92 diagnostics), `sanitize-evidence.sh` + `sanitizer-test.sh` (#91), the two new migration-guard files, `WINDOWS.md`, and `03-UAT.md`.
 
-### A note on the compromised local evidence
-
-I did not run the full Unit layer, so WINDOWS #88's five child-process failures did not arise and nothing here depends on them. Every result cited comes from `OutboxTests` and `OutboxWatermarkMigrationTests` (neither spawns a child process), from sqlite3 run directly against the migration statements, or from source reads.
-
-## Regression Re-checks (by source read, not by reading the prior verification)
-
-| Prior finding | Status | Evidence re-derived |
-|---|---|---|
-| **LIBR-02** (`missing_dependency` structurally unreachable) | ✓ STILL CLOSED | `AvailabilityReporter.buildEntries` computes `missingDependency = !requiredSHAs.isEmpty && hasOrphanedRequiredMember && hasEngaged` from real CAS/queue/pin state. `grep -c 'missingDependency: false'` (comments stripped) → `0`. `grep -c 'replace_for_device(\|%DeviceReport{' library_availability_e2e_test.exs` → `0`. Untouched by `47ac7b6`. |
-| **WR-04** (malformed `entries` → 500) | ✓ STILL CLOSED | `do_replace/2` retains the `is_list` clause + `Enum.all?(entries, &is_map/1)` + catch-all through `action_fallback`; absent-key default and `:too_many_entries` branch intact. |
-| **WR-05** (enqueue-time newest-wins supersede) | ✓ STILL CLOSED | `Outbox.enqueue` still deletes `kind = ? AND state = 'pending'` inside the insert transaction; all four supersede tests pass in the 24/24 run. |
-| **847165b live-row check** | ✓ STILL LOAD-BEARING | Both `…ArrivedMeanwhile` and `…NothingNewerArrived` still pass with the watermark clause disabled, confirming the two clauses are independent and neither masks the other. |
-
-`97b1358` touches `OutboxWorker.swift` only to add `OutboxDrainResult.failureClassification`; creation-order draining, the stop-on-first-retry rule, the WR-01 markInFlight-failure stop, and the permanent-rejection branch are unchanged. No regression.
+`AvailabilityReporter.swift`, `LocalStore.swift`, `OutboxWorker.swift` and `availability_controller.ex` are **untouched** since round 4, so LIBR-02, WR-04 and the live-row check carry forward on a bounded surface. WR-05 lives in `Outbox.swift`, which did change, so it was re-read directly: the enqueue-time `DELETE FROM outbox_entries WHERE kind = ? AND state = 'pending'` is intact inside the insert transaction (Outbox.swift:129-134), and all four supersede tests pass in the 25/25 run.
 
 ## Goal Achievement
 
@@ -182,11 +188,11 @@ I did not run the full Unit layer, so WINDOWS #88's five child-process failures 
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | Browse the complete server catalogue before downloading bytes; find content; curate Favorites/Collections/Continue/Recent/queue; LiveView console offers the same views | ✓ VERIFIED | Unchanged; LIBR-02 re-confirmed closed above. |
-| 2 | Choose a game/collection for download, resume verified ranges after interruption, distinguish six availability states | ✓ VERIFIED | Unchanged; `AvailabilityState.derive` untouched by all three commits on this head. |
+| 1 | Browse the complete server catalogue before downloading bytes; find content; curate Favorites/Collections/Continue/Recent/queue; LiveView console offers the same views | ✓ VERIFIED | Unchanged; supporting files untouched since round 4. |
+| 2 | Choose a game/collection for download, resume verified ranges after interruption, distinguish six availability states | ✓ VERIFIED | Unchanged; `AvailabilityState.derive` untouched by `f2f1cd3`. |
 | 3 | Set capacity policy, pin content, reclaim only reconstructable unpinned bytes; launch only after every required member verifies locally; remains launchable offline | ✓ VERIFIED | Unchanged. |
 | 4 | Select/install one supported Mac adapter with exact capability info; validate locally supplied BIOS or open replacement; preflight remedy per blocker | ✓ VERIFIED | Unchanged. |
-| 5 | Connect/test/assign/remap/reset/recover a controller with keyboard/pointer/screen-reader/focus/reduced-motion fallbacks; launch/exit/relaunch from a signed/notarized build after app or server restart | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED (controller-hardware portion) / ✓ VERIFIED (notarization portion) | Unchanged; routed to human verification. |
+| 5 | Connect/test/assign/remap/reset/recover a controller with keyboard/pointer/screen-reader/focus/reduced-motion fallbacks; launch/exit/relaunch from a signed/notarized build after app or server restart | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED (controller-hardware portion) / ✓ VERIFIED (notarization portion) | Unchanged; routed to human verification. `f2f1cd3` reaches no controller surface. |
 
 **Score:** 5/5 roadmap truths verified or appropriately routed; 1 present-but-behavior-unverified. WR-07 is a sub-requirement-level must-have from 03-16-PLAN.md, not a roadmap SC, and is tracked in `gaps`.
 
@@ -194,89 +200,69 @@ I did not run the full Unit layer, so WINDOWS #88's five child-process failures 
 
 | Artifact | Expected | Status | Details |
 |----------|----------|--------|---------|
-| `playstead-mac/Playstead/Persistence/Migrations.swift` | Durable store for the delivered fact + a total order, upgradable from every prior shape | ✓ VERIFIED | `enqueue_seq` column, backfill and index correct. The watermark upgrade is now a legacy-column-gated DROP, verified in sqlite3 against all four reachable schema states, and falsified both directions. |
-| `playstead-mac/Playstead/Sync/Outbox.swift` | Newest-wins supersede across the full entry lifecycle | ⚠️ PARTIAL | Enqueue-time, live-newer and delivered-newer cases implemented, atomic and tested, on a total order. Only residues 2/3 remain, both architectural and outside `Outbox`. |
-| `playstead-mac/PlaysteadTests/CurationTests/OutboxTests.swift` | Fail-first coverage of all WR-07 rounds | ✓ VERIFIED | 25/25 at HEAD; inverted tie test and kind-scoping test both genuine and load-bearing. |
-| `playstead-mac/PlaysteadTests/SyncTests/OutboxWatermarkMigrationTests.swift` | Coverage of the schema-upgrade path no other suite can reach | ✓ VERIFIED | 3/3 (not 2/2 as reported). Genuinely exercises the upgrade: `LocalStore.init` opens a fresh connection and re-runs migrations, with no caching. The relaunch test pins the conditional gate. |
-| `playstead-mac/Playstead/App/PlaysteadApp.swift` | Comments that do not assert false serialization | ✓ VERIFIED | Both `drainOutbox` and `drainSaveUploads` now state entry/revision-level non-racing without claiming serialization, and point at `Outbox` as the component that must be correct across reentrancy. |
-| `playstead-mac/Playstead/Cache/AvailabilityReporter.swift` | Real, non-constant `missing_dependency` signal | ✓ VERIFIED | Re-confirmed; 0 hardcoded literals in executable code. |
-| `playstead-server/.../availability_controller.ex` | 422 shape guard on malformed `entries` | ✓ VERIFIED (WR-04) | Guard intact. Noted: still no report-ordering guard, which is why residue 2 has no server-side mitigation. |
-| `.planning/REQUIREMENTS.md` | Authoritative requirement traceability | ✓ VERIFIED | Untouched; LIBR-05 (line 137) and PLAY-04 (line 145) still correctly `Pending`. |
-
-### Key Link Verification
-
-| From | To | Via | Status | Details |
-|------|-----|-----|--------|---------|
-| `CurationIntentKind.availabilityReport` → `Outbox.enqueue` | at-most-one-pending-row | `supersedesPending` scoped delete | ✓ WIRED | Unchanged, tested. |
-| `Outbox.markDone` → `outbox_delivered_watermark` | the delivered fact outlives the row | single transaction, `INSERT…SELECT` + `MAX` upsert | ✓ WIRED | Correct on a fresh schema and now on every upgraded one; missing-row case verified safe in sqlite3. |
-| `Outbox.markPendingForRetry` → `isSupersededForRetry` | drop a superseded revived row | live-row check OR watermark check, both on `enqueue_seq` | ✓ WIRED | Both clauses independently load-bearing; the tie window is closed — flattening the sequence to a constant fails all three supersede tests. |
-| `Outbox.onEnqueue` → `OutboxWorker.drainOnce` | post-enqueue drain | `OutboxDrainTrigger.fire()` → `Task { await … }` | ✓ WIRED | PlaysteadApp.swift:648. Still the wiring that makes the reentrancy window reachable; now documented accurately. |
-| `AvailabilityReporter.buildEntries` → `missing_dependency` chip | HTTP-driven, no read-model seeding | shared fixture → real controller → LiveView | ✓ WIRED | Re-confirmed by grep (0 bypasses). |
+| `playstead-mac/Playstead/Sync/Outbox.swift` | Newest-wins supersede across the full entry lifecycle, including after a restart | ⚠️ PARTIAL | Enqueue-time, live-newer, delivered-newer and now cross-restart cases implemented, atomic and tested on a total order. Only residues 2/3 remain, both architectural and outside `Outbox`. |
+| `playstead-mac/Playstead/App/PlaysteadApp.swift` | The sweep on the one path that runs once before any drain | ✓ VERIFIED | Designated init :525-550; before `OutboxWorker` construction at :560; error logged, not swallowed (`do`/`catch`, not `try?`). |
+| `playstead-mac/Playstead/Persistence/Migrations.swift` | Durable delivered-fact store upgradable from every prior shape; every ALTER redundant on a fresh DB | ✓ VERIFIED | Legacy-column-gated DROP intact and still load-bearing (unconditional mutant → `test_theWatermarkSurvivesAnOrdinaryRelaunch` red). `restored_here_at` now in its CREATE block. |
+| `playstead-mac/PlaysteadTests/SyncTests/OutboxStrandedInFlightTests.swift` | Fail-first coverage of the startup sweep | ✓ VERIFIED (with a seam) | 6/6 at HEAD; bare-UPDATE mutant reds exactly the 2 design-carrying tests. Does not model the migration re-run — see advisory. |
+| `playstead-mac/PlaysteadTests/CurationTests/OutboxTests.swift` | Fail-first coverage of all WR-07 rounds | ✓ VERIFIED | 25/25 at HEAD. |
+| `playstead-mac/PlaysteadTests/SyncTests/OutboxWatermarkMigrationTests.swift` | Coverage of the schema-upgrade path no other suite reaches | ✓ VERIFIED | 3/3 at HEAD. |
+| `playstead-mac/scripts/ci/tests/migration-column-declaration-test.sh` | A wired, fail-closed generalisation of #90 | ✓ VERIFIED, WIRED | Glob-discovered, `|| failed=1` + `die`, ci.yml:123. Exit 0 at HEAD; exit 1 on pre-fix source. |
+| `playstead-server/lib/playstead/availability.ex` | A server-side monotonic guard (residue 2) | ✗ ABSENT | Blind `delete_all` + inserts. Tracked in `gaps`, non-blocking. |
 
 ### Behavioral Spot-Checks
 
 | Behavior | Command | Result | Status |
 |---|---|---|---|
-| `OutboxTests` + `OutboxWatermarkMigrationTests` at HEAD `8d008b4` | `xcodebuild test … -only-testing:…` | 25/25 and 3/3, 0 failures | ✓ PASS |
-| Broken `try? ALTER` restored (falsification) | conditional DROP → the old ALTER | both upgrade tests fail with `NOT NULL constraint failed: outbox_delivered_watermark.created_at`; 25 OutboxTests stay green | ✓ PASS (fails as required) |
-| Conditional gate is load-bearing (falsification) | DROP made unconditional | `test_theWatermarkSurvivesAnOrdinaryRelaunch` fails at :96 | ✓ PASS (fails as required) |
-| Legacy detection, table absent | sqlite3 `pragma_table_info … WHERE name='created_at'` | `[]` → no drop | ✓ PASS |
-| Legacy detection, current schema | same | `[]` → no drop, watermark preserved | ✓ PASS |
-| Legacy detection, 47ac7b6 schema | same | `[1]` → dropped | ✓ PASS |
-| Legacy detection, 711f866 half-migrated schema | same | `[1]` → dropped | ✓ PASS |
-| No other table carries WR-08's hazard | CREATE/ALTER extraction + scan of all 19 commits touching Migrations.swift | watermark is the only table ever reshaped; all other changes additive with a matching ALTER | ✓ PASS |
-| ALTER-only columns (mirror hazard) | CREATE-vs-ALTER column diff | 1 found: `save_revision.restored_here_at` — advisory, phase 04 scope | ℹ️ INFO |
-| No startup `in_flight` recovery sweep | `grep -rn in_flight playstead-mac/Playstead/` | only `Outbox.swift` + one comment | ✓ PASS (confirms the coincidental reliance) |
-| Byte-exact restore after both probes | `git diff HEAD --stat -- playstead-mac/` | empty | ✓ PASS |
-| Debt-marker scan (TBD/FIXME/XXX) on all files in `8d008b4` | `grep -nE` | no matches | ✓ PASS |
+| Startup sweep, replay-key stability, quarantine bound, cross-restart supersede | `xcodebuild test … -only-testing:PlaysteadTests/OutboxStrandedInFlightTests` | Executed 6, 0 failures | ✓ PASS |
+| WR-07 client-side ordering across the lifecycle | `… -only-testing:PlaysteadTests/OutboxTests` | Executed 25, 0 failures | ✓ PASS |
+| Watermark schema-upgrade path | `… -only-testing:PlaysteadTests/OutboxWatermarkMigrationTests` | Executed 3, 0 failures | ✓ PASS |
+| Every ALTER-added column declared in its CREATE block | `bash playstead-mac/scripts/ci/tests/migration-column-declaration-test.sh` | exit 0; 12 columns; 3 fail-closed self-tests | ✓ PASS |
+| Guard actually catches #90 | detector vs `7317752:Migrations.swift` in a temp dir | exit 1, `undeclared=save_revision.restored_here_at` | ✓ PASS (falsified) |
+| Sweep routing is load-bearing | bare-UPDATE mutant on `recoverStrandedInFlight` | exactly 2 of 6 red | ✓ PASS (falsified) |
+| Conditional drop is load-bearing | unconditional-drop mutant | `test_theWatermarkSurvivesAnOrdinaryRelaunch` red; all 6 stranded tests green | ✓ PASS (falsified, and disconfirms the commit message) |
+| Composed cross-restart path | purpose-built probe, then deleted | green at HEAD; red under unconditional-drop mutant | ✓ PASS (probe, not shipped) |
+| UAT tally reconciliation | `bash scripts/check-uat-tally.sh` | `03-UAT.md: total=49 blocked=2, partial=2, pass=45` | ✓ PASS |
+| UAT/roadmap evidence boundaries | `validate-phase-3-uat-evidence.py` | `phase-3 UAT and Roadmap evidence boundaries verified` | ✓ PASS |
 
-Per project convention, every probe restore was done by copying back a saved byte-exact backup, never by `git checkout`.
+All 34 Outbox-family tests were confirmed **discovered, executed, non-skipped and passing** by name. `TestPlans/Unit.xctestplan` has no `selectedTests` allowlist and its 3 `skippedTests` include no Outbox entry; the project uses `PBXFileSystemSynchronizedRootGroup`, so the new test file is auto-included rather than needing pbxproj registration.
 
 ### Requirements Coverage
 
-All 15 phase requirement IDs accounted for against REQUIREMENTS.md.
+All 15 phase-03 IDs are claimed by plan frontmatter; **no orphans** (the union across the 16 plans is exactly the phase's declared set).
 
-| Requirement | Status | Evidence |
-|---|---|---|
-| LIBR-01 | ✓ SATISFIED | Line 133 Complete. Unchanged. |
-| LIBR-02 | ✓ SATISFIED | Line 134 Complete. Re-confirmed closed by direct read. |
-| LIBR-03 | ✓ SATISFIED | Line 135 Complete. Unchanged. |
-| LIBR-04 | ✓ SATISFIED | Line 136 Complete. Unchanged. |
-| LIBR-05 | ? NEEDS HUMAN | Line 137 Pending. Human UX judgment; explicit scope fence. |
-| CACH-01 | ✓ SATISFIED | Line 138 Complete. Unchanged. |
-| CACH-02 | ✓ SATISFIED | Line 139 Complete. Unchanged. |
-| CACH-03 | ✓ SATISFIED | Line 140 Complete. Unchanged. |
-| CACH-04 | ✓ SATISFIED | Line 141 Complete. Unchanged. |
-| PLAY-01 | ✓ SATISFIED | Line 142 Complete. Unchanged. |
-| PLAY-02 | ✓ SATISFIED | Line 143 Complete. Unchanged. |
-| PLAY-03 | ✓ SATISFIED | Line 144 Complete. Real-BIOS acceptance remains human-gated (03-UAT.md item 13). |
-| PLAY-04 | ? NEEDS HUMAN | Line 145 Pending. Physical controller hardware. |
-| PLAY-05 | ✓ SATISFIED | Line 146 Complete. Live interactive launch remains human-gated (03-UAT.md item 7). |
-| QUAL-01 | ✓ SATISFIED | Line 155 Complete. Live VoiceOver/visual walkthrough remains human-gated. |
-
-No orphaned requirement IDs.
+| Requirement | Source Plans | Status | Evidence |
+|---|---|---|---|
+| LIBR-01 | 03-03, 03-06 | ✓ SATISFIED | REQUIREMENTS.md:133 Complete |
+| LIBR-02 | 03-05, 03-06, 03-13, 03-14, 03-15, 03-16 | ✓ SATISFIED | REQUIREMENTS.md:134 Complete |
+| LIBR-03 | 03-04, 03-08 | ✓ SATISFIED | REQUIREMENTS.md:135 Complete |
+| LIBR-04 | 03-05, 03-06 | ✓ SATISFIED | REQUIREMENTS.md:136 Complete |
+| LIBR-05 | 03-05 | ? NEEDS HUMAN | REQUIREMENTS.md:137 Pending — human UX judgment, by explicit scope fence |
+| CACH-01 | 03-02, 03-03, 03-07 | ✓ SATISFIED | REQUIREMENTS.md:138 Complete |
+| CACH-02 | 03-07 | ✓ SATISFIED | REQUIREMENTS.md:139 Complete |
+| CACH-03 | 03-07 | ✓ SATISFIED | REQUIREMENTS.md:140 Complete |
+| CACH-04 | 03-03, 03-09 | ✓ SATISFIED | REQUIREMENTS.md:141 Complete |
+| PLAY-01 | 03-01, 03-09 | ✓ SATISFIED | REQUIREMENTS.md:142 Complete |
+| PLAY-02 | 03-09 | ✓ SATISFIED | REQUIREMENTS.md:143 Complete |
+| PLAY-03 | 03-09, 03-11 | ✓ SATISFIED | REQUIREMENTS.md:144 Complete |
+| PLAY-04 | 03-10 | ? NEEDS HUMAN | REQUIREMENTS.md:145 Pending — physical controller hardware |
+| PLAY-05 | 03-01, 03-03, 03-10, 03-12 | ✓ SATISFIED | REQUIREMENTS.md:146 Complete |
+| QUAL-01 | 03-05, 03-10, 03-13, 03-14 | ✓ SATISFIED | REQUIREMENTS.md:155 Complete |
 
 ### Anti-Patterns Found
 
-None in the files modified by the three commits on this head. No `TBD`/`FIXME`/`XXX` markers.
+None blocking. No unreferenced `TBD`/`FIXME`/`XXX` in any file modified since round 4. The `try?` ALTERs in `Migrations.swift` are now all genuinely redundant and guarded by a CI gate that fails closed.
 
-ℹ️ Info (pre-existing, unchanged): `markPendingForRetry` remains the only path from `in_flight` back to `pending`, so a process crash while a row is `in_flight` strands it with no startup recovery sweep — neither retried nor superseded. Out of scope for this gap, but a durable watermark plus a startup sweep would address both together.
+### Human Verification Required
 
-### Note on evidence provenance
-
-The `OutboxTests` runs, the falsification of the watermark clause, and the tie probe were all executed by this verification directly and are first-hand results. The reported full local Unit layer (702 tests / 0 failures) was **not** re-run here and is not load-bearing for any verdict above. Hosted CI for `47ac7b6` was not consulted. The intermittent live-server failures tracked as WINDOWS #70/#71/#87 are deliberately **not** attributed to any phase 03 requirement.
+Four items, all reconciled against `03-UAT.md` (total=49, pass=45, blocked=2, partial=2, re-verified by `check-uat-tally.sh` at HEAD) and **carried forward unchanged** — nothing at HEAD closed or reopened any of them. See `human_verification` in the frontmatter.
 
 ### Gaps Summary
 
-One gap. **WR-08 is closed.** The legacy-column-gated DROP is correct, its detection covers all four reachable schema states including the half-migrated one the author did not enumerate, and I falsified it in both directions — restoring the broken ALTER fails the upgrade tests, and making the drop unconditional fails the relaunch test. The two discrepancies I found are between the author's *message* and the author's *commit*, not in the code: the message describes an unconditional drop (the code gates it) and reports 2 tests (there are 3). Both errors understate the work.
+One non-blocking gap, unchanged in substance across five rounds: WR-07's residues 2 and 3 are architectural. Residue 2 is closable only by a server-side monotonic guard on `PUT /api/v1/devices/me/availability`, which `replace_for_device/2` still lacks; residue 3 is a very-low-reachability consequence of `rejected`/`quarantined` correctly not counting as deliveries. Neither contradicts a roadmap truth, neither corrupts data, and both self-correct on the next successful `syncNow()`.
 
-What remains of WR-07 is the two architectural residues that have been stable across all four rounds: a late-succeeding in-flight request, and a newer row retired by rejection or quarantine. Neither is closable in `Outbox`; residue 2 needs a server-side monotonic guard on `PUT /api/v1/devices/me/availability`, and both want a WINDOWS.md entry if they are to be accepted instead.
-
-One advisory, outside phase 03: `save_revision.restored_here_at` is the only column in the schema declared solely by a `try? ALTER` and missing from its `CREATE` block — sound today, fragile to a future cleanup. And one coincidental reliance recorded: the watermark's cross-restart protection is currently latent, because `in_flight` rows are stranded at startup; whoever adds a recovery sweep makes that path live and must not also relax the conditional drop.
-
-Four human verification items carry forward unchanged: physical controller hardware, a live interactive emulator launch session, a live VoiceOver/visual walkthrough, and real BIOS bytes.
+Everything the orchestrator flagged as stale has been re-derived: the `coincidental_reliance_items` entry is retired because its premise is false at HEAD, WINDOWS #89 and #90 are closed and independently falsified, the two residues are re-read rather than carried, and `covered_files`/`covered_digest` are recomputed.
 
 ---
 
-_Verified: 2026-09-15T17:00:00Z at HEAD 8d008b4_
-_Verifier: Claude (gsd-verifier) — fifth independent pass; no source files modified (working tree clean, all probe files restored byte-exact)_
+_Verified: 2026-09-16T16:20:00Z_
+_Verifier: Claude (gsd-verifier), round 5_
