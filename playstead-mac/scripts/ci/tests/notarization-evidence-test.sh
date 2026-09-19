@@ -46,13 +46,18 @@ source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
 required = (
     "--evidence-output",
     "capture-notarization-evidence.sh",
-    "PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_FILE",
-    "PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_TOKEN",
-    "INVALID_EVIDENCE_CAPTURE_CAPABILITY",
+    "run_full_proof()",
+    "capture_notarization_evidence",
+    'source "$CAPTURE_HELPER"',
 )
 missing = [token for token in required if token not in source]
 if missing:
     raise SystemExit(f"production verifier is missing sanitized-capture wiring: {', '.join(missing)}")
+
+if "PLAYSTEAD_EVIDENCE_CAPTURE_" in source:
+    raise SystemExit("production verifier retains an environment-controlled capture bypass")
+if '"$0" --evidence-output' in source:
+    raise SystemExit("production verifier still re-enters itself for full proof execution")
 
 for pattern in (
     r">{1,2}\s*\"?\$\{?EVIDENCE_OUTPUT",
@@ -76,15 +81,14 @@ if grep -F 'synthetic-secret' "$SUCCESS_OUTPUT" >/dev/null; then
 fi
 ASSERTION_COUNT=$((ASSERTION_COUNT + 4))
 
-CAPABILITY_OUTPUT="$WORK_DIR/capability.log"
-"$CAPTURE" --output "$CAPABILITY_OUTPUT" -- bash -c '
-  [ -n "${PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_FILE:-}" ]
-  [ -n "${PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_TOKEN:-}" ]
-  [ "$(cat "$PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_FILE")" = "$PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_TOKEN" ]
-  printf "helper-issued capability observed\n"
-'
-grep -Fx 'helper-issued capability observed' "$CAPABILITY_OUTPUT" >/dev/null || \
-  fail "capture helper did not issue its child a matching private capability"
+FUNCTION_OUTPUT="$WORK_DIR/function.log"
+source "$CAPTURE"
+synthetic_proof_function() {
+  printf 'same-process proof function captured\n'
+}
+capture_notarization_evidence "$FUNCTION_OUTPUT" synthetic_proof_function
+grep -Fx 'same-process proof function captured' "$FUNCTION_OUTPUT" >/dev/null || \
+  fail "sourced capture primitive did not capture a same-process function"
 ASSERTION_COUNT=$((ASSERTION_COUNT + 1))
 
 FAILURE_OUTPUT="$WORK_DIR/failure.log"
