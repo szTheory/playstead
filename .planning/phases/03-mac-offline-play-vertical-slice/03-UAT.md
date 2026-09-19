@@ -386,7 +386,7 @@ evidence: |
 
 ### 8. Controller connect / disconnect recovery on real hardware
 expected: With a real game controller, unplug and reconnect it mid-use. Recovery is non-modal and never strands keyboard or pointer input.
-result: issue
+result: blocked
 reported: "Phase 03 must verify controller connect/disconnect recovery through an automated integration/E2E seam, without physical hardware UAT."
 severity: major
 blocked_by: physical-device
@@ -402,7 +402,7 @@ coverage_id: 03-01/D4
 
 ### 9. Controller lifecycle: live-test, assign, remap, reset
 expected: On real controller hardware: connect, live-test inputs, assign, remap bindings, and reset to defaults all work as designed.
-result: issue
+result: blocked
 reported: "Phase 03 must verify the real GameController lifecycle through an automated seam, including live-test, assign, remap, and reset."
 severity: major
 blocked_by: physical-device
