@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 70;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -11,14 +11,14 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		232A3E90E56347D5A5C343EB /* PBXContainerItemProxy */ = {
+		1F0000000000000000000001 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 4D6D4F7B80314C78A88735E2 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 44DC10C2CEB44A12A91241F2;
 			remoteInfo = Playstead;
 		};
-		1F0000000000000000000001 /* PBXContainerItemProxy */ = {
+		232A3E90E56347D5A5C343EB /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 4D6D4F7B80314C78A88735E2 /* Project object */;
 			proxyType = 1;
@@ -28,13 +28,13 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		1A0000000000000000000001 /* PlaysteadUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PlaysteadUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		39A00EA58CC747DF8AF5DB1E /* Playstead.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Playstead.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C6329AF3F108470AA0F49B6B /* PlaysteadTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PlaysteadTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		1A0000000000000000000001 /* PlaysteadUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PlaysteadUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		C179DEAFBB55494CB996337D /* Exceptions for "Playstead" folder in "Playstead" target */ = {
+		C179DEAFBB55494CB996337D /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				App/Info.plist,
@@ -44,19 +44,19 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		F4DB3718A4C04995AC0D2980 /* Playstead */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				C179DEAFBB55494CB996337D /* Exceptions for "Playstead" folder in "Playstead" target */,
-			);
-			path = Playstead;
-			sourceTree = "<group>";
-		};
-		DE82DF82B79D42B0BA0E75F3 /* PlaysteadTests */ = {isa = PBXFileSystemSynchronizedRootGroup; path = PlaysteadTests; sourceTree = "<group>"; };
-		1B0000000000000000000001 /* PlaysteadUITests */ = {isa = PBXFileSystemSynchronizedRootGroup; path = PlaysteadUITests; sourceTree = "<group>"; };
+		1B0000000000000000000001 /* PlaysteadUITests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = PlaysteadUITests; sourceTree = "<group>"; };
+		DE82DF82B79D42B0BA0E75F3 /* PlaysteadTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = PlaysteadTests; sourceTree = "<group>"; };
+		F4DB3718A4C04995AC0D2980 /* Playstead */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (C179DEAFBB55494CB996337D /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Playstead; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		1D0000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		CAF4EF2DBA1B43C99DC1E085 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -72,26 +72,9 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		1D0000000000000000000001 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		F2EE740FF66C4EB09CAB9688 = {
-			isa = PBXGroup;
-			children = (
-				F4DB3718A4C04995AC0D2980 /* Playstead */,
-				DE82DF82B79D42B0BA0E75F3 /* PlaysteadTests */,
-				1B0000000000000000000001 /* PlaysteadUITests */,
-				34F27EAF1B52460DBD41F3EC /* Products */,
-			);
-			sourceTree = "<group>";
-		};
 		34F27EAF1B52460DBD41F3EC /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -102,9 +85,39 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		F2EE740FF66C4EB09CAB9688 = {
+			isa = PBXGroup;
+			children = (
+				F4DB3718A4C04995AC0D2980 /* Playstead */,
+				DE82DF82B79D42B0BA0E75F3 /* PlaysteadTests */,
+				1B0000000000000000000001 /* PlaysteadUITests */,
+				34F27EAF1B52460DBD41F3EC /* Products */,
+			);
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		1E0000000000000000000001 /* PlaysteadUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 230000000000000000000001 /* Build configuration list for PBXNativeTarget "PlaysteadUITests" */;
+			buildPhases = (
+				1C0000000000000000000001 /* Sources */,
+				1D0000000000000000000001 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				200000000000000000000001 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				1B0000000000000000000001 /* PlaysteadUITests */,
+			);
+			name = PlaysteadUITests;
+			productName = PlaysteadUITests;
+			productReference = 1A0000000000000000000001 /* PlaysteadUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		44DC10C2CEB44A12A91241F2 /* Playstead */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 11EA85E1EE624DBC9AF10F9D /* Build configuration list for PBXNativeTarget "Playstead" */;
@@ -148,26 +161,6 @@
 			productReference = C6329AF3F108470AA0F49B6B /* PlaysteadTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		1E0000000000000000000001 /* PlaysteadUITests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 230000000000000000000001 /* Build configuration list for PBXNativeTarget "PlaysteadUITests" */;
-			buildPhases = (
-				1C0000000000000000000001 /* Sources */,
-				1D0000000000000000000001 /* Frameworks */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				200000000000000000000001 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				1B0000000000000000000001 /* PlaysteadUITests */,
-			);
-			name = PlaysteadUITests;
-			productName = PlaysteadUITests;
-			productReference = 1A0000000000000000000001 /* PlaysteadUITests.xctest */;
-			productType = "com.apple.product-type.bundle.ui-testing";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -178,15 +171,15 @@
 				LastSwiftUpdateCheck = 1620;
 				LastUpgradeCheck = 1620;
 				TargetAttributes = {
+					1E0000000000000000000001 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = 44DC10C2CEB44A12A91241F2;
+					};
 					44DC10C2CEB44A12A91241F2 = {
 						CreatedOnToolsVersion = 16.2;
 					};
 					B523D701384541059776544C = {
 						CreatedOnToolsVersion = 16.2;
-						TestTargetID = 44DC10C2CEB44A12A91241F2;
-					};
-					1E0000000000000000000001 = {
-						CreatedOnToolsVersion = 26.6;
 						TestTargetID = 44DC10C2CEB44A12A91241F2;
 					};
 				};
@@ -200,10 +193,10 @@
 				Base,
 			);
 			mainGroup = F2EE740FF66C4EB09CAB9688;
-			productRefGroup = 34F27EAF1B52460DBD41F3EC /* Products */;
 			packageReferences = (
 				260000000000000000000001 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */,
 			);
+			productRefGroup = 34F27EAF1B52460DBD41F3EC /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -225,7 +218,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		CA925770A1A24AD7A98107CA /* Sources */ = {
+		1C0000000000000000000001 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -239,7 +232,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		1C0000000000000000000001 /* Sources */ = {
+		CA925770A1A24AD7A98107CA /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -249,19 +242,107 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		6804CF8A97864D2C8EFFE9F8 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 44DC10C2CEB44A12A91241F2 /* Playstead */;
-			targetProxy = 232A3E90E56347D5A5C343EB /* PBXContainerItemProxy */;
-		};
 		200000000000000000000001 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 44DC10C2CEB44A12A91241F2 /* Playstead */;
 			targetProxy = 1F0000000000000000000001 /* PBXContainerItemProxy */;
 		};
+		6804CF8A97864D2C8EFFE9F8 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 44DC10C2CEB44A12A91241F2 /* Playstead */;
+			targetProxy = 232A3E90E56347D5A5C343EB /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		210000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = PlaysteadUITests/PlaysteadUITests.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = REPLACE_WITH_YOUR_TEAM_ID;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.playstead.mac.PlaysteadUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Playstead;
+			};
+			name = Debug;
+		};
+		220000000000000000000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = PlaysteadUITests/PlaysteadUITests.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = REPLACE_WITH_YOUR_TEAM_ID;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.playstead.mac.PlaysteadUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Playstead;
+			};
+			name = Release;
+		};
+		23D711F33AF545599BC77841 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Playstead/App/Playstead.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = REPLACE_WITH_YOUR_TEAM_ID;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Playstead/App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = "-lsqlite3";
+				PRODUCT_BUNDLE_IDENTIFIER = dev.playstead.mac;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG UI_TESTING $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		5649B1EC36914E0E81838D86 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = REPLACE_WITH_YOUR_TEAM_ID;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.playstead.mac.PlaysteadTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "UI_TESTING $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Playstead.app/Contents/MacOS/Playstead";
+			};
+			name = Debug;
+		};
 		821BE10B85BC4514900A8632 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -376,85 +457,6 @@
 			};
 			name = Release;
 		};
-		23D711F33AF545599BC77841 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = Playstead/App/Playstead.entitlements;
-				OTHER_LDFLAGS = "-lsqlite3";
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = REPLACE_WITH_YOUR_TEAM_ID;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = Playstead/App/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "dev.playstead.mac";
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG UI_TESTING $(inherited)";
-				SWIFT_VERSION = 5.0;
-			};
-			name = Debug;
-		};
-		E3BE52C4EB6E4A868575E5A4 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = Playstead/App/Playstead.entitlements;
-				OTHER_LDFLAGS = "-lsqlite3";
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = REPLACE_WITH_YOUR_TEAM_ID;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = Playstead/App/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "dev.playstead.mac";
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-			};
-			name = Release;
-		};
-		5649B1EC36914E0E81838D86 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = REPLACE_WITH_YOUR_TEAM_ID;
-				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "dev.playstead.mac.PlaysteadTests";
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "UI_TESTING $(inherited)";
-				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Playstead.app/Contents/MacOS/Playstead";
-			};
-			name = Debug;
-		};
 		A70515EEB29A400289565BAF /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -466,7 +468,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "dev.playstead.mac.PlaysteadTests";
+				PRODUCT_BUNDLE_IDENTIFIER = dev.playstead.mac.PlaysteadTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
@@ -474,47 +476,47 @@
 			};
 			name = Release;
 		};
-		210000000000000000000001 /* Debug */ = {
+		E3BE52C4EB6E4A868575E5A4 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = PlaysteadUITests/PlaysteadUITests.entitlements;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Playstead/App/Playstead.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = REPLACE_WITH_YOUR_TEAM_ID;
-				GENERATE_INFOPLIST_FILE = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Playstead/App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "dev.playstead.mac.PlaysteadUITests";
+				OTHER_LDFLAGS = "-lsqlite3";
+				PRODUCT_BUNDLE_IDENTIFIER = dev.playstead.mac;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = Playstead;
-			};
-			name = Debug;
-		};
-		220000000000000000000001 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = PlaysteadUITests/PlaysteadUITests.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = REPLACE_WITH_YOUR_TEAM_ID;
-				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "dev.playstead.mac.PlaysteadUITests";
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = Playstead;
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		06A6B18B012A479EA62ACA80 /* Build configuration list for PBXNativeTarget "PlaysteadTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5649B1EC36914E0E81838D86 /* Debug */,
+				A70515EEB29A400289565BAF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		07D345382FBC4F6BB1DBF241 /* Build configuration list for PBXProject "Playstead" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -529,15 +531,6 @@
 			buildConfigurations = (
 				23D711F33AF545599BC77841 /* Debug */,
 				E3BE52C4EB6E4A868575E5A4 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		06A6B18B012A479EA62ACA80 /* Build configuration list for PBXNativeTarget "PlaysteadTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				5649B1EC36914E0E81838D86 /* Debug */,
-				A70515EEB29A400289565BAF /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

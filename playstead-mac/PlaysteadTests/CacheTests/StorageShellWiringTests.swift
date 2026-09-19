@@ -80,20 +80,30 @@ final class StorageShellWiringTests: XCTestCase {
         return entry
     }
 
-    /// Commits `data` into the app's own CAS and records its
-    /// `cache_objects` row — the state a completed download leaves behind.
+    /// Commits `data` into the app's own CAS — the state a completed
+    /// download leaves behind.
+    ///
+    /// This helper used to insert the `cache_objects` row itself, by hand,
+    /// and that is a large part of why WINDOWS #75 survived a suite whose
+    /// whole purpose is proving reachability: the fixture supplied the
+    /// exact write production was failing to perform, so every assertion
+    /// downstream of it read correctly. The row is now written by
+    /// `CASManager` on commit, as it is in the shipped app, and the only
+    /// thing this helper still fakes is the age of the object — which the
+    /// reclaim ordering needs and a freshly committed object cannot have.
     private func commitIntoCache(_ data: Data, digest: String, lastUsedAt: String = "2026-01-01T00:00:00Z") throws {
         try FileManager.default.createDirectory(at: paths.partials, withIntermediateDirectories: true)
         let partial = try paths.partialURL(for: digest)
         try data.write(to: partial)
         try environment.casManager.commit(partialAt: partial, sha256: digest)
         try environment.localStore.connection.execute(
-            """
-            INSERT OR REPLACE INTO cache_objects (sha256, size, committed_at, last_used_at, verify_size, verify_inode, verify_mtime_ms)
-            VALUES (?, ?, ?, ?, ?, 0, 0);
-            """,
-            params: [digest, data.count, lastUsedAt, lastUsedAt, data.count]
+            "UPDATE cache_objects SET committed_at = ?, last_used_at = ? WHERE sha256 = ?;",
+            params: [lastUsedAt, lastUsedAt, digest]
         )
+    }
+
+    private func cacheObjectRowCount() -> Int {
+        (try? environment.localStore.connection.query("SELECT COUNT(*) FROM cache_objects;") { $0.int(0) ?? 0 })?.first ?? -1
     }
 
     private func serveBlob(_ data: Data) {
@@ -143,6 +153,68 @@ final class StorageShellWiringTests: XCTestCase {
         XCTAssertEqual(attempt, .completed)
         XCTAssertFalse(StubURLProtocol.requestLog.isEmpty, "an allowed download must actually open a connection")
         XCTAssertTrue(environment.casManager.contains(payload.digest), "the object must be committed into the app's own CAS")
+
+        // WINDOWS #75: committing the bytes and recording them are the
+        // same event. Before this, `attemptDownload` committed into the
+        // CAS and wrote no `cache_objects` row, so the app reported
+        // "0 bytes used" over real megabytes on disk.
+        XCTAssertEqual(
+            environment.quotaManager.usedBytes(), 4096,
+            "a completed download must be visible to the gate that is supposed to bound the cache"
+        )
+        XCTAssertEqual(cacheObjectRowCount(), 1)
+    }
+
+    /// The consequence the owner actually hit: with downloads invisible to
+    /// the ledger, the capacity gate measured 0 used bytes forever and
+    /// could never block anything, which is the unbounded-cache
+    /// regression the gate exists to prevent (WINDOWS #75).
+    ///
+    /// Nothing here inserts a row by hand — the first download's own
+    /// bookkeeping is what must block the second.
+    func testBytesFromARealDownloadBlockTheNextOneThroughTheSharedGate() async throws {
+        let first = makePayload(seed: 20)
+        let second = makePayload(seed: 21)
+        let entryOne = try seedGame(id: "asset-20", title: "First", digest: first.digest)
+        let entryTwo = try seedGame(id: "asset-21", title: "Second", digest: second.digest)
+
+        // Room for one 4 KiB object and not two.
+        environment.setQuota(bytes: 6 * 1024)
+
+        serveBlob(first.data)
+        let firstAttempt = await environment.attemptDownload(for: entryOne)
+        XCTAssertEqual(firstAttempt, .completed)
+
+        serveBlob(second.data)
+        StubURLProtocol.requestLog.removeAll()
+        guard case .blocked(let verdict) = await environment.attemptDownload(for: entryTwo) else {
+            return XCTFail("the first download's bytes must count against the second")
+        }
+        XCTAssertEqual(verdict.limitHit, .quota)
+        XCTAssertTrue(StubURLProtocol.requestLog.isEmpty, "and must do so before a connection is opened")
+        XCTAssertFalse(environment.casManager.contains(second.digest))
+    }
+
+    /// The other consequence: content downloaded by the Download button
+    /// was invisible to the storage surface and could never be reclaimed,
+    /// because `EvictionPlanner` enumerates `cache_objects` (WINDOWS #75).
+    func testARealDownloadIsVisibleToTheStorageSurfaceAndCanBeReclaimed() async throws {
+        let payload = makePayload(seed: 22)
+        let entry = try seedGame(id: "asset-22", title: "Reclaimable", digest: payload.digest)
+        serveBlob(payload.data)
+        environment.setQuota(bytes: 64 * 1024)
+
+        let attempt = await environment.attemptDownload(for: entry)
+        XCTAssertEqual(attempt, .completed)
+
+        let snapshot = environment.storageSnapshot()
+        XCTAssertEqual(snapshot.usedBytes, 4096, "the storage surface must show the bytes that are actually on disk")
+        XCTAssertEqual(snapshot.candidates.map(\.id), ["asset-22"], "a downloaded game must be reclaimable")
+
+        XCTAssertEqual(environment.reclaim(gameIDs: ["asset-22"]), 4096)
+        XCTAssertFalse(environment.casManager.contains(payload.digest))
+        XCTAssertEqual(environment.quotaManager.usedBytes(), 0)
+        XCTAssertEqual(cacheObjectRowCount(), 0, "reclaim must leave no row promising bytes that are gone")
     }
 
     /// The verdict is measured against the *shared* `QuotaManager` the

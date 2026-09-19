@@ -407,14 +407,46 @@ if len(body) != 2:
 if "OnlyCopyEscalationReason(classification:" not in body[1].split("}", 1)[0]:
     raise SystemExit("isRetryable must gate on OnlyCopyEscalationReason, the same gate the escalation panel uses")
 
-# ...and the predicate must actually be consulted at each of the three
+# ...and the classification must actually be consulted at each of the three
 # decision points, not merely defined. A helper nothing calls is the exact
 # shape of a fix that passes its own guard and changes no behaviour.
+#
+# It must come off the DRAIN RESULT, never off the lane. WINDOWS #87:
+# `lane.lastFailureClassification` is a nonisolated read of one
+# last-writer-wins cell, and WINDOWS #67's fix made this harness share the
+# app's lane -- which drains on the reachability transition at pairing time.
+# So the cell can hold the app pass's classification while `stoppedForRetry`
+# describes this pass's, and an ordinary `.offlineQueue` stop gets reported as
+# a refusal. Reading the lane here is the defect, so the guard forbids it
+# outright rather than counting correct uses.
 region = source.split("func runSaveEndToEnd", 1)[1]
-uses = region.count("isRetryable(lane.lastFailureClassification)")
+if "lane.lastFailureClassification" in region:
+    raise SystemExit("save-e2e must classify from drainResult.failureClassification, not the lane's shared last-writer-wins cell")
+uses = region.count("drainResult.failureClassification")
 if uses != 3:
-    raise SystemExit(f"save-e2e must consult the retryable predicate at all 3 decision points, found {uses}")
+    raise SystemExit(f"save-e2e must consult this pass's classification at all 3 decision points, found {uses}")
 RETRYABLE_PY
+
+# ...and the lane must actually put this pass's classification INTO the result,
+# or every reader above is looking at a field nobody writes. Pinned separately
+# because the harness-side guard passes perfectly well against a struct field
+# that is always `.none` -- which would silently reclassify every refusal as
+# retryable and make this whole test unfailable.
+python3 - "${MAC_ROOT}/Playstead/Saves/SaveUploadLane.swift" "${MAC_ROOT}/Playstead/Sync/OutboxWorker.swift" <<'CLASSIFICATION_PY'
+import pathlib, sys
+
+lane, worker = (pathlib.Path(argument).read_text(encoding="utf-8") for argument in sys.argv[1:3])
+lane_source = "\n".join(line for line in lane.splitlines() if not line.lstrip().startswith("//"))
+worker_source = "\n".join(line for line in worker.splitlines() if not line.lstrip().startswith("//"))
+
+if "var failureClassification: SaveUploadFailureClassification" not in worker_source:
+    raise SystemExit("OutboxDrainResult must carry this pass's failure classification (WINDOWS #87)")
+drain = lane_source.split("func drainOnce(", 1)
+if len(drain) != 2:
+    raise SystemExit("SaveUploadLane.drainOnce is missing")
+if "result.failureClassification = " not in drain[1]:
+    raise SystemExit("drainOnce must record its own failure classification on the result it returns")
+CLASSIFICATION_PY
 
 # The most expensive test in the Unit layer must not be paid for twice.
 # `ReleaseHookAbsenceTests` shells out to a full Release `xcodebuild`. On run
@@ -595,11 +627,46 @@ PY
 grep -F 'action.frame,' "$STORAGE_TEST" >/dev/null
 grep -F 'exactIdentity.frame,' "$STORAGE_TEST" >/dev/null
 grep -F 'List(selection: $selectedListEntryID)' "$LIBRARY_SHELL" >/dev/null
-grep -F 'ForEach(entries) { entry in' "$LIBRARY_SHELL" >/dev/null
+# The List iterates the entries it was handed, through the sort the user
+# chose (WINDOWS #79) -- `ordered` is `LibrarySortOption.sortedEntries(entries,
+# by: librarySort)` on the line above, so this still pins "one row per
+# catalogue entry, tagged by id", which is what the selection and
+# Download-selected paths below depend on. Both halves are asserted so a
+# future edit cannot silently drop the ordering and keep the ForEach.
+grep -F 'let ordered = LibrarySortOption.sortedEntries(entries, by: librarySort)' "$LIBRARY_SHELL" >/dev/null
+grep -F 'ForEach(ordered) { entry in' "$LIBRARY_SHELL" >/dev/null
 if grep -F '.accessibilityIdentifier("playstead.game.\(entry.id).row")' "$LIBRARY_SHELL" >/dev/null; then
   printf 'selectable List row identity must not overwrite descendant Download AX identity\n' >&2
   exit 1
 fi
+# WINDOWS #83: the "no matches" state promised by 03-UI-SPEC's Copywriting
+# Contract was computed, unit-tested and snapshot-tested while no view read it,
+# so a search miss showed the empty-library pairing prompt over a full library.
+# Both layouts must reach `NoMatchesView` from `library.searchResultState`.
+#
+# Comments are stripped before matching on purpose. This file's own prose names
+# `searchResultState`, and so does LibraryShellView's -- a whole-file grep here
+# would be satisfied by a doc comment over a gutted body, which is exactly how
+# a guard goes vacuous.
+python3 - "$LIBRARY_SHELL" <<'NOMATCH'
+import re, sys
+
+source = open(sys.argv[1]).read()
+code = "\n".join(re.sub(r"//.*$", "", line) for line in source.splitlines())
+
+binding = code.count("if let state = library.searchResultState {")
+renders = code.count("NoMatchesView(state: state) { library.clearSearch() }")
+if binding != 2 or renders != 2:
+    sys.exit(
+        "both layouts must render NoMatchesView from searchResultState "
+        f"(bindings={binding}, renders={renders}, expected 2 and 2)"
+    )
+
+# The pairing prompt must stay behind an empty catalogue, never be the
+# fall-through for a search that matched nothing.
+if "} else if !library.catalogue.isEmpty {" not in code:
+    sys.exit("the empty-list pane no longer distinguishes an empty library from an empty filter result")
+NOMATCH
 grep -F '.focused($libraryListHasFocus)' "$LIBRARY_SHELL" >/dev/null
 grep -F '.onAppear { libraryListHasFocus = true }' "$LIBRARY_SHELL" >/dev/null
 grep -F '.keyboardShortcut("d", modifiers: .command)' "$LIBRARY_SHELL" >/dev/null

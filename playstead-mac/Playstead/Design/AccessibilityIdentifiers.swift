@@ -19,6 +19,10 @@ enum AccessibilityIdentifiers {
         static let filter = "playstead.surface.filter"
         static let gameList = "playstead.surface.game-list"
         static let gameCard = "playstead.surface.game-card"
+        /// The "no matches" pane. 03-UI-SPEC's Copywriting Contract promises
+        /// this state is never a blank pane; it went unrendered on both
+        /// layouts until WINDOWS #83, so it carries a front-door identifier.
+        static let noMatches = "playstead.surface.no-matches"
         static let downloads = "playstead.surface.downloads"
         static let quota = "playstead.surface.quota"
         static let storage = "playstead.surface.storage"
@@ -41,6 +45,7 @@ enum AccessibilityIdentifiers {
         static let done = "playstead.control.done"
         static let cancel = "playstead.control.cancel"
         static let search = "playstead.control.search"
+        static let clearSearch = "playstead.control.clear-search"
         static let filter = "playstead.control.filter"
         static let moveUp = "playstead.control.move-up"
         static let moveDown = "playstead.control.move-down"

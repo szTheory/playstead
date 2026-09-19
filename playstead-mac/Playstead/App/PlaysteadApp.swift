@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import OSLog
 
 /// App entry point. SwiftUI lifecycle, macOS 14.0 deployment target.
 ///
@@ -208,6 +209,8 @@ enum AdapterSetupPhase: Equatable {
 @MainActor
 @Observable
 final class AppEnvironment {
+    private static let startupLogger = Logger(subsystem: "dev.playstead.mac", category: "startup-recovery")
+
     let appPaths: AppPaths
     let localStore: LocalStore
     let casManager: CASManager
@@ -371,6 +374,10 @@ final class AppEnvironment {
     /// a resolved divergence recorded its intent durably and locally but
     /// never reached the server (WINDOWS #42).
     let saveOutboxDrainTrigger: SaveOutboxDrainTrigger
+    /// Drain trigger 4/4: time. The other three are edges, and between them
+    /// they miss a server that goes away and comes back without this Mac's
+    /// network changing -- see `OutboxDrainTicker` (WINDOWS #77).
+    nonisolated let outboxDrainTicker: OutboxDrainTicker
     let playSessionRecorder: PlaySessionRecorder
     /// Reports this device's own per-asset-set availability facts
     /// (plan 03-14, LIBR-02 gap closure) — an after-the-fact outbox
@@ -419,7 +426,10 @@ final class AppEnvironment {
         /// Keychain (the live-server harness) must supply the *same*
         /// scoped instance here, or pairing would write somewhere
         /// `apiClient` never reads from.
-        pairingKeychain: KeychainStore? = nil
+        pairingKeychain: KeychainStore? = nil,
+        /// Injectable so a test can prove the periodic drain actually
+        /// delivers without waiting a real minute for it.
+        outboxDrainInterval: TimeInterval = OutboxDrainTicker.defaultInterval
     ) {
         let store = (try? LocalStore(paths: paths)) ?? LocalStore.inMemoryFallback()
         let keychain = pairingKeychain ?? KeychainStore()
@@ -430,7 +440,8 @@ final class AppEnvironment {
             apiClient: client,
             reachability: reachability,
             downloadSession: downloadSession,
-            pairingKeychain: keychain
+            pairingKeychain: keychain,
+            outboxDrainInterval: outboxDrainInterval
         )
     }
 
@@ -498,7 +509,8 @@ final class AppEnvironment {
         apiClient: APIClient,
         reachability: Reachability,
         downloadSession: URLSession?,
-        pairingKeychain: KeychainStore?
+        pairingKeychain: KeychainStore?,
+        outboxDrainInterval: TimeInterval = OutboxDrainTicker.defaultInterval
     ) {
         self.appPaths = paths
         self.downloadSessionOverride = downloadSession
@@ -513,6 +525,31 @@ final class AppEnvironment {
         let catalogueStore = CatalogueStore(localStore: store)
         let curationStore = CurationStore(localStore: store)
         let outbox = Outbox(localStore: store, curationStore: curationStore)
+        // WINDOWS #89: a row left `in_flight` by the previous process is
+        // invisible to every subsequent drain -- `listPending` selects
+        // `pending` only, and quarantine is reachable only through the
+        // retry path -- while its optimistic local write stands. This is
+        // the one point in the process that runs once, before any drain
+        // trigger can fire, so it is where the strand is broken. The
+        // replay is absorbed by the server's per-device idempotency
+        // receipt for the row's persisted key; see the method's own note.
+        //
+        // Not `try?`. A failure here means stranded rows stay stranded,
+        // which is exactly the silent divergence this sweep exists to end,
+        // so it is logged rather than swallowed. It is not fatal either:
+        // the app is still usable, and the next launch sweeps again.
+        do {
+            let recovered = try outbox.recoverStrandedInFlight()
+            if recovered > 0 {
+                Self.startupLogger.notice(
+                    "recovered \(recovered, privacy: .public) outbox entries stranded in_flight by a previous run"
+                )
+            }
+        } catch {
+            Self.startupLogger.error(
+                "could not recover stranded in_flight outbox entries: \(error.localizedDescription, privacy: .public)"
+            )
+        }
         let syncEngine = SyncEngine(apiClient: client, localStore: store)
         let recorder = PlaySessionRecorder(localStore: store, curationStore: curationStore, outbox: outbox)
         // `onEntryDelivered`/`onDestructiveRejection` are wired exactly as
@@ -544,7 +581,9 @@ final class AppEnvironment {
         // `CASManager` is constructed here, ahead of the saves block
         // below, because `SaveSessionRecovery` now needs one too (WINDOWS
         // #52) -- moved up rather than making the property optional.
-        let cas = CASManager(paths: paths)
+        // The ledger makes every commit visible to the quota gate and the
+        // reclaim planner, whichever path did the committing (WINDOWS #75).
+        let cas = CASManager(paths: paths, objectLedger: CacheObjectStore(localStore: store))
         self.casManager = cas
         self.preflightChecker = PreflightChecker(cas: cas)
         self.launchMaterializer = LaunchMaterializer(paths: paths, cas: cas)
@@ -654,6 +693,20 @@ final class AppEnvironment {
             Task { await uploadLane.drainOnce() }
         }
 
+        // Drain trigger 4/4: time. Fires exactly what the reachability
+        // edge fires, for the case no edge covers -- the server, not the
+        // network, having come back (WINDOWS #77). Captures the triggers
+        // and the lane directly rather than `self`, like the closures
+        // above, and every pass with nothing due is one indexed query
+        // inside `OutboxWorker.drainOnce()` that sends no request.
+        let ticker = OutboxDrainTicker(interval: outboxDrainInterval) {
+            trigger.fire()
+            saveTrigger.fire()
+            Task { await uploadLane.drainOnce() }
+        }
+        self.outboxDrainTicker = ticker
+        ticker.start()
+
         // Wired last, once every property this weak-`self` closure reads
         // (`downloadCoordinator`) is in scope — the coordinator itself is
         // still built lazily on first use (see "Download coordination"
@@ -675,6 +728,7 @@ final class AppEnvironment {
 
     deinit {
         reachability.removeObserver(reachabilityToken)
+        outboxDrainTicker.stop()
     }
 
 #if UI_TESTING
@@ -711,8 +765,16 @@ final class AppEnvironment {
 
     /// Starts one `OutboxWorker.drainOnce()` pass and records the `Task`
     /// so callers (and tests) can await the drain that a trigger actually
-    /// started. The worker is an actor, so overlapping calls serialize
-    /// rather than racing the same entry.
+    /// started. The worker is an actor, so overlapping calls never race
+    /// the same ENTRY -- `markInFlight` runs before the `await`, so a
+    /// second pass's `listPending` skips it.
+    ///
+    /// They are NOT serialized, and reading this comment that way is what
+    /// WR-07 rested on. Actors are reentrant at every `await`, so a second
+    /// pass runs inside the first's suspension at `apiClient.send` and can
+    /// deliver a NEWER entry to completion while an older one is still on
+    /// the wire. `Outbox` is what has to be correct across that, not this
+    /// trigger -- see `markPendingForRetry` and the delivered watermark.
     @discardableResult
     func drainOutbox() -> Task<OutboxDrainResult, Never> {
         drainTrigger.fire()
@@ -726,9 +788,11 @@ final class AppEnvironment {
         saveOutboxDrainTrigger.fire()
     }
 
-    /// Starts one `SaveUploadLane.drainOnce()` pass. The lane is an
-    /// actor, so overlapping calls serialize rather than racing the same
-    /// revision.
+    /// Starts one `SaveUploadLane.drainOnce()` pass. The lane is an actor,
+    /// so overlapping calls never race the same REVISION -- but they are
+    /// not serialized either (actors are reentrant at `await`), which is
+    /// why the save-e2e harness reads its own pass's classification off
+    /// the drain result rather than the lane's shared cell (WINDOWS #87).
     @discardableResult
     func drainSaveUploads() -> Task<OutboxDrainResult, Never> {
         Task { [saveUploadLane] in await saveUploadLane.drainOnce() }
@@ -1478,6 +1542,67 @@ final class AppEnvironment {
         try? evictionPlanner.removeQuarantined(atPath: path)
     }
 
+    // MARK: - Library availability (D-21)
+
+    /// The four facts `AvailabilityState.derive(_:)` needs for one game,
+    /// read fresh from the stores that own them — never from a remembered
+    /// state column (D-21).
+    ///
+    /// This is the production construction site `AvailabilityInputs` did
+    /// not have: `grep 'AvailabilityInputs('` outside the test target
+    /// returned nothing, so the six-state derivation whose own doc comment
+    /// calls itself "the read-time derivation every card, list row, and
+    /// rebuild-from-disk test calls" was called by no card and no list row
+    /// in the shipped app (WINDOWS #73).
+    ///
+    /// Membership is read from `CASManager`, not `cache_objects`: the
+    /// files on disk are the truth a custody claim rests on, and a badge
+    /// must not be able to say "ready offline" because a row says so.
+    func availabilityInputs(for entry: CatalogueEntry) -> AvailabilityInputs {
+        let requiredSHAs = Self.requiredMembers(of: entry).map(\.sha256)
+        // A cancelled row is no longer "in the queue" for availability
+        // purposes -- `AvailabilityInputs`' own doc comment requires the
+        // caller to exclude them before building this.
+        let liveItems = downloadQueue.itemsForAssetSet(entry.id).filter { $0.state != .cancelled }
+        let activeSHA = liveItems.first { $0.state == .active }?.sha256
+        return AvailabilityInputs(
+            requiredMemberSHAs: requiredSHAs,
+            queuedMemberSHAs: Set(liveItems.map(\.sha256)),
+            activeMemberSHA: activeSHA,
+            activeMemberProgressPercent: activeSHA == nil ? nil : downloadProgressByAssetSet[entry.id],
+            cachedMemberSHAs: Set(requiredSHAs.filter { casManager.contains($0) }),
+            isPinned: pinStore.isPinned(entry.id)
+        )
+    }
+
+    func availability(for entry: CatalogueEntry) -> AvailabilityState {
+        AvailabilityState.derive(availabilityInputs(for: entry))
+    }
+
+    /// Every status condition that currently applies to one game, in the
+    /// shape `StatusSlotView`/`GameCardView` consume. More than one may
+    /// apply; the ladder picks exactly one to render (D-13/D-17).
+    ///
+    /// Both library layouts call this, so the badge on a card and the
+    /// label on a row can never disagree about the same game — before
+    /// this, the grid was handed a hardcoded `.serverOnly` for every
+    /// entry, so every card showed the "on your server, choose Download"
+    /// cloud over content that was downloaded and playable (WINDOWS #72).
+    func libraryStatuses(for entry: CatalogueEntry) -> [LibraryStatus] {
+        let inputs = availabilityInputs(for: entry)
+        let availability = AvailabilityState.derive(inputs)
+        return [
+            LibraryStatus.forCard(
+                availability: availability,
+                activeMemberProgressPercent: inputs.activeMemberProgressPercent
+            ),
+            // MC-03: unions the D-38 divergence badge into the ladder --
+            // `highestPriority` picks `.needsAttention` over any
+            // availability status whenever both are present.
+            LibraryStatus.forSaveState(conflicted: hasUnacknowledgedSaveDivergence(assetSetID: entry.id)),
+        ].compactMap { $0 }
+    }
+
     // MARK: - Pins
 
     func isPinned(assetSetID: String) -> Bool {
@@ -1585,8 +1710,6 @@ final class AppEnvironment {
         let coordinator = DownloadCoordinator(
             queue: downloadQueue,
             engine: DownloadEngine(session: session, paths: appPaths, cas: casManager),
-            cas: casManager,
-            localStore: localStore,
             reachability: reachability,
             blobURL: { sha256 in
                 // The digest is server-supplied and becomes a URL path

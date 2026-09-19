@@ -145,7 +145,7 @@ Plans:
   5. A user can connect, test, assign, remap, reset, and recover a controller while retaining keyboard, pointer, screen-reader, focus, and reduced-motion fallbacks; from a signed/notarized build they can launch, exit, and relaunch one legally testable game after app or server restart.
 
 **Research / spike flags**: Required Mac adapter gate before commitment: empirically choose the first system/emulator and direct-notarized versus sandboxed distribution posture using legal homebrew content. Demonstrate Keychain, external-process launch/recovery, controller recovery, BIOS handling, and safe persistent-save location/flush; do not promise the current GBA/mGBA hypothesis until this passes.
-**Plans**: 16/16 plans executed (14 executed; 2 gap-closure plans pending from the 2026-09-11 re-verification of 03-VERIFICATION.md)
+**Plans**: 23 plans (16 executed; 7 zero-human-verification gap-closure plans pending)
 
 Plans:
 **Wave 1**
@@ -190,6 +190,34 @@ Plans:
 
 - [x] 03-15-PLAN.md — LIBR-02 real signal: missing_dependency computed from catalogue membership, CAS presence, download-queue rows, and the pin flag, proved through buildEntries and through the real HTTP endpoint with one shared report fixture
 - [x] 03-16-PLAN.md — WR-04's 422 shape guard, WR-05's newest-wins outbox supersede, and the LIBR-02 requirement flip gated on the Mac-client-driven tests
+
+**Wave 10 — zero-human verification gap closure**
+
+- [ ] 03-17-PLAN.md — Shared virtual-HID tracer: entitled test-only IOHIDUserDevice, stable mapping identity, and fail-closed hosted qualification
+
+**Wave 11 — controller recovery** *(blocked on 03-17)*
+
+- [ ] 03-18-PLAN.md — Production non-modal recovery banner plus virtual-HID detach/reconnect and keyboard/pointer fallback evidence
+
+**Wave 12 — production controller input and live test** *(blocked on 03-18)*
+
+- [ ] 03-22-PLAN.md — RED-first packaged lifecycle oracle, production GameController element forwarding, and reachable live test
+
+**Wave 13 — controller mapping lifecycle** *(blocked on 03-22)*
+
+- [ ] 03-23-PLAN.md — Assign, remap, reset, AdapterHost refresh, persistence, and relaunch proof through the packaged app
+
+**Wave 14 — controller navigation and objective accessibility** *(blocked on 03-23)*
+
+- [ ] 03-19-PLAN.md — D-pad focus, shoulder sidebar cycling, Menu action, objective live-AX contract, and explicit non-gating VoiceOver experience non-claims
+
+**Wave 15 — lawful BIOS acceptance** *(blocked on 03-19 because both plans update the Mac verification allowlist/test plan)*
+
+- [ ] 03-20-PLAN.md — Lawful BIOS acceptance seam: explicit production references, one fixed synthetic packaged-app accept path, discriminator controls, and Release-hook exclusion
+
+**Wave 16 — evidence reconciliation** *(blocked on 03-18, 03-19, 03-20, 03-22, and 03-23)*
+
+- [ ] 03-21-PLAN.md — Fail-closed evidence policy, complete four-layer run, UAT/verification/validation reconciliation, and PLAY-04 completion only after automated proof passes
 
 **UI hint**: yes
 
@@ -390,6 +418,6 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Private Custody and Durable Protocol | 8/8 | Complete    | 2026-08-28 |
 | 2. Explainable Import and Exact Export | 10/10 | Complete    | 2026-08-30 |
-| 3. Mac Offline Play Vertical Slice | 16/16 | In Progress|  |
+| 3. Mac Offline Play Vertical Slice | 16/23 | In Progress|  |
 | 4. Persistent Save Continuity | 25/25 | In Progress|  |
 | 5. Recovery and Release Proof | 0/TBD | Not started | - |

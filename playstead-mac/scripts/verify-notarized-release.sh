@@ -6,21 +6,44 @@
 # `--preflight-only` runs only the identity/credential preflight and stops —
 # this is what `notarization-preflight-test.sh` and CI exercise to prove the
 # refusal fires without needing a real build or paid credentials.
+# A full run requires `--evidence-output FILE`. Its proof is an internal shell
+# function passed unconditionally to the repository sanitizer capture primitive;
+# there is no recursive invocation or environment-controlled raw-body branch.
 #
-# Every failure path exits non-zero and prints exactly one of these tokens
-# to stderr: NO_TEAM_ID, NO_DEVELOPER_ID_IDENTITY, NO_NOTARY_PROFILE,
-# NOT_STAPLED, GATEKEEPER_REJECTED. Never a credential, a profile's stored
-# contents, or an app-specific password.
+# Every failure path exits non-zero with a bounded diagnostic. The principal
+# gate tokens are NO_EVIDENCE_OUTPUT, NO_TEAM_ID, NO_DEVELOPER_ID_IDENTITY,
+# NO_NOTARY_PROFILE, NOT_STAPLED, and GATEKEEPER_REJECTED. Diagnostics never
+# intentionally include credentials, a profile's stored contents, or an
+# app-specific password.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 APP_PATH="$PROJECT_DIR/build/Release/Playstead.app"
+CAPTURE_HELPER="$SCRIPT_DIR/ci/capture-notarization-evidence.sh"
 
 PREFLIGHT_ONLY=0
-if [ "${1:-}" = "--preflight-only" ]; then
-  PREFLIGHT_ONLY=1
-fi
+EVIDENCE_OUTPUT=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --preflight-only)
+      PREFLIGHT_ONLY=1
+      shift
+      ;;
+    --evidence-output)
+      [ "$#" -ge 2 ] || {
+        echo "FATAL: NO_EVIDENCE_OUTPUT" >&2
+        exit 1
+      }
+      EVIDENCE_OUTPUT="$2"
+      shift 2
+      ;;
+    *)
+      echo "FATAL: INVALID_ARGUMENT" >&2
+      exit 1
+      ;;
+  esac
+done
 
 preflight() {
   echo "==> Preflight: checking required environment variables"
@@ -68,11 +91,18 @@ preflight() {
   echo "==> Preflight passed"
 }
 
-preflight
-
 if [ "$PREFLIGHT_ONLY" -eq 1 ]; then
+  preflight
   exit 0
 fi
+
+if [ -z "$EVIDENCE_OUTPUT" ]; then
+  echo "FATAL: NO_EVIDENCE_OUTPUT" >&2
+  exit 1
+fi
+
+run_full_proof() {
+preflight
 
 echo "==> Building release"
 "$SCRIPT_DIR/build-release.sh"
@@ -140,3 +170,12 @@ fi
 osascript -e "tell application id \"$APP_BUNDLE_ID\" to quit" >/dev/null
 
 echo "==> Done: $APP_PATH is signed, notarized, stapled, Gatekeeper-accepted, and relaunch-proven."
+}
+
+[ -r "$CAPTURE_HELPER" ] || {
+  echo "FATAL: EVIDENCE_CAPTURE_UNAVAILABLE" >&2
+  exit 1
+}
+# shellcheck source=scripts/ci/capture-notarization-evidence.sh
+source "$CAPTURE_HELPER"
+capture_notarization_evidence "$EVIDENCE_OUTPUT" run_full_proof

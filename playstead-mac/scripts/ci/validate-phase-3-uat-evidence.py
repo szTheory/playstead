@@ -53,8 +53,34 @@ AUTOMATED_MAPPINGS = {
 # checkpoint still must not decay into a bare `result: pass` with no automated
 # source and no evidence block, which is the rounding-up this validator exists
 # to prevent.
-BLOCKED_CHECKPOINTS = (7, 8, 9)
+BLOCKED_CHECKPOINTS = (8, 9)
 RESOLVED_CHECKPOINTS = (4, 14, 15)
+# Checkpoint 7 was blocked on real-emulator-game-bytes from 2026-08-31 until
+# 2026-09-13, when the owner closed every clause by hand on their own machine:
+# an offline launch with the server stopped, a quit with save capture and
+# delivery, a digest-mismatch refusal, and all three of the pin's exit
+# signatures. It is therefore no longer blocked -- but it is ALSO not automated,
+# and that distinction is the whole point of this category. These checkpoints
+# must pass, must say `source: manual`, and must NEVER claim `source:
+# automated`: a manual pass on one machine is not a regression gate, and the
+# moment someone lets CI take credit for it the phase's evidence stops being
+# auditable. Each entry's tokens are the specific proofs that made the pass
+# real, so they cannot be quietly deleted while the `pass` survives.
+MANUALLY_CLOSED_CHECKPOINTS = {
+    7: (
+        # the offline clause: the server was demonstrably down first
+        "docker compose stop caddy",
+        # the refusal clause: both digests, so the pair cannot be hand-waved
+        "f7f6e37aaf7527e088fd88616ce82f4b16fe4800f5f4cf2de59ff2e0b24ff026",
+        "f2f329b4947baa5082fcaf27ced1e2b21f2999ccf73ca481f22b44c4c87d6640",
+        # the exit-classification clause: all three pin signatures, observed
+        '"Last exit: clean"',
+        '"Last exit: crashed"',
+        '"Last exit: killed"',
+        # the caveat that must not be dropped when this record is edited
+        'unknown(status: 0, reason: "exit")',
+    ),
+}
 ROADMAP_CRITERION = (
     "Linux `compose-smoke` proves deployment topology; native PostgreSQL 17 plus Phoenix "
     "beside XCUITest proves Mac client/server behavior."
@@ -138,10 +164,45 @@ def validate_checkpoint_10(section):
         require(token in blocked, f"checkpoint 10 residual boundary missing: {token}")
 
 
+def validate_manually_closed_checkpoint(number, section, tokens):
+    """A checkpoint closed by hand, not by CI. Fails closed in both directions:
+    the pass must be real (no clause left blocked, evidence intact) and it must
+    not be dressed up as automated."""
+    require(
+        re.search(r"(?m)^result: pass\s*$", section) is not None,
+        f"checkpoint {number} was closed by hand and must still pass",
+    )
+    require(
+        "source: automated" not in section,
+        f"checkpoint {number} was closed by hand and must never claim an automated source",
+    )
+    require(
+        section.count("source: manual") >= 1,
+        f"checkpoint {number} must name at least one manual source",
+    )
+    require(
+        re.search(r"(?m)^evidence: \|\s*$", section) is not None,
+        f"checkpoint {number} must keep its evidence block",
+    )
+    # A sub-record reverting to blocked while the item still reads `pass` is the
+    # exact rounding-up this file exists to prevent.
+    require(
+        re.search(r"(?m)^result: blocked\s*$", section) is None,
+        f"checkpoint {number} reads pass but still carries a blocked sub-record",
+    )
+    require(
+        re.search(r"(?m)^blocked_by: .+$", section) is None,
+        f"checkpoint {number} reads pass but still carries a blocked_by",
+    )
+    for token in tokens:
+        require(token in section, f"checkpoint {number} manual evidence missing: {token}")
+
+
 def validate_uat(document):
     require(frontmatter(document).get("status") == "partial", "Phase 3 UAT status must remain partial")
     sections = numbered_sections(document)
-    for number in (*AUTOMATED_MAPPINGS, *BLOCKED_CHECKPOINTS, *RESOLVED_CHECKPOINTS, 10):
+    for number in (*AUTOMATED_MAPPINGS, *BLOCKED_CHECKPOINTS, *RESOLVED_CHECKPOINTS,
+                   *MANUALLY_CLOSED_CHECKPOINTS, 10):
         require(number in sections, f"checkpoint section missing: {number}")
     for number in AUTOMATED_MAPPINGS:
         validate_automated_checkpoint(number, sections[number])
@@ -164,6 +225,8 @@ def validate_uat(document):
             re.search(r"(?m)^evidence: \|\s*$", section) is not None,
             f"checkpoint {number} must keep its evidence block",
         )
+    for number, tokens in MANUALLY_CLOSED_CHECKPOINTS.items():
+        validate_manually_closed_checkpoint(number, sections[number], tokens)
     validate_checkpoint_10(sections[10])
 
 

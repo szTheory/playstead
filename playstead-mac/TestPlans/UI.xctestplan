@@ -22,9 +22,11 @@
       "selectedTests" : [
         "BiosRejectionCopyTests",
         "ConflictResolutionInteractionTests",
+		"ControllerHardwareIntegrationTests",
         "CurationInteractionTests",
         "HostedRunnerCanaryTests/testFullKeyboardAccessCanaryFocusesAndActivatesTwoControls()",
         "HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice()",
+        "LibraryEmptyStateTests",
         "OnlyCopyInterruptionTests",
         "SaveFrontDoorJourneyTests",
         "StorageInteractionTests",

@@ -42,19 +42,24 @@
     "provenance_fields": ["emulator", "emulator_version", "core_version", "adapter_pin_sha256"]
   },
   "exit_detection": {
-    "clean": {
-      "note": "Process.terminate() (SIGTERM) does NOT produce a distinguishable 'clean' signature from mGBA — it terminates via the raw signal exactly like a crash. There is no observed graceful-quit path from an external Process.terminate() call; the shipping adapter host must not assume SIGTERM alone triggers a save-and-quit.",
-      "terminationStatus": 15,
-      "terminationReason": "uncaughtSignal"
-    },
-    "crash": {
-      "terminationStatus": 11,
-      "terminationReason": "uncaughtSignal"
-    },
-    "killed": {
-      "terminationStatus": 9,
-      "terminationReason": "uncaughtSignal"
-    }
+    "clean": [
+      {
+        "terminationStatus": 0,
+        "terminationReason": "exit",
+        "note": "The user quitting mGBA themselves (Cmd-Q, or closing its own window): the emulator exits normally, under its own control. PROVEN BY HAND 2026-09-13 -- the owner pressed Cmd-Q inside mGBA and the app rendered 'Last exit: unknown(status: 0, reason: \"exit\")', because no signature covered the single most common real exit. This slot previously held 15/uncaughtSignal, the SIGTERM this app itself sends, so 'clean' meant 'we asked it to stop' rather than 'the user quit normally' (WINDOWS #76)."
+      }
+    ],
+    "crash": [
+      {"terminationStatus": 11, "terminationReason": "uncaughtSignal"}
+    ],
+    "killed": [
+      {"terminationStatus": 9, "terminationReason": "uncaughtSignal"},
+      {
+        "terminationStatus": 15,
+        "terminationReason": "uncaughtSignal",
+        "note": "Process.terminate() (SIGTERM) does NOT produce a distinguishable 'clean' signature from mGBA \u2014 it terminates via the raw signal exactly like a crash. There is no observed graceful-quit path from an external Process.terminate() call; the shipping adapter host must not assume SIGTERM alone triggers a save-and-quit. Classified as `killed`, not `clean`, for exactly that reason: AdapterHost.terminateAll() sends SIGTERM and escalates to SIGKILL after a 2s grace period, so 9 and 15 are one event from the player's point of view -- Playstead ended the process and no graceful save-and-quit happened. Save-recovery messaging keyed on `.clean` must never fire for this."
+      }
+    ]
   },
   "macos_build_tested": "26.6.2 (25G83)",
   "deferred": {

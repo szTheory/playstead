@@ -6,6 +6,19 @@ import XCTest
 /// touching the launch path, delivered through the outbox after the
 /// fact, individually deletable.
 final class PlaySessionTests: XCTestCase {
+
+    /// A launch id no other test can collide with.
+    ///
+    /// `AdapterLaunchMutex.shared` is process-global and keyed by asset-set
+    /// id, and its key is released by the spawned process's termination
+    /// handler. Five tests across four suites used the literal
+    /// "test-asset-set", so ONE launch whose process never exited leaked that
+    /// key for the rest of the run and every later test throwing
+    /// `launchInProgress` instead of doing its job -- including
+    /// InstallerTests' digest-mismatch refusal, whose real assertion was
+    /// silently replaced by the wrong error (WINDOWS #86). Unique ids make
+    /// that cross-test coupling impossible.
+    private func uniqueAssetSetID() -> String { "test-asset-set-\(UUID().uuidString)" }
     private var tempRoot: URL!
     private var paths: AppPaths!
     private var localStore: LocalStore!
@@ -181,8 +194,7 @@ final class PlaySessionTests: XCTestCase {
         let emulatorDirForDigest = tempRoot.appendingPathComponent("emulators").appendingPathComponent("mgba").appendingPathComponent("0.10.5")
         try FileManager.default.createDirectory(at: emulatorDirForDigest, withIntermediateDirectories: true)
         let echoDestination = emulatorDirForDigest.appendingPathComponent("echo")
-        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/bin/echo"), to: echoDestination)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: echoDestination.path)
+        try StandInExecutable.install(from: URL(fileURLWithPath: "/bin/echo"), to: echoDestination)
         var echoHasher = try StreamingSHA256.resume(from: echoDestination)
         let echoDigest = echoHasher.finalizeHex()
 
@@ -208,12 +220,19 @@ final class PlaySessionTests: XCTestCase {
             executablePath: echoDestination.path
         )).write(to: emulatorDir.appendingPathComponent(".install-verify.json"))
 
-        let host = AdapterHost(pin: pin, emulatorsRoot: tempRoot.appendingPathComponent("emulators"))
+        let host = AdapterHost(pin: pin, emulatorsRoot: tempRoot.appendingPathComponent("emulators"), processRegistry: .isolatedForTesting())
 
         let exitExpectation = expectation(description: "process exits")
-        _ = try await host.launch(assetSetID: "test-asset-set", romPath: "/tmp/rom.gba", saveDir: "/tmp/saves") { _ in
+        _ = try await host.launch(assetSetID: uniqueAssetSetID(), romPath: "/tmp/rom.gba", saveDir: "/tmp/saves") { _ in
             exitExpectation.fulfill()
         }
+        // WINDOWS #85/#86: this wait was raised to 30s on the theory that the
+        // failure was machine load. That was wrong, and the bigger number did
+        // not fix it -- the test failed again at 30s inside a 69-second run on
+        // an idle machine. Back to 5s, because the bound was never the
+        // problem: `echo` exits in milliseconds here, and a spawn that has not
+        // called back in five seconds is not slow, it is stuck. #86 carries
+        // what is actually known.
         await fulfillment(of: [exitExpectation], timeout: 5)
     }
 

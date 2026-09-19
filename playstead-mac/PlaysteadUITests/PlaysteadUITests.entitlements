@@ -22,6 +22,8 @@
 	     Developer ID hardened runtime per D-04 (see Playstead.entitlements).
 	     That is a separate decision made for a different reason, and the
 	     four-layer topology gate pins both so neither can drift unnoticed. -->
+	<key>com.apple.developer.hid.virtual.device</key>
+	<true/>
 	<key>com.apple.security.app-sandbox</key>
 	<false/>
 </dict>

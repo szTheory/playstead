@@ -230,7 +230,8 @@ enum Migrations {
                 attempt_count INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
                 last_error_code TEXT,
-                next_retry_at TEXT
+                next_retry_at TEXT,
+                enqueue_seq INTEGER NOT NULL DEFAULT 0
             );
             """
         )
@@ -241,6 +242,83 @@ enum Migrations {
         try? connection.execute("ALTER TABLE outbox_entries ADD COLUMN next_retry_at TEXT;")
         try connection.execute("CREATE INDEX IF NOT EXISTS idx_outbox_entries_state ON outbox_entries(state);")
         try connection.execute("CREATE INDEX IF NOT EXISTS idx_outbox_entries_created_at ON outbox_entries(created_at);")
+
+        // WR-07 (03-VERIFICATION.md): the newest `created_at` of a
+        // successfully DELIVERED entry, per newest-wins kind.
+        //
+        // `markDone` deletes the row it delivered, so "is there a newer
+        // one?" cannot be answered by querying live rows alone — once the
+        // newer report succeeds, its row is gone and an older in-flight
+        // row reverting via `markPendingForRetry` finds nothing to defer
+        // to. That is exactly the case the must-have names ("after a
+        // later one that already succeeded"), so the fact has to outlive
+        // the row. One row per kind, overwritten in place; it never grows.
+        // DROP, not a defensive ALTER. The first cut of this table was
+        // keyed on `created_at TEXT NOT NULL`; `CREATE TABLE IF NOT
+        // EXISTS` no-ops against it, so an ALTER adding `delivered_seq`
+        // leaves the COLUMN present and the TABLE unwritable -- every
+        // INSERT then fails the surviving `created_at NOT NULL` with no
+        // default. That is worse than not upgrading at all, because the
+        // schema looks migrated: `markDone`'s INSERT throws, its
+        // transaction rolls back so the delivered row is NOT deleted,
+        // and `OutboxWorker`'s catch-all -- a SQLite error is not an
+        // `APIClientError` -- routes a SUCCESSFUL delivery into
+        // `markPendingForRetry`, re-sending it until it quarantines.
+        //
+        // Dropping is safe precisely because this table is a hint, not a
+        // record: losing it fails OPEN (an entry is retried rather than
+        // dropped), and it rebuilds on the next delivery. Nothing
+        // reconstructs a wrong answer from its absence.
+        // Dropped ONLY when the legacy shape is actually present. An
+        // unconditional `DROP TABLE IF EXISTS` here would run on every
+        // launch, not just an upgrade -- and this table is the only thing
+        // that remembers a delivery across a restart. Wiping it at every
+        // startup would hand WR-07 straight back: a report delivered
+        // before a quit would be forgotten, so an older row still
+        // `in_flight` at quit could revert afterwards and deliver stale
+        // facts. The upgrade has to be a one-time event, not a ritual.
+        let hasLegacyWatermarkColumn = ((try? connection.query(
+            "SELECT 1 FROM pragma_table_info('outbox_delivered_watermark') WHERE name = 'created_at';",
+            params: []
+        ) { $0.int(0) }) ?? []).isEmpty == false
+        if hasLegacyWatermarkColumn {
+            try connection.execute("DROP TABLE outbox_delivered_watermark;")
+        }
+        try connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS outbox_delivered_watermark (
+                kind TEXT PRIMARY KEY,
+                delivered_seq INTEGER NOT NULL
+            );
+            """
+        )
+
+        // `created_at` is ISO-8601 at SECOND granularity, so two entries
+        // enqueued less than a second apart genuinely share one — it is a
+        // partial order being asked a total-order question, and the
+        // supersede rule needs a total one. Comparing on `created_at`
+        // alone left a real window in which a stale report still won;
+        // comparing non-strictly would instead drop a delivery nothing
+        // newer replaced. Both are lossy, so the key changes rather than
+        // the comparison.
+        //
+        // NOT `rowid`: outbox rows are deleted on delivery and SQLite
+        // reclaims the rowids of deleted rows without AUTOINCREMENT --
+        // measured, not assumed: insert 5, delete 5 then 4, insert again
+        // and the new row is rowid 4. Against a stored watermark of 5 it
+        // reads as older and is wrongly dropped.
+        //
+        // `enqueue_seq` is assigned as one past the highest value any
+        // live row or the watermark CURRENTLY holds. That is not globally
+        // monotonic -- a sequence is reused once its row is gone and no
+        // watermark records it -- but it does not need to be: both terms
+        // are inside the MAX, so a new sequence exceeds everything it can
+        // ever be compared against, and no two live rows share one.
+        try? connection.execute("ALTER TABLE outbox_entries ADD COLUMN enqueue_seq INTEGER NOT NULL DEFAULT 0;")
+        // One-time backfill for rows predating the column: rowid is a
+        // sound *historical* order for rows that already exist together.
+        try? connection.execute("UPDATE outbox_entries SET enqueue_seq = rowid WHERE enqueue_seq = 0;")
+        try connection.execute("CREATE INDEX IF NOT EXISTS idx_outbox_entries_enqueue_seq ON outbox_entries(kind, enqueue_seq);")
 
         // Plan 03-08 task 3: coarse play sessions recorded locally by
         // `PlaySessionRecorder`, delivered through the outbox after the
@@ -377,6 +455,7 @@ enum Migrations {
                 tier TEXT NOT NULL DEFAULT 'promoted',
                 origin TEXT NOT NULL DEFAULT 'session',
                 manifest_digest TEXT,
+                restored_here_at TEXT,
                 session_id TEXT,
                 artifact_set_json TEXT,
                 FOREIGN KEY (save_line_id) REFERENCES save_line(id) ON DELETE CASCADE
@@ -404,7 +483,11 @@ enum Migrations {
         // true in storage, not just in SaveStateModel's helper).
         // Additive ALTER, same no-op-on-duplicate-column shape as the
         // columns above, so an existing install upgrades without a
-        // table rebuild.
+        // table rebuild. The column is ALSO declared in the CREATE
+        // TABLE above, which is what makes this line genuinely
+        // redundant on a fresh database rather than load-bearing; do
+        // not delete it, because an install predating 04-22 still
+        // needs it. See WINDOWS #90.
         try? connection.execute("ALTER TABLE save_revision ADD COLUMN restored_here_at TEXT;")
         try? connection.execute("ALTER TABLE save_revision ADD COLUMN session_id TEXT;")
         try? connection.execute("ALTER TABLE save_revision ADD COLUMN artifact_set_json TEXT;")

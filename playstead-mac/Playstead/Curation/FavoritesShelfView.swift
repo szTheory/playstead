@@ -8,9 +8,11 @@ import SwiftUI
 struct FavoritesShelfView: View {
     let viewModel: FavoritesViewModel
     let catalogueByAssetSetID: [String: CatalogueEntry]
-    /// Injected rather than derived here — status derivation (D-21) is
-    /// wired by a later plan; this shelf renders whatever the caller
-    /// currently knows.
+    /// Injected rather than derived here, so the shelf stays free of the
+    /// stores: `LibraryShellView` passes
+    /// `AppEnvironment.libraryStatuses(for:)`, the same derivation the grid
+    /// and the list row use. The empty default is a test convenience only —
+    /// it was also, for a while, what the shipped app passed (WINDOWS #72).
     var statuses: (String) -> [LibraryStatus] = { _ in [] }
 
     static let emptyExplanation = "Favorite a game to see it here."

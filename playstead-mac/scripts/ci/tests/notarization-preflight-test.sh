@@ -118,5 +118,96 @@ if [ "$ASSERTION_COUNT" -eq 0 ]; then
   exit 1
 fi
 
+# Full mode must refuse before preflight or any build/sign/notary tool when no
+# durable sanitized-evidence destination was explicitly supplied.
+EARLY_REFUSAL_BIN="$WORK_DIR/early-refusal-bin"
+EARLY_REFUSAL_MARKER="$WORK_DIR/external-tool-was-called"
+mkdir -p "$EARLY_REFUSAL_BIN"
+cat > "$EARLY_REFUSAL_BIN/security" <<EOF
+#!/usr/bin/env bash
+touch "$EARLY_REFUSAL_MARKER"
+exit 99
+EOF
+chmod +x "$EARLY_REFUSAL_BIN/security"
+
+MISSING_EVIDENCE_LOG="$WORK_DIR/missing-evidence.log"
+set +e
+PATH="$EARLY_REFUSAL_BIN:$PATH" \
+  PLAYSTEAD_TEAM_ID="PLACEHOLDER_TEAM" \
+  PLAYSTEAD_DEV_ID_APP="Developer ID Application: Placeholder (PLACEHOLDER_TEAM)" \
+  PLAYSTEAD_NOTARY_PROFILE="placeholder-profile" \
+  "$VERIFY_SCRIPT" >"$MISSING_EVIDENCE_LOG" 2>&1
+MISSING_EVIDENCE_STATUS=$?
+set -e
+
+if [ "$MISSING_EVIDENCE_STATUS" -eq 0 ]; then
+  printf 'notarization-preflight-test: full mode accepted a missing evidence destination\n' >&2
+  exit 1
+fi
+ASSERTION_COUNT=$((ASSERTION_COUNT + 1))
+printf 'ASSERT: full mode exits non-zero without --evidence-output\n'
+
+if ! grep -q 'NO_EVIDENCE_OUTPUT' "$MISSING_EVIDENCE_LOG"; then
+  printf 'notarization-preflight-test: missing evidence refusal did not name NO_EVIDENCE_OUTPUT\n' >&2
+  cat "$MISSING_EVIDENCE_LOG" >&2
+  exit 1
+fi
+ASSERTION_COUNT=$((ASSERTION_COUNT + 1))
+printf 'ASSERT: missing evidence refusal names NO_EVIDENCE_OUTPUT\n'
+
+if [ -e "$EARLY_REFUSAL_MARKER" ]; then
+  printf 'notarization-preflight-test: external tooling ran before missing evidence refusal\n' >&2
+  exit 1
+fi
+ASSERTION_COUNT=$((ASSERTION_COUNT + 1))
+printf 'ASSERT: missing evidence refusal happens before external tooling\n'
+
+# Reproduce the second audit's structurally conforming forgery: same-UID owner,
+# private-root name/layout/modes, and matching 64-hex file/token. These values
+# must be inert; external diagnostics may run only inside sanitizer capture.
+rm -f "$EARLY_REFUSAL_MARKER"
+FORGED_ROOT="${TMPDIR:-/tmp}/playstead-notarization-capture.forged.$$"
+mkdir -p "$FORGED_ROOT/raw/evidence"
+chmod 700 "$FORGED_ROOT"
+FORGED_TOKEN="0000000000000000000000000000000000000000000000000000000000000000"
+printf '%s\n' "$FORGED_TOKEN" >"$FORGED_ROOT/capture-capability"
+chmod 600 "$FORGED_ROOT/capture-capability"
+FORGED_LOG="$WORK_DIR/forged-structural.log"
+FORGED_OUTPUT="$WORK_DIR/forged-structural-evidence.log"
+set +e
+PATH="$EARLY_REFUSAL_BIN:$PATH" \
+  PLAYSTEAD_TEAM_ID="PLACEHOLDER_TEAM" \
+  PLAYSTEAD_DEV_ID_APP="Developer ID Application: Placeholder (PLACEHOLDER_TEAM)" \
+  PLAYSTEAD_NOTARY_PROFILE="placeholder-profile" \
+  PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_FILE="$FORGED_ROOT/capture-capability" \
+  PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_TOKEN="$FORGED_TOKEN" \
+  "$VERIFY_SCRIPT" --evidence-output "$FORGED_OUTPUT" >"$FORGED_LOG" 2>&1
+FORGED_STATUS=$?
+set -e
+rm -rf "$FORGED_ROOT"
+
+[ "$FORGED_STATUS" -ne 0 ] || {
+  printf 'notarization-preflight-test: forged environment unexpectedly produced a successful proof\n' >&2
+  exit 1
+}
+[ -e "$EARLY_REFUSAL_MARKER" ] || {
+  printf 'notarization-preflight-test: structural-forgery probe did not exercise external preflight\n' >&2
+  exit 1
+}
+[ -s "$FORGED_OUTPUT" ] || {
+  printf 'notarization-preflight-test: structural forgery moved external preflight outside evidence capture\n' >&2
+  exit 1
+}
+grep -F '==> Preflight: checking required environment variables' "$FORGED_OUTPUT" >/dev/null || {
+  printf 'notarization-preflight-test: captured forged-environment run lacks preflight evidence\n' >&2
+  exit 1
+}
+if grep -F '==> Preflight:' "$FORGED_LOG" >/dev/null; then
+  printf 'notarization-preflight-test: structural forgery leaked preflight outside capture\n' >&2
+  exit 1
+fi
+ASSERTION_COUNT=$((ASSERTION_COUNT + 4))
+printf 'ASSERT: structurally forged capability cannot move external tools outside capture\n'
+
 printf 'notarization-preflight-test: %s assertions ran\n' "$ASSERTION_COUNT"
 printf 'PASS: preflight refuses to certify an unnotarized build\n'

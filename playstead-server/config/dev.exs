@@ -1,14 +1,33 @@
 import Config
 
 # Configure your database
-config :playstead, Playstead.Repo,
-  username: "postgres",
-  password: "postgres",
-  hostname: "localhost",
-  database: "playstead_dev",
-  stacktrace: true,
-  show_sensitive_data_on_connection_error: true,
-  pool_size: 10
+#
+# `PLAYSTEAD_DEV_DATABASE_URL` is honored when set, so the containerized dev
+# stack (`scripts/dev-up.sh` -> `docker-compose.dev.yml`) can point the app at
+# its own `db` service instead of a Postgres on the developer's host. It is
+# deliberately NOT named `DATABASE_URL`: that name carries production meaning in
+# `config/runtime.exs` (where it is required and has no default), and a stray
+# `DATABASE_URL` in a shell or CI environment must never silently redirect a
+# native `mix phx.server` dev run. Unset -- the native path -- the discrete
+# settings below apply unchanged.
+case System.get_env("PLAYSTEAD_DEV_DATABASE_URL") do
+  url when is_binary(url) and url != "" ->
+    config :playstead, Playstead.Repo,
+      url: url,
+      stacktrace: true,
+      show_sensitive_data_on_connection_error: true,
+      pool_size: 10
+
+  _ ->
+    config :playstead, Playstead.Repo,
+      username: "postgres",
+      password: "postgres",
+      hostname: "localhost",
+      database: "playstead_dev",
+      stacktrace: true,
+      show_sensitive_data_on_connection_error: true,
+      pool_size: 10
+end
 
 # For development, we disable any cache and enable
 # debugging and code reloading.
@@ -16,10 +35,22 @@ config :playstead, Playstead.Repo,
 # The watchers configuration can be used to run external
 # watchers to your application. For example, we can use it
 # to bundle .js and .css sources.
+# Binding to the loopback ipv4 address prevents access from other machines.
+#
+# `PLAYSTEAD_DEV_BIND_ALL=true` widens this to 0.0.0.0 and exists for exactly
+# one caller: the dev container in `docker-compose.dev.yml`. Docker forwards a
+# published port into the container's network namespace, so a server bound to
+# the container's OWN loopback is unreachable from the host and the port mapping
+# silently does nothing. This does NOT widen exposure on the host: that compose
+# file publishes `127.0.0.1:4000:4000`, so the listening socket the host can
+# reach is still loopback-only. Do not set this variable for a native run.
+dev_bind_ip =
+  if System.get_env("PLAYSTEAD_DEV_BIND_ALL") == "true",
+    do: {0, 0, 0, 0},
+    else: {127, 0, 0, 1}
+
 config :playstead, PlaysteadWeb.Endpoint,
-  # Binding to loopback ipv4 address prevents access from other machines.
-  # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
-  http: [ip: {127, 0, 0, 1}],
+  http: [ip: dev_bind_ip],
   check_origin: false,
   code_reloader: true,
   debug_errors: true,

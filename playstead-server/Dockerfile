@@ -60,8 +60,17 @@ COPY lib lib
 
 COPY docs docs
 
-# Compile the release
-RUN mix compile
+# Compile the release.
+#
+# --warnings-as-errors, matching the `precommit` alias. Without it this was the
+# ONLY place a prod-env warning could appear, and appearing was all it did: the
+# gate alias compiles dev/test, so a clause made unreachable by a
+# `when @env == :prod` guard warned here, on every image build, and failed
+# nothing. It scrolled past in CI's compose-smoke build for three days and was
+# noticed by a human reading `docker compose build` output. The bug behind it was
+# a readiness row reporting plain HTTP as "HTTPS via Caddy's internal certificate
+# authority" in release builds only -- see Playstead.Readiness.https_check/1.
+RUN mix compile --warnings-as-errors
 
 COPY assets assets
 

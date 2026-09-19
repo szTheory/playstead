@@ -83,6 +83,11 @@ struct GameRowView: View {
         "playstead.game.\(assetSetID).download"
     }
 
+    /// The list row's status text label (QUAL-01). A stable identifier
+    /// rather than a raw-string query, so the guarantee stays auditable if
+    /// the copy ever changes.
+    static let statusLabelIdentifier = "library.status-label"
+
     static func summaryIdentifier(assetSetID: String) -> String {
         "playstead.game.\(assetSetID).summary"
     }
@@ -115,6 +120,7 @@ struct GameRowView: View {
             .accessibilityLabel(rowSummaryAccessibilityLabel)
             .accessibilityIdentifier(Self.summaryIdentifier(assetSetID: entry.id))
             Spacer()
+            statusPair
             curationButtons
             actionButton
         }
@@ -160,6 +166,46 @@ struct GameRowView: View {
             parts.append(Self.blockingSummary(first))
         }
         return parts.joined(separator: ", ")
+    }
+
+    /// The real read-time availability ladder for this row (D-21), via the
+    /// one derivation both library layouts share.
+    ///
+    /// `pinRevision` is read here for the same reason `isPinned` reads it:
+    /// pins live in SQLite, so nothing else invalidates this row when one
+    /// is toggled. Cache membership has the same shape of limitation --
+    /// this re-derives whenever the row's body re-evaluates, which a
+    /// completed download does through `refreshStatus()`, not on a timer.
+    private var statuses: [LibraryStatus] {
+        _ = pinRevision
+        return environment.libraryStatuses(for: entry)
+    }
+
+    /// QUAL-01 (03-UI-SPEC.md): a list row pairs the status glyph with its
+    /// own text label, never colour or glyph alone.
+    ///
+    /// This pairing existed only in the deleted `GameListView`, which had no
+    /// production call site -- the shipped list layout renders this row --
+    /// so the strings "Ready offline", "On server", "Downloading — n%",
+    /// "Pinned" and "Queued" appeared nowhere in the app, and the
+    /// guarantee was asserted only against a view no user could reach
+    /// (WINDOWS #74).
+    @ViewBuilder
+    private var statusPair: some View {
+        let current = statuses
+        if let status = LibraryStatus.highestPriority(among: current) {
+            // Deliberately NOT accessibility-hidden. The glyph beside it
+            // carries the full-sentence name, so hiding this would be
+            // tempting -- but a hidden element is invisible to XCUITest
+            // too, which would make QUAL-01 unauditable at the front
+            // door, and a short text label next to an icon is content, not
+            // decoration.
+            Text(status.listViewLabel)
+                .font(.psLabel)
+                .foregroundStyle(DesignTokens.textMuted)
+                .accessibilityIdentifier(Self.statusLabelIdentifier)
+            StatusSlotView(statuses: current, title: entry.displayTitle)
+        }
     }
 
     /// The blocked-capacity surface. Every button here does real work

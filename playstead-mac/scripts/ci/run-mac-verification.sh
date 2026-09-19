@@ -489,7 +489,10 @@ for layer in layers:
             raise SystemExit(f"required test did not execute exactly once and pass: {layer['layer']}")
 
 required_exact = {
-    "ui": ["PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit"],
+    "ui": [
+        "PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit",
+        "PlaysteadUITests.ControllerHardwareIntegrationTests/testEntitledVirtualGamepadEnumeratesDetachesAndReconnectsWithoutRelaunch",
+    ],
     "live-server": [
         "PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch",
         "PlaysteadUITests.PairingCeremonyTests/testAHumanCanPairAFreshMacEntirelyFromInsideTheAppAgainstTheRealServer",
@@ -1391,6 +1394,10 @@ PY
     --required-test PlaysteadUITests.BiosRejectionCopyTests/testRejectedDropRendersTheStoresExactReasonAsVisibleCopy \
     --required-test PlaysteadUITests.BiosRejectionCopyTests/testAnUnusableCandidatePathLeavesTheSurfaceUntouchedRatherThanShowingAGenericFailure \
     --required-test PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit \
+	--required-test PlaysteadUITests.ControllerHardwareIntegrationTests/testEntitledVirtualGamepadEnumeratesDetachesAndReconnectsWithoutRelaunch \
+    --required-test PlaysteadUITests.LibraryEmptyStateTests/testListLayoutSearchWithNoMatchesShowsTheContractCopyNotThePairingPrompt \
+    --required-test PlaysteadUITests.LibraryEmptyStateTests/testCardsLayoutSearchWithNoMatchesShowsTheSameContractCopy \
+    --required-test PlaysteadUITests.LibraryEmptyStateTests/testClearSearchControlIsReachableAndRestoresTheLibrary \
     --required-test PlaysteadUITests.ZeroNetworkPlayFlowTests/testWholePlayFlowRecordsZeroHTTPRequests
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
 
@@ -1814,7 +1821,7 @@ base_manifest = {
     "layers": [
         {"layer": "unit", "executed_test_count": 1, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadTests.PlaySessionTests/test_launchSucceedsIndependentlyOfPlaySessionRecording")]},
         {"layer": "rendering", "executed_test_count": 1, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadTests.LibraryContractSnapshotTests/testCardAndStatusVisualContract")]},
-        {"layer": "ui", "executed_test_count": 1, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit")]},
+        {"layer": "ui", "executed_test_count": 2, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit"), required("PlaysteadUITests.ControllerHardwareIntegrationTests/testEntitledVirtualGamepadEnumeratesDetachesAndReconnectsWithoutRelaunch")]},
         {"layer": "live-server", "executed_test_count": 2, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch"), required("PlaysteadUITests.PairingCeremonyTests/testAHumanCanPairAFreshMacEntirelyFromInsideTheAppAgainstTheRealServer")]},
     ],
 }

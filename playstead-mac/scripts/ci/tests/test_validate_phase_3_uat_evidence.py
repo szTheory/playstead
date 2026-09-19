@@ -93,6 +93,36 @@ coverage_id: fixture/{number}
     )
 
 
+MANUAL_7_TOKENS = (
+    "docker compose stop caddy",
+    "f7f6e37aaf7527e088fd88616ce82f4b16fe4800f5f4cf2de59ff2e0b24ff026",
+    "f2f329b4947baa5082fcaf27ced1e2b21f2999ccf73ca481f22b44c4c87d6640",
+    '"Last exit: clean"',
+    '"Last exit: crashed"',
+    '"Last exit: killed"',
+    'unknown(status: 0, reason: "exit")',
+)
+
+
+def manually_closed_checkpoint(number):
+    """A checkpoint the owner closed by hand: passing, `source: manual`, never
+    claiming an automated source, and carrying every proof token that made the
+    pass real."""
+    tokens = "\n".join(f"  {token}" for token in MANUAL_7_TOKENS)
+    return checkpoint(
+        number,
+        f"""
+expected: fixture
+result: pass
+source: manual
+evidence: |
+  Closed by hand on the owner's own machine.
+{tokens}
+coverage_id: fixture/{number}
+""",
+    )
+
+
 def valid_uat():
     sections = {
         2: automated_checkpoint(2),
@@ -100,7 +130,7 @@ def valid_uat():
         4: resolved_checkpoint(4),
         5: automated_checkpoint(5),
         6: automated_checkpoint(6),
-        7: blocked_checkpoint(7, "real-emulator-game-bytes"),
+        7: manually_closed_checkpoint(7),
         8: blocked_checkpoint(8, "physical-device"),
         9: blocked_checkpoint(9, "physical-device"),
         10: checkpoint(
@@ -210,11 +240,14 @@ class ValidatorTests(unittest.TestCase):
 
     def test_rejects_overbroad_or_misplaced_automated_source(self):
         self.assert_rejected(uat=valid_uat().replace("source: automated\n", "source: human\n", 1))
-        self.assert_rejected(uat=valid_uat().replace("blocked_by: real-emulator-game-bytes", "source: automated\nblocked_by: real-emulator-game-bytes"))
+        self.assert_rejected(uat=valid_uat().replace("blocked_by: physical-device", "source: automated\nblocked_by: physical-device", 1))
         self.assert_rejected(uat=valid_uat().replace("blocked_by: physical-device-and-experiential-review", "source: automated\nblocked_by: physical-device-and-experiential-review"))
 
     def test_rejects_absent_residual_blocker(self):
-        for number in (7, 8, 9):
+        # 7 is deliberately absent: the owner closed it by hand on 2026-09-13, so
+        # it is covered by the manually-closed tests above instead. 8 and 9 remain
+        # blocked on physical controller hardware.
+        for number in (8, 9):
             with self.subTest(checkpoint=number):
                 source = valid_uat()
                 start = source.index(f"### {number}.")
@@ -239,6 +272,34 @@ class ValidatorTests(unittest.TestCase):
                     end = len(source) if end < 0 else end
                     section = source[start:end].replace(mutation, replacement, 1)
                     self.assert_rejected(uat=source[:start] + section + source[end:])
+
+    def test_rejects_manually_closed_checkpoint_claiming_automation(self):
+        """A hand-closed checkpoint must never be dressed up as CI-proven — a
+        manual pass on one machine is not a regression gate."""
+        self.assert_rejected(
+            uat=valid_uat().replace("result: pass\nsource: manual", "result: pass\nsource: automated", 1)
+        )
+
+    def test_rejects_manually_closed_checkpoint_reverting_to_blocked(self):
+        """Reading `pass` while still carrying a blocked clause is the exact
+        rounding-up this validator exists to prevent."""
+        self.assert_rejected(
+            uat=valid_uat().replace(
+                "coverage_id: fixture/7",
+                "#### Regressed clause\nresult: blocked\nblocked_by: third-party\ncoverage_id: fixture/7",
+                1,
+            )
+        )
+
+    def test_rejects_manually_closed_checkpoint_losing_each_proof_token(self):
+        """Every token is load-bearing: deleting any one must fail, so the
+        specific proofs cannot be quietly dropped while the `pass` survives."""
+        for token in MANUAL_7_TOKENS:
+            with self.subTest(token=token):
+                self.assert_rejected(uat=valid_uat().replace(token, "REDACTED", 1))
+
+    def test_rejects_manually_closed_checkpoint_without_manual_source(self):
+        self.assert_rejected(uat=valid_uat().replace("source: manual", "", 1))
 
     def test_rejects_non_partial_frontmatter(self):
         self.assert_rejected(uat=valid_uat().replace("status: partial", "status: complete", 1))
