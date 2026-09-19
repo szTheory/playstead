@@ -162,5 +162,48 @@ fi
 ASSERTION_COUNT=$((ASSERTION_COUNT + 1))
 printf 'ASSERT: missing evidence refusal happens before external tooling\n'
 
+# A caller-provided regular file is not proof that the sanitizer capture helper
+# created this invocation. This is the exact T-03-12-03 bypass regression: the
+# old recursion sentinel accepted /etc/hosts and entered external preflight.
+rm -f "$EARLY_REFUSAL_MARKER"
+FORGED_CAPABILITY_LOG="$WORK_DIR/forged-capability.log"
+FORGED_EVIDENCE_OUTPUT="$WORK_DIR/forged-evidence.log"
+set +e
+PATH="$EARLY_REFUSAL_BIN:$PATH" \
+  PLAYSTEAD_TEAM_ID="PLACEHOLDER_TEAM" \
+  PLAYSTEAD_DEV_ID_APP="Developer ID Application: Placeholder (PLACEHOLDER_TEAM)" \
+  PLAYSTEAD_NOTARY_PROFILE="placeholder-profile" \
+  PLAYSTEAD_EVIDENCE_CAPTURE_ACTIVE="/etc/hosts" \
+  "$VERIFY_SCRIPT" --evidence-output "$FORGED_EVIDENCE_OUTPUT" \
+  >"$FORGED_CAPABILITY_LOG" 2>&1
+FORGED_CAPABILITY_STATUS=$?
+set -e
+
+if [ "$FORGED_CAPABILITY_STATUS" -eq 0 ]; then
+  printf 'notarization-preflight-test: forged capture sentinel was accepted\n' >&2
+  exit 1
+fi
+ASSERTION_COUNT=$((ASSERTION_COUNT + 1))
+printf 'ASSERT: forged capture sentinel exits non-zero\n'
+
+if ! grep -q 'INVALID_EVIDENCE_CAPTURE_CAPABILITY' "$FORGED_CAPABILITY_LOG"; then
+  printf 'notarization-preflight-test: forged capture refusal did not name INVALID_EVIDENCE_CAPTURE_CAPABILITY\n' >&2
+  cat "$FORGED_CAPABILITY_LOG" >&2
+  exit 1
+fi
+ASSERTION_COUNT=$((ASSERTION_COUNT + 1))
+printf 'ASSERT: forged capture refusal names INVALID_EVIDENCE_CAPTURE_CAPABILITY\n'
+
+if [ -e "$EARLY_REFUSAL_MARKER" ]; then
+  printf 'notarization-preflight-test: forged capture sentinel reached external tooling\n' >&2
+  exit 1
+fi
+[ ! -e "$FORGED_EVIDENCE_OUTPUT" ] || {
+  printf 'notarization-preflight-test: forged capture sentinel published evidence\n' >&2
+  exit 1
+}
+ASSERTION_COUNT=$((ASSERTION_COUNT + 2))
+printf 'ASSERT: forged capture sentinel cannot reach tools or publish evidence\n'
+
 printf 'notarization-preflight-test: %s assertions ran\n' "$ASSERTION_COUNT"
 printf 'PASS: preflight refuses to certify an unnotarized build\n'
