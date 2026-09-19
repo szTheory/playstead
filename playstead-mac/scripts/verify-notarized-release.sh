@@ -6,9 +6,9 @@
 # `--preflight-only` runs only the identity/credential preflight and stops —
 # this is what `notarization-preflight-test.sh` and CI exercise to prove the
 # refusal fires without needing a real build or paid credentials.
-# A full run requires `--evidence-output FILE`. The public invocation re-enters
-# this script once through the repository sanitizer; only that nested invocation
-# executes tools that can emit release evidence.
+# A full run requires `--evidence-output FILE`. Its proof is an internal shell
+# function passed unconditionally to the repository sanitizer capture primitive;
+# there is no recursive invocation or environment-controlled raw-body branch.
 #
 # Every failure path exits non-zero with a bounded diagnostic. The principal
 # gate tokens are NO_EVIDENCE_OUTPUT, NO_TEAM_ID, NO_DEVELOPER_ID_IDENTITY,
@@ -101,78 +101,7 @@ if [ -z "$EVIDENCE_OUTPUT" ]; then
   exit 1
 fi
 
-if [ -n "${PLAYSTEAD_EVIDENCE_CAPTURE_ACTIVE:-}" ]; then
-  echo "FATAL: INVALID_EVIDENCE_CAPTURE_CAPABILITY" >&2
-  exit 1
-fi
-
-CAPABILITY_FILE="${PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_FILE:-}"
-CAPABILITY_TOKEN="${PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_TOKEN:-}"
-
-if [ -z "$CAPABILITY_FILE" ] && [ -z "$CAPABILITY_TOKEN" ]; then
-  [ -x "$CAPTURE_HELPER" ] || {
-    echo "FATAL: EVIDENCE_CAPTURE_UNAVAILABLE" >&2
-    exit 1
-  }
-
-  set +e
-  "$CAPTURE_HELPER" --output "$EVIDENCE_OUTPUT" -- \
-    "$0" --evidence-output "$EVIDENCE_OUTPUT"
-  CAPTURE_STATUS=$?
-  set -e
-  exit "$CAPTURE_STATUS"
-fi
-
-if [ -z "$CAPABILITY_FILE" ] || [ -z "$CAPABILITY_TOKEN" ]; then
-  echo "FATAL: INVALID_EVIDENCE_CAPTURE_CAPABILITY" >&2
-  exit 1
-fi
-
-if ! python3 - <<'PY'
-import os
-import pathlib
-import re
-import stat
-
-path_text = os.environ.get("PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_FILE", "")
-token = os.environ.get("PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_TOKEN", "")
-if not re.fullmatch(r"[0-9a-f]{64}", token):
-    raise SystemExit(1)
-
-path = pathlib.Path(path_text)
-try:
-    file_stat = path.lstat()
-    root_stat = path.parent.lstat()
-    stored = path.read_text(encoding="ascii").rstrip("\n")
-except (OSError, UnicodeError):
-    raise SystemExit(1)
-
-valid = (
-    path.name == "capture-capability"
-    and path.parent.name.startswith("playstead-notarization-capture.")
-    and stat.S_ISREG(file_stat.st_mode)
-    and not path.is_symlink()
-    and stat.S_IMODE(file_stat.st_mode) == 0o600
-    and stat.S_ISDIR(root_stat.st_mode)
-    and not path.parent.is_symlink()
-    and stat.S_IMODE(root_stat.st_mode) == 0o700
-    and file_stat.st_uid == os.geteuid()
-    and root_stat.st_uid == os.geteuid()
-    and (path.parent / "raw" / "evidence").is_dir()
-    and stored == token
-)
-raise SystemExit(0 if valid else 1)
-PY
-then
-  echo "FATAL: INVALID_EVIDENCE_CAPTURE_CAPABILITY" >&2
-  exit 1
-fi
-
-unset PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_FILE
-unset PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_TOKEN
-CAPABILITY_FILE=""
-CAPABILITY_TOKEN=""
-
+run_full_proof() {
 preflight
 
 echo "==> Building release"
@@ -241,3 +170,12 @@ fi
 osascript -e "tell application id \"$APP_BUNDLE_ID\" to quit" >/dev/null
 
 echo "==> Done: $APP_PATH is signed, notarized, stapled, Gatekeeper-accepted, and relaunch-proven."
+}
+
+[ -r "$CAPTURE_HELPER" ] || {
+  echo "FATAL: EVIDENCE_CAPTURE_UNAVAILABLE" >&2
+  exit 1
+}
+# shellcheck source=scripts/ci/capture-notarization-evidence.sh
+source "$CAPTURE_HELPER"
+capture_notarization_evidence "$EVIDENCE_OUTPUT" run_full_proof

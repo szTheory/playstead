@@ -1,81 +1,81 @@
 #!/usr/bin/env bash
-set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SANITIZER="${SCRIPT_DIR}/sanitize-evidence.sh"
+# Source this file to capture a function or command already available in the
+# current shell. Executing it directly retains the CLI used by focused tests.
+capture_notarization_evidence() (
+  set -euo pipefail
 
-die() {
-  printf 'capture-notarization-evidence: %s\n' "$*" >&2
-  exit 1
-}
+  capture_die() {
+    printf 'capture-notarization-evidence: %s\n' "$*" >&2
+    exit 1
+  }
 
-[ "$#" -ge 4 ] || die "usage: capture-notarization-evidence.sh --output FILE -- COMMAND [ARG ...]"
-[ "$1" = "--output" ] || die "first argument must be --output"
-REQUESTED_OUTPUT="$2"
-[ "$3" = "--" ] || die "third argument must be --"
-shift 3
-[ "$#" -gt 0 ] || die "a command is required after --"
+  [ "$#" -ge 2 ] || capture_die "usage: capture_notarization_evidence OUTPUT COMMAND [ARG ...]"
+  local capture_requested_output="$1"
+  shift
 
-[ -n "$REQUESTED_OUTPUT" ] || die "output file must not be empty"
-[ "$REQUESTED_OUTPUT" != "/" ] && [ "$REQUESTED_OUTPUT" != "." ] && [ "$REQUESTED_OUTPUT" != ".." ] || die "unsafe output file"
-[ ! -L "$REQUESTED_OUTPUT" ] || die "symlink output file is forbidden"
-[ ! -d "$REQUESTED_OUTPUT" ] || die "output file must not be a directory"
+  local capture_script_dir
+  local capture_sanitizer
+  capture_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  capture_sanitizer="${capture_script_dir}/sanitize-evidence.sh"
 
-OUTPUT_PARENT_INPUT="$(dirname "$REQUESTED_OUTPUT")"
-OUTPUT_BASENAME="$(basename "$REQUESTED_OUTPUT")"
-[ -n "$OUTPUT_BASENAME" ] && [ "$OUTPUT_BASENAME" != "." ] && [ "$OUTPUT_BASENAME" != ".." ] || die "unsafe output file name"
-[ -d "$OUTPUT_PARENT_INPUT" ] || die "output parent directory does not exist"
-[ ! -L "$OUTPUT_PARENT_INPUT" ] || die "symlink output parent is forbidden"
-OUTPUT_PARENT="$(cd "$OUTPUT_PARENT_INPUT" && pwd -P)"
-OUTPUT_PATH="${OUTPUT_PARENT}/${OUTPUT_BASENAME}"
-[ "$OUTPUT_PATH" != "/" ] || die "unsafe output file"
+  [ -n "$capture_requested_output" ] || capture_die "output file must not be empty"
+  [ "$capture_requested_output" != "/" ] && [ "$capture_requested_output" != "." ] && [ "$capture_requested_output" != ".." ] || capture_die "unsafe output file"
+  [ ! -L "$capture_requested_output" ] || capture_die "symlink output file is forbidden"
+  [ ! -d "$capture_requested_output" ] || capture_die "output file must not be a directory"
 
-[ -x "$SANITIZER" ] || die "evidence sanitizer is missing or not executable"
+  local capture_output_parent_input
+  local capture_output_basename
+  local capture_output_parent
+  local capture_output_path
+  capture_output_parent_input="$(dirname "$capture_requested_output")"
+  capture_output_basename="$(basename "$capture_requested_output")"
+  [ -n "$capture_output_basename" ] && [ "$capture_output_basename" != "." ] && [ "$capture_output_basename" != ".." ] || capture_die "unsafe output file name"
+  [ -d "$capture_output_parent_input" ] || capture_die "output parent directory does not exist"
+  [ ! -L "$capture_output_parent_input" ] || capture_die "symlink output parent is forbidden"
+  capture_output_parent="$(cd "$capture_output_parent_input" && pwd -P)"
+  capture_output_path="${capture_output_parent}/${capture_output_basename}"
+  [ "$capture_output_path" != "/" ] || capture_die "unsafe output file"
+  [ -x "$capture_sanitizer" ] || capture_die "evidence sanitizer is missing or not executable"
 
-umask 077
-PRIVATE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/playstead-notarization-capture.XXXXXX")"
-PUBLISH_TEMP=""
-cleanup() {
-  if [ -n "$PUBLISH_TEMP" ]; then
-    rm -f "$PUBLISH_TEMP"
+  umask 077
+  local capture_private_root
+  local capture_publish_temp=""
+  capture_private_root="$(mktemp -d "${TMPDIR:-/tmp}/playstead-notarization-capture.XXXXXX")"
+  capture_cleanup() {
+    if [ -n "$capture_publish_temp" ]; then
+      rm -f "$capture_publish_temp"
+    fi
+    rm -rf "$capture_private_root"
+  }
+  trap capture_cleanup EXIT
+  chmod 700 "$capture_private_root"
+  mkdir -p "$capture_private_root/raw/evidence"
+
+  local capture_raw_transcript="$capture_private_root/raw/evidence/notarization.log"
+  local capture_sanitized_root="$capture_private_root/sanitized"
+  local capture_wrapped_status
+
+  set +e
+  # Isolate errexit/exit from a captured shell function so it can abort its
+  # proof normally while this outer capture frame still sanitizes the record.
+  ( set -e; "$@" ) >"$capture_raw_transcript" 2>&1
+  capture_wrapped_status=$?
+  set -e
+
+  if ! "$capture_sanitizer" --input "$capture_private_root/raw" --output "$capture_sanitized_root" \
+    >"$capture_private_root/sanitizer.stdout" 2>"$capture_private_root/sanitizer.stderr"; then
+    printf 'capture-notarization-evidence: FATAL: EVIDENCE_SANITIZATION_FAILED\n' >&2
+    exit 1
   fi
-  rm -rf "$PRIVATE_ROOT"
-}
-trap cleanup EXIT
-chmod 700 "$PRIVATE_ROOT"
-mkdir -p "$PRIVATE_ROOT/raw/evidence"
 
-RAW_TRANSCRIPT="$PRIVATE_ROOT/raw/evidence/notarization.log"
-SANITIZED_ROOT="$PRIVATE_ROOT/sanitized"
-CAPABILITY_FILE="$PRIVATE_ROOT/capture-capability"
-CAPABILITY_TOKEN="$(python3 - <<'PY'
-import secrets
-print(secrets.token_hex(32))
-PY
-)"
-printf '%s\n' "$CAPABILITY_TOKEN" >"$CAPABILITY_FILE"
-chmod 600 "$CAPABILITY_FILE"
+  local capture_sanitized_transcript="$capture_sanitized_root/notarization.log"
+  local capture_manifest="$capture_sanitized_root/manifest.json"
+  [ -f "$capture_sanitized_transcript" ] && [ ! -L "$capture_sanitized_transcript" ] && [ -s "$capture_sanitized_transcript" ] || \
+    capture_die "sanitizer did not produce a regular, non-empty notarization transcript"
+  [ -f "$capture_manifest" ] && [ ! -L "$capture_manifest" ] || capture_die "sanitizer did not produce a manifest"
 
-set +e
-PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_FILE="$CAPABILITY_FILE" \
-PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_TOKEN="$CAPABILITY_TOKEN" \
-  "$@" >"$RAW_TRANSCRIPT" 2>&1
-WRAPPED_STATUS=$?
-set -e
-
-if ! "$SANITIZER" --input "$PRIVATE_ROOT/raw" --output "$SANITIZED_ROOT" \
-  >"$PRIVATE_ROOT/sanitizer.stdout" 2>"$PRIVATE_ROOT/sanitizer.stderr"; then
-  printf 'capture-notarization-evidence: FATAL: EVIDENCE_SANITIZATION_FAILED\n' >&2
-  exit 1
-fi
-
-SANITIZED_TRANSCRIPT="$SANITIZED_ROOT/notarization.log"
-MANIFEST="$SANITIZED_ROOT/manifest.json"
-[ -f "$SANITIZED_TRANSCRIPT" ] && [ ! -L "$SANITIZED_TRANSCRIPT" ] && [ -s "$SANITIZED_TRANSCRIPT" ] || \
-  die "sanitizer did not produce a regular, non-empty notarization transcript"
-[ -f "$MANIFEST" ] && [ ! -L "$MANIFEST" ] || die "sanitizer did not produce a manifest"
-
-python3 - "$MANIFEST" "$SANITIZED_TRANSCRIPT" <<'PY'
+  python3 - "$capture_manifest" "$capture_sanitized_transcript" <<'PY'
 import json
 import pathlib
 import sys
@@ -93,15 +93,37 @@ if manifest.get("schema_version") != 1 or entries != [expected]:
     raise SystemExit("sanitizer manifest does not bind the notarization transcript")
 PY
 
-PUBLISH_TEMP="$(mktemp "${OUTPUT_PARENT}/.${OUTPUT_BASENAME}.tmp.XXXXXX")"
-chmod 600 "$PUBLISH_TEMP"
-cp "$SANITIZED_TRANSCRIPT" "$PUBLISH_TEMP"
+  capture_publish_temp="$(mktemp "${capture_output_parent}/.${capture_output_basename}.tmp.XXXXXX")"
+  chmod 600 "$capture_publish_temp"
+  cp "$capture_sanitized_transcript" "$capture_publish_temp"
 
-# Re-check immediately before publication so an existing symlink is never an
-# accepted destination. rename(2) then atomically installs sanitized bytes.
-[ ! -L "$OUTPUT_PATH" ] || die "symlink output file is forbidden"
-[ ! -d "$OUTPUT_PATH" ] || die "output file must not be a directory"
-mv -f "$PUBLISH_TEMP" "$OUTPUT_PATH"
-PUBLISH_TEMP=""
+  [ ! -L "$capture_output_path" ] || capture_die "symlink output file is forbidden"
+  [ ! -d "$capture_output_path" ] || capture_die "output file must not be a directory"
+  mv -f "$capture_publish_temp" "$capture_output_path"
+  capture_publish_temp=""
 
-exit "$WRAPPED_STATUS"
+  exit "$capture_wrapped_status"
+)
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  set -euo pipefail
+  [ "$#" -ge 4 ] || {
+    printf 'capture-notarization-evidence: usage: capture-notarization-evidence.sh --output FILE -- COMMAND [ARG ...]\n' >&2
+    exit 1
+  }
+  [ "$1" = "--output" ] || {
+    printf 'capture-notarization-evidence: first argument must be --output\n' >&2
+    exit 1
+  }
+  capture_cli_output="$2"
+  [ "$3" = "--" ] || {
+    printf 'capture-notarization-evidence: third argument must be --\n' >&2
+    exit 1
+  }
+  shift 3
+  [ "$#" -gt 0 ] || {
+    printf 'capture-notarization-evidence: a command is required after --\n' >&2
+    exit 1
+  }
+  capture_notarization_evidence "$capture_cli_output" "$@"
+fi
