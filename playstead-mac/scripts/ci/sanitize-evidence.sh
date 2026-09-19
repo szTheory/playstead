@@ -262,6 +262,8 @@ def validate_test_evidence(data, relative):
             raise SystemExit(f"required test outcome is not allowlisted: {relative}")
 
 def sanitize_log(raw):
+    if any((ord(char) < 32 and char not in "\n\r\t") or ord(char) == 127 for char in raw):
+        raise SystemExit("binary control bytes are forbidden in text evidence")
     lines = []
     for line in raw.splitlines():
         if sensitive_text.search(line):

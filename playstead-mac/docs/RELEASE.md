@@ -24,7 +24,9 @@ export PLAYSTEAD_DEV_ID_APP="Developer ID Application: <Your Name> (<Team ID>)"
 export PLAYSTEAD_NOTARY_PROFILE="<your notarytool keychain profile name>"
 
 cd playstead-mac
-scripts/verify-notarized-release.sh
+mkdir -p release-evidence
+scripts/verify-notarized-release.sh \
+  --evidence-output release-evidence/notarization.log
 ```
 
 This single command runs, in order: a preflight check of the three
@@ -35,10 +37,17 @@ gap into a hard failure rather than a graceful degrade); `xcrun stapler
 validate`; a Gatekeeper re-assertion requiring `source=Notarized
 Developer ID`; the `RelaunchTests` suite run against the exported
 notarized artifact; and a launch/exit/relaunch cycle of that same
-artifact. Every failure path exits non-zero and prints exactly one of
-`NO_TEAM_ID`, `NO_DEVELOPER_ID_IDENTITY`, `NO_NOTARY_PROFILE`,
-`NOT_STAPLED`, or `GATEKEEPER_REJECTED` to stderr — never a credential, a
-profile's contents, or an app-specific password.
+artifact. Every failure path exits non-zero with a bounded diagnostic. The
+principal release-gate tokens are
+`NO_EVIDENCE_OUTPUT`, `NO_TEAM_ID`, `NO_DEVELOPER_ID_IDENTITY`,
+`NO_NOTARY_PROFILE`, `NOT_STAPLED`, or `GATEKEEPER_REJECTED` to stderr —
+never a credential, a profile's contents, or an app-specific password.
+
+Full mode captures all build, signing, notarization, validation, test, and
+launch output in a private temporary directory. The repository evidence
+sanitizer redacts secret-bearing lines and local paths before atomically
+publishing `--evidence-output`. Only that sanitized destination is suitable
+for review or commit; raw temporary output is deleted and must not be copied.
 
 Run only the preflight (identity/credential checks, no build) with:
 

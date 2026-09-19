@@ -6,21 +6,44 @@
 # `--preflight-only` runs only the identity/credential preflight and stops —
 # this is what `notarization-preflight-test.sh` and CI exercise to prove the
 # refusal fires without needing a real build or paid credentials.
+# A full run requires `--evidence-output FILE`. The public invocation re-enters
+# this script once through the repository sanitizer; only that nested invocation
+# executes tools that can emit release evidence.
 #
-# Every failure path exits non-zero and prints exactly one of these tokens
-# to stderr: NO_TEAM_ID, NO_DEVELOPER_ID_IDENTITY, NO_NOTARY_PROFILE,
-# NOT_STAPLED, GATEKEEPER_REJECTED. Never a credential, a profile's stored
-# contents, or an app-specific password.
+# Every failure path exits non-zero with a bounded diagnostic. The principal
+# gate tokens are NO_EVIDENCE_OUTPUT, NO_TEAM_ID, NO_DEVELOPER_ID_IDENTITY,
+# NO_NOTARY_PROFILE, NOT_STAPLED, and GATEKEEPER_REJECTED. Diagnostics never
+# intentionally include credentials, a profile's stored contents, or an
+# app-specific password.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 APP_PATH="$PROJECT_DIR/build/Release/Playstead.app"
+CAPTURE_HELPER="$SCRIPT_DIR/ci/capture-notarization-evidence.sh"
 
 PREFLIGHT_ONLY=0
-if [ "${1:-}" = "--preflight-only" ]; then
-  PREFLIGHT_ONLY=1
-fi
+EVIDENCE_OUTPUT=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --preflight-only)
+      PREFLIGHT_ONLY=1
+      shift
+      ;;
+    --evidence-output)
+      [ "$#" -ge 2 ] || {
+        echo "FATAL: NO_EVIDENCE_OUTPUT" >&2
+        exit 1
+      }
+      EVIDENCE_OUTPUT="$2"
+      shift 2
+      ;;
+    *)
+      echo "FATAL: INVALID_ARGUMENT" >&2
+      exit 1
+      ;;
+  esac
+done
 
 preflight() {
   echo "==> Preflight: checking required environment variables"
@@ -68,11 +91,45 @@ preflight() {
   echo "==> Preflight passed"
 }
 
-preflight
-
 if [ "$PREFLIGHT_ONLY" -eq 1 ]; then
+  preflight
   exit 0
 fi
+
+if [ -z "$EVIDENCE_OUTPUT" ]; then
+  echo "FATAL: NO_EVIDENCE_OUTPUT" >&2
+  exit 1
+fi
+
+if [ -z "${PLAYSTEAD_EVIDENCE_CAPTURE_ACTIVE:-}" ]; then
+  [ -x "$CAPTURE_HELPER" ] || {
+    echo "FATAL: EVIDENCE_CAPTURE_UNAVAILABLE" >&2
+    exit 1
+  }
+
+  CAPTURE_SENTINEL_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/playstead-release-capture.XXXXXX")"
+  chmod 700 "$CAPTURE_SENTINEL_ROOT"
+  CAPTURE_SENTINEL="$CAPTURE_SENTINEL_ROOT/active"
+  : >"$CAPTURE_SENTINEL"
+  trap 'rm -rf "$CAPTURE_SENTINEL_ROOT"' EXIT
+
+  set +e
+  PLAYSTEAD_EVIDENCE_CAPTURE_ACTIVE="$CAPTURE_SENTINEL" \
+    "$CAPTURE_HELPER" --output "$EVIDENCE_OUTPUT" -- \
+    "$0" --evidence-output "$EVIDENCE_OUTPUT"
+  CAPTURE_STATUS=$?
+  set -e
+  rm -rf "$CAPTURE_SENTINEL_ROOT"
+  trap - EXIT
+  exit "$CAPTURE_STATUS"
+fi
+
+[ -f "$PLAYSTEAD_EVIDENCE_CAPTURE_ACTIVE" ] && [ ! -L "$PLAYSTEAD_EVIDENCE_CAPTURE_ACTIVE" ] || {
+  echo "FATAL: INVALID_EVIDENCE_CAPTURE_SENTINEL" >&2
+  exit 1
+}
+
+preflight
 
 echo "==> Building release"
 "$SCRIPT_DIR/build-release.sh"

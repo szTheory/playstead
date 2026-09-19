@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MAC_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 CAPTURE="${MAC_ROOT}/scripts/ci/capture-notarization-evidence.sh"
 VERIFY_SCRIPT="${MAC_ROOT}/scripts/verify-notarized-release.sh"
+SANITIZER="${MAC_ROOT}/scripts/ci/sanitize-evidence.sh"
 
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/playstead-notarization-evidence.XXXXXX")"
 trap 'rm -rf "$WORK_DIR"' EXIT
@@ -91,6 +92,22 @@ expect_capture_failure oversized 1 "$WORK_DIR/oversized.log" bash -c \
 
 expect_capture_failure binary 1 "$WORK_DIR/binary.log" bash -c \
   'printf "\\377\\376\\000"'
+
+expect_capture_failure nul_byte 1 "$WORK_DIR/nul-byte.log" bash -c \
+  'printf "valid-prefix\\000valid-suffix\\n"'
+
+SYMLINKED_INPUT="$WORK_DIR/symlinked-input"
+mkdir -p "$SYMLINKED_INPUT/evidence"
+printf 'safe-looking transcript\n' >"$SYMLINKED_INPUT/target.log"
+ln -s "$SYMLINKED_INPUT/target.log" "$SYMLINKED_INPUT/evidence/notarization.log"
+set +e
+"$SANITIZER" --input "$SYMLINKED_INPUT" --output "$WORK_DIR/symlinked-sanitized" \
+  >"$WORK_DIR/symlinked-input.stdout" 2>"$WORK_DIR/symlinked-input.stderr"
+SYMLINKED_INPUT_STATUS=$?
+set -e
+[ "$SYMLINKED_INPUT_STATUS" -ne 0 ] || fail "symlinked notarization transcript was accepted"
+[ ! -e "$WORK_DIR/symlinked-sanitized/notarization.log" ] || fail "symlinked transcript reached sanitizer output"
+ASSERTION_COUNT=$((ASSERTION_COUNT + 2))
 
 SYMLINK_OUTPUT="$WORK_DIR/symlink.log"
 SYMLINK_TARGET="$WORK_DIR/symlink-target.log"
