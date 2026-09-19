@@ -46,7 +46,9 @@ source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
 required = (
     "--evidence-output",
     "capture-notarization-evidence.sh",
-    "PLAYSTEAD_EVIDENCE_CAPTURE_ACTIVE",
+    "PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_FILE",
+    "PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_TOKEN",
+    "INVALID_EVIDENCE_CAPTURE_CAPABILITY",
 )
 missing = [token for token in required if token not in source]
 if missing:
@@ -73,6 +75,17 @@ if grep -F 'synthetic-secret' "$SUCCESS_OUTPUT" >/dev/null; then
   fail "raw secret reached the durable transcript"
 fi
 ASSERTION_COUNT=$((ASSERTION_COUNT + 4))
+
+CAPABILITY_OUTPUT="$WORK_DIR/capability.log"
+"$CAPTURE" --output "$CAPABILITY_OUTPUT" -- bash -c '
+  [ -n "${PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_FILE:-}" ]
+  [ -n "${PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_TOKEN:-}" ]
+  [ "$(cat "$PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_FILE")" = "$PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_TOKEN" ]
+  printf "helper-issued capability observed\n"
+'
+grep -Fx 'helper-issued capability observed' "$CAPABILITY_OUTPUT" >/dev/null || \
+  fail "capture helper did not issue its child a matching private capability"
+ASSERTION_COUNT=$((ASSERTION_COUNT + 1))
 
 FAILURE_OUTPUT="$WORK_DIR/failure.log"
 set +e

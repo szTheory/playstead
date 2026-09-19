@@ -101,33 +101,77 @@ if [ -z "$EVIDENCE_OUTPUT" ]; then
   exit 1
 fi
 
-if [ -z "${PLAYSTEAD_EVIDENCE_CAPTURE_ACTIVE:-}" ]; then
+if [ -n "${PLAYSTEAD_EVIDENCE_CAPTURE_ACTIVE:-}" ]; then
+  echo "FATAL: INVALID_EVIDENCE_CAPTURE_CAPABILITY" >&2
+  exit 1
+fi
+
+CAPABILITY_FILE="${PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_FILE:-}"
+CAPABILITY_TOKEN="${PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_TOKEN:-}"
+
+if [ -z "$CAPABILITY_FILE" ] && [ -z "$CAPABILITY_TOKEN" ]; then
   [ -x "$CAPTURE_HELPER" ] || {
     echo "FATAL: EVIDENCE_CAPTURE_UNAVAILABLE" >&2
     exit 1
   }
 
-  CAPTURE_SENTINEL_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/playstead-release-capture.XXXXXX")"
-  chmod 700 "$CAPTURE_SENTINEL_ROOT"
-  CAPTURE_SENTINEL="$CAPTURE_SENTINEL_ROOT/active"
-  : >"$CAPTURE_SENTINEL"
-  trap 'rm -rf "$CAPTURE_SENTINEL_ROOT"' EXIT
-
   set +e
-  PLAYSTEAD_EVIDENCE_CAPTURE_ACTIVE="$CAPTURE_SENTINEL" \
-    "$CAPTURE_HELPER" --output "$EVIDENCE_OUTPUT" -- \
+  "$CAPTURE_HELPER" --output "$EVIDENCE_OUTPUT" -- \
     "$0" --evidence-output "$EVIDENCE_OUTPUT"
   CAPTURE_STATUS=$?
   set -e
-  rm -rf "$CAPTURE_SENTINEL_ROOT"
-  trap - EXIT
   exit "$CAPTURE_STATUS"
 fi
 
-[ -f "$PLAYSTEAD_EVIDENCE_CAPTURE_ACTIVE" ] && [ ! -L "$PLAYSTEAD_EVIDENCE_CAPTURE_ACTIVE" ] || {
-  echo "FATAL: INVALID_EVIDENCE_CAPTURE_SENTINEL" >&2
+if [ -z "$CAPABILITY_FILE" ] || [ -z "$CAPABILITY_TOKEN" ]; then
+  echo "FATAL: INVALID_EVIDENCE_CAPTURE_CAPABILITY" >&2
   exit 1
-}
+fi
+
+if ! python3 - <<'PY'
+import os
+import pathlib
+import re
+import stat
+
+path_text = os.environ.get("PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_FILE", "")
+token = os.environ.get("PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_TOKEN", "")
+if not re.fullmatch(r"[0-9a-f]{64}", token):
+    raise SystemExit(1)
+
+path = pathlib.Path(path_text)
+try:
+    file_stat = path.lstat()
+    root_stat = path.parent.lstat()
+    stored = path.read_text(encoding="ascii").rstrip("\n")
+except (OSError, UnicodeError):
+    raise SystemExit(1)
+
+valid = (
+    path.name == "capture-capability"
+    and path.parent.name.startswith("playstead-notarization-capture.")
+    and stat.S_ISREG(file_stat.st_mode)
+    and not path.is_symlink()
+    and stat.S_IMODE(file_stat.st_mode) == 0o600
+    and stat.S_ISDIR(root_stat.st_mode)
+    and not path.parent.is_symlink()
+    and stat.S_IMODE(root_stat.st_mode) == 0o700
+    and file_stat.st_uid == os.geteuid()
+    and root_stat.st_uid == os.geteuid()
+    and (path.parent / "raw" / "evidence").is_dir()
+    and stored == token
+)
+raise SystemExit(0 if valid else 1)
+PY
+then
+  echo "FATAL: INVALID_EVIDENCE_CAPTURE_CAPABILITY" >&2
+  exit 1
+fi
+
+unset PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_FILE
+unset PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_TOKEN
+CAPABILITY_FILE=""
+CAPABILITY_TOKEN=""
 
 preflight
 

@@ -205,5 +205,37 @@ fi
 ASSERTION_COUNT=$((ASSERTION_COUNT + 2))
 printf 'ASSERT: forged capture sentinel cannot reach tools or publish evidence\n'
 
+# The replacement capability contract must also fail closed when a caller
+# supplies both fields but points them at an unrelated regular file.
+rm -f "$EARLY_REFUSAL_MARKER"
+FORGED_TOKEN_LOG="$WORK_DIR/forged-token.log"
+FORGED_TOKEN_OUTPUT="$WORK_DIR/forged-token-evidence.log"
+set +e
+PATH="$EARLY_REFUSAL_BIN:$PATH" \
+  PLAYSTEAD_TEAM_ID="PLACEHOLDER_TEAM" \
+  PLAYSTEAD_DEV_ID_APP="Developer ID Application: Placeholder (PLACEHOLDER_TEAM)" \
+  PLAYSTEAD_NOTARY_PROFILE="placeholder-profile" \
+  PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_FILE="/etc/hosts" \
+  PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_TOKEN="0000000000000000000000000000000000000000000000000000000000000000" \
+  "$VERIFY_SCRIPT" --evidence-output "$FORGED_TOKEN_OUTPUT" \
+  >"$FORGED_TOKEN_LOG" 2>&1
+FORGED_TOKEN_STATUS=$?
+set -e
+
+[ "$FORGED_TOKEN_STATUS" -ne 0 ] || {
+  printf 'notarization-preflight-test: forged replacement capability was accepted\n' >&2
+  exit 1
+}
+grep -q 'INVALID_EVIDENCE_CAPTURE_CAPABILITY' "$FORGED_TOKEN_LOG" || {
+  printf 'notarization-preflight-test: forged replacement capability was not identified\n' >&2
+  exit 1
+}
+[ ! -e "$EARLY_REFUSAL_MARKER" ] && [ ! -e "$FORGED_TOKEN_OUTPUT" ] || {
+  printf 'notarization-preflight-test: forged replacement capability reached tools or evidence\n' >&2
+  exit 1
+}
+ASSERTION_COUNT=$((ASSERTION_COUNT + 3))
+printf 'ASSERT: forged replacement capability fails closed before tools and evidence\n'
+
 printf 'notarization-preflight-test: %s assertions ran\n' "$ASSERTION_COUNT"
 printf 'PASS: preflight refuses to certify an unnotarized build\n'

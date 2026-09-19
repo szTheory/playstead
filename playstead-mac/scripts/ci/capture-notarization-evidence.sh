@@ -47,9 +47,19 @@ mkdir -p "$PRIVATE_ROOT/raw/evidence"
 
 RAW_TRANSCRIPT="$PRIVATE_ROOT/raw/evidence/notarization.log"
 SANITIZED_ROOT="$PRIVATE_ROOT/sanitized"
+CAPABILITY_FILE="$PRIVATE_ROOT/capture-capability"
+CAPABILITY_TOKEN="$(python3 - <<'PY'
+import secrets
+print(secrets.token_hex(32))
+PY
+)"
+printf '%s\n' "$CAPABILITY_TOKEN" >"$CAPABILITY_FILE"
+chmod 600 "$CAPABILITY_FILE"
 
 set +e
-"$@" >"$RAW_TRANSCRIPT" 2>&1
+PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_FILE="$CAPABILITY_FILE" \
+PLAYSTEAD_EVIDENCE_CAPTURE_CAPABILITY_TOKEN="$CAPABILITY_TOKEN" \
+  "$@" >"$RAW_TRANSCRIPT" 2>&1
 WRAPPED_STATUS=$?
 set -e
 
