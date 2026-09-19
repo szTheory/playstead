@@ -999,6 +999,7 @@ coverage_id: 03-15/D7
 total: 49
 passed: 45
 issues: 4
+issue: 4
 pending: 0
 skipped: 0
 blocked: 0
