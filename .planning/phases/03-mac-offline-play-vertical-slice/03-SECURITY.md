@@ -1,15 +1,15 @@
 ---
 phase: "03"
 slug: "mac-offline-play-vertical-slice"
-status: blocked
+status: secured
 # threats_open counts only OPEN threats at or above workflow.security_block_on.
-threats_open: 1
+threats_open: 0
 asvs_level: 1
 block_on: high
 created: "2026-09-19"
 register_authored_at_plan_time: true
 threats_total: 78
-threats_closed: 74
+threats_closed: 75
 ---
 
 # Phase 03 — Security
@@ -53,6 +53,7 @@ risks log rather than being treated as implicit closure.
 | T-03-14-01, T-03-14-04, T-03-14-05, T-03-14-06, T-03-14-07 | closed | Nonthrowing reporter placement, local launch authority, independent grading history, strict UAT tally, and non-vacuous required-test registration verified in app code, scripts, and commits `6eccf32`/`413d4c5`. |
 | T-03-15-01, T-03-15-05, T-03-15-06 | closed | Nonthrowing outbox production, shared-fixture/real-endpoint parity, and required-test discovery verified in reporter, e2e test, and verification harness. |
 | T-03-16-01, T-03-16-03, T-03-16-05, T-03-16-06, T-03-16-07, T-03-16-08 | closed | Request-shape guard, entry changesets, transactional supersession, exhaustive intent scoping, independent grading, and non-vacuous Mac/server gates verified in controller, outbox, intent, tests, scripts, and commit `413d4c5`. |
+| T-03-12-03 | closed | Full mode defines the raw proof only as internal `run_full_proof` (`verify-notarized-release.sh:104-173`) and unconditionally passes it to the sourced capture primitive at line 181. `capture-notarization-evidence.sh:41-105` privately captures, sanitizes, validates, and atomically publishes only sanitized bytes. Legacy and structurally conforming caller-supplied capability variables are inert; executable regressions cover the prior bypasses. |
 
 ### Closed by documented acceptance
 
@@ -81,12 +82,11 @@ risks log rather than being treated as implicit closure.
 
 | Threat ID | Category | Component | Severity | Disposition | Mitigation expected | Status |
 |---|---|---|---:|---|---|---|
-| T-03-12-03 | Information Disclosure | notarization evidence output | high | mitigate | Route all notarization tool output through `scripts/ci/sanitize-evidence.sh` before writing evidence. `03-NOTARIZATION-EVIDENCE.md:15-28` instead records manual policy application; neither notarization script invokes the sanitizer. | **open — blocking** |
 | T-03-27 | Spoofing | selected emulator installation | medium | mitigate | Digest-compare the selected installation to the pin and mark mismatch unverified. `AdapterInstaller.swift:183-210` does not compare it and persists `verified: true`; the UI only labels provenance as unverified. | open — below high threshold (non-blocking) |
 | T-03-12-04 | Repudiation | notarization evidence record | medium | mitigate | Preserve verbatim tool output without handwritten summary. `03-NOTARIZATION-EVIDENCE.md` includes handwritten metadata, interpretation, and assertions outside tool-output blocks. | open — below high threshold (non-blocking) |
 | T-03-14-02 | Information Disclosure | availability report body | medium | mitigate | Send only asset-set identifiers and boolean facts. The implemented wire entry also carries `download_percent`. | open — below high threshold (non-blocking) |
 
-*Only the high-severity open threat counts toward `threats_open`.*
+*All remaining open threats are below the high blocking threshold, so `threats_open` is zero.*
 
 ---
 
@@ -120,11 +120,12 @@ risks log rather than being treated as implicit closure.
 | Audit Date | Threats Total | Closed | Open | Blocking Open | Run By |
 |---|---:|---:|---:|---:|---|
 | 2026-09-19 | 78 | 74 | 4 | 1 | gsd-security-auditor / gsd-secure-phase |
+| 2026-09-19 | 78 | 75 | 3 | 0 | gsd-security-auditor / gsd-secure-phase after quick task `260919-eui` |
 
 ### Audit notes
 
 - No unregistered implementation flags were found. Summaries 03-13 through 03-16 explicitly report no flags outside their registers; earlier summaries have no `## Threat Flags` section.
-- T-03-12-03 is not closed by the evidence file's statement that sanitization rules were applied manually. The registered mitigation requires the sanitizer to be in the output path.
+- T-03-12-03 was closed after two adversarial audit loops found and removed caller-forgeable re-entry designs. Final commit `6c80db3` uses an internal proof function and unconditional same-process capture, leaving no environment-controlled raw execution branch.
 - The three medium open threats remain visible even though `workflow.security_block_on` is `high`.
 - Full per-threat source-and-line evidence was returned by the 2026-09-19 auditor; the compact closed rows above preserve the register while the open rows retain exact remediation evidence.
 
@@ -134,7 +135,7 @@ risks log rather than being treated as implicit closure.
 
 - [x] All 78 threats have a disposition.
 - [x] All 18 plan-authored accepted risks are documented.
-- [ ] `threats_open: 0` confirmed.
-- [ ] `status: secured` set in frontmatter.
+- [x] `threats_open: 0` confirmed.
+- [x] `status: secured` set in frontmatter.
 
-**Approval:** blocked pending T-03-12-03 remediation and re-audit.
+**Approval:** secured 2026-09-19; three medium non-blocking mitigation gaps remain documented.
