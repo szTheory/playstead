@@ -56,6 +56,9 @@ if (source / "logs").is_dir():
         candidate = source / "logs" / name
         if candidate.is_file():
             allowed.append(candidate)
+notarization_log = source / "notarization.log"
+if notarization_log.is_file():
+    allowed.append(notarization_log)
 
 allowed = list(dict.fromkeys(allowed))
 if not allowed:
