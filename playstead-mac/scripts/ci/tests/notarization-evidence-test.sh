@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MAC_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 CAPTURE="${MAC_ROOT}/scripts/ci/capture-notarization-evidence.sh"
+VERIFY_SCRIPT="${MAC_ROOT}/scripts/verify-notarized-release.sh"
 
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/playstead-notarization-evidence.XXXXXX")"
 trap 'rm -rf "$WORK_DIR"' EXIT
@@ -33,6 +34,31 @@ expect_capture_failure() {
 }
 
 [ -x "$CAPTURE" ] || fail "capture-notarization-evidence.sh is missing or not executable"
+ASSERTION_COUNT=$((ASSERTION_COUNT + 1))
+
+python3 - "$VERIFY_SCRIPT" <<'PY'
+import pathlib
+import re
+import sys
+
+source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+required = (
+    "--evidence-output",
+    "capture-notarization-evidence.sh",
+    "PLAYSTEAD_EVIDENCE_CAPTURE_ACTIVE",
+)
+missing = [token for token in required if token not in source]
+if missing:
+    raise SystemExit(f"production verifier is missing sanitized-capture wiring: {', '.join(missing)}")
+
+for pattern in (
+    r">{1,2}\s*\"?\$\{?EVIDENCE_OUTPUT",
+    r"\btee\b[^\n]*\$\{?EVIDENCE_OUTPUT",
+    r"\b(?:cp|mv)\b[^\n]*\$\{?EVIDENCE_OUTPUT",
+):
+    if re.search(pattern, source):
+        raise SystemExit(f"production verifier writes directly to evidence destination: {pattern}")
+PY
 ASSERTION_COUNT=$((ASSERTION_COUNT + 1))
 
 SUCCESS_OUTPUT="$WORK_DIR/success.log"

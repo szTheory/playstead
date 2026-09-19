@@ -118,5 +118,49 @@ if [ "$ASSERTION_COUNT" -eq 0 ]; then
   exit 1
 fi
 
+# Full mode must refuse before preflight or any build/sign/notary tool when no
+# durable sanitized-evidence destination was explicitly supplied.
+EARLY_REFUSAL_BIN="$WORK_DIR/early-refusal-bin"
+EARLY_REFUSAL_MARKER="$WORK_DIR/external-tool-was-called"
+mkdir -p "$EARLY_REFUSAL_BIN"
+cat > "$EARLY_REFUSAL_BIN/security" <<EOF
+#!/usr/bin/env bash
+touch "$EARLY_REFUSAL_MARKER"
+exit 99
+EOF
+chmod +x "$EARLY_REFUSAL_BIN/security"
+
+MISSING_EVIDENCE_LOG="$WORK_DIR/missing-evidence.log"
+set +e
+PATH="$EARLY_REFUSAL_BIN:$PATH" \
+  PLAYSTEAD_TEAM_ID="PLACEHOLDER_TEAM" \
+  PLAYSTEAD_DEV_ID_APP="Developer ID Application: Placeholder (PLACEHOLDER_TEAM)" \
+  PLAYSTEAD_NOTARY_PROFILE="placeholder-profile" \
+  "$VERIFY_SCRIPT" >"$MISSING_EVIDENCE_LOG" 2>&1
+MISSING_EVIDENCE_STATUS=$?
+set -e
+
+if [ "$MISSING_EVIDENCE_STATUS" -eq 0 ]; then
+  printf 'notarization-preflight-test: full mode accepted a missing evidence destination\n' >&2
+  exit 1
+fi
+ASSERTION_COUNT=$((ASSERTION_COUNT + 1))
+printf 'ASSERT: full mode exits non-zero without --evidence-output\n'
+
+if ! grep -q 'NO_EVIDENCE_OUTPUT' "$MISSING_EVIDENCE_LOG"; then
+  printf 'notarization-preflight-test: missing evidence refusal did not name NO_EVIDENCE_OUTPUT\n' >&2
+  cat "$MISSING_EVIDENCE_LOG" >&2
+  exit 1
+fi
+ASSERTION_COUNT=$((ASSERTION_COUNT + 1))
+printf 'ASSERT: missing evidence refusal names NO_EVIDENCE_OUTPUT\n'
+
+if [ -e "$EARLY_REFUSAL_MARKER" ]; then
+  printf 'notarization-preflight-test: external tooling ran before missing evidence refusal\n' >&2
+  exit 1
+fi
+ASSERTION_COUNT=$((ASSERTION_COUNT + 1))
+printf 'ASSERT: missing evidence refusal happens before external tooling\n'
+
 printf 'notarization-preflight-test: %s assertions ran\n' "$ASSERTION_COUNT"
 printf 'PASS: preflight refuses to certify an unnotarized build\n'
