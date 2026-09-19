@@ -342,7 +342,7 @@ None yet.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 260826-tqx | Adopt Playstead as the project identity, update the planning corpus, establish workspace subproject folders, and rename the parent workspace | 2026-08-26 | 1fd0dbe | [260826-tqx-adopt-playstead-as-the-project-identity-](./quick/260826-tqx-adopt-playstead-as-the-project-identity-/) |
-| 260919-eui | Fix Phase 03 security blocker T-03-12-03 by routing notarization output through the evidence sanitizer and testing the fail-closed path | 2026-09-19 | 52d401c | [260919-eui-fix-phase-03-security-blocker-t-03-12-03](./quick/260919-eui-fix-phase-03-security-blocker-t-03-12-03/) |
+| 260919-eui | Fix Phase 03 security blocker T-03-12-03 by routing notarization output through the evidence sanitizer and testing the fail-closed path | 2026-09-19 | 8fd6f79 | [260919-eui-fix-phase-03-security-blocker-t-03-12-03](./quick/260919-eui-fix-phase-03-security-blocker-t-03-12-03/) |
 
 ## Deferred Items
 
