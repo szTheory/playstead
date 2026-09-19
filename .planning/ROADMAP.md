@@ -193,23 +193,31 @@ Plans:
 
 **Wave 10 — zero-human verification gap closure**
 
-- [ ] 03-17-PLAN.md — Shared virtual-HID tracer: entitled test-only IOHIDUserDevice, production GameController input forwarding, stable mapping identity, and fail-closed CI selection
+- [ ] 03-17-PLAN.md — Shared virtual-HID tracer: entitled test-only IOHIDUserDevice, stable mapping identity, and fail-closed hosted qualification
 
-**Wave 11 — controller recovery and lifecycle** *(blocked on 03-17)*
+**Wave 11 — controller recovery** *(blocked on 03-17)*
 
-- [ ] 03-18-PLAN.md — Production recovery banner plus virtual-HID attach/detach/reconnect, live test, assign, remap, reset, adapter refresh, and relaunch persistence
+- [ ] 03-18-PLAN.md — Production non-modal recovery banner plus virtual-HID detach/reconnect and keyboard/pointer fallback evidence
 
-**Wave 12 — controller navigation and objective accessibility** *(blocked on 03-18)*
+**Wave 12 — production controller input and live test** *(blocked on 03-18)*
+
+- [ ] 03-22-PLAN.md — RED-first packaged lifecycle oracle, production GameController element forwarding, and reachable live test
+
+**Wave 13 — controller mapping lifecycle** *(blocked on 03-22)*
+
+- [ ] 03-23-PLAN.md — Assign, remap, reset, AdapterHost refresh, persistence, and relaunch proof through the packaged app
+
+**Wave 14 — controller navigation and objective accessibility** *(blocked on 03-23)*
 
 - [ ] 03-19-PLAN.md — D-pad focus, shoulder sidebar cycling, Menu action, objective live-AX contract, and explicit non-gating VoiceOver experience non-claims
 
-**Wave 13 — lawful BIOS acceptance** *(blocked on 03-19 because both plans update the Mac verification allowlist/test plan)*
+**Wave 15 — lawful BIOS acceptance** *(blocked on 03-19 because both plans update the Mac verification allowlist/test plan)*
 
 - [ ] 03-20-PLAN.md — Lawful BIOS acceptance seam: explicit production references, one fixed synthetic packaged-app accept path, discriminator controls, and Release-hook exclusion
 
-**Wave 14 — evidence reconciliation** *(blocked on 03-18, 03-19, and 03-20)*
+**Wave 16 — evidence reconciliation** *(blocked on 03-18, 03-19, 03-20, 03-22, and 03-23)*
 
-- [ ] 03-21-PLAN.md — Fail-closed evidence policy, complete four-layer run, UAT/verification reconciliation, and PLAY-04 completion only after automated proof passes
+- [ ] 03-21-PLAN.md — Fail-closed evidence policy, complete four-layer run, UAT/verification/validation reconciliation, and PLAY-04 completion only after automated proof passes
 
 **UI hint**: yes
 
