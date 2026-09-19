@@ -1,14 +1,14 @@
 ---
-status: partial
+status: diagnosed
 phase: 03-mac-offline-play-vertical-slice
 source: 03-01-SUMMARY.md, 03-02-SUMMARY.md, 03-03-SUMMARY.md, 03-04-SUMMARY.md, 03-05-SUMMARY.md, 03-06-SUMMARY.md, 03-07-SUMMARY.md, 03-08-SUMMARY.md, 03-09-SUMMARY.md, 03-10-SUMMARY.md, 03-11-SUMMARY.md, 03-12-SUMMARY.md, 03-13-SUMMARY.md, 03-14-SUMMARY.md, 03-15-SUMMARY.md, 03-16-SUMMARY.md
 started: 2026-08-31T00:00:00Z
-updated: 2026-09-16T00:00:00Z
+updated: 2026-09-19T15:30:00Z
 ---
 
 ## Current Test
 
-[testing paused — 4 items outstanding: 2 blocked (items 8, 9 — physical controller hardware) and 2 partial (item 10's physical-controller/experiential-VoiceOver half, item 13's real-BIOS-bytes acceptance). Everything still open needs hardware this project does not have or a human listening to VoiceOver; there is no remaining checkpoint here that automation could close. ITEM 7 IS NOW FULLY CLOSED and this annotation said otherwise until 2026-09-14 — it still listed item 7's quit-and-return and refusal-and-exit clauses as partial after they had been closed, and counted 5 outstanding where the per-item records say 4. `scripts/check-uat-tally.sh` reconciles the `## Summary` footer against the per-item results but does NOT read this paragraph, which is why it drifted; it is hand-maintained and should be read as such. Item 7's history, for the record: fully blocked until 2026-09-12, when the owner downloaded and played a real game with the real pinned mGBA — the first real launch this project has had, every prior record having used `/bin/echo` for the emulator — with three clauses recorded as separate blocked sub-records rather than rounded up. The network-disabled clause closed 2026-09-13 (Advance Wars launched with `caddy` stopped thirteen minutes beforehand), and the quit-and-return and digest-mismatch-refusal clauses closed 2026-09-13/14, the run that exposed the eight defects recorded as WINDOWS #72-#80. `playstead-mac/docs/UAT-07-RUNBOOK.md` remains the procedure for re-running it. Items 45-49 were merged from plans 03-11/03-13/03-15, whose human checkpoints had never reached this file; all five are closed, and 48 turned out to be a real defect (see its evidence). Re-checked 2026-09-16 by a verify-work resume: nothing became closable. The `source:` list still matches all sixteen 03-*-SUMMARY.md on disk (no later plan is unrepresented), `check-uat-tally.sh` reconciles the footer against the per-item results, and `validate-phase-3-uat-evidence.py` passes. All five cited covering tests still exist in the tree, and the macOS unit+rendering+UI+live-server job is green at HEAD 8d7e842 (run 34997782815). One rot found and worth knowing: item 10's automated record cites run 33702909968 at 548121ea, which is now 274 commits behind HEAD and dated 2026-09-02 — the CLAIM still holds (that job is green at HEAD) but the CITATION names a run that never saw most of this phase. Unrelated to phase 03 but adjacent: the `verify hosted evidence` workflow is failing with `complete evidence identity mismatch: head_sha` (run 35000960386) because it binds RUN_ID 34997782815 (head 8d7e842) while itself checked out at 24491a69.]
+[testing complete — four automation gaps recorded for diagnosis and gap-closure planning]
 
 ## Tests
 
@@ -386,7 +386,9 @@ evidence: |
 
 ### 8. Controller connect / disconnect recovery on real hardware
 expected: With a real game controller, unplug and reconnect it mid-use. Recovery is non-modal and never strands keyboard or pointer input.
-result: blocked
+result: issue
+reported: "Phase 03 must verify controller connect/disconnect recovery through an automated integration/E2E seam, without physical hardware UAT."
+severity: major
 blocked_by: physical-device
 reason: |
   Requires physical game controller hardware. 03-SPIKE-REPORT.md probe 5
@@ -400,7 +402,9 @@ coverage_id: 03-01/D4
 
 ### 9. Controller lifecycle: live-test, assign, remap, reset
 expected: On real controller hardware: connect, live-test inputs, assign, remap bindings, and reset to defaults all work as designed.
-result: blocked
+result: issue
+reported: "Phase 03 must verify the real GameController lifecycle through an automated seam, including live-test, assign, remap, and reset."
+severity: major
 blocked_by: physical-device
 reason: |
   Requires physical game controller hardware. Logic is fully tested against the
@@ -412,7 +416,9 @@ coverage_id: 03-10/D1
 
 ### 10. Directional-pad / shoulder navigation and accessibility floor
 expected: Every Mac surface is navigable by d-pad/shoulder buttons and by keyboard alone, and a live VoiceOver pass reads each surface sensibly (per docs/ACCESSIBILITY.md).
-result: partial
+result: issue
+reported: "Replace the remaining controller and experiential VoiceOver requirements with repeatable objective evidence so no human UAT is required."
+severity: major
 
 #### Automated keyboard/live-tree record
 result: pass
@@ -484,7 +490,9 @@ coverage_id: 03-05/D8
 
 ### 13. Drag-in BIOS validation with managed storage
 expected: Dragging a BIOS file in validates it against a real reference digest, stores it in managed storage, and no acquisition path is offered anywhere in the UI.
-result: partial
+result: issue
+reported: "Replace real proprietary BIOS-byte UAT with a lawful deterministic acceptance seam that proves production wiring and the accept path without shipping or acquiring BIOS bytes."
+severity: major
 source: automated
 evidence: |
   Gap A from 03-VERIFICATION.md closed by 03-11-PLAN.md. A real, two-source-cited
@@ -990,12 +998,90 @@ coverage_id: 03-15/D7
 
 total: 49
 passed: 45
-issues: 0
+issues: 4
 pending: 0
 skipped: 0
-blocked: 2
-partial: 2
+blocked: 0
+partial: 0
 
 ## Gaps
 
-[none yet]
+- gap_id: G-03-8
+  truth: "Controller connect/disconnect/reconnect recovery is exercised through an automated integration seam that reaches GameController enumeration and preserves keyboard/pointer input."
+  status: failed
+  reason: "User requires zero human UAT; physical-controller-only evidence is not acceptable."
+  severity: major
+  test: 8
+  root_cause: "Controller tests inject FakeControllerInputSource and bypass GCController enumeration/notifications; no virtual-HID fixture or entitlement exists; ControllerRecoveryBanner has no production call site."
+  artifacts:
+    - path: "playstead-mac/Playstead/Controller/ControllerHost.swift"
+      issue: "Production enumeration boundary is bypassed by current tests."
+    - path: "playstead-mac/Playstead/Controller/ControllerRecoveryBanner.swift"
+      issue: "Recovery affordance is not composed into a production surface."
+    - path: "playstead-mac/PlaysteadUITests/PlaysteadUITests.entitlements"
+      issue: "Virtual HID device entitlement is absent."
+  missing:
+    - "Entitled test-only IOHIDUserDevice gamepad fixture."
+    - "Production recovery-banner composition and an attach/detach/reconnect XCUITest with real keyboard/pointer assertions."
+    - "Fail-closed test-plan and CI registration."
+  debug_session: ".planning/debug/g-03-8-controller-automation.md"
+
+- gap_id: G-03-9
+  truth: "Live-test, assign, remap, and reset are driven automatically through the production controller lifecycle and UI seams."
+  status: failed
+  reason: "User requires zero human UAT; injectable-source unit coverage does not prove production GameController integration."
+  severity: major
+  test: 9
+  root_cause: "Production GCControllerInputSource never forwards GCExtendedGamepad inputs; the settings call site wires assignment while live-test/remap/reset remain no-ops, ControllerTestView is unreachable, and persisted identity is run-local."
+  artifacts:
+    - path: "playstead-mac/Playstead/Controller/ControllerHost.swift"
+      issue: "No real element-event forwarding and no stable persisted controller identity."
+    - path: "playstead-mac/Playstead/Readiness/ReadinessSheetView.swift"
+      issue: "Only assignment is wired at the production call site."
+    - path: "playstead-mac/Playstead/Controller/ControllerSettingsView.swift"
+      issue: "Live-test, remap, and reset callbacks default to no-ops."
+  missing:
+    - "Production event forwarding and stable identity contract."
+    - "Full production composition for live-test, assignment, remap, reset, and relaunch persistence."
+    - "Virtual-HID-driven XCUITest journey distinct from lifecycle recovery assertions."
+  debug_session: ".planning/debug/g-03-9-controller-lifecycle.md"
+
+- gap_id: G-03-10
+  truth: "Controller navigation and accessibility have repeatable objective acceptance evidence, with no subjective human listening checkpoint required for phase completion."
+  status: failed
+  reason: "The current contract retains physical-controller and experiential VoiceOver human judgment as completion gates."
+  severity: major
+  test: 10
+  root_cause: "Test 10 mixes objective AX properties, subjective VoiceOver comprehension with no falsifiable oracle, and unimplemented d-pad/shoulder navigation; validators explicitly preserve the subjective residue as blocking."
+  artifacts:
+    - path: "playstead-mac/PlaysteadUITests/SurfaceAccessibilityTests.swift"
+      issue: "Strong objective keyboard/live-AX evidence exists, but controller navigation is absent."
+    - path: "playstead-mac/scripts/ci/tests/validate-phase-3-uat-evidence.py"
+      issue: "Executable policy requires the experiential blocker to remain."
+    - path: "playstead-mac/Playstead/Controller/ControllerHost.swift"
+      issue: "No production d-pad/shoulder event forwarding or navigation dispatcher."
+  missing:
+    - "Objective, falsifiable accessibility acceptance contract; subjective pronunciation/comprehension stays explicitly unclaimed and non-gating."
+    - "Production controller navigation dispatcher verified through the shared virtual-HID E2E path."
+    - "Synchronized UAT, verification, documentation, validator, and negative-control updates."
+  debug_session: ".planning/debug/g-03-10-objective-accessibility.md"
+
+- gap_id: G-03-13
+  truth: "BIOS acceptance is proven lawfully and deterministically through a production-wiring seam without requiring proprietary BIOS bytes in local development or CI."
+  status: failed
+  reason: "The current contract requires a legally-owned physical artifact for phase completion instead of accepting deterministic seam evidence."
+  severity: major
+  test: 13
+  root_cause: "Test 13 conflates validation behavior with possession of the proprietary production-digest preimage; AppEnvironment hardcodes production references, so UI automation cannot inject a fixed lawful synthetic reference through the packaged app."
+  artifacts:
+    - path: "playstead-mac/Playstead/App/PlaysteadApp.swift"
+      issue: "Composition root unconditionally selects BiosReferences.production."
+    - path: "playstead-mac/Playstead/UITesting/UITestBootstrap.swift"
+      issue: "UI-test profile can inject a candidate path but not a bounded synthetic reference set."
+    - path: "playstead-mac/Playstead/Adapter/BiosStore.swift"
+      issue: "The lower-level store already supports injected references and lawful synthetic acceptance."
+  missing:
+    - "A finite compile-time UI-testing profile with a fixed synthetic BIOS reference; production must still explicitly select the production set."
+    - "Packaged-app positive acceptance journey plus wrong-digest, N±1 length, missing-forwarding, and release-exclusion negative controls."
+    - "Acceptance wording that proves wiring and behavior without claiming possession, authenticity, legality, hardware fidelity, emulator consumption, or literal drag input."
+  debug_session: ".planning/debug/g-03-13-bios-acceptance-seam.md"
