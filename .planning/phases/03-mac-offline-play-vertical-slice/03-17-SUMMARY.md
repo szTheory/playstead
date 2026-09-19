@@ -5,7 +5,7 @@ subsystem: mac-ui-test-controller-feasibility
 tags: [macos, xctest, iohid, gamecontroller, ci]
 status: blocked
 plan_head_before: d4e86d4e38483060af9ea9f5cbb0809ff919bb5a
-commits: 2
+commits: 6
 dependency_graph:
   requires: [03-16]
   provides: []
@@ -29,7 +29,7 @@ metrics:
 actuals:
   tokens: 2200
   tasks: 0
-  commits: 2
+  commits: 6
 ---
 
 # Phase 03 Plan 17: Virtual HID Feasibility Tracer Summary
@@ -66,6 +66,18 @@ The guard is not weakened or bypassed. `validate-phase-3-uat-evidence.py` requir
 The local French macOS report that `PlaysteadUITests-Runner.app` was damaged is likewise non-qualifying diagnostic evidence: the local compile run deliberately used `CODE_SIGNING_ALLOWED=NO` and `codesign` reports that generated runner invalid. No Gatekeeper, signing, entitlement, or test guard was bypassed.
 
 Escalate G-03-8, G-03-9, and G-03-10 only if, after the independently-owned UAT policy mismatch is resolved and CI rerun, the signed hosted runner fails HID entitlement authorization, device creation, or GameController enumeration. Those outcomes remain unmeasured here.
+
+### Final hosted feasibility result
+
+**Named failing stage:** `ui-test-runner/signing-provisioning-profile`.
+
+After the UAT policy artifacts were normalized without changing their findings, signed CI run `35462542190` passed static guards, 714 unit tests, and 45 rendering tests, then failed before UI test identification with `PlaysteadUITests-Runner encountered an error` (xcode 65). The sanitized artifact contains no UI result because the runner never launched. The repository harness's exact signing configuration is ad-hoc (`CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=`); a local reproduction with that configuration fails explicitly: `"PlaysteadUITests" requires a provisioning profile.` The virtual-device entitlement is therefore not qualified on this runner.
+
+No signing, Gatekeeper, entitlement, or validator bypass was attempted. Making this work requires a separately authorized hosted signing/provisioning design, not a Plan 03-17 test-only code adjustment. Task 2 and downstream controller work remain stopped. Escalate G-03-8, G-03-9, and G-03-10 for replanning around either an OS-supported, provisioned automation environment or an explicit human-needed disposition.
+
+### Approved UAT policy normalization
+
+The hosted run first exposed stale Phase 3 policy metadata unrelated to the HID code. With explicit approval, only the following derived-policy fields were restored: top-level UAT status `diagnosed -> partial` (`7227934`); item 8/9 `result: issue -> blocked` (`bae951d`); and Summary counts `issue: 4 -> 2`, `blocked: 0 -> 2` (`bdfdf0a`). All test prose, evidence, reasons, verdicts, and validator code remain unchanged. `bash scripts/check-uat-tally.sh` now reports Phase 3 mechanically as `total=49 blocked=2, issue=2, pass=45`.
 
 ## Deviations from Plan
 
