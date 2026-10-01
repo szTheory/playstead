@@ -13,9 +13,9 @@ import XCTest
 ///
 /// This drives the real surface in the packaged app: the production
 /// readiness route to the production BIOS view, the production
-/// "Choose File…" control, the production `BiosStore` (built with
-/// `BiosReferences.production` at the composition root), and reads the
-/// rendered copy back off the accessibility tree.
+/// "Choose File…" control, the production `BiosStore` (built with the
+/// finite profile's selected reference set at the composition root), and
+/// reads the rendered copy back off the accessibility tree.
 ///
 /// The candidate file arrives through `UITestBiosCandidate`, a
 /// `#if UI_TESTING` seam, because a headless XCUITest can drive neither a
@@ -25,11 +25,10 @@ final class BiosRejectionCopyTests: XCTestCase {
     private var harness: UITestHarness!
     private var candidateRoot: URL!
 
-    /// The deterministic profiles seed `synthetic-system`, for which
-    /// `BiosReferences.production` deliberately holds no reference — this
-    /// product never fabricates one. So the store's honest reason for any
-    /// candidate here is its missing-reference reason, and that exact
-    /// sentence is what the surface must show.
+    /// The dedicated no-reference profile seeds a made-up system and
+    /// deliberately passes an empty reference set. The store's honest
+    /// reason for any candidate here is its missing-reference reason, and
+    /// that exact sentence is what the readiness route must show.
     ///
     /// Mirrors `BiosStoreError.invalidCandidate(reason:)`'s literal and
     /// `BiosDropTarget.rejectionMessage(for:)`'s frame. The UI-test target
@@ -114,7 +113,7 @@ final class BiosRejectionCopyTests: XCTestCase {
 
     private func openBiosSurface(candidate: URL) {
         harness = UITestHarness(
-            profile: .storage,
+            profile: .biosNoReference,
             extraEnvironment: ["PLAYSTEAD_UI_TEST_BIOS_CANDIDATE": candidate.path]
         )
         harness.launch(settledAt: AccessibilityIdentifiers.library)
@@ -135,6 +134,6 @@ private enum AccessibilityIdentifiers {
     static let readinessSurface = "playstead.surface.readiness"
     static let biosSurface = "playstead.surface.bios"
     static let openReadiness = "playstead.control.open-readiness"
-    static let openBios = "playstead.control.open-bios"
+    static let openBios = "playstead.readiness.row.bios.remedy"
     static let chooseBios = "playstead.control.choose-bios"
 }

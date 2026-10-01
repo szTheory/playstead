@@ -18,6 +18,17 @@ struct LaunchSaveContextBuilder {
     let saveContract: AdapterSaveContract?
     let systemID: String
 
+    /// Reduces a save-lane failure to the only value a launch/recovery report
+    /// may carry. The report cannot learn anything about the launched game or
+    /// save because this method accepts only already-reduced evidence.
+    static func handoffEvidence(from evidence: EligibleDiagnosticEvidence?) -> EligibleDiagnosticEvidence? {
+        evidence
+    }
+
+    static func handoffEvidence(for problem: APIError) -> EligibleDiagnosticEvidence? {
+        handoffEvidence(from: EligibleDiagnosticEvidence(problem: problem))
+    }
+
     /// `contentKey` is the ROM's own sha256 — the server's
     /// `content_key` identity (D-10), never `assetSetID`, so a future
     /// re-import can never orphan a save. `targetURL` is the resolved

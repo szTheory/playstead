@@ -3,8 +3,8 @@ import AppKit
 
 /// Central design-system tokens for the Mac client, binding on every
 /// library/curation surface (03-UI-SPEC.md Spacing Scale, Typography,
-/// Color — inherited-from-Phase-1 roles only; `SystemAccent`/`StatusToken`
-/// carry the two new, deliberately disjoint vocabularies this phase adds).
+/// Color roles; `SystemAccent`/`StatusToken` carry the deliberately disjoint
+/// identity and state vocabularies shared with the web palette contract.
 enum DesignTokens {
     /// Declared spacing values (multiples of 4), unchanged from Phase 1,
     /// now binding on the Mac client too — 1pt = 1px at the SwiftUI
@@ -25,7 +25,16 @@ enum DesignTokens {
     /// content length.
     enum CardGeometry {
         static let width: CGFloat = 280
-        static let height: CGFloat = 158
+        static let height: CGFloat = 224
+        static let cornerRadius: CGFloat = 12
+    }
+
+    /// Repeated app-owned shapes only. Standard controls should use native
+    /// styling; unique artwork and layout geometry stay local to their view.
+    enum Radius {
+        static let tight: CGFloat = 4
+        static let compact: CGFloat = 6
+        static let standard: CGFloat = 8
     }
 
     /// Every icon-only control uses a 44×44px minimum interactive
@@ -36,34 +45,33 @@ enum DesignTokens {
 
     /// Reused, cross-phase, for exactly one new purpose: the
     /// keyboard/controller focus ring — never for a system or a status.
-    static let focusRing = Color(hex: 0x38BDF8)
+    static let focusRing = Color(nsColor: .controlAccentColor)
     /// Delete-collection and remove-downloaded-copy confirmation buttons only.
     static let destructive = Color(hex: 0xEF4444)
-    /// The inherited dominant console surface. Native views use the same
-    /// explicit dark canvas so the fixed light text roles never land on an
-    /// uncontrolled light system background.
-    static let background = Color(hex: 0x0F172A)
-    static let textPrimary = Color(hex: 0xF1F5F9)
-    static let textMuted = Color(hex: 0x94A3B8)
-    static let border = Color(hex: 0x334155)
+    /// Semantic AppKit colors follow the user's macOS appearance, contrast,
+    /// and accent selection instead of baking the Mac client into dark mode.
+    static let background = Color(nsColor: .windowBackgroundColor)
+    static let surface = Color(nsColor: .controlBackgroundColor)
+    static let textPrimary = Color(nsColor: .labelColor)
+    static let textMuted = Color(nsColor: .secondaryLabelColor)
+    static let border = Color(nsColor: .separatorColor)
 }
 
 extension Font {
-    /// The 4-role type scale (03-UI-SPEC.md Typography). Only 2 weights
-    /// exist system-wide: regular and semibold — Label alone appears at
-    /// both, chosen per element by intent, never by role alone.
-    static let psBody = Font.system(size: 16, weight: .regular)
-    static let psLabel = Font.system(size: 14, weight: .regular)
-    static let psLabelEmphasized = Font.system(size: 14, weight: .semibold)
-    static let psHeading = Font.system(size: 20, weight: .semibold)
-    static let psDisplay = Font.system(size: 28, weight: .semibold)
+    /// A small semantic layer over the platform's SF system text styles.
+    /// This keeps hierarchy consistent with native controls and avoids
+    /// fixed-size app typography drifting away from macOS conventions.
+    static let psBody = Font.body
+    static let psLabel = Font.callout
+    static let psLabelEmphasized = Font.callout.weight(.semibold)
+    static let psHeading = Font.title3.weight(.semibold)
+    static let psDisplay = Font.title.weight(.semibold)
 }
 
 extension Color {
     /// Builds a `Color` from a 24-bit hex literal (e.g. `0x38BDF8`) —
-    /// every design-token color in this phase is declared this way so
-    /// the source of truth (03-UI-SPEC.md's hex table) is visually
-    /// traceable in code review.
+    /// Use for fixed project-owned palette roles. Prefer AppKit/SwiftUI
+    /// semantic colors for appearance-dependent values.
     init(hex: UInt32) {
         self.init(
             red: Double((hex >> 16) & 0xFF) / 255,

@@ -1,26 +1,16 @@
 import SwiftUI
 
-/// Renders one `ReadinessReport`: one row per check, its outcome glyph
-/// and text label, and its remedy button when blocking. Also where
-/// adapter, BIOS, and controller settings surface — this is the moment
-/// they're relevant (03-UI-SPEC.md's "Advanced settings placement").
-/// Play becomes available only when the report has no blocking result.
+/// Renders only warnings and blockers from a `ReadinessReport`, with the
+/// available remedy. Healthy checks stay out of this issue-focused surface.
 struct ReadinessReportView: View {
     let report: ReadinessReport
     var onRemedy: (Remedy) -> Void = { _ in }
-    var onPlay: () -> Void = {}
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-            ForEach(report.checks, id: \.kind) { check in
+            ForEach(report.issueChecks, id: \.kind) { check in
                 ReadinessRow(check: check, onRemedy: onRemedy)
             }
-
-            Button(action: onPlay) {
-                Text("Play")
-            }
-            .disabled(!report.isReady)
-            .accessibilityLabel(report.isReady ? "Play" : "Play is unavailable until every readiness check passes.")
         }
         .padding(DesignTokens.Spacing.md)
     }
@@ -71,10 +61,6 @@ private struct ReadinessRow: View {
     }
 
     private var label: String {
-        switch check.outcome {
-        case .ready: return "Ready"
-        case .warning(let text): return text
-        case .blocked(let text): return text
-        }
+        check.kind.displayName
     }
 }

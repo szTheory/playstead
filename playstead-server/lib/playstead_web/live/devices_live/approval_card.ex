@@ -26,7 +26,7 @@ defmodule PlaysteadWeb.DevicesLive.ApprovalCard do
 
     ~H"""
     <div
-      class="rounded-lg border border-[#334155] bg-[#1E293B] p-6"
+      class="rounded-lg border border-app-border bg-app-surface p-6"
       id={"pairing-request-#{@request.id}"}
     >
       <div class="flex items-start justify-between gap-4">
@@ -34,11 +34,11 @@ defmodule PlaysteadWeb.DevicesLive.ApprovalCard do
           <p
             id={"display-code-#{@request.id}"}
             data-role="display-code"
-            class="font-mono text-code-display font-semibold text-[#38BDF8]"
+            class="font-mono text-code-display font-semibold text-app-accent"
           >
             {@request.display_code}
           </p>
-          <p id={"pairing-request-#{@request.id}-hint"} class="mt-1 text-sm text-[#94A3B8]">
+          <p id={"pairing-request-#{@request.id}-hint"} class="mt-1 text-sm text-app-muted">
             Only approve if this code matches the one on your Mac's screen.
           </p>
         </div>
@@ -46,14 +46,14 @@ defmodule PlaysteadWeb.DevicesLive.ApprovalCard do
           <p
             :if={!@expired?}
             id={"pairing-request-#{@request.id}-countdown"}
-            class="text-sm text-[#F1F5F9]"
+            class="text-sm text-app-text"
           >
             Expires in {format_countdown(@remaining)}
           </p>
           <p
             :if={@expired?}
             id={"pairing-request-#{@request.id}-expired"}
-            class="text-sm font-semibold text-[#EF4444]"
+            class="text-sm font-semibold text-app-danger"
           >
             Expired
           </p>
@@ -62,10 +62,10 @@ defmodule PlaysteadWeb.DevicesLive.ApprovalCard do
 
       <dl class="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div class="min-w-0">
-          <dt class="text-sm font-semibold text-[#94A3B8]">Device name (claimed)</dt>
+          <dt class="text-sm font-semibold text-app-muted">Device name (claimed)</dt>
           <dd
             id={"pairing-request-#{@request.id}-claimed-name"}
-            class="mt-1 max-w-[16ch] truncate text-sm text-[#94A3B8]"
+            class="mt-1 max-w-[16ch] truncate text-sm text-app-muted"
             title={claim(@request.claimed_device_name)}
             tabindex="0"
           >
@@ -73,42 +73,42 @@ defmodule PlaysteadWeb.DevicesLive.ApprovalCard do
           </dd>
         </div>
         <div class="min-w-0">
-          <dt class="text-sm font-semibold text-[#94A3B8]">Platform (claimed)</dt>
+          <dt class="text-sm font-semibold text-app-muted">Platform (claimed)</dt>
           <dd
             id={"pairing-request-#{@request.id}-claimed-platform"}
-            class="mt-1 truncate text-sm text-[#94A3B8]"
+            class="mt-1 truncate text-sm text-app-muted"
           >
             {claim(@request.claimed_platform)}
           </dd>
         </div>
         <div class="min-w-0">
-          <dt class="text-sm font-semibold text-[#94A3B8]">App version (claimed)</dt>
+          <dt class="text-sm font-semibold text-app-muted">App version (claimed)</dt>
           <dd
             id={"pairing-request-#{@request.id}-claimed-app-version"}
-            class="mt-1 truncate text-sm text-[#94A3B8]"
+            class="mt-1 truncate text-sm text-app-muted"
           >
             {claim(@request.claimed_app_version)}
           </dd>
         </div>
         <div class="min-w-0">
-          <dt class="text-sm font-semibold text-[#F1F5F9]">Requesting from</dt>
+          <dt class="text-sm font-semibold text-app-text">Requesting from</dt>
           <dd
             id={"pairing-request-#{@request.id}-requesting-from"}
-            class="mt-1 text-sm text-[#F1F5F9]"
+            class="mt-1 text-sm text-app-text"
           >
             {network_hint(@request.requesting_ip)}
           </dd>
         </div>
       </dl>
 
-      <p id={"pairing-request-#{@request.id}-age"} class="mt-3 text-sm text-[#94A3B8]">
+      <p id={"pairing-request-#{@request.id}-age"} class="mt-3 text-sm text-app-muted">
         Requested {relative_age(@request.inserted_at, @now)}
       </p>
 
       <p
         :if={@expired?}
         id={"pairing-request-#{@request.id}-expired-copy"}
-        class="mt-4 text-sm text-[#94A3B8]"
+        class="mt-4 text-sm text-app-muted"
       >
         This request expired before it was approved. Ask the Mac to request pairing again.
       </p>
@@ -121,7 +121,7 @@ defmodule PlaysteadWeb.DevicesLive.ApprovalCard do
           phx-value-id={@request.id}
           disabled={@acting == {@request.id, :approve}}
           aria-label="Approve device"
-          class="flex h-11 items-center justify-center gap-2 rounded-md bg-[#38BDF8] px-4 text-base font-semibold text-[#0F172A] hover:opacity-90 disabled:opacity-60 phx-click-loading:opacity-60"
+          class="flex h-11 items-center justify-center gap-2 rounded-md bg-app-accent px-4 text-base font-semibold text-app-canvas hover:opacity-90 disabled:opacity-60 phx-click-loading:opacity-60"
         >
           <span :if={@acting == {@request.id, :approve}} class="motion-safe:animate-spin">
             <.icon name="hero-arrow-path" class="size-5" />
@@ -136,7 +136,7 @@ defmodule PlaysteadWeb.DevicesLive.ApprovalCard do
           disabled={@acting == {@request.id, :deny}}
           aria-label="Deny pairing request"
           data-confirm="Deny this pairing request? The Mac will need to request pairing again."
-          class="flex h-11 items-center justify-center gap-2 rounded-md border border-[#EF4444] px-4 text-base font-semibold text-[#EF4444] hover:bg-[#EF4444]/10 disabled:opacity-60 phx-click-loading:opacity-60"
+          class="flex h-11 items-center justify-center gap-2 rounded-md border border-app-danger px-4 text-base font-semibold text-app-danger hover:bg-app-danger/10 disabled:opacity-60 phx-click-loading:opacity-60"
         >
           <span :if={@acting == {@request.id, :deny}} class="motion-safe:animate-spin">
             <.icon name="hero-arrow-path" class="size-5" />

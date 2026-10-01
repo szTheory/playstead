@@ -27,11 +27,11 @@ defmodule PlaysteadWeb.LibraryLive.AssetDetail do
 
     ~H"""
     <div id={"asset-detail-#{@asset_set.id}"} class="space-y-6">
-      <div class="rounded-lg border border-[#334155] bg-[#1E293B] p-6">
-        <h1 id="asset-detail-title" class="text-display font-semibold text-[#F1F5F9]">
+      <div class="rounded-lg border border-app-border bg-app-surface p-6">
+        <h1 id="asset-detail-title" class="text-display font-semibold text-app-text">
           {@asset_set.display_title}
         </h1>
-        <p class="mt-1 text-sm text-[#94A3B8]">
+        <p class="mt-1 text-sm text-app-muted">
           {@asset_set.system_id || "Unknown system"}
           <span
             :if={@detail.identification_state == :unidentified}
@@ -43,20 +43,20 @@ defmodule PlaysteadWeb.LibraryLive.AssetDetail do
         </p>
       </div>
 
-      <div class="rounded-lg border border-[#334155] bg-[#1E293B] p-6">
-        <h2 class="text-base font-semibold text-[#F1F5F9]">Members</h2>
+      <div class="rounded-lg border border-app-border bg-app-surface p-6">
+        <h2 class="text-base font-semibold text-app-text">Members</h2>
 
         <div
           :for={member <- @members}
           id={"member-#{member.id}"}
-          class="mt-4 border-t border-[#334155] pt-4 first:mt-0 first:border-0 first:pt-0"
+          class="mt-4 border-t border-app-border pt-4 first:mt-0 first:border-0 first:pt-0"
         >
-          <p class="text-sm font-semibold text-[#F1F5F9]">
+          <p class="text-sm font-semibold text-app-text">
             {member.declared_name}
             <span
               :if={is_nil(member.blob_id)}
               id={"member-#{member.id}-missing"}
-              class="ml-2 text-sm font-semibold text-[#FBBF24]"
+              class="ml-2 text-sm font-semibold text-app-warning"
             >
               Missing
             </span>
@@ -64,11 +64,11 @@ defmodule PlaysteadWeb.LibraryLive.AssetDetail do
 
           <div :if={member.blob} class="mt-2 space-y-2">
             <div>
-              <dt class="text-sm text-[#94A3B8]">SHA-256</dt>
+              <dt class="text-sm text-app-muted">SHA-256</dt>
               <dd class="flex items-center gap-2">
                 <code
                   id={"member-#{member.id}-sha256"}
-                  class="break-all font-mono text-sm text-[#F1F5F9]"
+                  class="break-all font-mono text-sm text-app-text"
                 >
                   {member.blob.sha256}
                 </code>
@@ -76,15 +76,15 @@ defmodule PlaysteadWeb.LibraryLive.AssetDetail do
                   id={"member-#{member.id}-copy-sha256"}
                   type="button"
                   phx-click={JS.dispatch("phx:clipboard-copy", detail: %{text: member.blob.sha256})}
-                  class="text-sm text-[#F1F5F9] hover:underline"
+                  class="text-sm text-app-text hover:underline"
                 >
                   Copy
                 </button>
               </dd>
             </div>
             <div>
-              <dt class="text-sm text-[#94A3B8]">Size</dt>
-              <dd id={"member-#{member.id}-size"} class="text-sm text-[#F1F5F9]">
+              <dt class="text-sm text-app-muted">Size</dt>
+              <dd id={"member-#{member.id}-size"} class="text-sm text-app-text">
                 {member.blob.size_bytes} bytes
               </dd>
             </div>
@@ -97,20 +97,20 @@ defmodule PlaysteadWeb.LibraryLive.AssetDetail do
         </div>
       </div>
 
-      <div :if={@receipts != []} class="rounded-lg border border-[#334155] bg-[#1E293B] p-6">
-        <h2 class="text-base font-semibold text-[#F1F5F9]">Provenance</h2>
-        <p id="asset-detail-provenance" class="mt-2 text-sm text-[#94A3B8]">
+      <div :if={@receipts != []} class="rounded-lg border border-app-border bg-app-surface p-6">
+        <h2 class="text-base font-semibold text-app-text">Provenance</h2>
+        <p id="asset-detail-provenance" class="mt-2 text-sm text-app-muted">
           Reported by the submitting client: {provenance_text(List.first(@receipts))}
         </p>
       </div>
 
-      <div :if={@receipts != []} class="rounded-lg border border-[#334155] bg-[#1E293B] p-6">
-        <h2 class="text-base font-semibold text-[#F1F5F9]">Import receipts</h2>
+      <div :if={@receipts != []} class="rounded-lg border border-app-border bg-app-surface p-6">
+        <h2 class="text-base font-semibold text-app-text">Import receipts</h2>
 
         <div
           :for={receipt <- @receipts}
           id={"asset-detail-receipt-#{receipt.id}"}
-          class="mt-3 text-sm text-[#94A3B8]"
+          class="mt-3 text-sm text-app-muted"
         >
           At import: {receipt.outcome}
           <span :if={current_state_differs?(receipt, @detail.identification_state)}>
@@ -133,8 +133,8 @@ defmodule PlaysteadWeb.LibraryLive.AssetDetail do
   defp format_evidence(assigns) do
     ~H"""
     <div id={"member-#{@member_id}-evidence"}>
-      <dt class="text-sm text-[#94A3B8]">Format evidence</dt>
-      <dd class="text-sm text-[#F1F5F9]">
+      <dt class="text-sm text-app-muted">Format evidence</dt>
+      <dd class="text-sm text-app-text">
         {@evidence.status}
       </dd>
 
@@ -143,7 +143,7 @@ defmodule PlaysteadWeb.LibraryLive.AssetDetail do
         id={"member-#{@member_id}-header-fields"}
         class="mt-1"
       >
-        <p :for={{key, value} <- header_fields(@evidence)} class="text-sm text-[#94A3B8]">
+        <p :for={{key, value} <- header_fields(@evidence)} class="text-sm text-app-muted">
           {key}: {value}
         </p>
       </div>

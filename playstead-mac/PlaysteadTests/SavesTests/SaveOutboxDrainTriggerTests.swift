@@ -132,7 +132,7 @@ final class SaveOutboxDrainTriggerTests: XCTestCase {
         await environment.saveOutboxDrainTrigger.awaitPending()
 
         let countBefore = environment.saveOutboxDrainTrigger.drainCount
-        environment.applicationDidBecomeActive()
+        await environment.applicationDidBecomeActive()
         await environment.saveOutboxDrainTrigger.awaitPending()
         XCTAssertGreaterThan(environment.saveOutboxDrainTrigger.drainCount, countBefore)
     }

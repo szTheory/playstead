@@ -26,6 +26,7 @@ struct DownloadsView: View {
     let onCancel: (String) -> Void
     let onMoveUp: (String) -> Void
     let onMoveDown: (String) -> Void
+    var onBrowseLibrary: () -> Void = {}
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// A single-line summary of queue activity — pure, so it's directly
@@ -58,10 +59,13 @@ struct DownloadsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             if rows.isEmpty {
-                Text("Add a game to your queue to keep it in mind.")
-                    .font(.psBody)
-                    .foregroundStyle(DesignTokens.textMuted)
-                    .padding(DesignTokens.Spacing.lg)
+                ContentUnavailableView {
+                    Label("No Downloads", systemImage: "arrow.down.circle")
+                } description: {
+                    Text("Downloaded games appear here while they transfer to this Mac.")
+                } actions: {
+                    Button("Browse Library", action: onBrowseLibrary)
+                }
             } else {
                 Text(Self.summary(for: rows))
                     .font(.psLabel)

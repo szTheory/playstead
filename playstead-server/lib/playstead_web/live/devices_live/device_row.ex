@@ -42,13 +42,13 @@ defmodule PlaysteadWeb.DevicesLive.DeviceRow do
             value={@device.name || @device.claimed_name}
             maxlength={Device.max_name_length()}
             phx-mounted={JS.focus()}
-            class="rounded-md border border-[#334155] bg-[#0F172A] px-2 py-1 text-base text-[#F1F5F9] focus:border-[#38BDF8] focus:outline-none"
+            class="rounded-md border border-app-border bg-app-canvas px-2 py-1 text-base text-app-text focus:border-app-accent focus:outline-none"
           />
           <button
             type="submit"
             id={"device-#{@device.id}-rename-save"}
             phx-disable-with="Saving..."
-            class="flex h-11 items-center rounded-md px-3 text-sm font-semibold text-[#38BDF8] hover:bg-[#334155]"
+            class="flex h-11 items-center rounded-md px-3 text-sm font-semibold text-app-accent hover:bg-app-border"
           >
             Save
           </button>
@@ -56,7 +56,7 @@ defmodule PlaysteadWeb.DevicesLive.DeviceRow do
             type="button"
             id={"device-#{@device.id}-rename-cancel"}
             phx-click="cancel_rename"
-            class="flex h-11 items-center rounded-md px-3 text-sm text-[#94A3B8] hover:bg-[#334155]"
+            class="flex h-11 items-center rounded-md px-3 text-sm text-app-muted hover:bg-app-border"
           >
             Cancel
           </button>
@@ -65,7 +65,7 @@ defmodule PlaysteadWeb.DevicesLive.DeviceRow do
         <p :if={@renaming_id != @device.id} class="flex items-center gap-2">
           <span
             id={"device-#{@device.id}-name"}
-            class="max-w-xs truncate text-base text-[#F1F5F9]"
+            class="max-w-xs truncate text-base text-app-text"
             title={device_name(@device)}
             tabindex="0"
           >
@@ -78,27 +78,27 @@ defmodule PlaysteadWeb.DevicesLive.DeviceRow do
             phx-click="edit_name"
             phx-value-id={@device.id}
             aria-label={"Rename #{device_name(@device)}"}
-            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-[#94A3B8] hover:bg-[#334155] phx-click-loading:opacity-60"
+            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-app-muted hover:bg-app-border phx-click-loading:opacity-60"
           >
             <.icon name="hero-pencil" class="size-5" />
           </button>
         </p>
 
-        <p id={"device-#{@device.id}-claims"} class="mt-1 text-sm text-[#94A3B8]">
+        <p id={"device-#{@device.id}-claims"} class="mt-1 text-sm text-app-muted">
           {claim(@device.platform)} &middot; {claim(@device.app_version)}
         </p>
-        <p id={"device-#{@device.id}-last-seen"} class="mt-1 text-sm text-[#94A3B8]">
+        <p id={"device-#{@device.id}-last-seen"} class="mt-1 text-sm text-app-muted">
           Paired {format_date(@device.paired_at)} &middot; Last seen {last_seen(@device.last_seen_at)}
         </p>
         <p
           :if={@fingerprint}
           id={"device-#{@device.id}-fingerprint"}
           data-role="fingerprint"
-          class="mt-1 break-all font-mono text-label text-[#94A3B8]"
+          class="mt-1 break-all font-mono text-label text-app-muted"
         >
           {@fingerprint}
         </p>
-        <p :if={@tombstone} id={"device-#{@device.id}-revoked-at"} class="mt-1 text-sm text-[#94A3B8]">
+        <p :if={@tombstone} id={"device-#{@device.id}-revoked-at"} class="mt-1 text-sm text-app-muted">
           Revoked {format_date(@device.revoked_at)}
         </p>
       </div>
@@ -112,7 +112,7 @@ defmodule PlaysteadWeb.DevicesLive.DeviceRow do
         disabled={@acting == {@device.id, :revoke}}
         aria-label={"Revoke #{device_name(@device)}"}
         data-confirm={"Revoke #{device_name(@device)}? This device will lose access immediately. Its downloaded games and saves stay on it and remain playable offline — only syncing with this server stops."}
-        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-[#EF4444] hover:bg-[#334155] disabled:opacity-60 phx-click-loading:opacity-60"
+        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-app-danger hover:bg-app-border disabled:opacity-60 phx-click-loading:opacity-60"
       >
         <span :if={@acting == {@device.id, :revoke}} class="motion-safe:animate-spin">
           <.icon name="hero-arrow-path" class="size-5" />

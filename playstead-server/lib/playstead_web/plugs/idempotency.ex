@@ -44,6 +44,8 @@ defmodule PlaysteadWeb.Plugs.Idempotency do
 
     case Idempotency.fetch(device.id, key, fp) do
       {:ok, :fresh} ->
+        signal_reliability_duplicate_ready(conn)
+
         conn
         |> assign(:idempotency_key, key)
         |> assign(:idempotency_fingerprint, fp)
@@ -73,6 +75,34 @@ defmodule PlaysteadWeb.Plugs.Idempotency do
         )
         |> halt()
     end
+  end
+
+  # The duplicate marker is available only to the isolated mac_ci save
+  # fixture. It is written after the real preflight lookup observes `fresh`,
+  # so releasing the first request proves the subsequent unique-index race.
+  defp signal_reliability_duplicate_ready(conn) do
+    if conn.method == "POST" and conn.request_path == "/api/v1/saves/revisions" do
+      with root when is_binary(root) <-
+             Application.get_env(:playstead, :mac_ci_save_test_control_root),
+           [token] <- get_req_header(conn, "x-playstead-test-duplicate"),
+           {:ok, canonical} <- Ecto.UUID.cast(token),
+           true <- canonical == token do
+        directory = Path.join(root, "save-e2e-" <> token)
+
+        with {:ok, %File.Stat{type: :directory}} <- File.lstat(directory),
+             {:ok, ^token} <- File.read(Path.join(directory, "owner")),
+             {:ok, io} <- File.open(Path.join(directory, "duplicate-ready"), [:write, :exclusive]) do
+          :ok = IO.binwrite(io, token)
+          :ok = File.close(io)
+        else
+          _ -> :ok
+        end
+      else
+        _ -> :ok
+      end
+    end
+
+    :ok
   end
 
   defp missing(conn) do

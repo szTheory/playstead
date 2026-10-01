@@ -269,30 +269,38 @@ final class SaveHistorySessionBuilderTests: XCTestCase {
         XCTAssertNil(environment.saveRollupSummary(forAssetSetID: "no-such-game"))
     }
 
-    // MARK: - Falsification check: both call sites must be wired
+    // MARK: - Falsification check: every call site must be wired
 
     /// The exact regression this plan closes (WINDOWS #43): leaving
-    /// EITHER `ReadinessSheetView` call site unwired reproduces the
-    /// empty-state defect. Source-level, since both call sites
-    /// construct the real `AppEnvironment` identically and a runtime
-    /// test could not distinguish "wired at one site" from "wired at
-    /// both".
-    func testBothReadinessSheetViewCallSitesPassARealSaveHistorySessionsClosure() throws {
-        for relativePath in ["Playstead/Library/GameRowView.swift", "Playstead/Library/LibraryShellView.swift"] {
-            let sourceURL = URL(fileURLWithPath: #filePath)
-                .deletingLastPathComponent() // SavesTests
-                .deletingLastPathComponent() // PlaysteadTests
-                .deletingLastPathComponent() // playstead-mac
-                .appendingPathComponent(relativePath)
+    /// ANY `ReadinessSheetView` call site unwired reproduces the
+    /// empty-state defect. Discover current call sites so consolidating
+    /// presentation does not require retaining an obsolete second site.
+    func testEveryReadinessSheetViewCallSitePassesRealSaveHistoryClosures() throws {
+        let sourceRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent() // SavesTests
+            .deletingLastPathComponent() // PlaysteadTests
+            .deletingLastPathComponent() // playstead-mac
+            .appendingPathComponent("Playstead")
+        let files = try XCTUnwrap(FileManager.default.enumerator(
+            at: sourceRoot, includingPropertiesForKeys: nil
+        ))
+        var callSiteCount = 0
+        for case let sourceURL as URL in files where sourceURL.pathExtension == "swift" {
             let source = try String(contentsOf: sourceURL, encoding: .utf8)
-            XCTAssertTrue(
-                source.contains("saveHistorySessions: { environment.saveHistorySessions(forAssetSetID:"),
-                "\(relativePath) must wire a real saveHistorySessions closure at its ReadinessSheetView call site"
+            let sites = source.components(separatedBy: "ReadinessSheetView(").count - 1
+            guard sites > 0 else { continue }
+            callSiteCount += sites
+            XCTAssertEqual(
+                source.components(separatedBy: "saveHistorySessions: { environment.saveHistorySessions(forAssetSetID:").count - 1,
+                sites,
+                "\(sourceURL.lastPathComponent) must wire save history at every readiness sheet"
             )
-            XCTAssertTrue(
-                source.contains("saveRollupSummary: { environment.saveRollupSummary(forAssetSetID:"),
-                "\(relativePath) must wire a real saveRollupSummary closure at its ReadinessSheetView call site"
+            XCTAssertEqual(
+                source.components(separatedBy: "saveRollupSummary: { environment.saveRollupSummary(forAssetSetID:").count - 1,
+                sites,
+                "\(sourceURL.lastPathComponent) must wire save rollup at every readiness sheet"
             )
         }
+        XCTAssertGreaterThan(callSiteCount, 0, "The production readiness sheet must remain reachable")
     }
 }

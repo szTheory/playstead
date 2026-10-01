@@ -60,21 +60,21 @@ defmodule PlaysteadWeb.ImportLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen bg-[#0F172A] px-8 py-12 font-sans">
+    <div class="min-h-screen bg-app-canvas px-8 py-12 font-sans">
       <Layouts.flash_group flash={@flash} />
       <div class="mx-auto max-w-3xl space-y-8">
         <div>
-          <h1 class="text-display font-semibold text-[#F1F5F9]">Import</h1>
-          <p class="mt-1 text-sm text-[#94A3B8]">
+          <h1 class="text-display font-semibold text-app-text">Import</h1>
+          <p class="mt-1 text-sm text-app-muted">
             Choose one file to copy into your library.
           </p>
         </div>
 
-        <section id="upload-section" class="rounded-lg border border-[#334155] bg-[#1E293B] p-6">
+        <section id="upload-section" class="rounded-lg border border-app-border bg-app-surface p-6">
           <form id="import-form" phx-change="validate" phx-submit="confirm">
             <label
               for={@uploads.file.ref}
-              class="flex h-11 w-fit cursor-pointer items-center justify-center rounded-md border border-[#334155] bg-[#1E293B] px-4 text-base font-semibold text-[#F1F5F9] hover:border-[#94A3B8]"
+              class="flex h-11 w-fit cursor-pointer items-center justify-center rounded-md border border-app-border bg-app-surface px-4 text-base font-semibold text-app-text hover:border-app-muted"
             >
               Choose a file
             </label>
@@ -83,7 +83,7 @@ defmodule PlaysteadWeb.ImportLive do
             <div
               :for={err <- upload_errors(@uploads.file)}
               id="upload-error"
-              class="mt-4 text-sm text-[#EF4444]"
+              class="mt-4 text-sm text-app-danger"
             >
               {error_to_string(err, @ceiling)}
             </div>
@@ -92,7 +92,7 @@ defmodule PlaysteadWeb.ImportLive do
               <div
                 :for={err <- upload_errors(@uploads.file, entry)}
                 id={"entry-error-#{entry.ref}"}
-                class="text-sm text-[#EF4444]"
+                class="text-sm text-app-danger"
               >
                 {error_to_string(err, @ceiling)}
               </div>
@@ -108,14 +108,14 @@ defmodule PlaysteadWeb.ImportLive do
         </section>
 
         <section id="receipts">
-          <h2 class="text-heading font-semibold text-[#F1F5F9]">Recent imports</h2>
+          <h2 class="text-heading font-semibold text-app-text">Recent imports</h2>
 
           <div
             :if={@receipts == []}
             id="receipts-empty"
-            class="mt-4 rounded-lg border border-[#334155] bg-[#1E293B] p-6"
+            class="mt-4 rounded-lg border border-app-border bg-app-surface p-6"
           >
-            <p class="text-base text-[#F1F5F9]">Nothing imported yet</p>
+            <p class="text-base text-app-text">Nothing imported yet</p>
           </div>
 
           <div :if={@receipts != []} id="receipt-list" class="mt-4 space-y-3">
@@ -142,7 +142,12 @@ defmodule PlaysteadWeb.ImportLive do
     socket =
       case results do
         [{:ok, _receipt}] ->
-          socket |> load_receipts()
+          socket
+          |> load_receipts()
+          |> put_flash(
+            :info,
+            "File copied into your library. See Recent imports below for its identification details."
+          )
 
         [{:error, _reason}] ->
           socket |> put_flash(:error, generic_error_flash())

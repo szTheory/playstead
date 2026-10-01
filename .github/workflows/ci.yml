@@ -93,11 +93,12 @@ jobs:
           git status --porcelain
           test -z "$(git status --porcelain)"
 
-  # Four-layer macOS verification. This job is deliberately unfiltered: a
+  # Ordinary four-layer macOS verification. This job is deliberately unfiltered: a
   # push or pull request may change a server/client contract without touching
-  # the Mac directory, so path filtering would make the evidence vacuous.
+  # the Mac directory, so path filtering would make the evidence vacuous. The
+  # virtual-gamepad entitlement test has its own profile-gated runner below.
   mac-verification:
-    name: macOS 26 unit + rendering + UI + live server
+    name: macOS ordinary unit + rendering + UI + live server
     runs-on: macos-26
     timeout-minutes: 60
     needs: [test, compose-smoke]
@@ -122,27 +123,101 @@ jobs:
         working-directory: playstead-mac
         run: scripts/ci/run-mac-verification.sh --self-test-contracts
 
-      - name: Run one build and four serial test layers
+      - name: Run no-HID ordinary native layers
         working-directory: playstead-mac
-        run: scripts/ci/run-mac-verification.sh --run-four-layer-verification
+        run: scripts/ci/run-mac-verification.sh --run-unprivileged-verification
 
-      - name: Upload complete six-job verification evidence
+      - name: Upload sanitized ordinary Mac evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
-          name: complete-verification-evidence
-          path: playstead-mac/.build/ci/four-layer/evidence/complete-verification-evidence.json
+          name: mac-ordinary-evidence
+          path: playstead-mac/.build/ci/ordinary-evidence
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 7
 
-      - name: Upload sanitized Mac failure evidence
+      - name: Upload sanitized ordinary Mac failure evidence
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
-          name: mac-verification-failure
-          path: playstead-mac/.build/ci/failure-evidence
+          name: mac-ordinary-failure-evidence
+          path: playstead-mac/.build/ci/ordinary-failure-evidence
           # A wrapper/setup failure can precede bundle creation. Preserve the
           # original failing step instead of replacing it with an artifact error.
           if-no-files-found: warn
+          retention-days: 7
+
+  # This lane only targets a self-hosted Mac explicitly labelled after its
+  # matching Apple Development profile and virtual-HID entitlement are installed.
+  # The ordinary hosted job always records blocked/not-configured when absent.
+  mac-entitled-virtual-gamepad:
+    name: macOS entitled virtual gamepad
+    if: always() && vars.PLAYSTEAD_HID_RUNNER_AVAILABLE == 'true'
+    runs-on: [self-hosted, macOS, playstead-virtual-hid]
+    timeout-minutes: 40
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+
+      - name: Run the entitled virtual-gamepad test
+        working-directory: playstead-mac
+        run: scripts/ci/run-mac-verification.sh --run-entitled-virtual-gamepad-verification
+
+      - name: Upload sanitized entitled-gamepad evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: mac-entitled-gamepad-evidence
+          path: playstead-mac/.build/ci/entitled-virtual-gamepad/sanitized
+          if-no-files-found: warn
+          retention-days: 7
+
+  # Independent Linux recovery claim. This job owns its throwaway Compose
+  # target; no endpoint, handoff, volume, CA, or raw output crosses to macOS.
+  recovery-fixture:
+    name: Linux isolated recovery fixture
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+
+      - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124  # v1.24.1
+        with:
+          version-file: playstead-server/.tool-versions
+          version-type: strict
+
+      - name: Resolve server dependencies
+        working-directory: playstead-server
+        run: mix deps.get
+
+      - name: Compile recovery task and dependencies
+        working-directory: playstead-server
+        run: mix compile --warnings-as-errors
+
+      - name: Verify privacy and lifecycle contracts
+        run: |
+          bash playstead-server/scripts/tests/recovery-fixture-test.sh
+          bash playstead-server/scripts/tests/recovery-retained-target-test.sh
+          bash playstead-mac/scripts/ci/tests/sanitizer-test.sh
+          bash playstead-server/scripts/ci/recovery-fixture.sh --self-test
+
+      - name: Run isolated restore fixture
+        run: |
+          mkdir -m 700 -p "$RUNNER_TEMP/recovery-input"
+          timeout 20m bash playstead-server/scripts/ci/recovery-fixture.sh --output "$RUNNER_TEMP/recovery-input/evidence"
+
+      - name: Sanitize recovery evidence
+        run: bash playstead-mac/scripts/ci/sanitize-evidence.sh --input "$RUNNER_TEMP/recovery-input" --output "$RUNNER_TEMP/recovery-sanitized"
+
+      - name: Upload sanitized Linux recovery evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: linux-recovery-evidence
+          path: ${{ runner.temp }}/recovery-sanitized/recovery-e2e.json
+          if-no-files-found: error
           retention-days: 7
 
   # Cold-start deployment proof (docker build + compose up from destroyed

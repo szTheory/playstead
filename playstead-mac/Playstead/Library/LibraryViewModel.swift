@@ -16,8 +16,7 @@ struct SearchResultState: Equatable {
 /// the user's behalf; when the catalogue is non-empty on a freshly
 /// paired device, shows the dismissible first-run banner exactly once.
 /// Empty curation shelves are omitted from Home while their sidebar
-/// entries remain, each with a one-line explanation (`ShelfView`'s
-/// `emptyExplanation`).
+/// entries remain, each with a one-line explanation.
 @Observable
 final class LibraryViewModel {
     private let catalogueStore: CatalogueStore
@@ -53,9 +52,13 @@ final class LibraryViewModel {
     }
 
     private func refreshFiltered() {
-        filteredCatalogue = catalogueStore.filteredQuery(
-            searchTerm: searchTerm, systemID: selectedSystemID, availability: selectedAvailability
+        let unidentifiedOnly = selectedSystemID == "unidentified"
+        let matches = catalogueStore.filteredQuery(
+            searchTerm: searchTerm,
+            systemID: unidentifiedOnly ? nil : selectedSystemID,
+            availability: selectedAvailability
         )
+        filteredCatalogue = unidentifiedOnly ? matches.filter(Self.isUnidentified) : matches
     }
 
     func refreshSyncState() async {

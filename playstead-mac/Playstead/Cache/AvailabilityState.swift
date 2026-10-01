@@ -3,7 +3,7 @@ import Foundation
 /// The four facts `AvailabilityState.derive(_:)` reads from disk/store to
 /// compute a game's availability at render time. Deliberately NOT stored
 /// as any kind of cached/memoized state on this type — every call site
-/// (`GameCardView`, `StorageView`, a database-rebuild test) re-derives
+/// (`GameRowView`, `StorageView`, a database-rebuild test) re-derives
 /// from these four facts fresh, per D-21: a stored state column drifts
 /// from disk the first moment a file is removed, restored, or corrupted
 /// outside the app, and a user who sees "verified" over content that
@@ -109,7 +109,7 @@ enum AvailabilityState: Equatable {
     }
 
     /// The storage-view-only entry point: `.safeToEvict` additionally
-    /// requires the game be unpinned. Never called by `GameCardView` —
+    /// requires the game be unpinned. Never called by `GameRowView` —
     /// the card asks for the badge-eligible subset via `derive(_:)` and
     /// never receives `.safeToEvict`, by construction (there is no path
     /// from `derive(_:)` to this case).

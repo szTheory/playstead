@@ -28,35 +28,35 @@ defmodule PlaysteadWeb.ImportSessionsLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen bg-[#0F172A] px-8 py-12 font-sans">
+    <div class="min-h-screen bg-app-canvas px-8 py-12 font-sans">
       <Layouts.flash_group flash={@flash} />
       <div class="mx-auto max-w-3xl space-y-8">
         <div>
-          <h1 class="text-display font-semibold text-[#F1F5F9]">Import sessions</h1>
-          <p class="mt-1 text-sm text-[#94A3B8]">
+          <h1 class="text-display font-semibold text-app-text">Import sessions</h1>
+          <p class="mt-1 text-sm text-app-muted">
             Stage the inbox folder to see exactly what will be imported before it starts.
           </p>
         </div>
 
-        <section id="stage-section" class="rounded-lg border border-[#334155] bg-[#1E293B] p-6">
+        <section id="stage-section" class="rounded-lg border border-app-border bg-app-surface p-6">
           <button
             id="preview-inbox"
             type="button"
             phx-click="preview"
-            class="rounded-md border border-[#334155] px-4 py-2 text-sm font-semibold text-[#F1F5F9]"
+            class="rounded-md border border-app-border px-4 py-2 text-sm font-semibold text-app-text"
           >
             Preview inbox folder
           </button>
 
-          <div :if={@preview} id="inbox-preview" class="mt-4 space-y-1 text-sm text-[#94A3B8]">
+          <div :if={@preview} id="inbox-preview" class="mt-4 space-y-1 text-sm text-app-muted">
             <p id="preview-file-count">{@preview.file_count} files, {@preview.total_bytes} bytes</p>
             <p id="preview-histogram">
               {@preview.histogram.recognized} recognized, {@preview.histogram.unknown} unknown, {@preview.histogram.archive} archives
             </p>
-            <p :if={@preview.over_limit_files != []} id="preview-over-limit" class="text-[#FBBF24]">
+            <p :if={@preview.over_limit_files != []} id="preview-over-limit" class="text-app-warning">
               {length(@preview.over_limit_files)} file(s) exceed the per-file size limit.
             </p>
-            <p :if={!@preview.fits_free_space?} id="preview-space-warning" class="text-[#EF4444]">
+            <p :if={!@preview.fits_free_space?} id="preview-space-warning" class="text-app-danger">
               Not enough free space for this folder.
             </p>
 
@@ -65,7 +65,7 @@ defmodule PlaysteadWeb.ImportSessionsLive do
               type="button"
               phx-click="stage"
               disabled={@staging}
-              class="mt-3 rounded-md border border-[#334155] px-4 py-2 text-sm font-semibold text-[#F1F5F9]"
+              class="mt-3 rounded-md border border-app-border px-4 py-2 text-sm font-semibold text-app-text"
             >
               Stage this folder
             </button>
@@ -73,14 +73,14 @@ defmodule PlaysteadWeb.ImportSessionsLive do
         </section>
 
         <section id="sessions">
-          <h2 class="text-heading font-semibold text-[#F1F5F9]">Sessions</h2>
+          <h2 class="text-heading font-semibold text-app-text">Sessions</h2>
 
           <div
             :if={@sessions == []}
             id="sessions-empty"
-            class="mt-4 rounded-lg border border-[#334155] bg-[#1E293B] p-6"
+            class="mt-4 rounded-lg border border-app-border bg-app-surface p-6"
           >
-            <p class="text-base text-[#F1F5F9]">No sessions yet</p>
+            <p class="text-base text-app-text">No sessions yet</p>
           </div>
 
           <div :if={@sessions != []} id="session-list" class="mt-4 space-y-3">

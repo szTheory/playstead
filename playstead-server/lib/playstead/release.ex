@@ -71,6 +71,244 @@ defmodule Playstead.Release do
     {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :down, to: version))
   end
 
+  @backup_wait_ms 300_000
+
+  @doc "Strict parser for the named release backup command; no arbitrary eval is accepted."
+  @spec parse_backup_args([String.t()]) :: {:ok, map()} | {:error, :invalid_backup_arguments}
+  def parse_backup_args(args) when is_list(args) do
+    case args do
+      ["--preflight", "--full"] ->
+        {:ok, %{mode: :preflight, kind: :full}}
+
+      ["--full"] ->
+        {:ok, %{mode: :run, kind: :full, wait: false}}
+
+      ["--full", "--wait"] ->
+        {:ok, %{mode: :run, kind: :full, wait: true}}
+
+      ["--incremental", "--parent-receipt", parent] when parent != "" ->
+        {:ok, %{mode: :run, kind: :incremental, parent: parent, wait: false}}
+
+      ["--incremental", "--parent-receipt", parent, "--wait"] when parent != "" ->
+        {:ok, %{mode: :run, kind: :incremental, parent: parent, wait: true}}
+
+      _ ->
+        {:error, :invalid_backup_arguments}
+    end
+  end
+
+  def parse_backup_args(_), do: {:error, :invalid_backup_arguments}
+
+  @doc "Release entry point used by `bin/backup`; terminal output is allowlisted."
+  @spec backup([String.t()]) :: :ok | :error
+  def backup(args) do
+    result = run_backup(args)
+    IO.puts(if(match?({:ok, _}, result), do: :stdio, else: :stderr), render_backup_result(result))
+    if match?({:ok, _}, result), do: :ok, else: :error
+  end
+
+  @doc false
+  @spec run_backup([String.t()], keyword()) :: {:ok, map()} | {:error, atom()}
+  def run_backup(args, opts \\ []) do
+    with {:ok, parsed} <- parse_backup_args(args),
+         {:ok, destination} <- destination(opts),
+         :ok <- preflight(parsed, opts) do
+      case parsed do
+        %{mode: :preflight} -> {:ok, %{state: "preflight_passed"}}
+        %{mode: :run} -> request_and_wait(parsed, destination, opts)
+      end
+    end
+  rescue
+    _ -> {:error, :backup_unavailable}
+  end
+
+  @doc false
+  def render_backup_result({:ok, %{state: "preflight_passed"}}), do: "backup_preflight_passed"
+
+  def render_backup_result({:ok, %{state: "scheduled"}}), do: "backup_scheduled"
+
+  def render_backup_result(
+        {:ok,
+         %{
+           kind: kind,
+           receipt_id: receipt_id,
+           correlation_id: correlation_id,
+           verified_at: verified_at,
+           independence: independence
+         }}
+      ) do
+    [
+      "backup_published",
+      "kind=#{kind}",
+      "receipt_id=#{receipt_id}",
+      "correlation_id=#{correlation_id}",
+      "state=published",
+      "verified_at=#{verified_at}",
+      "independence=#{independence}"
+    ]
+    |> Enum.join(" ")
+  end
+
+  def render_backup_result({:ok, %{independence: _}}), do: "backup_preflight_passed"
+
+  def render_backup_result({:error, reason}), do: "backup_#{reason}"
+
+  defp destination(opts) do
+    case Keyword.get(opts, :destination, fn ->
+           case System.get_env("PLAYSTEAD_BACKUP_DESTINATION") do
+             value when is_binary(value) and value != "" -> {:ok, value}
+             _ -> {:error, :destination_missing}
+           end
+         end).() do
+      {:ok, value} when is_binary(value) -> {:ok, value}
+      {:error, reason} -> {:error, reason}
+      _ -> {:error, :destination_missing}
+    end
+  end
+
+  defp preflight(parsed, opts) do
+    fun =
+      Keyword.get(opts, :preflight, fn _ -> Playstead.Recovery.preflight_backup_destination() end)
+
+    case fun.(parsed) do
+      :ok -> :ok
+      {:ok, _attestation} -> :ok
+      {:error, _reason} = error -> error
+      _ -> {:error, :backup_preflight_failed}
+    end
+  end
+
+  defp request_and_wait(parsed, destination, opts) do
+    attrs =
+      %{destination: destination, kind: parsed.kind}
+      |> maybe_parent(parsed)
+
+    with :ok <- start_backup_runtime(opts),
+         {:ok, record_id} <-
+           dependency(opts, :request, &Playstead.Recovery.request_backup/1, attrs) do
+      if parsed.wait do
+        wait_for_published(record_id, opts)
+      else
+        {:ok, %{state: "scheduled"}}
+      end
+    else
+      {:error, _} -> {:error, :backup_request_failed}
+      _ -> {:error, :backup_request_failed}
+    end
+  end
+
+  # A release `eval` VM must not start `:playstead`: its application callback
+  # starts the HTTP endpoint, which belongs to the already-running app
+  # container. Recovery work only needs the database and its Oban worker.
+  defp start_backup_runtime(opts) do
+    case Keyword.get(opts, :backup_runtime_start, &start_backup_runtime_services/0).() do
+      :ok -> :ok
+      {:ok, _started} -> :ok
+      {:error, _reason} = error -> error
+      _ -> {:error, :backup_runtime_start_failed}
+    end
+  end
+
+  defp start_backup_runtime_services do
+    if backup_runtime_running?() do
+      :ok
+    else
+      with :ok <- ensure_runtime_application_started(:ssl),
+           :ok <- ensure_runtime_application_started(:oban),
+           {:ok, _pid} <-
+             Supervisor.start_link(backup_runtime_children(),
+               strategy: :one_for_one,
+               name: Playstead.Release.BackupRuntime
+             ) do
+        :ok
+      else
+        {:error, {:already_started, _pid}} -> :ok
+        {:error, _reason} = error -> error
+        _ -> {:error, :backup_runtime_start_failed}
+      end
+    end
+  end
+
+  defp backup_runtime_running? do
+    # The normal application owns both Repo and Oban, but Oban's default
+    # instance is not registered under the `Oban` atom. Repo is therefore the
+    # reliable shared-runtime sentinel when this command is invoked in-process.
+    is_pid(Process.whereis(Playstead.Repo))
+  end
+
+  defp ensure_runtime_application_started(app) do
+    case Application.ensure_all_started(app) do
+      :ok -> :ok
+      {:ok, _started} -> :ok
+      {:error, _reason} = error -> error
+      _ -> {:error, :backup_runtime_start_failed}
+    end
+  end
+
+  @doc false
+  def backup_runtime_children do
+    [Playstead.Repo, {Oban, Application.fetch_env!(@app, Oban)}]
+  end
+
+  defp maybe_parent(attrs, %{parent: parent}),
+    do: Map.put(attrs, :parent, %{"receipt_id" => parent})
+
+  defp maybe_parent(attrs, _), do: attrs
+
+  defp wait_for_published(record_id, opts) do
+    now = Keyword.get(opts, :monotonic_time, fn -> System.monotonic_time(:millisecond) end)
+    wait_ms = Keyword.get(opts, :wait_ms, @backup_wait_ms)
+    deadline = now.() + wait_ms
+    poll(record_id, deadline, opts)
+  end
+
+  defp poll(record_id, deadline, opts) do
+    case dependency(opts, :status, &Playstead.Recovery.backup_status/1, record_id) do
+      {:ok, %{state: "published"} = record} ->
+        published_projection(record)
+
+      {:ok, %{state: state}} when state in ["failed", "planned", "staging"] ->
+        if Keyword.get(opts, :monotonic_time, fn -> System.monotonic_time(:millisecond) end).() >=
+             deadline do
+          if state == "failed",
+            do: {:error, :backup_not_published},
+            else: {:error, :backup_timeout}
+        else
+          dependency(opts, :sleep, &Process.sleep/1, 100)
+          poll(record_id, deadline, opts)
+        end
+
+      _ ->
+        {:error, :backup_not_published}
+    end
+  end
+
+  defp published_projection(%{kind: kind, correlation_id: correlation_id, receipt: receipt})
+       when is_map(receipt) do
+    with receipt_id when is_binary(receipt_id) <- receipt["receipt_id"],
+         verified_at when is_binary(verified_at) <- receipt["verified_at"],
+         independence when is_binary(independence) <- receipt["independence"] do
+      {:ok,
+       %{
+         kind: kind,
+         receipt_id: receipt_id,
+         correlation_id: correlation_id,
+         state: "published",
+         verified_at: verified_at,
+         independence: independence
+       }}
+    else
+      _ -> {:error, :backup_not_published}
+    end
+  end
+
+  defp published_projection(_), do: {:error, :backup_not_published}
+
+  defp dependency(opts, key, default, arg) do
+    fun = Keyword.get(opts, key, default)
+    fun.(arg)
+  end
+
   @doc """
   Email-free credential recovery, path (a) (D-05a). Runnable as:
 

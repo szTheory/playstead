@@ -1,4 +1,10 @@
 import Foundation
+import OSLog
+
+/// TLS decisions are rare and security-relevant.  These records deliberately
+/// name only the decision and the local precondition that drove it: never the
+/// server URL, certificate bytes, filesystem path, token, or content identity.
+private let pinnedTrustLog = Logger(subsystem: "dev.playstead.mac", category: "pinned-trust")
 
 /// An RFC 9457 problem+json error, decoded from a non-2xx API response.
 /// Carries the machine-readable `code` field rather than a free-text
@@ -9,16 +15,22 @@ struct APIError: Error, Decodable, Equatable {
     let code: String
     let title: String?
     let detail: String?
+    /// A server-minted, opaque RFC 9457 diagnostic reference. It is not
+    /// authorization, content identity, or a retry key; callers may retain it
+    /// only through `EligibleDiagnosticEvidence`.
+    let correlationID: String?
 
     private enum CodingKeys: String, CodingKey {
         case code, title, detail
+        case correlationID = "correlation_id"
     }
 
-    init(status: Int, code: String, title: String?, detail: String?) {
+    init(status: Int, code: String, title: String?, detail: String?, correlationID: String? = nil) {
         self.status = status
         self.code = code
         self.title = title
         self.detail = detail
+        self.correlationID = correlationID
     }
 
     init(from decoder: Decoder) throws {
@@ -27,10 +39,32 @@ struct APIError: Error, Decodable, Equatable {
         self.code = try container.decodeIfPresent(String.self, forKey: .code) ?? "unknown"
         self.title = try container.decodeIfPresent(String.self, forKey: .title)
         self.detail = try container.decodeIfPresent(String.self, forKey: .detail)
+        self.correlationID = try container.decodeIfPresent(String.self, forKey: .correlationID)
     }
 
     static func == (lhs: APIError, rhs: APIError) -> Bool {
         lhs.status == rhs.status && lhs.code == rhs.code
+    }
+}
+
+/// The sole Mac-local representation eligible for correlation diagnostics.
+/// Keeping this value to one server-minted UUID makes the evidence boundary
+/// incapable of serializing request bodies, credentials, paths, game names,
+/// save hashes, or bytes.
+struct EligibleDiagnosticEvidence: Equatable {
+    let correlationID: String
+
+    init?(correlationID: String?) {
+        guard let correlationID, UUID(uuidString: correlationID) != nil else { return nil }
+        self.correlationID = correlationID
+    }
+
+    init?(problem: APIError) {
+        self.init(correlationID: problem.correlationID)
+    }
+
+    func serialized() -> String {
+        "{\"correlation_id\":\"\(correlationID)\"}"
     }
 }
 
@@ -148,6 +182,22 @@ actor APIClient: NSObject {
         }
     }
 
+    /// Uses the already-proven control-plane session for blob transfers too.
+    /// A separate session creates a second TLS state machine to keep aligned;
+    /// using one retained session makes sync and download share exactly the
+    /// same private-CA decision path. Authorization remains request-scoped,
+    /// so this does not retain a stale bearer header across pairing changes.
+    func makeAuthenticatedDownloadSession() -> URLSession? {
+        guard let credential else { return nil }
+        if let sessionOverride { return sessionOverride }
+        // Pairing may have completed after the control-plane session was first
+        // constructed. Build the download session only after the credential
+        // and its persisted pin exist, so byte transfer always evaluates the
+        // current recovery CA rather than default system trust.
+        let config = URLSessionConfiguration.ephemeral
+        return URLSession(configuration: config, delegate: PinningDelegate(pinnedCertificateURL: pinnedCertificateURL), delegateQueue: nil)
+    }
+
     /// Performs a `GET` (or, via `headers`, any method that needs a
     /// custom header set) against `path` relative to the paired base
     /// URL, returning status/headers/body. RFC 9457 problem+json bodies
@@ -228,7 +278,10 @@ actor APIClient: NSObject {
 
         if let decoded = try? JSONDecoder().decode(APIError.self, from: data) {
             throw APIClientError.server(
-                APIError(status: http.statusCode, code: decoded.code, title: decoded.title, detail: decoded.detail)
+                APIError(
+                    status: http.statusCode, code: decoded.code, title: decoded.title,
+                    detail: decoded.detail, correlationID: decoded.correlationID
+                )
             )
         }
         throw APIClientError.server(APIError(status: http.statusCode, code: "unknown", title: nil, detail: nil))
@@ -244,7 +297,7 @@ actor APIClient: NSObject {
 /// `disposition(for:)` without any `URLSession`/`URLProtectionSpace`
 /// transport — the whole point of that test is that a system-trusted CI
 /// CA cannot make it pass vacuously.
-final class PinningDelegate: NSObject, URLSessionDelegate {
+final class PinningDelegate: NSObject, URLSessionDelegate, URLSessionTaskDelegate {
     let pinnedCertificateURL: URL?
 
     init(pinnedCertificateURL: URL?) {
@@ -255,12 +308,20 @@ final class PinningDelegate: NSObject, URLSessionDelegate {
     /// and `PinnedTrustEvaluationTests` execute — no second copy of this
     /// logic exists anywhere else.
     func disposition(for serverTrust: SecTrust?) -> URLSession.AuthChallengeDisposition {
-        guard
-            let serverTrust,
-            let pinnedCertificateURL,
-            let pinnedData = try? Data(contentsOf: pinnedCertificateURL),
-            let pinnedCertificate = SecCertificateCreateWithData(nil, pinnedData as CFData)
-        else {
+        guard let serverTrust else {
+            pinnedTrustLog.error("pinned-trust-decision outcome=default reason=missing-server-trust")
+            return .performDefaultHandling
+        }
+        guard let pinnedCertificateURL else {
+            pinnedTrustLog.error("pinned-trust-decision outcome=default reason=missing-pin-location")
+            return .performDefaultHandling
+        }
+        guard let pinnedData = try? Data(contentsOf: pinnedCertificateURL) else {
+            pinnedTrustLog.error("pinned-trust-decision outcome=default reason=unreadable-pin")
+            return .performDefaultHandling
+        }
+        guard let pinnedCertificate = SecCertificateCreateWithData(nil, pinnedData as CFData) else {
+            pinnedTrustLog.error("pinned-trust-decision outcome=default reason=invalid-pin")
             return .performDefaultHandling
         }
 
@@ -269,8 +330,10 @@ final class PinningDelegate: NSObject, URLSessionDelegate {
 
         var error: CFError?
         if SecTrustEvaluateWithError(serverTrust, &error) {
+            pinnedTrustLog.notice("pinned-trust-decision outcome=accepted reason=anchors-only-evaluation")
             return .useCredential
         } else {
+            pinnedTrustLog.error("pinned-trust-decision outcome=rejected reason=anchors-only-evaluation")
             return .cancelAuthenticationChallenge
         }
     }
@@ -286,7 +349,8 @@ final class PinningDelegate: NSObject, URLSessionDelegate {
         }
 
         let serverTrust = challenge.protectionSpace.serverTrust
-        switch disposition(for: serverTrust) {
+        let disposition = disposition(for: serverTrust)
+        switch disposition {
         case .useCredential:
             completionHandler(.useCredential, serverTrust.map(URLCredential.init(trust:)))
         case .performDefaultHandling:
@@ -294,5 +358,19 @@ final class PinningDelegate: NSObject, URLSessionDelegate {
         default:
             completionHandler(.cancelAuthenticationChallenge, nil)
         }
+    }
+
+    /// `URLSession.bytes(for:delegate:)` delivers authentication challenges
+    /// through its task delegate. Forward that callback through the same
+    /// pinned-trust decision used by the control-plane session; otherwise
+    /// streamed blob downloads fall back to system trust and reject a valid
+    /// self-hosted recovery CA.
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didReceive challenge: URLAuthenticationChallenge,
+        completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+    ) {
+        urlSession(session, didReceive: challenge, completionHandler: completionHandler)
     }
 }

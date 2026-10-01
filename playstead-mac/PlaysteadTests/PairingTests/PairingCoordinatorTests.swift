@@ -14,6 +14,11 @@ import Security
 /// calls a mock.
 @MainActor
 final class PairingCoordinatorTests: XCTestCase {
+    private final class OutcomeRecorder: PairingOutcomeRecording {
+        private(set) var records: [PairingOutcomeRecord] = []
+        func record(_ outcome: PairingOutcomeRecord) { records.append(outcome) }
+    }
+
     private var tempRoot: URL!
     private var keychain: SecKeychain?
     private var store: KeychainStore!
@@ -34,8 +39,8 @@ final class PairingCoordinatorTests: XCTestCase {
         }
         XCTAssertEqual(status, errSecSuccess)
         keychain = created
-        store = try KeychainStore.uiTestingStore(
-            service: "dev.playstead.mac.test.\(UUID().uuidString.lowercased())", fileURL: keychainPath
+        store = KeychainStore.uiTestingStore(
+            service: "dev.playstead.mac.test.\(UUID().uuidString.lowercased())", keychain: try XCTUnwrap(created)
         )
     }
 
@@ -57,7 +62,8 @@ final class PairingCoordinatorTests: XCTestCase {
         now: @escaping () -> Date = Date.init,
         recordedSleeps: SleepRecorder? = nil,
         capturedCertificateData: Data? = nil,
-        pinsCertificate: Bool = false
+        pinsCertificate: Bool = false,
+        afterPairing: @escaping () async -> Void = {}
     ) -> PairingCoordinator {
         let client = PairingClient(session: StubURLProtocol.makeSession())
         var certificateCapture: PinnedCertificateCapture?
@@ -77,7 +83,8 @@ final class PairingCoordinatorTests: XCTestCase {
             appVersion: "1.0",
             deviceCodeGenerator: { deviceCode },
             now: now,
-            sleep: { interval in recordedSleeps?.record(interval) }
+            sleep: { interval in recordedSleeps?.record(interval) },
+            afterPairing: afterPairing
         )
     }
 
@@ -134,6 +141,47 @@ final class PairingCoordinatorTests: XCTestCase {
     }
 
     // MARK: - Happy path
+
+    func testCertificateTransportErrorStaysDistinctFromReachability() {
+        XCTAssertEqual(
+            PairingClient.transportError(URLError(.serverCertificateUntrusted)),
+            .certificateTrustFailed
+        )
+    }
+
+    func testDelegateCancelledTrustRejectionStaysDistinctFromReachability() {
+        XCTAssertEqual(
+            PairingClient.transportError(URLError(.cancelled), certificateTrustWasRejected: true),
+            .certificateTrustFailed
+        )
+    }
+
+    func testFailedRequestRecordsOneSafeSemanticOutcome() async {
+        StubURLProtocol.responder = {
+            _ in StubURLProtocol.Stub(statusCode: 200, headers: [:], bodyChunks: [], failAfter: true)
+        }
+        let recorder = OutcomeRecorder()
+        let coordinator = PairingCoordinator(
+            client: PairingClient(session: StubURLProtocol.makeSession()),
+            keychain: store,
+            deviceName: "Test Mac",
+            platform: "macOS",
+            appVersion: "1.0",
+            deviceCodeGenerator: { "test-device-code-must-not-appear" },
+            outcomeRecorder: recorder
+        )
+
+        await coordinator.start(baseURLString: "https://127.0.0.1:4010")
+
+        XCTAssertEqual(recorder.records.count, 1)
+        guard let record = recorder.records.first else { return XCTFail("expected outcome record") }
+        XCTAssertEqual(record.stage, "request")
+        XCTAssertEqual(record.outcome, "failed")
+        XCTAssertEqual(record.reasonCode, "transport_failed")
+        XCTAssertTrue(record.retryable)
+        XCTAssertGreaterThanOrEqual(record.durationMilliseconds, 0)
+        XCTAssertNotEqual(record.correlationID, "test-device-code-must-not-appear")
+    }
 
     func testCreateRequestTransitionsToAwaitingApprovalWithTheServersDisplayCodeAndCadence() async throws {
         let expires = Date(timeIntervalSinceNow: 300)
@@ -199,6 +247,30 @@ final class PairingCoordinatorTests: XCTestCase {
 
         let redeemCalls = StubURLProtocol.requestLog.filter { $0.url?.path.hasSuffix("/redeem") == true }
         XCTAssertEqual(redeemCalls.count, 1, "redeem must happen exactly once per approved ceremony")
+    }
+
+    func testSuccessfulPairingStartsTheInjectedInitialSyncWithoutDelayingSuccess() async throws {
+        let expires = Date(timeIntervalSinceNow: 300)
+        StubURLProtocol.responder = { request in
+            if Self.isCreate(request) {
+                return StubURLProtocol.Stub(statusCode: 201, headers: [:], body: Self.createBody(id: "req-1", displayCode: "ABC-123", pollInterval: 5, expiresAt: expires))
+            }
+            if Self.isPoll(request) {
+                return StubURLProtocol.Stub(statusCode: 200, headers: [:], body: Self.statusBody("approved"))
+            }
+            if Self.isRedeem(request) {
+                return StubURLProtocol.Stub(statusCode: 201, headers: [:], body: Self.redeemBody(deviceID: "device-9", credential: "cred-abc", fingerprintPrefix: "ab:cd"))
+            }
+            return StubURLProtocol.Stub(statusCode: 500, headers: [:], body: Data())
+        }
+
+        let syncStarted = expectation(description: "initial sync started")
+        let coordinator = makeCoordinator(afterPairing: { syncStarted.fulfill() })
+        await coordinator.start(baseURLString: "https://127.0.0.1:4010")
+
+        let final = await waitForTerminal(coordinator)
+        guard case .paired = final else { return XCTFail("expected pairing to finish before the initial sync") }
+        await fulfillment(of: [syncStarted], timeout: 1)
     }
 
     // MARK: - PROT-01/ceremony-failure: four distinct, non-collapsed refusals

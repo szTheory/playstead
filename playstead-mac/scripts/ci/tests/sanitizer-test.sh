@@ -37,7 +37,8 @@ make_valid() {
   mkdir -p "$root/evidence/snapshot-triplet" "$root/evidence/storage-candidate" "$root/evidence/logs" "$root/raw/Unit.xcresult" "$root/DerivedData"
   printf '%s\n' '{"schema_version":1,"architecture":"arm64","xcode":["Xcode 26.6","Build version 17F113"]}' >"$root/evidence/environment-fingerprint.json"
   printf '%s\n' '{"schema_version":1,"build_count":1,"automatic_retries":0,"aggregate_outcome":"failed","layers":[]}' >"$root/evidence/layers.json"
-  printf '%s\n' '{"schema_version":1,"layer":"ui","executed_test_count":2,"required_tests":[{"identifier":"PlaysteadUITests.HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice","discovered":true,"execution_count":1,"skipped":false,"outcome":"passed"}],"failed_test_count":1,"failed_tests_truncated":false,"failed_tests":[{"identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","outcome":"failed"}],"failure_diagnostic_count":1,"failure_diagnostics_truncated":false,"failure_diagnostics":[{"test_identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","assertion":"XCTAssertTrue","source_file":"PlaysteadUITests/SurfaceAccessibilityTests.swift","source_line":137}],"audit_issue_count":1,"audit_issues_truncated":false,"audit_issues":[{"test_identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","category":"parentChild","element_identifier":"playstead.surface.library","element_role":"role-3"}],"in_test_seconds_total":42.2,"timed_test_count":2,"slowest_tests":[{"identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","seconds":1.5}]}' >"$root/evidence/ui-tests.json"
+  printf '%s\n' '{"schema_version":1,"run_id":"123e4567-e89b-42d3-a456-426614174000","lane":"linux_restore_fixture","stages":["chain","preflight","database","cas","manifest","api"],"outcome":"passed"}' >"$root/evidence/recovery-e2e.json"
+  printf '%s\n' '{"schema_version":1,"layer":"ui","executed_test_count":2,"runner_process_error_count":0,"required_tests":[{"identifier":"PlaysteadUITests.HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice","discovered":true,"execution_count":1,"skipped":false,"outcome":"passed"}],"failed_test_count":1,"failed_tests_truncated":false,"failed_tests":[{"identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","outcome":"failed"}],"failure_diagnostic_count":1,"failure_diagnostics_truncated":false,"failure_diagnostics":[{"test_identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","assertion":"XCTAssertTrue","source_file":"PlaysteadUITests/SurfaceAccessibilityTests.swift","source_line":137}],"layout_diagnostic_count":0,"layout_diagnostics_truncated":false,"layout_diagnostics":[],"audit_issue_count":1,"audit_issues_truncated":false,"audit_issues":[{"test_identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","category":"parentChild","element_identifier":"playstead.surface.library","element_role":"role-3"}],"in_test_seconds_total":42.2,"timed_test_count":2,"slowest_tests":[{"identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","seconds":1.5}]}' >"$root/evidence/ui-tests.json"
   printf 'safe app event at /Users/example/private/location\n' >"$root/evidence/logs/app.log"
   printf 'server health passed\n' >"$root/evidence/logs/server.log"
   printf '\211PNG\r\n\032\nreference' >"$root/evidence/snapshot-triplet/reference.png"
@@ -60,6 +61,80 @@ grep -F '[PATH]' "$TMP_ROOT/output/logs/app.log" >/dev/null || { printf 'FAIL: l
 [ ! -e "$TMP_ROOT/output/DerivedData" ]
 [ -s "$TMP_ROOT/output/storage-candidate/storage-surfaces.actual.png" ]
 PASS_COUNT=$((PASS_COUNT + 4))
+
+virtual_gamepad_blocked="$TMP_ROOT/virtual-gamepad-blocked"
+make_valid "$virtual_gamepad_blocked"
+printf '%s\n' '{"schema_version":1,"lane":"virtual_gamepad","test_identifier":"PlaysteadUITests.ControllerHardwareIntegrationTests/testEntitledVirtualGamepadEnumeratesDetachesAndReconnectsWithoutRelaunch","status":"blocked/not-configured","gate_passed":false}' >"$virtual_gamepad_blocked/evidence/entitled-gamepad.json"
+expect_pass virtual_gamepad_blocked "$SANITIZER" --input "$virtual_gamepad_blocked" --output "$TMP_ROOT/virtual-gamepad-blocked-output"
+grep -F '"status": "blocked/not-configured"' "$TMP_ROOT/virtual-gamepad-blocked-output/entitled-gamepad.json" >/dev/null
+PASS_COUNT=$((PASS_COUNT + 1))
+
+virtual_gamepad_false_pass="$TMP_ROOT/virtual-gamepad-false-pass"
+make_valid "$virtual_gamepad_false_pass"
+printf '%s\n' '{"schema_version":1,"lane":"virtual_gamepad","test_identifier":"PlaysteadUITests.ControllerHardwareIntegrationTests/testEntitledVirtualGamepadEnumeratesDetachesAndReconnectsWithoutRelaunch","status":"blocked/not-configured","gate_passed":true}' >"$virtual_gamepad_false_pass/evidence/entitled-gamepad.json"
+expect_fail virtual_gamepad_false_pass "$SANITIZER" --input "$virtual_gamepad_false_pass" --output "$TMP_ROOT/virtual-gamepad-false-pass-output"
+
+runner_process_error_overflow="$TMP_ROOT/runner-process-error-overflow"
+make_valid "$runner_process_error_overflow"
+python3 - "$runner_process_error_overflow/evidence/ui-tests.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+data = json.loads(path.read_text())
+data["runner_process_error_count"] = 51
+path.write_text(json.dumps(data))
+PY
+expect_fail runner_process_error_overflow "$SANITIZER" --input "$runner_process_error_overflow" --output "$TMP_ROOT/runner-process-error-overflow-output"
+
+recovery_unknown="$TMP_ROOT/recovery-unknown"
+make_valid "$recovery_unknown"
+python3 - "$recovery_unknown/evidence/recovery-e2e.json" <<'PY'
+import json, pathlib, sys
+p=pathlib.Path(sys.argv[1]); d=json.loads(p.read_text()); d["fixture_path"]="/Users/private/game.gba"; p.write_text(json.dumps(d))
+PY
+expect_fail recovery_unknown "$SANITIZER" --input "$recovery_unknown" --output "$TMP_ROOT/recovery-unknown-output"
+
+recovery_stage="$TMP_ROOT/recovery-stage"
+make_valid "$recovery_stage"
+python3 - "$recovery_stage/evidence/recovery-e2e.json" <<'PY'
+import json, pathlib, sys
+p=pathlib.Path(sys.argv[1]); d=json.loads(p.read_text()); d["stages"].pop(); p.write_text(json.dumps(d))
+PY
+expect_fail recovery_stage "$SANITIZER" --input "$recovery_stage" --output "$TMP_ROOT/recovery-stage-output"
+
+# Same-host Mac recovery receipts use a separate compact schema. Keep their
+# stage/outcome pair strict without changing the Linux fixture receipt above.
+local_recovery_blocked="$TMP_ROOT/local-recovery-blocked"
+make_valid "$local_recovery_blocked"
+printf '%s\n' '{"schema":"playstead.recovery-e2e-local.v1","run_id":"123e4567-e89b-42d3-a456-426614174000","lane":"same_host_restored_target","stage":"cache_preflight","outcome":"blocked"}' >"$local_recovery_blocked/evidence/recovery-e2e.json"
+expect_pass local_recovery_blocked "$SANITIZER" --input "$local_recovery_blocked" --output "$TMP_ROOT/local-recovery-blocked-output"
+python3 - "$TMP_ROOT/local-recovery-blocked-output/recovery-e2e.json" <<'PY'
+import json, pathlib, sys
+data = json.loads(pathlib.Path(sys.argv[1]).read_text())
+assert set(data) == {"schema", "run_id", "lane", "stage", "outcome"}
+assert data["stage"] == "cache_preflight" and data["outcome"] == "blocked"
+PY
+PASS_COUNT=$((PASS_COUNT + 1))
+
+local_recovery_complete="$TMP_ROOT/local-recovery-complete"
+make_valid "$local_recovery_complete"
+printf '%s\n' '{"schema":"playstead.recovery-e2e-local.v1","run_id":"123e4567-e89b-42d3-a456-426614174000","lane":"same_host_restored_target","stage":"complete","outcome":"passed"}' >"$local_recovery_complete/evidence/recovery-e2e.json"
+expect_pass local_recovery_complete "$SANITIZER" --input "$local_recovery_complete" --output "$TMP_ROOT/local-recovery-complete-output"
+PASS_COUNT=$((PASS_COUNT + 1))
+
+local_recovery_bad_stage="$TMP_ROOT/local-recovery-bad-stage"
+make_valid "$local_recovery_bad_stage"
+printf '%s\n' '{"schema":"playstead.recovery-e2e-local.v1","run_id":"123e4567-e89b-42d3-a456-426614174000","lane":"same_host_restored_target","stage":"private-path","outcome":"blocked"}' >"$local_recovery_bad_stage/evidence/recovery-e2e.json"
+expect_fail local_recovery_bad_stage "$SANITIZER" --input "$local_recovery_bad_stage" --output "$TMP_ROOT/local-recovery-bad-stage-output"
+
+local_recovery_extra_field="$TMP_ROOT/local-recovery-extra-field"
+make_valid "$local_recovery_extra_field"
+printf '%s\n' '{"schema":"playstead.recovery-e2e-local.v1","run_id":"123e4567-e89b-42d3-a456-426614174000","lane":"same_host_restored_target","stage":"cache_preflight","outcome":"blocked","private_field":"forbidden"}' >"$local_recovery_extra_field/evidence/recovery-e2e.json"
+expect_fail local_recovery_extra_field "$SANITIZER" --input "$local_recovery_extra_field" --output "$TMP_ROOT/local-recovery-extra-field-output"
+
+local_recovery_inconsistent="$TMP_ROOT/local-recovery-inconsistent"
+make_valid "$local_recovery_inconsistent"
+printf '%s\n' '{"schema":"playstead.recovery-e2e-local.v1","run_id":"123e4567-e89b-42d3-a456-426614174000","lane":"same_host_restored_target","stage":"complete","outcome":"blocked"}' >"$local_recovery_inconsistent/evidence/recovery-e2e.json"
+expect_fail local_recovery_inconsistent "$SANITIZER" --input "$local_recovery_inconsistent" --output "$TMP_ROOT/local-recovery-inconsistent-output"
 python3 - "$TMP_ROOT/output/ui-tests.json" <<'PY'
 import json, pathlib, sys
 data = json.loads(pathlib.Path(sys.argv[1]).read_text())
@@ -80,6 +155,22 @@ for key in ("failure_diagnostic_count", "failure_diagnostics_truncated", "failur
 path.write_text(json.dumps(data))
 PY
 expect_pass legacy_schema "$SANITIZER" --input "$legacy_schema" --output "$TMP_ROOT/legacy-schema-output"
+
+class_selector="$TMP_ROOT/class-selector"
+make_valid "$class_selector"
+python3 - "$class_selector/evidence/ui-tests.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1]); data = json.loads(path.read_text())
+data["required_tests"][0]["identifier"] = "PlaysteadUITests.LibraryEmptyStateTests/*"
+path.write_text(json.dumps(data))
+PY
+expect_pass class_selector "$SANITIZER" --input "$class_selector" --output "$TMP_ROOT/class-selector-output"
+python3 - "$TMP_ROOT/class-selector-output/ui-tests.json" <<'PY'
+import json, pathlib, sys
+data = json.loads(pathlib.Path(sys.argv[1]).read_text())
+assert data["required_tests"][0]["identifier"] == "PlaysteadUITests.LibraryEmptyStateTests/*"
+PY
+PASS_COUNT=$((PASS_COUNT + 1))
 
 secret_json="$TMP_ROOT/secret-json"
 make_valid "$secret_json"
@@ -110,6 +201,34 @@ data["failure_diagnostics"][0]["source_file"] = "/Users/example/private/Secret.s
 path.write_text(json.dumps(data))
 PY
 expect_fail unsafe_diagnostic "$SANITIZER" --input "$unsafe_diagnostic" --output "$TMP_ROOT/unsafe-diagnostic-output"
+
+layout_diagnostic="$TMP_ROOT/layout-diagnostic"
+make_valid "$layout_diagnostic"
+python3 - "$layout_diagnostic/evidence/ui-tests.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1]); data = json.loads(path.read_text())
+data["layout_diagnostic_count"] = 1
+data["layout_diagnostics"] = [{"kind":"moveUp","hittable":False,"element":[12,34,56,78],"pane":[1,2,300,400],"window":[0,0,1200,900]}]
+path.write_text(json.dumps(data))
+PY
+expect_pass layout_diagnostic "$SANITIZER" --input "$layout_diagnostic" --output "$TMP_ROOT/layout-diagnostic-output"
+python3 - "$TMP_ROOT/layout-diagnostic-output/ui-tests.json" <<'PY'
+import json, pathlib, sys
+data = json.loads(pathlib.Path(sys.argv[1]).read_text())
+assert data["layout_diagnostics"] == [{"kind":"moveUp","hittable":False,"element":[12,34,56,78],"pane":[1,2,300,400],"window":[0,0,1200,900]}]
+PY
+PASS_COUNT=$((PASS_COUNT + 1))
+
+layout_diagnostic_freeform="$TMP_ROOT/layout-diagnostic-freeform"
+make_valid "$layout_diagnostic_freeform"
+python3 - "$layout_diagnostic_freeform/evidence/ui-tests.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1]); data = json.loads(path.read_text())
+data["layout_diagnostic_count"] = 1
+data["layout_diagnostics"] = [{"kind":"moveUp","hittable":False,"element":[12,34,56,78],"pane":[1,2,300,400],"window":[0,0,1200,900],"message":"private XCTest text"}]
+path.write_text(json.dumps(data))
+PY
+expect_fail layout_diagnostic_freeform "$SANITIZER" --input "$layout_diagnostic_freeform" --output "$TMP_ROOT/layout-diagnostic-freeform-output"
 
 unbounded_diagnostics="$TMP_ROOT/unbounded-diagnostics"
 make_valid "$unbounded_diagnostics"
@@ -321,6 +440,28 @@ if missing or unexpected:
 print(f"writer emits {len(writer_keys)} key(s); fixture carries all of them")
 WRITERSHAPE
 expect_pass writer_shape_accepted_by_validator "$SANITIZER" --input "$writer_shape" --output "$TMP_ROOT/writer-shape-output"
+
+continuation_matrix="$TMP_ROOT/continuation-matrix"
+mkdir -p "$continuation_matrix"
+python3 - "$continuation_matrix" <<'PY'
+import json,pathlib,sys,uuid
+root=pathlib.Path(sys.argv[1])
+for stage in ("preflight","qualification","initial-save","safe-exit","fresh-launch","continue","oracle"):
+    for outcome in ("passed","failed-stage","blocked-capability"):
+        evidence=root/(stage+"-"+outcome)/"evidence"
+        evidence.mkdir(parents=True)
+        (evidence/"continuation.json").write_text(json.dumps({"schema":"playstead.continuation-local.v1","run_id":str(uuid.uuid4()),"stage":stage,"outcome":outcome}))
+PY
+for stage in preflight qualification initial-save safe-exit fresh-launch continue oracle; do
+  for outcome in passed failed-stage blocked-capability; do
+    name="continuation-$stage-$outcome"
+    case "$stage/$outcome" in
+      preflight/blocked-capability|qualification/blocked-capability|initial-save/failed-stage|safe-exit/failed-stage|fresh-launch/failed-stage|continue/failed-stage|oracle/failed-stage|oracle/passed)
+        expect_pass "$name" "$SANITIZER" --input "$continuation_matrix/$stage-$outcome" --output "$TMP_ROOT/$name-output" ;;
+      *) expect_fail "$name" "$SANITIZER" --input "$continuation_matrix/$stage-$outcome" --output "$TMP_ROOT/$name-output" ;;
+    esac
+  done
+done
 
 if [ "$FAIL_COUNT" -ne 0 ]; then
   printf 'evidence sanitizer: %d check(s) failed\n' "$FAIL_COUNT" >&2

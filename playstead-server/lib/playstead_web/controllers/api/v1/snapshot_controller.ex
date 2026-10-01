@@ -24,7 +24,8 @@ defmodule PlaysteadWeb.Api.V1.SnapshotController do
           next_after_id: result.next_after_id,
           catalogue: result.catalogue,
           job: result.job,
-          curation: result.curation
+          curation: result.curation,
+          save: result.save
         })
 
       :error ->

@@ -67,6 +67,24 @@ defmodule PlaysteadWeb.ImportLiveTest do
     assert html =~ "guess from file name"
   end
 
+  test "the preview announces actual upload progress and the ready-to-copy state accessibly", %{
+    conn: conn
+  } do
+    {:ok, lv, _html} = live(conn, ~p"/import")
+
+    upload =
+      file_input(lv, "#import-form", :file, [entry("game.gba", :crypto.strong_rand_bytes(64))])
+
+    partial_html = render_upload(upload, "game.gba", 42)
+
+    assert partial_html =~ "Uploading game.gba: 42%"
+    assert partial_html =~ ~s(aria-label="Uploading game.gba")
+    assert partial_html =~ ~s(role="status")
+    assert has_element?(lv, "progress[max='100'][value='42']")
+
+    assert partial_html =~ ~s(phx-disable-with="Copying into your library...")
+  end
+
   test "a file whose size equals the configured browser ceiling is accepted", %{conn: conn} do
     {:ok, lv, _html} = live(conn, ~p"/import")
 
@@ -115,10 +133,14 @@ defmodule PlaysteadWeb.ImportLiveTest do
         entry("game.gba", Playstead.RomFixtures.valid_gba())
       ])
 
-    assert render_upload(upload, "game.gba") =~ "Copy into my library"
+    ready_html = render_upload(upload, "game.gba")
+    assert ready_html =~ "Copy into my library"
+    assert ready_html =~ "Ready to copy game.gba."
 
     lv |> form("#import-form") |> render_submit()
 
+    assert render(lv) =~ "File copied into your library."
+    assert render(lv) =~ "See Recent imports below for its identification details."
     assert has_element?(lv, "[data-outcome=unrecognized]")
     assert render(lv) =~ "Not yet identified"
 
@@ -128,7 +150,8 @@ defmodule PlaysteadWeb.ImportLiveTest do
   end
 
   test "a failed import renders the untouched-original message with a correlation id", %{
-    conn: conn
+    conn: conn,
+    scope: scope
   } do
     {:ok, lv, _html} = live(conn, ~p"/import")
 
@@ -149,6 +172,7 @@ defmodule PlaysteadWeb.ImportLiveTest do
     assert render(lv) =~ "Something went wrong on the server"
     assert render(lv) =~ "Correlation ID: "
     assert render(lv) =~ "Your original file is untouched"
+    assert Import.list_receipts(scope.user.id) == []
   end
 
   test "a filename containing markup characters is displayed as text", %{conn: conn} do

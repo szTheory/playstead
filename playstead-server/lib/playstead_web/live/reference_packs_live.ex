@@ -137,22 +137,22 @@ defmodule PlaysteadWeb.ReferencePacksLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen bg-[#0F172A] px-8 py-12 font-sans">
+    <div class="min-h-screen bg-app-canvas px-8 py-12 font-sans">
       <Layouts.flash_group flash={@flash} />
       <div class="mx-auto max-w-3xl space-y-8">
         <div>
-          <h1 class="text-display font-semibold text-[#F1F5F9]">Reference packs</h1>
-          <p class="mt-1 text-sm text-[#94A3B8]">
+          <h1 class="text-display font-semibold text-app-text">Reference packs</h1>
+          <p class="mt-1 text-sm text-app-muted">
             Supply your own reference pack to identify games already in your library. Playstead
             never retrieves or bundles one on its own — supplying it is entirely up to you.
           </p>
         </div>
 
-        <section id="import-pack-section" class="rounded-lg border border-[#334155] bg-[#1E293B] p-6">
+        <section id="import-pack-section" class="rounded-lg border border-app-border bg-app-surface p-6">
           <form id="reference-pack-form" phx-change="validate" phx-submit="import">
             <label
               for={@uploads.pack.ref}
-              class="flex h-11 w-fit cursor-pointer items-center justify-center rounded-md border border-[#334155] bg-[#1E293B] px-4 text-base font-semibold text-[#F1F5F9] hover:border-[#94A3B8]"
+              class="flex h-11 w-fit cursor-pointer items-center justify-center rounded-md border border-app-border bg-app-surface px-4 text-base font-semibold text-app-text hover:border-app-muted"
             >
               Choose a reference pack file
             </label>
@@ -161,62 +161,62 @@ defmodule PlaysteadWeb.ReferencePacksLive do
             <div
               :for={err <- upload_errors(@uploads.pack)}
               id="pack-upload-error"
-              class="mt-4 text-sm text-[#EF4444]"
+              class="mt-4 text-sm text-app-danger"
             >
               {err}
             </div>
 
             <div :for={entry <- @uploads.pack.entries} class="mt-4">
-              <p id={"pack-entry-#{entry.ref}"} class="text-sm text-[#F1F5F9]">{entry.client_name}</p>
+              <p id={"pack-entry-#{entry.ref}"} class="text-sm text-app-text">{entry.client_name}</p>
             </div>
 
             <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label for="pack_source" class="text-sm font-semibold text-[#94A3B8]">
+                <label for="pack_source" class="text-sm font-semibold text-app-muted">
                   Where this pack came from
                 </label>
                 <input
                   type="text"
                   id="pack_source"
                   name="pack[source]"
-                  class="mt-1 w-full rounded-md border border-[#334155] bg-[#0F172A] p-2 text-sm text-[#F1F5F9]"
+                  class="mt-1 w-full rounded-md border border-app-border bg-app-canvas p-2 text-sm text-app-text"
                 />
               </div>
 
               <div>
-                <label for="pack_upstream_version" class="text-sm font-semibold text-[#94A3B8]">
+                <label for="pack_upstream_version" class="text-sm font-semibold text-app-muted">
                   Upstream version
                 </label>
                 <input
                   type="text"
                   id="pack_upstream_version"
                   name="pack[upstream_version]"
-                  class="mt-1 w-full rounded-md border border-[#334155] bg-[#0F172A] p-2 text-sm text-[#F1F5F9]"
+                  class="mt-1 w-full rounded-md border border-app-border bg-app-canvas p-2 text-sm text-app-text"
                 />
               </div>
 
               <div>
-                <label for="pack_license_claim" class="text-sm font-semibold text-[#94A3B8]">
+                <label for="pack_license_claim" class="text-sm font-semibold text-app-muted">
                   Licence claim
                 </label>
                 <select
                   id="pack_license_claim"
                   name="pack[license_claim]"
-                  class="mt-1 w-full rounded-md border border-[#334155] bg-[#0F172A] p-2 text-sm text-[#F1F5F9]"
+                  class="mt-1 w-full rounded-md border border-app-border bg-app-canvas p-2 text-sm text-app-text"
                 >
                   <option :for={claim <- @license_claims} value={claim}>{claim}</option>
                 </select>
               </div>
 
               <div>
-                <label for="pack_license_note" class="text-sm font-semibold text-[#94A3B8]">
+                <label for="pack_license_note" class="text-sm font-semibold text-app-muted">
                   Licence note
                 </label>
                 <input
                   type="text"
                   id="pack_license_note"
                   name="pack[license_note]"
-                  class="mt-1 w-full rounded-md border border-[#334155] bg-[#0F172A] p-2 text-sm text-[#F1F5F9]"
+                  class="mt-1 w-full rounded-md border border-app-border bg-app-canvas p-2 text-sm text-app-text"
                 />
               </div>
             </div>
@@ -224,7 +224,7 @@ defmodule PlaysteadWeb.ReferencePacksLive do
             <button
               type="submit"
               id="import-pack-submit"
-              class="mt-6 h-11 rounded-md bg-[#38BDF8] px-4 text-base font-semibold text-[#0F172A]"
+              class="mt-6 h-11 rounded-md bg-app-accent px-4 text-base font-semibold text-app-canvas"
             >
               Import pack
             </button>
@@ -233,7 +233,7 @@ defmodule PlaysteadWeb.ReferencePacksLive do
           <p
             :if={@just_identified}
             id="pack-identified-count"
-            class="mt-4 text-sm text-[#94A3B8]"
+            class="mt-4 text-sm text-app-muted"
           >
             {@just_identified} item{if @just_identified != 1, do: "s"} in your library {if @just_identified ==
                                                                                              1,
@@ -244,30 +244,30 @@ defmodule PlaysteadWeb.ReferencePacksLive do
         </section>
 
         <section id="installed-packs">
-          <h2 class="text-heading font-semibold text-[#F1F5F9]">Installed packs</h2>
+          <h2 class="text-heading font-semibold text-app-text">Installed packs</h2>
 
           <div
             :if={@packs == []}
             id="packs-empty"
-            class="mt-4 rounded-lg border border-[#334155] bg-[#1E293B] p-6"
+            class="mt-4 rounded-lg border border-app-border bg-app-surface p-6"
           >
-            <p class="text-base text-[#F1F5F9]">No reference packs installed yet</p>
+            <p class="text-base text-app-text">No reference packs installed yet</p>
           </div>
 
           <div :if={@packs != []} id="pack-list" class="mt-4 space-y-3">
             <div
               :for={pack <- @packs}
               id={"pack-#{pack.id}"}
-              class="rounded-lg border border-[#334155] bg-[#1E293B] p-4"
+              class="rounded-lg border border-app-border bg-app-surface p-4"
             >
-              <p class="text-base font-semibold text-[#F1F5F9]">
+              <p class="text-base font-semibold text-app-text">
                 {pack.source || "Unspecified source"}
               </p>
-              <p class="mt-1 text-sm text-[#94A3B8]">
+              <p class="mt-1 text-sm text-app-muted">
                 Retrieved {pack.retrieved_at} · Version {pack.upstream_version || "unspecified"} ·
                 Hash {sha_prefix(pack.file_sha256)} · {pack.entry_count} entries
               </p>
-              <p class="mt-1 text-sm text-[#94A3B8]">
+              <p class="mt-1 text-sm text-app-muted">
                 Licence claim: {pack.license_claim}
                 <span :if={pack.license_note}>— {pack.license_note}</span>
               </p>
@@ -278,7 +278,7 @@ defmodule PlaysteadWeb.ReferencePacksLive do
                 phx-click="remove"
                 phx-value-id={pack.id}
                 data-confirm="Remove this reference pack? Recognition evidence it already produced stays in your library."
-                class="mt-2 text-sm text-[#94A3B8] hover:text-[#F1F5F9]"
+                class="mt-2 text-sm text-app-muted hover:text-app-text"
               >
                 Remove
               </button>

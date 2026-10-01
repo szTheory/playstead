@@ -165,6 +165,48 @@ final class StorageShellWiringTests: XCTestCase {
         XCTAssertEqual(cacheObjectRowCount(), 1)
     }
 
+    func testDownloadingRestoredGameBytesAlsoHydratesItsAlreadySyncedSave() async throws {
+        let game = makePayload(seed: 30)
+        let save = makePayload(seed: 31, bytes: 512)
+        let entry = try seedGame(id: "asset-restored", title: "Restored", digest: game.digest)
+        let line = try environment.saveStore.resolveLine(
+            contentKey: game.digest, saveKind: "battery", slot: "0", placeholderID: "line-restored"
+        )
+        try environment.saveStore.insertRevision(SaveRevisionRow(
+            id: "revision-restored",
+            saveLineID: line.id,
+            parentRevisionID: nil,
+            blobSHA256: save.digest,
+            sizeBytes: save.data.count,
+            originDeviceID: "other-device",
+            deviceCapturedAt: nil,
+            recordedAt: nil,
+            captureMethod: nil,
+            adapterID: "mgba",
+            adapterVersion: "0.10.5",
+            saveFormat: "battery",
+            formatConfidence: "confirmed",
+            playSessionID: nil,
+            durability: SaveDurability.uploaded.rawValue,
+            localPath: nil
+        ))
+        StubURLProtocol.responder = { request in
+            switch request.url?.lastPathComponent {
+            case game.digest:
+                return StubURLProtocol.Stub(statusCode: 200, headers: ["Content-Length": "\(game.data.count)"], body: game.data)
+            case save.digest:
+                return StubURLProtocol.Stub(statusCode: 200, headers: ["Content-Length": "\(save.data.count)"], body: save.data)
+            default:
+                return StubURLProtocol.Stub(statusCode: 404, headers: [:], body: Data())
+            }
+        }
+
+        let attempt = await environment.attemptDownload(for: entry)
+        XCTAssertEqual(attempt, .completed)
+        XCTAssertTrue(environment.casManager.contains(game.digest))
+        XCTAssertTrue(environment.casManager.contains(save.digest), "a restored save must materialize once its game becomes local")
+    }
+
     /// The consequence the owner actually hit: with downloads invisible to
     /// the ledger, the capacity gate measured 0 used bytes forever and
     /// could never block anything, which is the unbounded-cache
@@ -377,8 +419,13 @@ final class StorageShellWiringTests: XCTestCase {
         }
         XCTAssertEqual(
             Set(LibraryShellView.ShellSurface.allCases.map { LibraryShellView.title(for: $0) }),
-            ["Adapter", "Downloads", "Storage", "Pairing"]
+            ["Pairing"]
         )
+        // Downloads and settings now live in the native sidebar/detail
+        // surface; they are no longer independent modal sheets.
+        XCTAssertEqual(LibraryShellView.title(for: SidebarSection.downloads), "Downloads")
+        XCTAssertEqual(LibraryShellView.title(for: SidebarSection.settings), "Settings")
+        XCTAssertEqual(Set(LibraryShellView.SettingsPane.allCases.map(\.title)), ["Storage", "Emulator", "Controller"])
     }
 
     /// `StorageView`/`QuotaSettingsView` are handed a snapshot of the real

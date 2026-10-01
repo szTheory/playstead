@@ -1,63 +1,78 @@
 {
-  "configurations" : [
+  "configurations": [
     {
-      "id" : "19370C66-1238-44D7-9668-F7684A78013F",
-      "name" : "LiveServer",
-      "options" : {
-
-      }
+      "id": "19370C66-1238-44D7-9668-F7684A78013F",
+      "name": "LiveServer",
+      "options": {}
     }
   ],
-  "defaultOptions" : {
-    "codeCoverage" : false,
-    "environmentVariableEntries" : [
+  "defaultOptions": {
+    "codeCoverage": false,
+    "environmentVariableEntries": [
       {
-        "key" : "PLAYSTEAD_MAC_CI_ROOT",
-        "value" : "$(PLAYSTEAD_MAC_CI_ROOT)"
+        "key": "PLAYSTEAD_MAC_CI_ROOT",
+        "value": "$(PLAYSTEAD_MAC_CI_ROOT)"
       },
       {
-        "key" : "PLAYSTEAD_LIVE_SERVER_STAGE_ROOT",
-        "value" : "$(PLAYSTEAD_LIVE_SERVER_STAGE_ROOT)"
+        "key": "PLAYSTEAD_LIVE_SERVER_STAGE_ROOT",
+        "value": "$(PLAYSTEAD_LIVE_SERVER_STAGE_ROOT)"
       },
       {
-        "key" : "PLAYSTEAD_LIVE_SERVER_STAGE_FILE",
-        "value" : "$(PLAYSTEAD_LIVE_SERVER_STAGE_FILE)"
+        "key": "PLAYSTEAD_LIVE_SERVER_STAGE_FILE",
+        "value": "$(PLAYSTEAD_LIVE_SERVER_STAGE_FILE)"
       },
       {
-        "key" : "MAC_CI_DATABASE_URL",
-        "value" : "$(MAC_CI_DATABASE_URL)"
+        "key": "MAC_CI_DATABASE_URL",
+        "value": "$(MAC_CI_DATABASE_URL)"
       },
       {
-        "key" : "MIX_ENV",
-        "value" : "$(MIX_ENV)"
+        "key": "MIX_ENV",
+        "value": "$(MIX_ENV)"
       },
       {
-        "key" : "PORT",
-        "value" : "$(PORT)"
+        "key": "PORT",
+        "value": "$(PORT)"
+      },
+      {
+        "key": "PLAYSTEAD_TEST_LIVE_SERVER_CA_DER",
+        "value": "$(PLAYSTEAD_TEST_LIVE_SERVER_CA_DER)"
+      },
+      {
+        "key": "PLAYSTEAD_TEST_LIVE_SERVER_CA_SHA256",
+        "value": "$(PLAYSTEAD_TEST_LIVE_SERVER_CA_SHA256)"
+      },
+      {
+        "key": "PLAYSTEAD_TEST_LIVE_SERVER_RUNTIME_CONFIG",
+        "value": "$(PLAYSTEAD_TEST_LIVE_SERVER_RUNTIME_CONFIG)"
+      },
+      {
+        "key": "PLAYSTEAD_SAVE_RELIABILITY_EVIDENCE_PATH",
+        "value": "$(PLAYSTEAD_SAVE_RELIABILITY_EVIDENCE_PATH)"
       }
     ],
-    "targetForVariableExpansion" : {
-      "containerPath" : "container:Playstead.xcodeproj",
-      "identifier" : "44DC10C2CEB44A12A91241F2",
-      "name" : "Playstead"
+    "targetForVariableExpansion": {
+      "containerPath": "container:Playstead.xcodeproj",
+      "identifier": "44DC10C2CEB44A12A91241F2",
+      "name": "Playstead"
     }
   },
-  "testTargets" : [
+  "testTargets": [
     {
-      "parallelizable" : false,
-      "selectedTests" : [
+      "parallelizable": false,
+      "selectedTests": [
         "HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner()",
         "LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch()",
         "PairingCeremonyTests/testAHumanCanPairAFreshMacEntirelyFromInsideTheAppAgainstTheRealServer()",
+        "RecoveryKnownPlayableTests/testRecoveryHarnessRefusesSyntheticFixtureWithoutAnIsolatedTarget()",
         "SaveEndToEndTests/testOneSaveRoundTripsCaptureUploadAndJournalReturn()",
         "SaveRestoreProofTests/testCapturedRevisionRestoresToByteIdenticalArtifactInLaunchDir()"
       ],
-      "target" : {
-        "containerPath" : "container:Playstead.xcodeproj",
-        "identifier" : "1E0000000000000000000001",
-        "name" : "PlaysteadUITests"
+      "target": {
+        "containerPath": "container:Playstead.xcodeproj",
+        "identifier": "1E0000000000000000000001",
+        "name": "PlaysteadUITests"
       }
     }
   ],
-  "version" : 1
+  "version": 1
 }

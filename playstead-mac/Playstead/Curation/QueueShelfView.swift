@@ -8,38 +8,51 @@ import SwiftUI
 struct QueueShelfView: View {
     let viewModel: QueueViewModel
     let catalogueByAssetSetID: [String: CatalogueEntry]
+    var onBrowseLibrary: () -> Void = {}
+    var controllerFocusedAssetSetID: String? = nil
+    var controllerCommand: LibraryControllerCommand? = nil
 
     static let emptyExplanation = "Add a game to your queue to keep it in mind."
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-            Text("Queue").font(.psHeading).foregroundStyle(DesignTokens.textPrimary)
-
+        Group {
             if viewModel.isEmpty {
-                Text(Self.emptyExplanation)
-                    .font(.psBody)
-                    .foregroundStyle(DesignTokens.textMuted)
-                    .accessibilityLabel(Self.emptyExplanation)
+                ContentUnavailableView {
+                    Label("Queue", systemImage: "text.badge.plus")
+                } description: {
+                    Text(Self.emptyExplanation)
+                } actions: {
+                    Button("Browse Library", action: onBrowseLibrary)
+                }
             } else {
                 List {
                     ForEach(Array(viewModel.items.enumerated()), id: \.element.id) { index, item in
-                        queueRow(item, at: index)
+            queueRow(item, at: index)
                     }
                     .onMove(perform: move)
                 }
             }
         }
-        .padding(.vertical, DesignTokens.Spacing.lg)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Play queue")
         .accessibilityIdentifier(AccessibilityIdentifiers.Surface.playQueue)
     }
 
     private func queueRow(_ item: CurationQueueItemRow, at index: Int) -> some View {
-        let title = catalogueByAssetSetID[item.assetSetID]?.displayTitle ?? item.assetSetID
+        let entry = catalogueByAssetSetID[item.assetSetID]
+        let title = entry?.displayTitle ?? "Game unavailable"
         return HStack(spacing: DesignTokens.Spacing.sm) {
-            Text(title)
-            Spacer()
+            if let entry {
+                GameRowView(
+                    entry: entry,
+                    isControllerFocused: controllerFocusedAssetSetID == entry.id,
+                    controllerCommand: controllerCommand
+                )
+            } else {
+                Text(title).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: DesignTokens.Spacing.sm)
             reorderButton(item, title: title, index: index, direction: .up)
             reorderButton(item, title: title, index: index, direction: .down)
         }

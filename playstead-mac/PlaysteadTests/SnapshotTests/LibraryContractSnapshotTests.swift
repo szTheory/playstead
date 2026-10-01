@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import XCTest
 @testable import Playstead
@@ -15,11 +16,32 @@ final class LibraryContractSnapshotTests: XCTestCase {
     ]
 
     func testCardAndStatusVisualContract() throws {
-        let view = CardAndStatusContractSheet(statuses: allStatuses)
+        let fixture = try LibrarySnapshotFixture()
+        defer { fixture.cleanUp() }
         try PlaysteadSnapshot.assertContactSheet(
-            view,
+            CardAndStatusContractSheet(statuses: allStatuses, environment: fixture.environment),
             named: "card-and-status-contract",
             pointSize: CGSize(width: 1_360, height: 720)
+        )
+    }
+
+    func testLibraryListRowWidthAdaptationVisualContract() throws {
+        let fixture = try LibrarySnapshotFixture()
+        defer { fixture.cleanUp() }
+        try PlaysteadSnapshot.assertContactSheet(
+            LibraryListRowWidthContractSheet(environment: fixture.environment),
+            named: "library-list-row-width-adaptation",
+            pointSize: CGSize(width: 1_160, height: 260)
+        )
+    }
+
+    func testCollectionCreationControlsFitSidebarWidthVisualContract() throws {
+        let fixture = try LibrarySnapshotFixture()
+        defer { fixture.cleanUp() }
+        try PlaysteadSnapshot.assertContactSheet(
+            CollectionCreationControlsContractSheet(environment: fixture.environment),
+            named: "collection-create-controls-sidebar",
+            pointSize: CGSize(width: 320, height: 260)
         )
     }
 
@@ -29,16 +51,16 @@ final class LibraryContractSnapshotTests: XCTestCase {
             (.missingDependency, 2, "wrench.and.screwdriver.fill", "Missing dependency", "Contract title is missing something it needs to play."),
             (.downloading(percent: 42), 3, "progress.ring", "Downloading — 42%", "Contract title is downloading, 42 percent complete."),
             (.queued, 4, "clock", "Queued", "Contract title is queued to download."),
-            (.pinned, 5, "mappin.circle.fill", "Pinned", "Contract title is pinned and ready to play offline."),
+            (.pinned, 5, "pin.fill", "Kept on this Mac", "Contract title is kept on this Mac and protected from automatic removal."),
             (.verified, 5, "checkmark.circle.fill", "Ready offline", "Contract title is downloaded and ready to play offline."),
-            (.serverOnly, 6, "icloud", "On server", "Contract title is on your server. Choose Download to play it offline.")
+            (.serverOnly, 6, "icloud", "Available to download", "Contract title is available to download.")
         ]
 
         XCTAssertEqual(allStatuses.count, 7)
         XCTAssertEqual(expected.count, 7)
         XCTAssertEqual(Set(expected.map(\.glyph)).count, 7)
         XCTAssertEqual(DesignTokens.CardGeometry.width, 280)
-        XCTAssertEqual(DesignTokens.CardGeometry.height, 158)
+        XCTAssertEqual(DesignTokens.CardGeometry.height, 224)
         XCTAssertTrue(SystemAccent.allValues.isDisjoint(with: StatusToken.allValues))
 
         for row in expected {
@@ -75,24 +97,26 @@ final class LibraryContractSnapshotTests: XCTestCase {
             XCTAssertEqual(StatusSlotView(statuses: combination, title: "Contract title").selectedStatus, expectedWinner)
         }
 
-        let cardStorage = Mirror(
-            reflecting: GameCardView(
-                title: "Contract title",
-                systemID: "gba",
-                isUnidentified: false,
-                statuses: [.verified]
-            )
-        ).children.compactMap(\.label)
-        XCTAssertEqual(
-            cardStorage,
-            ["title", "systemID", "isUnidentified", "statuses"],
-            "the card has exactly its three-zone text/status inputs and no cover surface"
+        let cardEntry = CatalogueEntry(
+            id: "contract-card",
+            system: "gba",
+            displayTitle: "Contract title",
+            tags: [:],
+            members: []
         )
+        let card = GameRowView(entry: cardEntry, presentation: .card)
+        XCTAssertEqual(card.entry, cardEntry)
+        XCTAssertEqual(card.presentation, .card)
+        XCTAssertEqual(GameRowView.downloadActionIdentifier(assetSetID: "contract-card"), "playstead.game.contract-card.download")
+        XCTAssertEqual(GameRowView.playActionIdentifier(assetSetID: "contract-card"), "playstead.game.contract-card.play")
+        XCTAssertEqual(GameRowView.retryActionIdentifier(assetSetID: "contract-card"), "playstead.game.contract-card.retry")
     }
 
     func testFiveCurationShelfVisualContract() throws {
+        let fixture = try LibrarySnapshotFixture()
+        defer { fixture.cleanUp() }
         try PlaysteadSnapshot.assertContactSheet(
-            LibraryAndCurationContractSheet(),
+            LibraryAndCurationContractSheet(environment: fixture.environment),
             named: "library-and-curation-states",
             pointSize: CGSize(width: 1_360, height: 1_560)
         )
@@ -100,8 +124,8 @@ final class LibraryContractSnapshotTests: XCTestCase {
 
     func testLibrarySearchFocusAndEmptyStateSemanticContract() {
         let expectedSidebar = [
-            "Home", "Continue", "Favorites", "Collections", "Queue", "Recent",
-            "Game Boy Advance", "Super Nintendo", "Unidentified"
+            "All Games", "Recently Played", "Favorites", "Collections", "Queue", "Recent",
+            "Game Boy Advance", "Super Nintendo", "Unidentified", "Downloads", "Settings"
         ]
         XCTAssertEqual(
             SidebarView.entries(nonEmptySystemIDs: ["snes", "gba"], hasUnidentified: true).map(\.label),
@@ -109,16 +133,19 @@ final class LibraryContractSnapshotTests: XCTestCase {
         )
         XCTAssertEqual(
             SidebarView.entries(nonEmptySystemIDs: ["gba"], hasUnidentified: false).map(\.label),
-            ["Home", "Continue", "Favorites", "Collections", "Queue", "Recent", "Game Boy Advance"]
+            ["All Games", "Recently Played", "Favorites", "Collections", "Queue", "Recent", "Game Boy Advance", "Downloads", "Settings"]
         )
 
-        XCTAssertEqual(SearchField.accessibilityIdentifier, "library.search.field")
+        // Search is native `.searchable` owned by LibraryShellView; keep
+        // asserting the stable production surface that contains it rather
+        // than a retired standalone text-field component.
+        XCTAssertEqual(AccessibilityIdentifiers.Surface.library, "playstead.surface.library")
         XCTAssertEqual(FilterChipRow.accessibilityIdentifier(for: "gba"), "library.filter.gba")
         XCTAssertEqual(ShowAllSystemsControl.accessibilityIdentifier, "library.systems.show-all")
         XCTAssertEqual(ShowAllSystemsControl.label(hiddenCount: 6, isExpanded: false), "Show all systems (6 hidden)")
         XCTAssertEqual(ShowAllSystemsControl.label(hiddenCount: 6, isExpanded: true), "Hide empty systems")
 
-        XCTAssertEqual(ContinueShelfView.Copy.emptyExplanation, "Play something, and pick up where you left off here.")
+        XCTAssertEqual(ContinueShelfView.Copy.emptyExplanation, "Games you play will appear here.")
         XCTAssertEqual(FavoritesShelfView.emptyExplanation, "Favorite a game to see it here.")
         XCTAssertEqual(CollectionsView.emptyExplanation, "Create a collection to group games your way.")
         XCTAssertEqual(QueueShelfView.emptyExplanation, "Add a game to your queue to keep it in mind.")
@@ -133,28 +160,30 @@ final class LibraryContractSnapshotTests: XCTestCase {
 
 private struct CardAndStatusContractSheet: View {
     let statuses: [LibraryStatus]
+    let environment: AppEnvironment
+
+    private let identifiedEntry = CatalogueEntry(
+        id: "synthetic-a",
+        system: "gba",
+        displayTitle: "Pokémon Mystery Dungeon — Überlange 你好タイトル",
+        tags: [:],
+        members: []
+    )
+    private let unidentifiedEntry = CatalogueEntry(
+        id: "synthetic-unknown",
+        system: "unknown",
+        displayTitle: "Unknown synthetic fixture with a deliberately long second line",
+        tags: [:],
+        members: []
+    )
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             Text("Card and status contract").font(.psDisplay)
             HStack(alignment: .top, spacing: DesignTokens.Spacing.md) {
-                GameCardView(
-                    title: "Pokémon Mystery Dungeon — Überlange 你好タイトル",
-                    systemID: "gba",
-                    isUnidentified: false,
-                    statuses: [.verified]
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: PlaysteadFocusRing.cornerRadius)
-                        .stroke(PlaysteadFocusRing.color, lineWidth: PlaysteadFocusRing.lineWidth)
-                }
-                GameCardView(
-                    title: "Unknown synthetic fixture with a deliberately long second line",
-                    systemID: "unknown",
-                    isUnidentified: true,
-                    statuses: [.serverOnly]
-                )
-                .dynamicTypeSize(.large)
+                GameRowView(entry: identifiedEntry, presentation: .card, isControllerFocused: true)
+                GameRowView(entry: unidentifiedEntry, presentation: .card)
+                    .dynamicTypeSize(.large)
             }
             HStack(spacing: DesignTokens.Spacing.sm) {
                 ForEach(Array(statuses.enumerated()), id: \.offset) { _, status in
@@ -172,19 +201,72 @@ private struct CardAndStatusContractSheet: View {
             }
         }
         .padding(DesignTokens.Spacing.lg)
+        .environment(environment)
+    }
+}
+
+private struct LibraryListRowWidthContractSheet: View {
+    let environment: AppEnvironment
+
+    private let entry = CatalogueEntry(
+        id: "synthetic-a",
+        system: "gba",
+        displayTitle: "The Legend of Zelda: The Minish Cap — Collector’s Edition",
+        tags: [:],
+        members: []
+    )
+
+    var body: some View {
+        HStack(alignment: .top, spacing: DesignTokens.Spacing.lg) {
+            rowPane(title: "Wide library pane · 620 pt", width: 620)
+            rowPane(title: "Narrow library pane · 420 pt", width: 420)
+        }
+        .padding(DesignTokens.Spacing.lg)
+        .environment(environment)
+    }
+
+    private func rowPane(title: String, width: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            Text(title).font(.psHeading)
+            GameRowView(entry: entry, presentation: .list)
+                .padding(.horizontal, DesignTokens.Spacing.md)
+                .background(DesignTokens.surface)
+                .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.compact))
+        }
+        .frame(width: width, alignment: .topLeading)
+    }
+}
+
+private struct CollectionCreationControlsContractSheet: View {
+    let environment: AppEnvironment
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+            Text("Collections sidebar").font(.psHeading)
+            CollectionsView(viewModel: environment.collectionsViewModel)
+                .frame(width: 280, height: 196, alignment: .topLeading)
+                .background(DesignTokens.background)
+        }
+        .padding(DesignTokens.Spacing.md)
+        .environment(environment)
     }
 }
 
 private struct LibraryAndCurationContractSheet: View {
+    let environment: AppEnvironment
     @State private var search = "Pokémon"
     @State private var expanded = false
 
-    private let populated = [
-        ShelfItem(id: "synthetic-a", title: "Synthetic Adventure", systemID: "gba", isUnidentified: false, statuses: [.pinned])
-    ]
+    private let populated = CatalogueEntry(
+        id: "synthetic-a",
+        system: "gba",
+        displayTitle: "Synthetic Adventure",
+        tags: [:],
+        members: []
+    )
 
     private let shelves: [(String, String)] = [
-        ("Continue", "Play something, and pick up where you left off here."),
+        ("Recently Played", "Games you play will appear here."),
         ("Favorites", "Favorite a game to see it here."),
         ("Collections", "Create a collection to group games your way."),
         ("Queue", "Add a game to your queue to keep it in mind."),
@@ -195,7 +277,9 @@ private struct LibraryAndCurationContractSheet: View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             Text("Library and five curation shelves").font(.psDisplay)
             HStack(spacing: DesignTokens.Spacing.md) {
-                SearchField(text: $search).frame(width: 300)
+                TextField("Search your library", text: $search)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 300)
                 FilterChipRow(
                     chips: [
                         FilterChip(id: "gba", label: "Game Boy Advance"),
@@ -210,19 +294,59 @@ private struct LibraryAndCurationContractSheet: View {
                 VStack(alignment: .leading, spacing: 0) {
                     Text("Populated").font(.psHeading)
                     ForEach(shelves, id: \.0) { heading, emptyCopy in
-                        ShelfView(heading: heading, items: populated, layout: .horizontal, emptyExplanation: emptyCopy)
+                        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                            Text(heading).font(.psHeading).foregroundStyle(DesignTokens.textPrimary)
+                            GameRowView(entry: populated, presentation: .card)
+                        }
                             .frame(width: 560, height: 238, alignment: .topLeading)
                     }
                 }
                 VStack(alignment: .leading, spacing: 0) {
                     Text("Honest empty").font(.psHeading)
                     ForEach(shelves, id: \.0) { heading, emptyCopy in
-                        ShelfView(heading: heading, items: [], layout: .horizontal, emptyExplanation: emptyCopy)
+                        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                            Text(heading).font(.psHeading).foregroundStyle(DesignTokens.textPrimary)
+                            Text(emptyCopy)
+                                .font(.psBody)
+                                .foregroundStyle(DesignTokens.textMuted)
+                        }
                             .frame(width: 560, height: 238, alignment: .topLeading)
                     }
                 }
             }
         }
         .padding(DesignTokens.Spacing.lg)
+        .environment(environment)
+    }
+}
+
+@MainActor
+private final class LibrarySnapshotFixture {
+    private let root: URL
+    private var storedEnvironment: AppEnvironment?
+
+    var environment: AppEnvironment {
+        guard let storedEnvironment else { fatalError("snapshot fixture was already cleaned up") }
+        return storedEnvironment
+    }
+
+    init() throws {
+        root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("playstead-library-snapshot-\(UUID().uuidString)", isDirectory: true)
+        let paths = AppPaths(root: root)
+        let localStore = try LocalStore(paths: paths)
+        let environment = AppEnvironment(
+            uiTestingPaths: paths,
+            localStore: localStore,
+            reachability: Reachability(startOnline: false, monitorAutomatically: false),
+            biosReferences: []
+        )
+        try environment.pinStore.pin(assetSetID: "synthetic-a")
+        storedEnvironment = environment
+    }
+
+    func cleanUp() {
+        storedEnvironment = nil
+        try? FileManager.default.removeItem(at: root)
     }
 }

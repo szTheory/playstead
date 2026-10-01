@@ -49,10 +49,10 @@ defmodule PlaysteadWeb.ResetPasswordController do
     """
     <!DOCTYPE html>
     <html><head><title>Reset password</title></head>
-    <body style="background:#0F172A;color:#F1F5F9;font-family:Inter,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;">
-      <div style="width:100%;max-width:28rem;background:#1E293B;padding:2rem;border-radius:0.5rem;">
+    <body style="background:var(--color-app-canvas);color:var(--color-app-text);font-family:Inter,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;">
+      <div style="width:100%;max-width:28rem;background:var(--color-app-surface);padding:2rem;border-radius:0.5rem;">
         <h1>Reset your password</h1>
-        #{if error, do: "<p style=\"color:#EF4444;\">#{Phoenix.HTML.html_escape(error) |> Phoenix.HTML.safe_to_string()}</p>", else: ""}
+        #{if error, do: "<p style=\"color:var(--color-app-danger);\">#{Phoenix.HTML.html_escape(error) |> Phoenix.HTML.safe_to_string()}</p>", else: ""}
         <form method="post" action="/reset/#{Phoenix.HTML.html_escape(token) |> Phoenix.HTML.safe_to_string()}">
           <input type="hidden" name="_csrf_token" value="#{Plug.CSRFProtection.get_csrf_token()}" />
           <label>New password<br/><input type="password" name="user[password]" autocomplete="new-password" required minlength="12" /></label><br/><br/>
@@ -68,9 +68,9 @@ defmodule PlaysteadWeb.ResetPasswordController do
     """
     <!DOCTYPE html>
     <html><head><title>Reset password</title></head>
-    <body style="background:#0F172A;color:#F1F5F9;font-family:Inter,sans-serif;">
+    <body style="background:var(--color-app-canvas);color:var(--color-app-text);font-family:Inter,sans-serif;">
       <p>#{Phoenix.HTML.html_escape(message) |> Phoenix.HTML.safe_to_string()}</p>
-      <p><a href="/log-in" style="color:#38BDF8;">Back to log in</a></p>
+      <p><a href="/log-in" style="color:var(--color-app-accent);">Back to log in</a></p>
     </body></html>
     """
   end

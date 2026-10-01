@@ -447,19 +447,19 @@ defmodule PlaysteadWeb.LibraryLive do
   @impl true
   def render(%{live_action: :show} = assigns) do
     ~H"""
-    <div class="min-h-screen bg-[#0F172A] px-8 py-12 font-sans">
+    <div class="min-h-screen bg-app-canvas px-8 py-12 font-sans">
       <Layouts.flash_group flash={@flash} />
       <div class="mx-auto max-w-3xl space-y-6">
-        <.link navigate={~p"/library"} class="text-sm text-[#94A3B8] hover:text-[#F1F5F9]">
+        <.link navigate={~p"/library"} class="text-sm text-app-muted hover:text-app-text">
           &larr; Back to library
         </.link>
 
         <div
           :if={@not_found}
           id="asset-not-found"
-          class="rounded-lg border border-[#334155] bg-[#1E293B] p-6"
+          class="rounded-lg border border-app-border bg-app-surface p-6"
         >
-          <p class="text-base text-[#F1F5F9]">Not found</p>
+          <p class="text-base text-app-text">Not found</p>
         </div>
 
         <.asset_detail :if={@detail} detail={@detail} />
@@ -470,7 +470,7 @@ defmodule PlaysteadWeb.LibraryLive do
 
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen bg-[#0F172A] px-8 py-12 font-sans">
+    <div class="min-h-screen bg-app-canvas px-8 py-12 font-sans">
       <Layouts.flash_group flash={@flash} />
       <div class="mx-auto flex max-w-6xl flex-col gap-8 lg:flex-row">
         <.sidebar
@@ -492,12 +492,12 @@ defmodule PlaysteadWeb.LibraryLive do
 
         <div class="min-w-0 flex-1 space-y-8">
           <div class="flex items-center justify-between">
-            <h1 class="text-display font-semibold text-[#F1F5F9]">Library</h1>
+            <h1 class="text-display font-semibold text-app-text">Library</h1>
             <.link
               :if={@attention_count > 0}
               navigate={~p"/attention"}
               id="attention-nav-link"
-              class="text-sm font-semibold text-[#94A3B8] hover:text-[#F1F5F9]"
+              class="text-sm font-semibold text-app-muted hover:text-app-text"
             >
               Needs attention ({@attention_count})
             </.link>
@@ -506,10 +506,10 @@ defmodule PlaysteadWeb.LibraryLive do
           <div
             :if={not @first_run_dismissed and @assets != []}
             id="first-run-banner"
-            class="rounded-lg border border-[#334155] bg-[#1E293B] p-4"
+            class="rounded-lg border border-app-border bg-app-surface p-4"
           >
-            <p class="text-sm font-semibold text-[#F1F5F9]">Your library lives on your server.</p>
-            <p class="mt-1 text-sm text-[#94A3B8]">
+            <p class="text-sm font-semibold text-app-text">Your library lives on your server.</p>
+            <p class="mt-1 text-sm text-app-muted">
               Everything here is stored safely on your Playstead server. Download what you want to
               play offline.
             </p>
@@ -517,7 +517,7 @@ defmodule PlaysteadWeb.LibraryLive do
               id="dismiss-first-run-banner"
               type="button"
               phx-click="dismiss-first-run-banner"
-              class="mt-2 text-sm font-semibold text-[#F1F5F9] hover:underline"
+              class="mt-2 text-sm font-semibold text-app-text hover:underline"
             >
               Dismiss
             </button>
@@ -529,13 +529,13 @@ defmodule PlaysteadWeb.LibraryLive do
                 Enum.any?(@assets, &(&1.identification_state == :unidentified))
             }
             id="reference-pack-hint"
-            class="rounded-lg border border-[#334155] bg-[#1E293B] p-4"
+            class="rounded-lg border border-app-border bg-app-surface p-4"
           >
-            <p class="text-sm text-[#94A3B8]">
+            <p class="text-sm text-app-muted">
               <.link
                 navigate={~p"/reference-packs"}
                 id="reference-pack-hint-link"
-                class="font-semibold text-[#F1F5F9] hover:underline"
+                class="font-semibold text-app-text hover:underline"
               >
                 Install a reference pack to identify games.
               </.link>
@@ -543,7 +543,7 @@ defmodule PlaysteadWeb.LibraryLive do
                 id="dismiss-reference-pack-hint"
                 type="button"
                 phx-click="dismiss-hint"
-                class="ml-2 text-sm font-semibold text-[#F1F5F9] hover:underline"
+                class="ml-2 text-sm font-semibold text-app-text hover:underline"
               >
                 Dismiss
               </button>
@@ -553,10 +553,10 @@ defmodule PlaysteadWeb.LibraryLive do
           <div
             :if={@assets == []}
             id="library-empty"
-            class="rounded-lg border border-[#334155] bg-[#1E293B] p-6"
+            class="rounded-lg border border-app-border bg-app-surface p-6"
           >
-            <p class="text-display font-semibold text-[#F1F5F9]">No games yet</p>
-            <p class="mt-1 text-base text-[#94A3B8]">
+            <p class="text-display font-semibold text-app-text">No games yet</p>
+            <p class="mt-1 text-base text-app-muted">
               Import your files to add them to your library. They'll appear here as soon as they're
               added.
             </p>
@@ -565,7 +565,7 @@ defmodule PlaysteadWeb.LibraryLive do
           <.shelf
             :if={@continue_assets != []}
             id="continue-shelf"
-            heading="Continue"
+            heading="Recently Played"
             items={@continue_assets}
             navigate_fun={&~p"/library/#{&1}"}
             status_fun={&status_for(&1, assigns)}
@@ -583,8 +583,8 @@ defmodule PlaysteadWeb.LibraryLive do
 
           <div :if={@collections != []} id="collections-shelf" class="library-shelf">
             <div class="library-shelf-heading flex items-baseline justify-between">
-              <h2 class="text-heading font-semibold text-[#F1F5F9]">Collections</h2>
-              <.link navigate={~p"/library/collections"} class="text-label text-[#94A3B8]">
+              <h2 class="text-heading font-semibold text-app-text">Collections</h2>
+              <.link navigate={~p"/library/collections"} class="text-label text-app-muted">
                 See all
               </.link>
             </div>
@@ -593,7 +593,7 @@ defmodule PlaysteadWeb.LibraryLive do
                 :for={collection <- @collections}
                 navigate={~p"/library/collections/#{collection.id}"}
                 id={"collections-shelf-item-#{collection.id}"}
-                class="rounded-lg border border-[#334155] bg-[#1E293B] px-4 py-3 text-sm font-semibold text-[#F1F5F9] hover:border-[#38BDF8]"
+                class="rounded-lg border border-app-border bg-app-surface px-4 py-3 text-sm font-semibold text-app-text hover:border-app-accent"
               >
                 {collection.name}
               </.link>
@@ -602,18 +602,18 @@ defmodule PlaysteadWeb.LibraryLive do
 
           <section :if={@queue_assets != []} id="queue-shelf" class="library-shelf">
             <div class="library-shelf-heading flex items-baseline justify-between">
-              <h2 class="text-heading font-semibold text-[#F1F5F9]">Queue</h2>
-              <span class="text-label text-[#94A3B8]">{length(@queue_assets)}</span>
+              <h2 class="text-heading font-semibold text-app-text">Queue</h2>
+              <span class="text-label text-app-muted">{length(@queue_assets)}</span>
             </div>
             <div class="mt-2 space-y-2">
               <div
                 :for={{entry, index} <- Enum.with_index(@queue_assets)}
                 id={"queue-item-#{entry.asset_set.id}"}
-                class="flex items-center justify-between rounded-lg border border-[#334155] bg-[#1E293B] p-3"
+                class="flex items-center justify-between rounded-lg border border-app-border bg-app-surface p-3"
               >
                 <.link
                   navigate={~p"/library/#{entry.asset_set.id}"}
-                  class="text-sm font-semibold text-[#F1F5F9] hover:underline"
+                  class="text-sm font-semibold text-app-text hover:underline"
                 >
                   {entry.asset_set.display_title}
                 </.link>
@@ -626,7 +626,7 @@ defmodule PlaysteadWeb.LibraryLive do
                     phx-value-asset-set-id={entry.asset_set.id}
                     phx-value-direction="up"
                     aria-label={"Move #{entry.asset_set.display_title} up in queue"}
-                    class="text-sm text-[#94A3B8] hover:text-[#F1F5F9]"
+                    class="text-sm text-app-muted hover:text-app-text"
                   >
                     Move up
                   </button>
@@ -638,7 +638,7 @@ defmodule PlaysteadWeb.LibraryLive do
                     phx-value-asset-set-id={entry.asset_set.id}
                     phx-value-direction="down"
                     aria-label={"Move #{entry.asset_set.display_title} down in queue"}
-                    class="text-sm text-[#94A3B8] hover:text-[#F1F5F9]"
+                    class="text-sm text-app-muted hover:text-app-text"
                   >
                     Move down
                   </button>
@@ -648,7 +648,7 @@ defmodule PlaysteadWeb.LibraryLive do
                     phx-click="dequeue"
                     phx-value-asset-set-id={entry.asset_set.id}
                     aria-label={"Remove #{entry.asset_set.display_title} from Queue"}
-                    class="text-sm font-semibold text-[#EF4444] hover:underline"
+                    class="text-sm font-semibold text-app-danger hover:underline"
                   >
                     Remove
                   </button>
@@ -677,7 +677,7 @@ defmodule PlaysteadWeb.LibraryLive do
                   placeholder="Search by title or filename"
                   aria-label="Search your library"
                   phx-debounce="300"
-                  class="w-full rounded-lg border border-[#334155] bg-[#1E293B] px-3 py-2 text-sm text-[#F1F5F9]"
+                  class="w-full rounded-lg border border-app-border bg-app-surface px-3 py-2 text-sm text-app-text"
                 />
               </form>
 
@@ -686,7 +686,7 @@ defmodule PlaysteadWeb.LibraryLive do
                 id="toggle-view"
                 phx-click="toggle-view"
                 aria-label={if @view == :grid, do: "Switch to list view", else: "Switch to grid view"}
-                class="text-sm font-semibold text-[#94A3B8] hover:text-[#F1F5F9]"
+                class="text-sm font-semibold text-app-muted hover:text-app-text"
               >
                 {if @view == :grid, do: "List view", else: "Grid view"}
               </button>
@@ -700,7 +700,7 @@ defmodule PlaysteadWeb.LibraryLive do
                 phx-click="filter-system"
                 phx-value-system={system.id}
                 aria-pressed={to_string(@filter_system == system.id)}
-                class="filter-chip rounded-full border border-[#334155] px-3 py-1 text-label text-[#94A3B8]"
+                class="filter-chip rounded-full border border-app-border px-3 py-1 text-label text-app-muted"
               >
                 {GameCard.system_display_name(system.id)}
               </button>
@@ -715,7 +715,7 @@ defmodule PlaysteadWeb.LibraryLive do
                 phx-value-availability={value}
                 aria-pressed={to_string(@filter_availability == value)}
                 aria-label={Playstead.AvailabilityVocabulary.accessible_name(value)}
-                class="filter-chip min-h-11 min-w-11 rounded-full border border-[#334155] px-3 py-1 text-label text-[#94A3B8]"
+                class="filter-chip min-h-11 min-w-11 rounded-full border border-app-border px-3 py-1 text-label text-app-muted"
               >
                 {Playstead.AvailabilityVocabulary.label(value)}
               </button>
@@ -727,11 +727,11 @@ defmodule PlaysteadWeb.LibraryLive do
               phx-change="sort"
               class="flex items-center gap-2"
             >
-              <label for="library-sort" class="text-label text-[#94A3B8]">Sort by</label>
+              <label for="library-sort" class="text-label text-app-muted">Sort by</label>
               <select
                 id="library-sort"
                 name="sort"
-                class="rounded-lg border border-[#334155] bg-[#1E293B] px-2 py-1 text-sm text-[#F1F5F9]"
+                class="rounded-lg border border-app-border bg-app-surface px-2 py-1 text-sm text-app-text"
               >
                 <option value="title" selected={@sort == "title"}>Title</option>
                 <option value="system" selected={@sort == "system"}>System</option>
@@ -740,12 +740,12 @@ defmodule PlaysteadWeb.LibraryLive do
             </form>
 
             <div :if={@browse_empty? and narrowing_active?(assigns)} id="library-search-empty">
-              <p class="text-heading font-semibold text-[#F1F5F9]">
+              <p class="text-heading font-semibold text-app-text">
                 {if @search != "",
                   do: "No matches for “#{@search}”",
                   else: "No games match this filter"}
               </p>
-              <p class="mt-1 text-base text-[#94A3B8]">
+              <p class="mt-1 text-base text-app-muted">
                 {if @search != "",
                   do: "Check the spelling, or clear your search to see everything.",
                   else: "Clear the filter to see everything in your library."}
@@ -754,7 +754,7 @@ defmodule PlaysteadWeb.LibraryLive do
                 type="button"
                 id="clear-narrowing"
                 phx-click="clear-narrowing"
-                class="mt-2 text-sm font-semibold text-[#F1F5F9] hover:underline"
+                class="mt-2 text-sm font-semibold text-app-text hover:underline"
               >
                 {if @search != "", do: "Clear search", else: "Clear filter"}
               </button>
@@ -780,7 +780,7 @@ defmodule PlaysteadWeb.LibraryLive do
                   if @view == :grid,
                     do: "space-y-1",
                     else:
-                      "flex h-14 items-center justify-between gap-4 rounded-lg border border-[#334155] bg-[#1E293B] px-4"
+                      "flex h-14 items-center justify-between gap-4 rounded-lg border border-app-border bg-app-surface px-4"
                 }
                 aria-label={
                   if @view == :list,
@@ -807,11 +807,11 @@ defmodule PlaysteadWeb.LibraryLive do
                 <% else %>
                   <.link
                     navigate={~p"/library/#{entry.asset_set.id}"}
-                    class="min-w-0 flex-1 truncate text-sm font-semibold text-[#F1F5F9] hover:underline"
+                    class="min-w-0 flex-1 truncate text-sm font-semibold text-app-text hover:underline"
                   >
                     {entry.asset_set.display_title}
                   </.link>
-                  <span class="text-label text-[#94A3B8]">
+                  <span class="text-label text-app-muted">
                     {GameCard.system_display_name(entry.asset_set.system_id)}
                   </span>
                   <.list_status_slot
@@ -846,7 +846,7 @@ defmodule PlaysteadWeb.LibraryLive do
         id={"asset-#{@asset_set.id}-favorite-toggle"}
         phx-click="toggle-favorite"
         phx-value-asset-set-id={@asset_set.id}
-        class="text-sm font-semibold text-[#F1F5F9] hover:underline"
+        class="text-sm font-semibold text-app-text hover:underline"
         aria-label={
           if @favorite?,
             do: "Remove #{@asset_set.display_title} from Favorites",
@@ -861,7 +861,7 @@ defmodule PlaysteadWeb.LibraryLive do
         id={"asset-#{@asset_set.id}-queue-toggle"}
         phx-click={if @queued?, do: "dequeue", else: "enqueue"}
         phx-value-asset-set-id={@asset_set.id}
-        class="text-sm font-semibold text-[#F1F5F9] hover:underline"
+        class="text-sm font-semibold text-app-text hover:underline"
         aria-label={
           if @queued?,
             do: "Remove #{@asset_set.display_title} from Queue",

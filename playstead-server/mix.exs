@@ -109,6 +109,7 @@ defmodule Playstead.MixProject do
         "compile --warnings-as-errors",
         "deps.unlock --unused",
         "format --check-formatted",
+        "cmd bash scripts/tests/backup-live-test.sh",
         "test"
       ]
     ]

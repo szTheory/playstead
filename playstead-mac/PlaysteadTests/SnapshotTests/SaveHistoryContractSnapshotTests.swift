@@ -136,13 +136,13 @@ final class SaveHistoryContractSnapshotTests: XCTestCase {
             .deletingLastPathComponent()
             .appendingPathComponent("Playstead/Library/SidebarView.swift")
         let expectedSidebar = [
-            "Home", "Continue", "Favorites", "Collections", "Queue", "Recent",
-            "Game Boy Advance", "Super Nintendo", "Unidentified"
+            "All Games", "Recently Played", "Favorites", "Collections", "Queue", "Recent",
+            "Game Boy Advance", "Super Nintendo", "Unidentified", "Downloads", "Settings"
         ]
         XCTAssertEqual(
             SidebarView.entries(nonEmptySystemIDs: ["snes", "gba"], hasUnidentified: true).map(\.label),
             expectedSidebar,
-            "the shipped eight-step sidebar order must be unchanged"
+            "the grouped sidebar destinations must retain their declared order"
         )
         XCTAssertTrue(FileManager.default.fileExists(atPath: sourceURL.path))
     }

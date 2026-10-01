@@ -103,6 +103,35 @@ defmodule PlaysteadWeb.Api.V1.SavesControllerTest do
     _ = ChangeJournal
   end
 
+  test "GET /api/v1/snapshot includes an already committed save revision", %{conn: conn} do
+    {_scope, _device, token} = paired()
+    bytes = :crypto.strong_rand_bytes(128)
+    command_id = uuid_v7()
+    revision_id = uuid_v7()
+
+    upload_resp = upload!(build_conn(), token, bytes, command_id)
+    json_response(upload_resp, 200)
+
+    commit_resp =
+      commit!(build_conn(), token, "snapshot-#{System.unique_integer([:positive])}", %{
+        "id" => revision_id,
+        "command_id" => command_id,
+        "content_key" => content_key()
+      })
+
+    json_response(commit_resp, 201)
+
+    snapshot =
+      conn
+      |> put_req_header("authorization", "Bearer #{token}")
+      |> get(~p"/api/v1/snapshot")
+      |> json_response(200)
+
+    assert [save] = snapshot["save"]
+    assert save["revision_id"] == revision_id
+    assert save["blob_sha256"] == :crypto.hash(:sha256, bytes) |> Base.encode16(case: :lower)
+  end
+
   # WINDOWS #57: `adapter_id`/`adapter_version` are plumbed from the Mac
   # client through this endpoint, into the revision row, and out again in
   # the journal payload a second device reads. Every link existed and no

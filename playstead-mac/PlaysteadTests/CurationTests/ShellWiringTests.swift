@@ -86,6 +86,23 @@ final class ShellWiringTests: XCTestCase {
         XCTAssertTrue(environment.queueViewModel.isQueued(assetSetID: "asset-1"))
     }
 
+    func testQueueToggleIsDeduplicatedAndCanRemoveThenReadd() throws {
+        try seedCatalogue(id: "asset-1", system: "gba", title: "Metroid")
+
+        XCTAssertTrue(environment.toggleQueued(assetSetID: "asset-1"))
+        XCTAssertFalse(environment.queueViewModel.enqueue(assetSetID: "asset-1"), "a repeated enqueue request is a no-op while queued")
+        XCTAssertEqual(environment.curationStore.fetchQueueItems().count, 1)
+        XCTAssertEqual(environment.outbox.listAll().map(\.kind), [.queueEnqueue])
+
+        XCTAssertTrue(environment.toggleQueued(assetSetID: "asset-1"), "the selected queue control removes the title")
+        XCTAssertFalse(environment.queueViewModel.isQueued(assetSetID: "asset-1"))
+        XCTAssertEqual(environment.outbox.listAll().map(\.kind), [.queueEnqueue, .queueDequeue])
+
+        XCTAssertTrue(environment.toggleQueued(assetSetID: "asset-1"), "a removed title can be added again")
+        XCTAssertTrue(environment.queueViewModel.isQueued(assetSetID: "asset-1"))
+        XCTAssertEqual(environment.curationStore.fetchQueueItems().count, 1)
+    }
+
     /// All five curation nouns must share one store and one outbox — a
     /// favorite added on Home has to be visible on the Favorites shelf,
     /// and every intent has to drain from the same queue.
@@ -157,7 +174,7 @@ final class ShellWiringTests: XCTestCase {
 
         let before = environment.drainTrigger.drainCount
         // Exactly what `PlaysteadApp`'s `scenePhase == .active` observer calls.
-        environment.applicationDidBecomeActive()
+        await environment.applicationDidBecomeActive()
         await environment.drainTrigger.awaitPending()
 
         XCTAssertGreaterThan(environment.drainTrigger.drainCount, before)

@@ -9,6 +9,7 @@ struct ControllerSettingsView: View {
     let connectedControllers: [ControllerDescriptor]
     let assignedControllerID: String?
     let mapping: ControllerMapping
+    var showsMappingControls = true
     var onAssign: (String) -> Void = { _ in }
     var onRemap: (String, String) -> Void = { _, _ in }
     var onReset: () -> Void = {}
@@ -17,16 +18,20 @@ struct ControllerSettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             if connectedControllers.isEmpty {
-                Text("No controller connected. Keyboard and pointer remain fully available.")
+                Text("No controller connected. Keyboard controls are available.")
                     .font(.psBody)
                     .foregroundStyle(DesignTokens.textMuted)
             } else {
                 assignmentSection
-                mappingSection
-                HStack {
+                if showsMappingControls {
+                    mappingSection
+                    HStack {
+                        Button("Test controller", action: onOpenTestView)
+                        Spacer()
+                        Button("Reset to defaults", action: onReset)
+                    }
+                } else {
                     Button("Test controller", action: onOpenTestView)
-                    Spacer()
-                    Button("Reset to defaults", action: onReset)
                 }
             }
         }

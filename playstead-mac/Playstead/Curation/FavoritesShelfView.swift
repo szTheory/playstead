@@ -1,13 +1,15 @@
 import SwiftUI
 
-/// Renders `FavoritesViewModel`'s favorites over `ShelfView` — the
-/// shelf itself is generic (plan 03-06); this view is the mapping from
-/// a favorite row plus the catalogue entry it references into a
-/// `ShelfItem`, and the empty-state copy from 03-UI-SPEC.md's
+/// Renders `FavoritesViewModel`'s favorites as actionable library rows;
+/// this view maps a favorite row and its catalogue entry into a
+/// `ShelfItem`, and owns the empty-state copy from 03-UI-SPEC.md's
 /// Copywriting Contract.
 struct FavoritesShelfView: View {
     let viewModel: FavoritesViewModel
     let catalogueByAssetSetID: [String: CatalogueEntry]
+    var onBrowseLibrary: () -> Void = {}
+    var controllerFocusedAssetSetID: String? = nil
+    var controllerCommand: LibraryControllerCommand? = nil
     /// Injected rather than derived here, so the shelf stays free of the
     /// stores: `LibraryShellView` passes
     /// `AppEnvironment.libraryStatuses(for:)`, the same derivation the grid
@@ -23,7 +25,7 @@ struct FavoritesShelfView: View {
 
     /// Pure so it can be asserted directly by tests without hosting a
     /// live view — matches the codebase's established pattern
-    /// (`GameCardView.accessibleLabel`, `FilterChipRow.isSelected`, etc.)
+    /// (`GameRowView` action-label helpers, `FilterChipRow.isSelected`, etc.)
     static func items(
         favorites: [CurationFavoriteRow],
         catalogueByAssetSetID: [String: CatalogueEntry],
@@ -42,6 +44,33 @@ struct FavoritesShelfView: View {
     }
 
     var body: some View {
-        ShelfView(heading: "Favorites", items: items, layout: .horizontal, emptyExplanation: Self.emptyExplanation)
+        Group {
+            if items.isEmpty {
+                ContentUnavailableView {
+                    Label("Favorites", systemImage: "heart")
+                } description: {
+                    Text(Self.emptyExplanation)
+                } actions: {
+                    Button("Browse Library", action: onBrowseLibrary)
+                }
+            } else {
+                List {
+                    ForEach(items) { item in
+                        if let entry = catalogueByAssetSetID[item.id] {
+                            GameRowView(
+                                entry: entry,
+                                isControllerFocused: controllerFocusedAssetSetID == entry.id,
+                                controllerCommand: controllerCommand
+                            )
+                        }
+                    }
+                }
+                .listStyle(.inset)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Favorites")
+        .accessibilityIdentifier(AccessibilityIdentifiers.Surface.favoritesShelf)
     }
 }

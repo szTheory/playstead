@@ -120,11 +120,12 @@ final class LibraryStatusWiringTests: XCTestCase {
         let rom = payload(seed: 3)
         let entry = try seedGame(id: "asset-3", title: "Pokemon", digest: rom.digest)
         try commitIntoCache(rom.data, digest: rom.digest)
+        XCTAssertEqual(status(for: entry), .verified, "warm the presentation projection before pinning")
         XCTAssertTrue(environment.togglePin(assetSetID: entry.id))
 
         XCTAssertEqual(environment.availability(for: entry), .pinnedOffline)
         XCTAssertEqual(status(for: entry), .pinned)
-        XCTAssertEqual(status(for: entry)?.listViewLabel, "Pinned")
+        XCTAssertEqual(status(for: entry)?.listViewLabel, "Kept on this Mac")
     }
 
     func testAGameWithQueueRowsAndNoBytesReadsAsQueued() throws {
@@ -134,6 +135,7 @@ final class LibraryStatusWiringTests: XCTestCase {
         // Offline, so the queue's own scheduler cannot start a transfer
         // and turn this into `.partial` mid-assertion.
         reachability.simulate(online: false)
+        XCTAssertEqual(status(for: entry), .serverOnly, "warm the projection before queueing")
         environment.enqueueDownload(for: entry)
 
         XCTAssertEqual(environment.availability(for: entry), .queued)
@@ -149,6 +151,7 @@ final class LibraryStatusWiringTests: XCTestCase {
         reachability.simulate(online: false)
         environment.enqueueDownload(for: entry)
         let row = try XCTUnwrap(environment.downloadRows().first { $0.assetSetID == entry.id })
+        XCTAssertEqual(status(for: entry), .queued, "warm the projection before cancelling")
         environment.cancelDownload(id: row.id)
 
         XCTAssertEqual(environment.availability(for: entry), .serverOnly)
@@ -171,7 +174,7 @@ final class LibraryStatusWiringTests: XCTestCase {
     }
 
     /// The end-to-end statement of WINDOWS #72: download a game the way the
-    /// Download button does, and its card must stop saying "On server".
+    /// Download button does, and its card must stop saying "Available to download".
     func testARealDownloadChangesWhatTheCardSays() async throws {
         let rom = payload(seed: 7)
         let entry = try seedGame(id: "asset-7", title: "Fire Emblem", digest: rom.digest)
@@ -184,6 +187,24 @@ final class LibraryStatusWiringTests: XCTestCase {
         XCTAssertEqual(attempt, .completed)
 
         XCTAssertEqual(status(for: entry), .verified, "the badge must follow the bytes, not a literal")
+    }
+
+    /// The button is an interactive action, not the durable offline queue:
+    /// a transport failure must return a visible failure instead of leaving
+    /// the row on its indefinite "Downloading" spinner.
+    func testInteractiveDownloadStopsAfterItsFirstTransportFailure() async throws {
+        let rom = payload(seed: 10)
+        let entry = try seedGame(id: "asset-10", title: "Transport failure", digest: rom.digest)
+        StubURLProtocol.responder = { _ in
+            StubURLProtocol.Stub(statusCode: 200, headers: [:], bodyChunks: [], failAfter: true)
+        }
+
+        let attempt = await environment.attemptDownload(for: entry)
+
+        guard case .failed = attempt else {
+            return XCTFail("an interactive transport failure must become visible, got \(attempt)")
+        }
+        XCTAssertEqual(StubURLProtocol.requestLog.count, 1, "the button must not silently inherit the queue's infinite retry loop")
     }
 
     /// Every entry is derived independently — the defect being guarded
@@ -200,6 +221,41 @@ final class LibraryStatusWiringTests: XCTestCase {
         XCTAssertNotEqual(
             status(for: cachedEntry), status(for: absentEntry),
             "a hardcoded status would make these equal"
+        )
+    }
+
+    /// Simulates the repeated body evaluations caused by split-view resizing
+    /// with synthetic catalogue data. The first pass builds source facts;
+    /// subsequent layout-only reads must reuse those facts and avoid further
+    /// SQLite/CAS projections.
+    func testRepeatedLibraryProjectionReadsReuseSynthetic500GameSnapshot() throws {
+        let entries = (0..<500).map { index in
+            let digest = String(format: "%064x", index + 1)
+            return CatalogueEntry(
+                id: "synthetic-\(index)",
+                system: "gba",
+                displayTitle: "Synthetic Game \(index)",
+                tags: [:],
+                members: [AssetMember(ordinal: 0, role: "rom", required: true, sha256: digest, size: 1024, name: "synthetic.gba")]
+            )
+        }
+        for entry in entries { try environment.catalogueStore.upsert(entry) }
+        environment.libraryViewModel.refresh()
+
+        let initialBuildCount = environment.libraryStatusProjectionBuildCount
+        for entry in entries { _ = environment.libraryStatuses(for: entry) }
+        XCTAssertEqual(environment.libraryStatusProjectionBuildCount - initialBuildCount, entries.count)
+
+        let warmBuildCount = environment.libraryStatusProjectionBuildCount
+        measure {
+            for _ in 0..<10 {
+                for entry in entries { _ = environment.libraryStatuses(for: entry) }
+            }
+        }
+        XCTAssertEqual(
+            environment.libraryStatusProjectionBuildCount,
+            warmBuildCount,
+            "repeated view updates must not repeat per-game source reads"
         )
     }
 }

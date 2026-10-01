@@ -11,6 +11,8 @@ final class UITestHarness {
         case pausedActiveQueue = "paused-active-queue"
         case quotaBlockReclaim = "quota-block-reclaim"
         case storage = "storage"
+        case biosAcceptance = "bios-acceptance"
+        case biosNoReference = "bios-no-reference"
         case saveRestorable = "save-restorable"
         case saveOnlyCopy = "save-only-copy"
         case saveDiverged = "save-diverged"
@@ -62,6 +64,7 @@ final class UITestHarness {
     }
 
     let app: XCUIApplication
+    let persistentSessionID: String?
     private(set) var identifierTrace: [String] = []
 
     /// `extraEnvironment` carries additional launch variables a specific
@@ -69,7 +72,12 @@ final class UITestHarness {
     /// mode/profile keys below and must never overwrite them — a test that
     /// tried would silently escape the deterministic-profile contract, so
     /// those keys are re-asserted afterwards.
-    init(profile: Profile, persistentSession: Bool = false, extraEnvironment: [String: String] = [:]) {
+    init(
+        profile: Profile,
+        persistentSession: Bool = false,
+        sessionID: String? = nil,
+        extraEnvironment: [String: String] = [:]
+    ) {
         app = XCUIApplication()
         app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
         for (key, value) in extraEnvironment {
@@ -81,8 +89,14 @@ final class UITestHarness {
         // `ProductionRootView` and its login-Keychain composition.
         app.launchEnvironment["PLAYSTEAD_UI_TESTING"] = "1"
         app.launchEnvironment["PLAYSTEAD_UI_TEST_PROFILE"] = profile.rawValue
-        if persistentSession {
+        if let sessionID {
+            persistentSessionID = sessionID
+            app.launchEnvironment["PLAYSTEAD_UI_TEST_SESSION_ID"] = sessionID
+        } else if persistentSession {
             app.launchEnvironment["PLAYSTEAD_UI_TEST_SESSION_ID"] = UUID().uuidString.lowercased()
+            persistentSessionID = app.launchEnvironment["PLAYSTEAD_UI_TEST_SESSION_ID"]
+        } else {
+            persistentSessionID = nil
         }
     }
 
@@ -120,7 +134,9 @@ final class UITestHarness {
         let marker = "PLAYSTEAD_FAILURE_STAGE[\(failureStage)]"
         XCTAssertFalse(identifiers.isEmpty, "focus order must be test-owned and nonempty \(marker)")
         let expected = identifiers.map { element($0, type: .button) }
-        for target in expected { XCTAssertTrue(target.awaitExistence(timeout: 5), marker) }
+        for (identifier, target) in zip(identifiers, expected) {
+            XCTAssertTrue(target.awaitExistence(timeout: 5), "\(marker): missing focus target \(identifier)")
+        }
 
         var foundStart = false
         for _ in 0..<24 {
@@ -179,7 +195,11 @@ final class UITestHarness {
             }
         }
         XCTAssertTrue(foundActivationTarget, "activation target was absent from the exact focus sequence \(marker)")
-        assertExactlyOneFocusedAction(expected: activationTarget, marker: marker, rootIdentifier: rootIdentifier)
+        assertExactlyOneFocusedAction(
+            expected: activationTarget,
+            marker: marker,
+            rootIdentifier: rootIdentifier
+        )
         XCTAssertTrue(hasKeyboardFocus(activationTarget), "activation target did not own focus \(marker)")
         app.typeKey(.space, modifierFlags: [])
         identifierTrace.append(identifier)

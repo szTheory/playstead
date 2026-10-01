@@ -50,7 +50,7 @@ actor DownloadEngine {
     /// (including bytes resumed from a prior partial), `expectedSize` is
     /// whatever the caller told `download(sha256:from:expectedSize:)`, if
     /// anything. `DownloadCoordinator` republishes this per-transfer
-    /// stream as the asset-set-scoped percent `GameCardView`'s determinate
+/// stream as the asset-set-scoped percent `GameRowView`'s determinate
     /// ring reads from `AvailabilityState`'s active-member fields.
     struct DownloadProgressEvent: Equatable, Sendable {
         let sha256: String
@@ -172,7 +172,13 @@ actor DownloadEngine {
         let bytesStream: URLSession.AsyncBytes
         let response: URLResponse
         do {
-            (bytesStream, response) = try await session.bytes(for: request)
+            // The async byte-stream API routes authentication challenges
+            // through its task delegate. Passing the session's trust delegate
+            // keeps blob TLS on the same pinned recovery CA as API requests.
+            (bytesStream, response) = try await session.bytes(
+                for: request,
+                delegate: session.delegate as? URLSessionTaskDelegate
+            )
         } catch let error as URLError {
             throw error
         } catch {

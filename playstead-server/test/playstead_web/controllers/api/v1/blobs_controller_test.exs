@@ -7,6 +7,7 @@ defmodule PlaysteadWeb.Api.V1.BlobsControllerTest do
 
   alias Playstead.Import.SourceFile
   alias Playstead.Repo
+  alias Playstead.Saves
 
   setup do
     File.mkdir_p!(Playstead.Blobs.Store.LocalDisk.blob_path())
@@ -31,6 +32,30 @@ defmodule PlaysteadWeb.Api.V1.BlobsControllerTest do
           size_bytes: 0
         })
       )
+
+    meta.sha256
+  end
+
+  defp committed_save_blob!(scope, device, bytes) do
+    {:ok, :stored, meta} = Playstead.Blobs.put_stream([bytes], byte_size(bytes))
+    command_id = uuid_v7()
+
+    {:ok, _pending} =
+      Saves.record_pending_upload(
+        scope.user.id,
+        device.id,
+        command_id,
+        meta.sha256,
+        meta.size_bytes
+      )
+
+    {:ok, _revision} =
+      Saves.commit_revision(scope.user.id, device, %{
+        "id" => uuid_v7(),
+        "command_id" => command_id,
+        "content_key" =>
+          :crypto.hash(:sha256, :crypto.strong_rand_bytes(16)) |> Base.encode16(case: :lower)
+      })
 
     meta.sha256
   end
@@ -90,6 +115,35 @@ defmodule PlaysteadWeb.Api.V1.BlobsControllerTest do
         conn
         |> put_req_header("authorization", "Bearer #{token}")
         |> get(~p"/api/v1/blobs/#{String.duplicate("0", 64)}")
+
+      assert_problem(resp, 404, :not_found)
+    end
+
+    test "streams a save revision blob to its owner without requiring a source file", %{
+      conn: conn
+    } do
+      {scope, device, token} = paired()
+      bytes = random_bytes(512)
+      sha256 = committed_save_blob!(scope, device, bytes)
+
+      resp =
+        conn
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> get(~p"/api/v1/blobs/#{sha256}")
+
+      assert resp.status == 200
+      assert resp.resp_body == bytes
+    end
+
+    test "returns 404 when another user requests a save revision blob", %{conn: conn} do
+      {scope_a, device_a, _token_a} = paired()
+      {_scope_b, _device_b, token_b} = paired()
+      sha256 = committed_save_blob!(scope_a, device_a, random_bytes(512))
+
+      resp =
+        conn
+        |> put_req_header("authorization", "Bearer #{token_b}")
+        |> get(~p"/api/v1/blobs/#{sha256}")
 
       assert_problem(resp, 404, :not_found)
     end

@@ -217,6 +217,37 @@ final class SaveUploadLaneTests: XCTestCase {
         }
     }
 
+    func test_overlappingDrainCallsShareAnInFlightRevisionUpload() async throws {
+        let revision = try makeLocalOnlyRevision(bytes: Data(repeating: 0x65, count: 4096))
+        let requestMethods = StringRecorder()
+
+        StubURLProtocol.responder = { request in
+            let method = request.httpMethod ?? ""
+            requestMethods.append(method)
+            // Keep the first transport operation suspended long enough for
+            // the overlapping drain to enter the actor at its HTTP await.
+            Thread.sleep(forTimeInterval: 0.15)
+            return StubURLProtocol.Stub(
+                statusCode: method == "PUT" ? 200 : 201,
+                headers: ["Content-Type": "application/json"],
+                body: Data("{\"save_line_id\":\"\(revision.saveLineID)\",\"recorded_at\":\"2026-09-03T00:00:00Z\"}".utf8)
+            )
+        }
+
+        let lane = SaveUploadLane(apiClient: apiClient, saveStore: saveStore)
+        async let first = lane.drainOnce()
+        async let second = lane.drainOnce()
+        let (firstResult, secondResult) = await (first, second)
+
+        XCTAssertEqual(firstResult.sent, 1, "the initiating drain records the shared upload outcome")
+        XCTAssertEqual(secondResult.sent, 1, "an overlapping drain observes the same completed revision")
+        XCTAssertFalse(firstResult.stoppedForRetry)
+        XCTAssertFalse(secondResult.stoppedForRetry)
+        XCTAssertEqual(requestMethods.snapshot().filter { $0 == "PUT" }.count, 1)
+        XCTAssertEqual(requestMethods.snapshot().filter { $0 == "POST" }.count, 1)
+        XCTAssertEqual(saveStore.fetchRevision(id: revision.id)?.durability, SaveDurability.uploaded.rawValue)
+    }
+
     // MARK: - A lane entry that exhausts its attempts stays visible and
     // is retried on the next cycle, never going silent.
 
@@ -316,7 +347,11 @@ final class SaveUploadLaneTests: XCTestCase {
         // because escalating a condition that fixes itself is what D-40
         // forbids.
         let attempts = Counter()
+        let uploadPaths = StringRecorder()
         StubURLProtocol.responder = { request in
+            if request.httpMethod == "PUT", let path = request.url?.path {
+                uploadPaths.append(path)
+            }
             if attempts.next() == 1 {
                 return StubURLProtocol.Stub(
                     statusCode: 503, headers: [:], body: Data("{\"code\":\"unavailable\"}".utf8)
@@ -337,11 +372,17 @@ final class SaveUploadLaneTests: XCTestCase {
         XCTAssertEqual(first.sent, 0, "a single transient error makes one pass send nothing")
         XCTAssertTrue(first.stoppedForRetry, "the lane stopped to retry rather than failing terminally")
         XCTAssertEqual(lane.lastFailureClassification, .none, "a 503 is retryable and must never escalate")
+        XCTAssertNotNil(saveStore.fetchRevision(id: revision.id)?.uploadCommandID, "the command ID is durable before the first request")
 
         now = now.addingTimeInterval(3600) // past any backoff
-        let second = await lane.drainOnce(at: now)
+        // A fresh lane models an app restart: idempotent replay must retain
+        // the exact command ID from the local revision row.
+        let resumedLane = SaveUploadLane(apiClient: apiClient, saveStore: saveStore)
+        let second = await resumedLane.drainOnce(at: now)
         XCTAssertEqual(second.sent, 1, "same server, one pass later — the upload was never broken")
         XCTAssertEqual(saveStore.fetchRevision(id: revision.id)?.durability, SaveDurability.uploaded.rawValue)
+        XCTAssertEqual(uploadPaths.snapshot().count, 2, "the failed and replayed upload requests were both observed")
+        XCTAssertEqual(Set(uploadPaths.snapshot()).count, 1, "a replay keeps the same command URL across app restarts")
     }
 
     // MARK: - Helpers
@@ -355,6 +396,21 @@ final class SaveUploadLaneTests: XCTestCase {
             lock.lock(); defer { lock.unlock() }
             value += 1
             return value
+        }
+    }
+
+    private final class StringRecorder: @unchecked Sendable {
+        private let lock = NSLock()
+        private var values: [String] = []
+
+        func append(_ value: String) {
+            lock.lock(); defer { lock.unlock() }
+            values.append(value)
+        }
+
+        func snapshot() -> [String] {
+            lock.lock(); defer { lock.unlock() }
+            return values
         }
     }
 

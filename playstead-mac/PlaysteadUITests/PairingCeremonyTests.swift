@@ -1,5 +1,6 @@
 import XCTest
 import Security
+import CryptoKit
 
 /// Covers plan 04.5-01 task 5's live-server proof: the real pairing
 /// ceremony, driven entirely through the app's own `PairingView`, against
@@ -32,6 +33,19 @@ final class PairingCeremonyTests: XCTestCase {
     private var keychain: SecKeychain?
     private var root: URL?
     private var fixtureEnvironment: [String: String]?
+    private var runtimeConfigurationFailure = RuntimeConfigurationFailure.invalid
+
+    /// Closed, path-free preflight diagnostics for sanitized CI evidence.
+    private enum RuntimeConfigurationFailure: String {
+        case invalid = "runtime-config-invalid"
+        case fileInvalid = "runtime-config-file-invalid"
+        case contentInvalid = "runtime-config-content-invalid"
+        case identityInvalid = "runtime-config-identity-invalid"
+        case runMismatch = "runtime-config-run-mismatch"
+        case caPathInvalid = "runtime-config-ca-path-invalid"
+        case caDigestInvalid = "runtime-config-ca-digest-invalid"
+        case inheritedInvalid = "runtime-config-environment-invalid"
+    }
 
     /// Must match `Mix.Tasks.Playstead.MacCiFixture`'s `@device_label` --
     /// `approve-sole` requires the pending request's `claimed_device_name`
@@ -59,6 +73,21 @@ final class PairingCeremonyTests: XCTestCase {
         )
 
         let keychainURL = runRoot.appendingPathComponent("scoped.keychain-db")
+        guard let caPath = fixtureEnvironment?["PLAYSTEAD_TEST_LIVE_SERVER_CA_DER"] else {
+            return XCTFail("live fixture CA path is missing")
+        }
+        let sourceCA = URL(fileURLWithPath: caPath)
+        let sourceAttributes = try FileManager.default.attributesOfItem(atPath: sourceCA.path)
+        XCTAssertEqual(sourceAttributes[.type] as? FileAttributeType, .typeRegular)
+        let caBytes = try Data(contentsOf: sourceCA, options: [.mappedIfSafe])
+        XCTAssertGreaterThan(caBytes.count, 0)
+        XCTAssertLessThanOrEqual(caBytes.count, 16_384)
+        let caDigest = SHA256.hash(data: caBytes).map { String(format: "%02x", $0) }.joined()
+        XCTAssertEqual(caDigest, fixtureEnvironment?["PLAYSTEAD_TEST_LIVE_SERVER_CA_SHA256"])
+        let ownedCA = runRoot.appendingPathComponent("pairing-ca.der")
+        try caBytes.write(to: ownedCA, options: [.atomic])
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: ownedCA.path)
+
         let password = Data("synthetic-\(UUID().uuidString)".utf8)
         var created: SecKeychain?
         let status = keychainURL.path.withCString { path in
@@ -82,18 +111,14 @@ final class PairingCeremonyTests: XCTestCase {
         launched.launchEnvironment["PLAYSTEAD_UI_TEST_LIVE_ROOT"] = runRoot.path
         launched.launchEnvironment["PLAYSTEAD_UI_TEST_KEYCHAIN"] = keychainURL.path
         launched.launchEnvironment["PLAYSTEAD_UI_TEST_KEYCHAIN_SERVICE"] = "dev.playstead.mac.live.\(UUID().uuidString.lowercased())"
+        launched.launchEnvironment["PLAYSTEAD_UI_TEST_LIVE_SERVER_CA_DER"] = ownedCA.path
+        launched.launchEnvironment["PLAYSTEAD_UI_TEST_LIVE_SERVER_CA_SHA256"] = caDigest
+        launched.launchEnvironment["PLAYSTEAD_UI_TEST_LIVE_SERVER_PAIRING_TARGET"] = "https://127.0.0.1:4010"
         launched.launchEnvironment["PLAYSTEAD_UI_TEST_PAIRING_DEVICE_NAME"] = Self.deviceLabel
         launched.launch()
 
-        // Unpaired, fresh-install state: the empty library, with the
-        // action button WINDOWS #54 required actually behind its string.
         XCTAssertTrue(launched.descendants(matching: .any)["playstead.surface.library"].awaitExistence(timeout: 20))
-        XCTAssertTrue(launched.buttons["playstead.control.show-list"].awaitExistence(timeout: 10))
-        launched.buttons["playstead.control.show-list"].clickWhenHittable()
-
-        let openPairing = launched.buttons["playstead.control.open-pairing"]
-        XCTAssertTrue(openPairing.awaitExistence(timeout: 10), "the empty state must offer a reachable pairing action")
-        openPairing.clickWhenHittable()
+        openPairingFromMenu(in: launched)
 
         let serverURLField = launched.textFields["playstead.control.pairing-server-url"]
         XCTAssertTrue(serverURLField.awaitExistence(timeout: 10))
@@ -142,15 +167,18 @@ final class PairingCeremonyTests: XCTestCase {
         // in the exact scoped Keychain `APIClient` reads from -- proven by
         // a real subsequent snapshot fetch succeeding on relaunch.
         launched.terminate()
-        launched.launchEnvironment.removeValue(forKey: "PLAYSTEAD_UI_TEST_LIVE_SERVER_UNPAIRED")
+        for key in [
+            "PLAYSTEAD_UI_TEST_LIVE_SERVER_UNPAIRED",
+            "PLAYSTEAD_UI_TEST_LIVE_SERVER_CA_DER",
+            "PLAYSTEAD_UI_TEST_LIVE_SERVER_CA_SHA256",
+            "PLAYSTEAD_UI_TEST_LIVE_SERVER_PAIRING_TARGET",
+        ] {
+            launched.launchEnvironment.removeValue(forKey: key)
+        }
         launched.launch()
         XCTAssertTrue(launched.descendants(matching: .any)["playstead.surface.library"].awaitExistence(timeout: 20))
-        XCTAssertTrue(launched.buttons["playstead.control.show-list"].awaitExistence(timeout: 10))
-        launched.buttons["playstead.control.show-list"].clickWhenHittable()
-        // A relaunch that is still unpaired would show the same empty-state
-        // action button; its absence here is the proof the credential
-        // persisted and `APIClient` is reading it.
-        XCTAssertFalse(launched.buttons["playstead.control.open-pairing"].waitForExistence(timeout: 5))
+        // UITestBootstrap fails closed before constructing the library if the
+        // scoped credential cannot be reopened from the same run-owned store.
     }
 
     // MARK: - Fixture plumbing (mirrors LiveServerSnapshotTests exactly)
@@ -158,7 +186,10 @@ final class PairingCeremonyTests: XCTestCase {
     private func fixtureEnvironmentIsReady() -> Bool {
         let manager = FileManager.default
         guard let environment = resolvedFixtureEnvironment() else {
-            XCTAssertTrue(false, "pairing-ceremony-preflight=runtime-config-invalid")
+            XCTAssertTrue(
+                false,
+                "pairing-ceremony-preflight=\(runtimeConfigurationFailure.rawValue)"
+            )
             return false
         }
         fixtureEnvironment = environment
@@ -215,10 +246,37 @@ final class PairingCeremonyTests: XCTestCase {
             .appendingPathComponent("scripts/ci/live-server.sh")
     }
 
+    private func openPairingFromMenu(in app: XCUIApplication) {
+        let pairingMenu = app.menuBars.menuBarItems["Pairing"]
+        XCTAssertTrue(pairingMenu.awaitExistence(timeout: 10), "the production Pairing menu is missing")
+        pairingMenu.clickWhenHittable()
+        let pairCommand = app.menuItems["Pair with Server…"]
+        XCTAssertTrue(pairCommand.awaitExistence(timeout: 5), "the production Pair with Server command is missing")
+        pairCommand.clickWhenHittable()
+    }
+
     private func runtimeConfigurationURL() -> URL {
-        fixtureScriptURL()
+        if let path = ProcessInfo.processInfo.environment["PLAYSTEAD_TEST_LIVE_SERVER_RUNTIME_CONFIG"],
+           !path.isEmpty {
+            return URL(fileURLWithPath: path)
+        }
+        return fixtureScriptURL()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent(".build/ci/four-layer/raw/live-server-runtime.json")
+    }
+
+    private func runtimeConfigurationMatchesRun(_ url: URL, configured: [String: String]) -> Bool {
+        guard let serverRoot = configured["PLAYSTEAD_MAC_CI_ROOT"],
+              let stageRoot = configured["PLAYSTEAD_LIVE_SERVER_STAGE_ROOT"],
+              resolved(serverRoot) == resolved(stageRoot) else { return false }
+        let canonicalURL = url.resolvingSymlinksInPath().standardizedFileURL
+        let expectedURL = resolved(serverRoot)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("live-server-runtime.json")
+        // The runner may spell the same temporary directory through `/tmp`
+        // or `/private/tmp`; compare canonical locations against this run's
+        // expected file rather than rejecting a safe symlink spelling.
+        return canonicalURL == expectedURL
     }
 
     private func resolvedFixtureEnvironment() -> [String: String]? {
@@ -227,19 +285,42 @@ final class PairingCeremonyTests: XCTestCase {
             "PLAYSTEAD_LIVE_SERVER_STAGE_FILE", "MAC_CI_DATABASE_URL", "MIX_ENV", "PORT"
         ])
         let inherited = ProcessInfo.processInfo.environment
+        let explicitRuntimeConfig = inherited["PLAYSTEAD_TEST_LIVE_SERVER_RUNTIME_CONFIG"] ?? ""
 
         let url = runtimeConfigurationURL()
-        if
-            (try? permissions(of: url)) == 0o600,
-            let data = try? Data(contentsOf: url),
-            data.count <= 32_768,
-            let configured = try? JSONDecoder().decode([String: String].self, from: data),
-            Set(configured.keys) == required.union(["PATH"]),
-            required.allSatisfy({ !(configured[$0] ?? "").isEmpty }),
-            configured["MIX_ENV"] == "mac_ci",
-            configured["PORT"] == "4010"
-        {
-            return inherited.merging(configured) { _, configuredValue in configuredValue }
+        if !explicitRuntimeConfig.isEmpty {
+            guard (try? permissions(of: url)) == 0o600 else {
+                runtimeConfigurationFailure = .fileInvalid
+                return nil
+            }
+            guard let data = try? Data(contentsOf: url), data.count <= 32_768,
+                  let configured = try? JSONDecoder().decode([String: String].self, from: data),
+                  Set(configured.keys) == required.union(["PATH"]),
+                  required.allSatisfy({ !(configured[$0] ?? "").isEmpty }) else {
+                runtimeConfigurationFailure = .contentInvalid
+                return nil
+            }
+            guard configured["MIX_ENV"] == "mac_ci", configured["PORT"] == "4010" else {
+                runtimeConfigurationFailure = .identityInvalid
+                return nil
+            }
+            guard runtimeConfigurationMatchesRun(url, configured: configured) else {
+                runtimeConfigurationFailure = .runMismatch
+                return nil
+            }
+            let merged = inherited.merging(configured) { _, configuredValue in configuredValue }
+            guard let caPath = merged["PLAYSTEAD_TEST_LIVE_SERVER_CA_DER"],
+                  let serverRoot = merged["PLAYSTEAD_MAC_CI_ROOT"],
+                  caPathMatchesRun(caPath, serverRoot: serverRoot) else {
+                runtimeConfigurationFailure = .caPathInvalid
+                return nil
+            }
+            guard let digest = merged["PLAYSTEAD_TEST_LIVE_SERVER_CA_SHA256"],
+                  isCanonicalSHA256(digest) else {
+                runtimeConfigurationFailure = .caDigestInvalid
+                return nil
+            }
+            return merged
         }
 
         let inheritedRootsAgree =
@@ -248,7 +329,32 @@ final class PairingCeremonyTests: XCTestCase {
         if required.allSatisfy({ !(inherited[$0] ?? "").isEmpty }), inheritedRootsAgree {
             return inherited
         }
+        runtimeConfigurationFailure = .inheritedInvalid
         return nil
+    }
+
+    /// Compare the CA's canonical parent directory to this run's owned
+    /// `tls` directory, while allowing the same temporary root through
+    /// `/tmp` or `/private/tmp` spellings. Requiring the fixed leaf name
+    /// keeps a caller-supplied path from escaping the service root.
+    private func caPathMatchesRun(_ path: String, serverRoot: String) -> Bool {
+        let caURL = URL(fileURLWithPath: path).standardizedFileURL
+        guard caURL.lastPathComponent == "ca.der" else { return false }
+        guard (try? FileManager.default.destinationOfSymbolicLink(atPath: caURL.path)) == nil else {
+            return false
+        }
+        let actualParent = resolved(caURL.deletingLastPathComponent().path)
+        let expectedParent = resolved(
+            resolved(serverRoot).appendingPathComponent("tls", isDirectory: true).path
+        )
+        return actualParent == expectedParent
+    }
+
+    private func isCanonicalSHA256(_ digest: String) -> Bool {
+        let bytes = Array(digest.utf8)
+        return bytes.count == 64 && bytes.allSatisfy {
+            (48...57).contains($0) || (97...102).contains($0)
+        }
     }
 
     private func runFixture(_ action: String, root: URL, extraArgument: String? = nil) throws -> Bool {

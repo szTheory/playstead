@@ -1,6 +1,6 @@
 defmodule PlaysteadWeb.LibraryLive.Sidebar do
   @moduledoc """
-  The canonical navigation order (D-14, 03-UI-SPEC.md): Home, Continue,
+  The canonical navigation order (D-14, 03-UI-SPEC.md): Home, Recently Played,
   Favorites, Collections, Queue, Recent, then the systems that actually
   have content (frozen registry order, never alphabetical), then
   Unidentified last — shared one-to-one with the Mac client's source
@@ -39,14 +39,14 @@ defmodule PlaysteadWeb.LibraryLive.Sidebar do
     >
       <.entry id="sidebar-home" href="/library" active={@active == :home}>Home</.entry>
       <.entry id="sidebar-continue" href="/library?shelf=continue" active={@active == :continue}>
-        Continue
+        Recently Played
       </.entry>
       <p
         :if={Map.get(@empty, :continue, false)}
         id="sidebar-continue-explainer"
-        class="text-label text-[#94A3B8]"
+        class="text-label text-app-muted"
       >
-        Play something, and pick up where you left off here.
+        Games you play will appear here.
       </p>
 
       <.entry id="sidebar-favorites" href="/library?shelf=favorites" active={@active == :favorites}>
@@ -55,7 +55,7 @@ defmodule PlaysteadWeb.LibraryLive.Sidebar do
       <p
         :if={Map.get(@empty, :favorites, false)}
         id="sidebar-favorites-explainer"
-        class="text-label text-[#94A3B8]"
+        class="text-label text-app-muted"
       >
         Favorite a game to see it here.
       </p>
@@ -66,7 +66,7 @@ defmodule PlaysteadWeb.LibraryLive.Sidebar do
       <p
         :if={Map.get(@empty, :collections, false)}
         id="sidebar-collections-explainer"
-        class="text-label text-[#94A3B8]"
+        class="text-label text-app-muted"
       >
         Create a collection to group games your way.
       </p>
@@ -77,7 +77,7 @@ defmodule PlaysteadWeb.LibraryLive.Sidebar do
       <p
         :if={Map.get(@empty, :queue, false)}
         id="sidebar-queue-explainer"
-        class="text-label text-[#94A3B8]"
+        class="text-label text-app-muted"
       >
         Add a game to your queue to keep it in mind.
       </p>
@@ -88,7 +88,7 @@ defmodule PlaysteadWeb.LibraryLive.Sidebar do
       <p
         :if={Map.get(@empty, :recent, false)}
         id="sidebar-recent-explainer"
-        class="text-label text-[#94A3B8]"
+        class="text-label text-app-muted"
       >
         Play a game to see it here.
       </p>
@@ -109,7 +109,7 @@ defmodule PlaysteadWeb.LibraryLive.Sidebar do
           id="show-all-systems"
           phx-click="show-all-systems"
           aria-pressed={to_string(@show_all_systems)}
-          class="text-label text-[#94A3B8] hover:text-[#F1F5F9]"
+          class="text-label text-app-muted hover:text-app-text"
         >
           {if @show_all_systems,
             do: "Hide empty systems",
@@ -162,7 +162,7 @@ defmodule PlaysteadWeb.LibraryLive.Sidebar do
           # color — 01-UI-SPEC.md reserves accent for CTAs, the display
           # code, and the focus ring only (03-UI-SPEC.md carries that rule
           # forward unchanged for the console's new surfaces).
-          @active && "bg-[#334155]"
+          @active && "bg-app-border"
         ]
       }
       aria-current={@active && "page"}

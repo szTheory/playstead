@@ -24,6 +24,7 @@ mkdir -p "$OUTPUT_ROOT"
 
 python3 - "$INPUT_ROOT/evidence" "$OUTPUT_ROOT" "$MAC_ROOT" <<'PY'
 import json, pathlib, re, shutil, sys
+import math
 
 source = pathlib.Path(sys.argv[1]).resolve()
 output = pathlib.Path(sys.argv[2]).resolve()
@@ -35,10 +36,22 @@ max_image = 2 * 1024 * 1024
 max_storage_candidate = 8 * 1024 * 1024
 
 allowed = []
+recovery_candidate = source / "recovery-e2e.json"
+if recovery_candidate.is_file():
+    allowed.append(recovery_candidate)
+continuation_candidate = source / "continuation.json"
+if continuation_candidate.is_file():
+    allowed.append(continuation_candidate)
+save_reliability_candidate = source / "save-reliability.json"
+if save_reliability_candidate.is_file():
+    allowed.append(save_reliability_candidate)
 for name in ("environment-fingerprint.json", "layers.json"):
     candidate = source / name
     if candidate.is_file():
         allowed.append(candidate)
+virtual_gamepad_status = source / "entitled-gamepad.json"
+if virtual_gamepad_status.is_file():
+    allowed.append(virtual_gamepad_status)
 allowed.extend(sorted(source.glob("*-tests.json")))
 for name in ("reference.png", "actual.png", "diff.png"):
     candidate = source / "snapshot-triplet" / name
@@ -130,15 +143,88 @@ def validate_static_sweep_evidence(data, relative):
         raise SystemExit(f"static sweep evidence exit status is malformed: {relative}")
 
 
+def validate_recovery_evidence(data, relative):
+    if isinstance(data, dict) and data.get("schema") == "playstead.continuation-local.v1":
+        expected = {"schema", "run_id", "stage", "outcome"}
+        if set(data) != expected:
+            raise SystemExit(f"local continuation receipt has unexpected schema: {relative}")
+        if not isinstance(data.get("run_id"), str) or not re.fullmatch(
+            r"[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}",
+            data["run_id"],
+        ):
+            raise SystemExit(f"local continuation run identifier is malformed: {relative}")
+        if data.get("stage") not in {"preflight", "qualification", "initial-save", "safe-exit", "fresh-launch", "continue", "oracle"}:
+            raise SystemExit(f"local continuation stage is not allowlisted: {relative}")
+        if data.get("outcome") not in {"passed", "failed-stage", "blocked-capability"}:
+            raise SystemExit(f"local continuation outcome is not allowlisted: {relative}")
+        allowed_outcomes = (
+            {"blocked-capability"} if data["stage"] in {"preflight", "qualification"}
+            else {"passed", "failed-stage"} if data["stage"] == "oracle"
+            else {"failed-stage"}
+        )
+        if data["outcome"] not in allowed_outcomes:
+            raise SystemExit(f"local continuation stage and outcome are inconsistent: {relative}")
+        return
+    if isinstance(data, dict) and data.get("schema") == "playstead.recovery-e2e-local.v1":
+        expected = {"schema", "run_id", "lane", "stage", "outcome"}
+        if set(data) != expected:
+            raise SystemExit(f"local recovery receipt has unexpected schema: {relative}")
+        if data.get("lane") != "same_host_restored_target":
+            raise SystemExit(f"local recovery receipt identity is malformed: {relative}")
+        if not isinstance(data.get("run_id"), str) or not re.fullmatch(
+            r"[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}",
+            data["run_id"],
+        ):
+            raise SystemExit(f"local recovery run identifier is malformed: {relative}")
+        stages = {
+            "handoff_validation", "fixture_validation", "browser_trust", "preflight",
+            "clean_mac_ui", "package_cache", "code_signing", "test_plan", "test_launch",
+            "xctest", "build", "clean_launch", "local_ca_pairing_request", "owner_approval",
+            "cursor_convergence", "cache_preflight", "persistent_save_transport_restore",
+            "controlled_exit", "relaunch", "complete",
+        }
+        stage = data.get("stage")
+        outcome = data.get("outcome")
+        if not isinstance(stage, str) or stage not in stages or not isinstance(outcome, str) or outcome not in {"passed", "blocked"}:
+            raise SystemExit(f"local recovery stage or outcome is not allowlisted: {relative}")
+        if (stage == "complete") != (outcome == "passed"):
+            raise SystemExit(f"local recovery stage and outcome are inconsistent: {relative}")
+        return
+
+    expected = {"schema_version", "run_id", "lane", "stages", "outcome"}
+    if not isinstance(data, dict) or set(data) != expected:
+        raise SystemExit(f"recovery evidence has unexpected schema: {relative}")
+    if data.get("schema_version") != 1 or data.get("lane") != "linux_restore_fixture":
+        raise SystemExit(f"recovery evidence identity is malformed: {relative}")
+    if not isinstance(data.get("run_id"), str) or not re.fullmatch(
+        r"[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}",
+        data["run_id"],
+    ):
+        raise SystemExit(f"recovery run identifier is malformed: {relative}")
+    if data.get("outcome") not in {"passed", "failed", "blocked"}:
+        raise SystemExit(f"recovery outcome is malformed: {relative}")
+    stages = data.get("stages")
+    allowed_stages = ["chain", "preflight", "database", "cas", "manifest", "api"]
+    if not isinstance(stages, list) or stages != allowed_stages:
+        raise SystemExit(f"recovery stage list is malformed: {relative}")
+
+
 def validate_test_evidence(data, relative):
     allowed_keys = {
         "schema_version", "layer", "executed_test_count", "required_tests",
         "failed_test_count", "failed_tests_truncated", "failed_tests",
         "failure_diagnostic_count", "failure_diagnostics_truncated", "failure_diagnostics",
         "audit_issue_count", "audit_issues_truncated", "audit_issues",
+        "layout_diagnostic_count", "layout_diagnostics_truncated", "layout_diagnostics",
     }
     legacy_keys = allowed_keys - {
         "failure_diagnostic_count", "failure_diagnostics_truncated", "failure_diagnostics"
+    }
+    legacy_keys_without_layout = legacy_keys - {
+        "layout_diagnostic_count", "layout_diagnostics_truncated", "layout_diagnostics"
+    }
+    allowed_keys_without_layout = allowed_keys - {
+        "layout_diagnostic_count", "layout_diagnostics_truncated", "layout_diagnostics"
     }
     # 04-23: the writer grew a timing block (c3f51e1) and this allowlist did not,
     # so every layer file was rejected. Nothing caught it for three days because
@@ -147,12 +233,18 @@ def validate_test_evidence(data, relative):
     # all-or-nothing, and its values are validated like every other block.
     timing_keys = {"in_test_seconds_total", "timed_test_count", "slowest_tests"}
     actual_keys = set(data) if isinstance(data, dict) else set()
-    core_keys = actual_keys - timing_keys
-    if not isinstance(data, dict) or (core_keys != allowed_keys and core_keys != legacy_keys):
+    core_keys = actual_keys - timing_keys - {"runner_process_error_count"}
+    if not isinstance(data, dict) or core_keys not in (
+        allowed_keys, legacy_keys, allowed_keys_without_layout, legacy_keys_without_layout
+    ):
         raise SystemExit(f"test evidence has unexpected schema: {relative}")
     present_timing = actual_keys & timing_keys
     if present_timing not in (set(), timing_keys):
         raise SystemExit(f"test evidence timing block is partial: {relative}")
+    if "runner_process_error_count" in actual_keys:
+        runner_error_count = data.get("runner_process_error_count")
+        if type(runner_error_count) is not int or not 0 <= runner_error_count <= 50:
+            raise SystemExit(f"runner process error count is malformed: {relative}")
     if present_timing:
         total = data.get("in_test_seconds_total")
         if type(total) not in (int, float) or type(total) is bool or total < 0:
@@ -223,6 +315,39 @@ def validate_test_evidence(data, relative):
             raise SystemExit(f"failure diagnostic source is not one unique project source: {relative}")
         if type(record.get("source_line")) is not int or not 1 <= record["source_line"] <= 1_000_000:
             raise SystemExit(f"failure diagnostic line is malformed: {relative}")
+    if "layout_diagnostic_count" in data:
+        layout_records = data["layout_diagnostics"]
+        layout_count = data["layout_diagnostic_count"]
+        layout_truncated = data["layout_diagnostics_truncated"]
+        if not isinstance(layout_records, list) or len(layout_records) > 50:
+            raise SystemExit(f"layout_diagnostics exceeds its bounded allowlist: {relative}")
+        if type(layout_count) is not int or layout_count < len(layout_records) or type(layout_truncated) is not bool:
+            raise SystemExit(f"layout diagnostic metadata is malformed: {relative}")
+        if (not layout_truncated and layout_count != len(layout_records)) or (layout_truncated and (layout_count <= 50 or len(layout_records) != 50)):
+            raise SystemExit(f"layout diagnostic truncation metadata is inconsistent: {relative}")
+        for record in layout_records:
+            if not isinstance(record, dict) or set(record) not in (
+                {"kind", "hittable", "element", "pane", "window"},
+                {"kind", "hittable", "element", "pane", "window", "slot"},
+            ):
+                raise SystemExit(f"layout diagnostic contains non-allowlisted fields: {relative}")
+            if record.get("kind") not in {"moveUp", "dragCell", "orderCell"} or type(record.get("hittable")) is not bool:
+                raise SystemExit(f"layout diagnostic identity is malformed: {relative}")
+            if ("slot" in record) != (record["kind"] == "orderCell"):
+                raise SystemExit(f"layout diagnostic slot is inconsistent: {relative}")
+            if "slot" in record and (type(record["slot"]) is not int or not 1 <= record["slot"] <= 100):
+                raise SystemExit(f"layout diagnostic slot is malformed: {relative}")
+            for field in ("element", "pane", "window"):
+                frame = record.get(field)
+                if not isinstance(frame, list) or len(frame) != 4:
+                    raise SystemExit(f"layout diagnostic frame is malformed: {relative}")
+                x, y, width, height = frame
+                if any(type(value) not in (int, float) or not math.isfinite(value) or abs(value) > 100000 for value in frame):
+                    raise SystemExit(f"layout diagnostic frame is non-finite or out of range: {relative}")
+                if width < 0 or height < 0:
+                    raise SystemExit(f"layout diagnostic frame has negative dimensions: {relative}")
+    elif "layout_diagnostics" in data or "layout_diagnostics_truncated" in data:
+        raise SystemExit(f"layout diagnostic block is partial: {relative}")
     audit_issues = data.get("audit_issues")
     audit_count = data.get("audit_issue_count")
     audit_truncated = data.get("audit_issues_truncated")
@@ -252,7 +377,7 @@ def validate_test_evidence(data, relative):
         if not isinstance(record, dict) or set(record) != {"identifier", "discovered", "execution_count", "skipped", "outcome"}:
             raise SystemExit(f"required test record contains non-allowlisted fields: {relative}")
         identifier = record.get("identifier")
-        if not isinstance(identifier, str) or len(identifier) > 240 or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.]*/[A-Za-z_][A-Za-z0-9_]*(?:\(\))?", identifier):
+        if not isinstance(identifier, str) or len(identifier) > 240 or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.]*/(?:[A-Za-z_][A-Za-z0-9_]*(?:\(\))?|\*)", identifier):
             raise SystemExit(f"required test identifier is not canonical: {relative}")
         if type(record.get("discovered")) is not bool or type(record.get("skipped")) is not bool:
             raise SystemExit(f"required test flags are malformed: {relative}")
@@ -260,6 +385,67 @@ def validate_test_evidence(data, relative):
             raise SystemExit(f"required test execution count is malformed: {relative}")
         if record.get("outcome") not in {"passed", "failed", "skipped", "unknown", "missing"}:
             raise SystemExit(f"required test outcome is not allowlisted: {relative}")
+
+def validate_virtual_gamepad_status(data, relative):
+    expected = {"schema_version", "lane", "test_identifier", "status", "gate_passed"}
+    if not isinstance(data, dict) or set(data) != expected:
+        raise SystemExit(f"virtual-gamepad evidence schema is malformed: {relative}")
+    if data.get("schema_version") != 1 or data.get("lane") != "virtual_gamepad":
+        raise SystemExit(f"virtual-gamepad evidence identity is malformed: {relative}")
+    if data.get("test_identifier") != "PlaysteadUITests.ControllerHardwareIntegrationTests/testEntitledVirtualGamepadEnumeratesDetachesAndReconnectsWithoutRelaunch":
+        raise SystemExit(f"virtual-gamepad test identity is malformed: {relative}")
+    status = data.get("status")
+    if status not in {"blocked/not-configured", "pending/configured", "passed", "failed"}:
+        raise SystemExit(f"virtual-gamepad status is not allowlisted: {relative}")
+    if type(data.get("gate_passed")) is not bool or data["gate_passed"] != (status == "passed"):
+        raise SystemExit(f"virtual-gamepad gate status is inconsistent: {relative}")
+
+def validate_save_reliability(data, relative):
+    expected = {"schema", "round_trip", "transient", "conflict", "probes"}
+    if not isinstance(data, dict) or set(data) != expected:
+        raise SystemExit(f"save reliability evidence schema is malformed: {relative}")
+    if data.get("schema") != "playstead.save-reliability.v1" or data.get("round_trip") != "passed":
+        raise SystemExit(f"save reliability evidence identity is malformed: {relative}")
+    transient = data.get("transient")
+    if not isinstance(transient, dict) or set(transient) != {
+        "http_status", "problem_code", "failure_classification", "failure_cause", "escalates", "correlation_id"
+    }:
+        raise SystemExit(f"save transient evidence schema is malformed: {relative}")
+    if transient.get("http_status") != 503 or transient.get("problem_code") != "service_unavailable":
+        raise SystemExit(f"save transient response identity is malformed: {relative}")
+    if transient.get("failure_classification") != "none" or transient.get("failure_cause") != "http5xx" or transient.get("escalates") is not False:
+        raise SystemExit(f"save transient retry classification is inconsistent: {relative}")
+    conflict = data.get("conflict")
+    if not isinstance(conflict, dict) or set(conflict) != {
+        "original_http_status", "duplicate_http_status", "problem_code", "failure_classification",
+        "failure_cause", "escalates", "correlation_id"
+    }:
+        raise SystemExit(f"save conflict evidence schema is malformed: {relative}")
+    if conflict.get("original_http_status") != 201 or conflict.get("duplicate_http_status") != 409:
+        raise SystemExit(f"save duplicate response identity is malformed: {relative}")
+    if conflict.get("problem_code") != "idempotency_key_conflict" or conflict.get("failure_classification") != "serverRefusal" or conflict.get("failure_cause") != "idempotencyConflict" or conflict.get("escalates") is not True:
+        raise SystemExit(f"save conflict escalation classification is inconsistent: {relative}")
+    uuid_pattern = r"[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
+    for record in (transient, conflict):
+        if not isinstance(record.get("correlation_id"), str) or not re.fullmatch(uuid_pattern, record["correlation_id"]):
+            raise SystemExit(f"save response correlation identifier is malformed: {relative}")
+    probes = data.get("probes")
+    if not isinstance(probes, dict) or set(probes) != {
+        "probe_count", "max_requests_per_second_per_probe", "successful_requests", "last_status", "failed_requests"
+    }:
+        raise SystemExit(f"save probe evidence schema is malformed: {relative}")
+    if probes.get("probe_count") != 4 or probes.get("max_requests_per_second_per_probe") != 2:
+        raise SystemExit(f"save probe shape is inconsistent: {relative}")
+    for field, minimum in (("successful_requests", 1), ("last_status", 200), ("failed_requests", 0)):
+        values = probes.get(field)
+        if not isinstance(values, list) or len(values) != 4 or any(type(value) is not int for value in values):
+            raise SystemExit(f"save probe {field} is malformed: {relative}")
+        if field == "successful_requests" and any(value < minimum for value in values):
+            raise SystemExit(f"save probe request counts are invalid: {relative}")
+        if field == "last_status" and any(value != minimum for value in values):
+            raise SystemExit(f"save probe statuses are not healthy: {relative}")
+        if field == "failed_requests" and any(value != minimum for value in values):
+            raise SystemExit(f"save probe failures are present: {relative}")
 
 def sanitize_log(raw):
     if any((ord(char) < 32 and char not in "\n\r\t") or ord(char) == 127 for char in raw):
@@ -302,6 +488,14 @@ for item in allowed:
                 validate_static_sweep_evidence(data, relative)
             else:
                 validate_test_evidence(data, relative)
+        if relative.as_posix() == "entitled-gamepad.json":
+            validate_virtual_gamepad_status(data, relative)
+        if relative.as_posix() == "save-reliability.json":
+            validate_save_reliability(data, relative)
+        if relative.as_posix() == "recovery-e2e.json":
+            validate_recovery_evidence(data, relative)
+        if relative.as_posix() == "continuation.json":
+            validate_recovery_evidence(data, relative)
         scan_json(data)
         destination.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     elif suffix == ".txt" or suffix == ".log":

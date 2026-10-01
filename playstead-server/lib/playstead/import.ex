@@ -97,7 +97,7 @@ defmodule Playstead.Import do
                classification.outcome,
                classification.reason
              ),
-           {:ok, _entry} <- ChangeJournal.append(user_id, :catalogue, receipt.id, %{}),
+           {:ok, _entry} <- append_catalogue_change(user_id, classification.asset_set),
            {:ok, _item} <- raise_attention(user_id, source_file, receipt, classification) do
         receipt
       else
@@ -611,7 +611,7 @@ defmodule Playstead.Import do
                outcome,
                reason
              ),
-           {:ok, _entry} <- ChangeJournal.append(user_id, :catalogue, asset_set.id, %{}),
+           {:ok, _entry} <- append_catalogue_change(user_id, asset_set),
            {:ok, companion_receipts} <-
              insert_companion_receipts(user_id, asset_set, companion_files),
            {:ok, _item} <-
@@ -768,7 +768,7 @@ defmodule Playstead.Import do
            asset_set <- Repo.get!(AssetSet, member.asset_set_id),
            {:ok, updated_set} <- Catalogue.recompute_member_state(asset_set),
            {:ok, receipt} <- insert_receipt(user_id, source_file, updated_set, meta, :new_asset),
-           {:ok, _entry} <- ChangeJournal.append(user_id, :catalogue, updated_set.id, %{}) do
+           {:ok, _entry} <- append_catalogue_change(user_id, updated_set) do
         receipt
       else
         {:error, reason} -> Repo.rollback(reason)
@@ -894,13 +894,25 @@ defmodule Playstead.Import do
                classification.outcome,
                classification.reason
              ),
-           {:ok, _entry} <- ChangeJournal.append(user_id, :catalogue, receipt.id, %{}),
+           {:ok, _entry} <- append_catalogue_change(user_id, classification.asset_set),
            {:ok, _item} <- raise_attention(user_id, source_file, receipt, classification) do
         receipt
       else
         {:error, reason} -> Repo.rollback(reason)
       end
     end)
+  end
+
+  # The journal is the incremental catalogue protocol, not a notification
+  # marker. A resumed Mac applies its entry directly, so it must use the
+  # canonical asset-set id and frozen payload rather than a receipt id or an
+  # empty map. Quarantined imports deliberately have no catalogue asset set,
+  # and therefore no catalogue state change to emit.
+  defp append_catalogue_change(_user_id, nil), do: {:ok, nil}
+
+  defp append_catalogue_change(user_id, %AssetSet{} = asset_set) do
+    fresh = Repo.get!(AssetSet, asset_set.id) |> Repo.preload(asset_members: :blob)
+    ChangeJournal.append(user_id, :catalogue, fresh.id, Playstead.Catalogue.Payload.build(fresh))
   end
 
   @doc """

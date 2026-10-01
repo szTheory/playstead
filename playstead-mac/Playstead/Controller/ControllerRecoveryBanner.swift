@@ -30,7 +30,7 @@ struct ControllerRecoveryBanner: View {
         .padding(DesignTokens.Spacing.sm)
         .frame(minHeight: DesignTokens.InteractiveTarget.minimum)
         .background(DesignTokens.border.opacity(0.3))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.standard))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(controllerName) disconnected. Keyboard and pointer still work everywhere.")
     }

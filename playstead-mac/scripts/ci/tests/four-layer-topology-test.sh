@@ -12,10 +12,12 @@ UI_CANARY="${MAC_ROOT}/PlaysteadUITests/HostedRunnerCanaryTests.swift"
 CURATION_TEST="${MAC_ROOT}/PlaysteadUITests/CurationInteractionTests.swift"
 COLLECTION_DETAIL="${MAC_ROOT}/Playstead/Curation/CollectionDetailView.swift"
 UI_BOOTSTRAP="${MAC_ROOT}/Playstead/UITesting/UITestBootstrap.swift"
+TRUST_CAPTURE="${MAC_ROOT}/Playstead/Pairing/PinnedCertificateCapture.swift"
 LIVE_SERVER_TEST="${MAC_ROOT}/PlaysteadUITests/LiveServerSnapshotTests.swift"
 LIVE_SERVER_FIXTURE="${MAC_ROOT}/scripts/ci/live-server.sh"
 MAC_CI_CONFIG="${REPO_ROOT}/playstead-server/config/mac_ci.exs"
 STORAGE_TEST="${MAC_ROOT}/PlaysteadUITests/StorageInteractionTests.swift"
+SURFACE_ACCESSIBILITY_TEST="${MAC_ROOT}/PlaysteadUITests/SurfaceAccessibilityTests.swift"
 GAME_ROW="${MAC_ROOT}/Playstead/Library/GameRowView.swift"
 LIBRARY_SHELL="${MAC_ROOT}/Playstead/Library/LibraryShellView.swift"
 RECLAIM_VIEW="${MAC_ROOT}/Playstead/Library/ReclaimPromptView.swift"
@@ -29,8 +31,12 @@ APP_ENTITLEMENTS="${MAC_ROOT}/Playstead/App/Playstead.entitlements"
 PROMPT_SAFETY="${MAC_ROOT}/scripts/ci/tests/keychain-prompt-safety-test.sh"
 KEYBOARD_CLEANUP="${MAC_ROOT}/scripts/ci/tests/keyboard-mode-cleanup-test.sh"
 SWIFT_SEMANTIC="${MAC_ROOT}/scripts/ci/tests/wave6-swift-semantic-test.sh"
+PG_STARTUP_CLASSIFIER="${MAC_ROOT}/scripts/ci/classify-postgres-startup.py"
+PHOENIX_STARTUP_CLASSIFIER="${MAC_ROOT}/scripts/ci/classify-phoenix-startup.py"
+PHOENIX_HEALTH_CLASSIFIER="${MAC_ROOT}/scripts/ci/classify-phoenix-health-exit.py"
+XCODE_FAILURE_CLASSIFIER="${MAC_ROOT}/scripts/ci/classify-xcode-failure.py"
 
-for file in "$RUNNER" "$SCHEME" "$APP_ENTRY" "$PROFILE_TEST" "$UI_CANARY" "$CURATION_TEST" "$COLLECTION_DETAIL" "$UI_BOOTSTRAP" "$LIVE_SERVER_TEST" "$LIVE_SERVER_FIXTURE" "$MAC_CI_CONFIG" "$STORAGE_TEST" "$GAME_ROW" "$LIBRARY_SHELL" "$RECLAIM_VIEW" "$STORAGE_VIEW" "$WORKFLOW" "$REFRESH_WORKFLOW" "$SANITIZER" "$PROMPT_SAFETY" "$KEYBOARD_CLEANUP" "$SWIFT_SEMANTIC"; do
+for file in "$RUNNER" "$SCHEME" "$APP_ENTRY" "$PROFILE_TEST" "$UI_CANARY" "$CURATION_TEST" "$COLLECTION_DETAIL" "$UI_BOOTSTRAP" "$TRUST_CAPTURE" "$LIVE_SERVER_TEST" "$LIVE_SERVER_FIXTURE" "$MAC_CI_CONFIG" "$STORAGE_TEST" "$SURFACE_ACCESSIBILITY_TEST" "$GAME_ROW" "$LIBRARY_SHELL" "$RECLAIM_VIEW" "$STORAGE_VIEW" "$WORKFLOW" "$REFRESH_WORKFLOW" "$SANITIZER" "$PROMPT_SAFETY" "$KEYBOARD_CLEANUP" "$SWIFT_SEMANTIC" "$PG_STARTUP_CLASSIFIER" "$PHOENIX_STARTUP_CLASSIFIER" "$PHOENIX_HEALTH_CLASSIFIER" "$XCODE_FAILURE_CLASSIFIER"; do
   [ -f "$file" ] || { printf 'four-layer topology file missing: %s\n' "$file" >&2; exit 1; }
 done
 for plan in Unit Rendering UI LiveServer; do
@@ -44,7 +50,7 @@ for plan in Unit Rendering UI LiveServer; do
   }
 done
 
-python3 - "${MAC_ROOT}/TestPlans" "$APP_ENTRY" "$RUNNER" <<'PY'
+python3 - "${MAC_ROOT}/TestPlans" "$APP_ENTRY" "$RUNNER" "${MAC_ROOT}/PlaysteadUITests/ControllerHardwareIntegrationTests.swift" "$UI_BOOTSTRAP" "$TRUST_CAPTURE" "${MAC_ROOT}/PlaysteadUITests/PairingCeremonyTests.swift" <<'PY'
 import json, pathlib, re, sys
 
 plans_root = pathlib.Path(sys.argv[1])
@@ -83,6 +89,37 @@ for required_ui_class in ("CurationInteractionTests", "StorageInteractionTests")
     if required_ui_class not in ui_selected:
         raise SystemExit(f"Wave 6 UI discovery is missing: {required_ui_class}")
 
+# The entitled virtual-gamepad test remains in the UI plan, but it must never
+# be included in the ordinary no-HID selection. The two selectors must be
+# disjoint and cover every current UI-plan entry; new plan entries therefore
+# enter the ordinary lane automatically rather than being silently omitted.
+virtual_class = "ControllerHardwareIntegrationTests"
+ui_plan_entries = {test for _, test in selected["UI"]}
+virtual_entries = {test for test in ui_plan_entries if test.split("/", 1)[0] == virtual_class}
+ordinary_entries = ui_plan_entries - virtual_entries
+if virtual_entries != {virtual_class} or ordinary_entries & virtual_entries:
+    raise SystemExit("UI plan must keep the virtual-gamepad class as its own selection")
+if ordinary_entries | virtual_entries != ui_plan_entries:
+    raise SystemExit("ordinary and entitled selections do not cover the UI plan")
+if "ui_test_selection() {" not in runner_source or "ui_test_selection ordinary" not in runner_source:
+    raise SystemExit("runner must derive its ordinary UI selection from the current UI test plan")
+if "ui_test_selection entitled" not in runner_source or "testEntitledVirtualGamepadEnumeratesDetachesAndReconnectsWithoutRelaunch" not in runner_source:
+    raise SystemExit("runner must keep the exact entitled virtual-gamepad test independently selectable")
+if "PlaysteadUITests/PlaysteadUITests.no-hid.entitlements" not in runner_source:
+    raise SystemExit("ordinary UI runs must use the no-HID test-runner entitlements")
+if "PLAYSTEAD_UI_TEST_ENTITLEMENTS=PlaysteadUITests/PlaysteadUITests.no-hid.entitlements" not in runner_source:
+    raise SystemExit("no-HID entitlements must be scoped to the UI test target")
+if "CODE_SIGN_ENTITLEMENTS=PlaysteadUITests/PlaysteadUITests.no-hid.entitlements" in runner_source:
+    raise SystemExit("the no-HID override must not replace entitlements for every Xcode target")
+
+hardware_source = pathlib.Path(sys.argv[4]).read_text(encoding="utf-8")
+bootstrap_source = pathlib.Path(sys.argv[5]).read_text(encoding="utf-8")
+trust_source = pathlib.Path(sys.argv[6]).read_text(encoding="utf-8")
+pairing_source = pathlib.Path(sys.argv[7]).read_text(encoding="utf-8")
+hardware_tests = set(re.findall(r"^\s*func\s+(test[A-Za-z0-9_]+)\s*\(", hardware_source, re.MULTILINE))
+if hardware_tests != {"testEntitledVirtualGamepadEnumeratesDetachesAndReconnectsWithoutRelaunch"}:
+    raise SystemExit("the entitled UI selection must account for every virtual-gamepad test")
+
 live_targets = plans["LiveServer"]["testTargets"]
 live_environment = {
     entry.get("key"): entry.get("value")
@@ -92,6 +129,8 @@ expected_live_environment = {
     key: f"$({key})" for key in (
         "PLAYSTEAD_MAC_CI_ROOT", "PLAYSTEAD_LIVE_SERVER_STAGE_ROOT",
         "PLAYSTEAD_LIVE_SERVER_STAGE_FILE", "MAC_CI_DATABASE_URL", "MIX_ENV", "PORT",
+        "PLAYSTEAD_TEST_LIVE_SERVER_CA_DER", "PLAYSTEAD_TEST_LIVE_SERVER_CA_SHA256",
+        "PLAYSTEAD_TEST_LIVE_SERVER_RUNTIME_CONFIG", "PLAYSTEAD_SAVE_RELIABILITY_EVIDENCE_PATH",
     )
 }
 if live_environment != expected_live_environment:
@@ -118,6 +157,7 @@ expected_live = {
     "HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner()",
     "LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch()",
     "PairingCeremonyTests/testAHumanCanPairAFreshMacEntirelyFromInsideTheAppAgainstTheRealServer()",
+    "RecoveryKnownPlayableTests/testRecoveryHarnessRefusesSyntheticFixtureWithoutAnIsolatedTarget()",
     "SaveEndToEndTests/testOneSaveRoundTripsCaptureUploadAndJournalReturn()",
     "SaveRestoreProofTests/testCapturedRevisionRestoresToByteIdenticalArtifactInLaunchDir()",
 }
@@ -126,7 +166,7 @@ if len(live_targets) != 1 or live_targets[0].get("parallelizable") is not False:
 if set(live_targets[0].get("selectedTests", [])) != expected_live:
     raise SystemExit(
         "LiveServer must select exactly the launch canary, the Plan 08 pairing proof, "
-        "and the two Phase 4 save round-trip/restore proofs"
+        "the Phase 4 save round-trip/restore proofs, and the parser-only recovery refusal"
     )
 
 app_decl = app_source.split("struct PlaysteadApp: App", 1)[1].split("private struct ProductionRootView", 1)[0]
@@ -155,13 +195,61 @@ if not (0 <= native_start < live_layer < native_cleanup):
 native_services = runner_source.split("start_native_services() {", 1)[1].split("run_four_layer_verification() {", 1)[0]
 if 'NATIVE_ROOT="${FOUR_LAYER_RAW}/native-services"' not in native_services:
     raise SystemExit("native services must share the test-readable owned four-layer root")
+if 'mkdir -p "$FOUR_LAYER_RAW"' not in native_services:
+    raise SystemExit("selected LiveServer runs must create the four-layer result parent before owning native services")
 if 'native service root already exists' not in native_services:
     raise SystemExit("native service root ownership must fail closed")
+if 's.bind(("127.0.0.1", 0))' not in native_services or 'pg_port=55432' in native_services:
+    raise SystemExit("native PostgreSQL must select a free run-local loopback port")
+native_cleanup_body = runner_source.split("cleanup_native_services() {", 1)[1].split("start_native_services() {", 1)[0]
+if '[ -f "$PGDATA/postmaster.pid" ]' not in native_cleanup_body:
+    raise SystemExit("native cleanup must not stop PostgreSQL when this run never started it")
+if 'if [ "$cleanup_ok" = true ] && [ -n "$NATIVE_ROOT" ]' not in native_cleanup_body:
+    raise SystemExit("uncertain native service cleanup must preserve the run-owned data root")
+if 'tail -n 120 "$NATIVE_ROOT/phoenix.log"' in runner_source or 'tail -n 120 "$NATIVE_ROOT/bootstrap.log"' in runner_source:
+    raise SystemExit("native startup diagnostics must not echo raw service log lines")
+if 'classify-phoenix-startup.py' not in runner_source or 'classify-phoenix-health-exit.py' not in runner_source:
+    raise SystemExit("Phoenix startup failures must use a fixed-enum classifier")
+if 'classify-xcode-failure.py' not in runner_source or '"$result_log"' not in runner_source:
+    raise SystemExit("xcodebuild failures must use the category-only owned-log classifier")
+if re.search(r"(?:sed|tail|cat)\s+[^\n]*\$result_log", runner_source):
+    raise SystemExit("the raw xcodebuild log must never be copied into failure output")
 if "trap 'restore_live_server_xctestrun; cleanup_live_server_runtime_config; cleanup_native_services; restore_keyboard_mode' EXIT" not in four_layer:
     raise SystemExit("LiveServer xctestrun/config/native cleanup must preserve keyboard-mode restoration")
 stage_preflight = four_layer.find("prepare_live_server_failure_stage")
 if not (0 <= stage_preflight < live_layer):
     raise SystemExit("failure-stage channel must be cleared and validated before LiveServer")
+if 'mac-ci-tls.sh" trust' in runner_source or 'mac-ci-tls.sh" untrust' in runner_source or "System.keychain" in runner_source:
+    raise SystemExit("LiveServer wrapper must not change System Keychain trust")
+if 'mac-ci-tls.sh" issue' not in runner_source or 'https://127.0.0.1:4010/healthz' not in runner_source:
+    raise SystemExit("LiveServer must retain run-owned certificate issuance and HTTPS health validation")
+if "PLAYSTEAD_TEST_LIVE_SERVER_CA_DER" not in runner_source or "PLAYSTEAD_TEST_LIVE_SERVER_CA_SHA256" not in runner_source:
+    raise SystemExit("LiveServer must bridge the issued CA path and digest into its selected test")
+if 'PLAYSTEAD_TEST_LIVE_SERVER_RUNTIME_CONFIG="$LIVE_SERVER_RUNTIME_CONFIG"' not in runner_source:
+    raise SystemExit("LiveServer must bridge the run-owned runtime config path into selected and aggregate tests")
+if 'label: "live pairing trust anchor"' not in bootstrap_source or "expectedDigest" not in bootstrap_source:
+    raise SystemExit("app bootstrap must reject escaped and mismatched CA files")
+if "https://127.0.0.1:4010" not in bootstrap_source or "SecCertificateCopyNotValidAfterDate" not in bootstrap_source:
+    raise SystemExit("app bootstrap must constrain the endpoint and reject expired supplied CA")
+if "pairing-ca.der" not in pairing_source or "PLAYSTEAD_UI_TEST_LIVE_SERVER_CA_SHA256" not in pairing_source:
+    raise SystemExit("pairing ceremony must privately copy and verify the run CA")
+if "runtime-config-ca-path-invalid" not in pairing_source or "runtime-config-ca-digest-invalid" not in pairing_source:
+    raise SystemExit("pairing preflight must classify run-CA path and digest failures separately")
+if "caPathMatchesRun(caPath, serverRoot: serverRoot)" not in pairing_source or "isCanonicalSHA256(digest)" not in pairing_source:
+    raise SystemExit("pairing preflight must canonicalize its run-owned CA path and validate a lowercase SHA-256")
+relaunch = pairing_source.split("launched.terminate()", 1)[1].split("launched.launch()", 1)[0]
+for key in (
+    "PLAYSTEAD_UI_TEST_LIVE_SERVER_UNPAIRED",
+    "PLAYSTEAD_UI_TEST_LIVE_SERVER_CA_DER",
+    "PLAYSTEAD_UI_TEST_LIVE_SERVER_CA_SHA256",
+    "PLAYSTEAD_UI_TEST_LIVE_SERVER_PAIRING_TARGET",
+):
+    if f'"{key}"' not in relaunch:
+        raise SystemExit("pairing relaunch must remove the one-session trust override")
+if 'openPairingFromMenu(in: launched)' not in pairing_source or 'app.menuBars.menuBarItems["Pairing"]' not in pairing_source or 'app.menuItems["Pair with Server…"]' not in pairing_source:
+    raise SystemExit("pairing ceremony must enter through the production Pairing menu route")
+if "SecTrustSetAnchorCertificatesOnly(serverTrust, true)" not in trust_source:
+    raise SystemExit("scoped pairing trust must remain exclusive and preserve TLS validation")
 xctestrun_materialize = four_layer.find("materialize_live_server_xctestrun")
 xctestrun_restore = four_layer.find("restore_live_server_xctestrun", live_layer)
 config_materialize = four_layer.find("materialize_live_server_runtime_config")
@@ -186,6 +274,24 @@ if any(seconds <= 0 or seconds > 2700 for seconds in deadlines.values()):
 test_layer = runner_source.split("run_test_layer() {", 1)[1].split("run_four_layer_verification() {", 1)[0]
 if test_layer.count("test-without-building") != 1 or "retry" in test_layer.lower():
     raise SystemExit("a layer must execute once without automatic retry")
+selected_test_layer = runner_source.split("run_selected_layer_tests() {", 1)[1].split("\nrun_entitled_virtual_gamepad_verification()", 1)[0]
+if '${layer_settings[@]+"${layer_settings[@]}"}' not in selected_test_layer:
+    raise SystemExit("selected-layer optional settings must tolerate an empty array under set -u")
+if 'if [ "$layer" != "rendering" ] && [ "$requires_virtual_hid" = false ]; then' not in selected_test_layer:
+    raise SystemExit("ordinary UI and LiveServer selections must use the scoped no-HID test entitlement")
+if 'BUILD_ROOT="${PLAYSTEAD_CI_BUILD_ROOT:-${MAC_ROOT}/.build/ci}"' not in runner_source:
+    raise SystemExit("targeted CI cache must support an isolated temporary build root")
+if 'CFFIXED_USER_HOME=${SWIFTPM_DIAGNOSTICS_HOME}' not in runner_source or 'CLANG_MODULE_CACHE_PATH=${SWIFT_CLANG_MODULE_CACHE}' not in runner_source:
+    raise SystemExit("four-layer package diagnostics and module cache must stay in the run-owned temporary root")
+if '-clonedSourcePackagesDirPath' not in selected_test_layer or '-packageCachePath' not in selected_test_layer:
+    raise SystemExit("targeted Xcode runs must use run-owned package caches")
+if 'GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_TERMINAL_PROMPT=0' not in selected_test_layer:
+    raise SystemExit("targeted package resolution must not use system/user Git configuration or prompts")
+signing_config = runner_source.split("configure_ci_signing() {", 1)[1].split("\nassert_local_app_launch_authorized()", 1)[0]
+if 'PLAYSTEAD_MAC_CI_SIGNING_MODE' not in signing_config or 'CODE_SIGN_IDENTITY="Apple Development"' not in signing_config:
+    raise SystemExit("local development signing opt-in is missing")
+if 'PROVISIONING_PROFILE_SPECIFIER=' not in signing_config or '-allowProvisioningUpdates' in signing_config:
+    raise SystemExit("local development signing must use installed credentials without changing Apple account profiles")
 if 'test_selection=(-xctestrun "$LIVE_SERVER_XCTESTRUN")' not in test_layer:
     raise SystemExit("LiveServer must consume the exact generated xctestrun that received its concrete environment")
 if 'live-server layer requires a materialized generated xctestrun' not in test_layer:
@@ -195,6 +301,8 @@ if 'targets[0].setdefault("EnvironmentVariables", {})' not in xctestrun_material
     raise SystemExit("LiveServer xctestrun must carry concrete scheme test-host environment")
 if 'targets[0].setdefault("TestingEnvironmentVariables", {})' not in xctestrun_materializer:
     raise SystemExit("LiveServer xctestrun must carry concrete XCTest-host environment")
+if '"PLAYSTEAD_TEST_LIVE_SERVER_RUNTIME_CONFIG"' not in xctestrun_materializer:
+    raise SystemExit("LiveServer xctestrun must carry the runtime config path with the service environment")
 PY
 
 grep -F 'app.launchEnvironment["PLAYSTEAD_WAVE_0_LAUNCH_CANARY"] = "1"' "$UI_CANARY" >/dev/null
@@ -221,6 +329,7 @@ grep -F 'resolved_parent" = "$resolved_root' "$LIVE_SERVER_FIXTURE" >/dev/null
 grep -F 'live-server: FAILURE_STAGE %s' "$RUNNER" >/dev/null
 grep -F 'prepare_live_server_failure_stage' "$RUNNER" >/dev/null
 grep -F 'PLAYSTEAD_LIVE_SERVER_STAGE_FILE="$server_root/live-server-failure-stage"' "$RUNNER" >/dev/null
+grep -F 'cipher_suite: :compatible' "$MAC_CI_CONFIG" >/dev/null
 # The live-server test must be preflight-gated -- but NOT with a bare return,
 # which this clause used to pin. A bare `else { return }` makes a failed
 # preflight report success; that exact shape is how a save-upload path that
@@ -243,8 +352,9 @@ live_stage_count="$(sed -n 's/^    \([a-z|-]*\)) ;;$/\1/p' "$LIVE_SERVER_FIXTURE
 [ "$(grep -c 'guard try runFixture' "$LIVE_SERVER_TEST")" -eq 3 ]
 
 # The save-e2e harness reason channel is a pinned mirror across two targets,
-# and nothing enforced it. UITestBootstrap THROWS fixed literals; the UI test
-# SWITCHES on them to pick one assertion site per cause, because CI keeps
+# and nothing enforced it. UITestBootstrap reports fixed literals as either
+# thrown errors or owned marker payloads; the UI test SWITCHES on them to pick
+# one assertion site per cause, because CI keeps
 # file:line and discards assertion text. A literal that drifts on either side
 # falls through to `default` and reports every distinct cause at the same
 # line -- the exact diagnosis-destroying shape the switch exists to prevent,
@@ -256,7 +366,7 @@ mac_root = pathlib.Path(sys.argv[1])
 producer = (mac_root / "Playstead/UITesting/UITestBootstrap.swift").read_text(encoding="utf-8")
 consumer = (mac_root / "PlaysteadUITests/SaveEndToEndTests.swift").read_text(encoding="utf-8")
 
-thrown = set(re.findall(r'stateMismatch\("(save-e2e: [^"]+)"\)', producer))
+reported = set(re.findall(r'(?:stateMismatch|Data)\("(save-e2e: [^"]+)"(?:\.utf8)?\)', producer))
 # Every literal on a `case` line, including the `case "A", "B":` form --
 # matching only `"...":` would miss all but the last of a combined case and
 # misreport it as drift, when the real fault is two causes sharing a site.
@@ -265,13 +375,13 @@ for line in consumer.splitlines():
     if re.match(r'\s*case "save-e2e: ', line):
         handled.update(re.findall(r'"(save-e2e: [^"]+)"', line))
 
-if not thrown:
+if not reported:
     raise SystemExit("found no save-e2e reason literals in UITestBootstrap -- the scan is broken")
-if thrown != handled:
-    unhandled = sorted(thrown - handled)
-    stale = sorted(handled - thrown)
+if reported != handled:
+    unhandled = sorted(reported - handled)
+    stale = sorted(handled - reported)
     raise SystemExit(
-        f"save-e2e reason literals drifted. thrown-but-unhandled={unhandled} handled-but-never-thrown={stale}"
+        f"save-e2e reason literals drifted. reported-but-unhandled={unhandled} handled-but-never-reported={stale}"
     )
 
 # One assertion SITE per cause: two causes sharing a line diagnose nothing,
@@ -358,6 +468,21 @@ fi
 [ "$(grep -c 'run_test_layer .* LiveServer ' "$RUNNER")" -eq 1 ]
 grep -F 'xcodebuild build-for-testing' "$RUNNER" >/dev/null
 grep -F 'xcodebuild test-without-building' "$RUNNER" >/dev/null
+python3 - "$RUNNER" <<'PY_BUILD_PACKAGES'
+import pathlib, sys
+
+runner = pathlib.Path(sys.argv[1]).read_text()
+start = runner.index("xcodebuild build-for-testing")
+end = runner.index("|| build_status=$?", start)
+build = runner[start:end]
+for setting in (
+    '-clonedSourcePackagesDirPath "${BUILD_ROOT}/SourcePackages"',
+    '-packageCachePath "${BUILD_ROOT}/PackageCache"',
+):
+    if setting not in build:
+        raise SystemExit(f"build-for-testing must use the owned package cache: {setting}")
+print("build-for-testing uses the owned package cache")
+PY_BUILD_PACKAGES
 grep -F '"automatic_retries": 0' "$RUNNER" >/dev/null
 grep -F 'PLAYSTEAD_SNAPSHOT_RECORDING=0' "$RUNNER" >/dev/null
 grep -F 'PLAYSTEAD_STORAGE_SNAPSHOT_CANDIDATE_OUTPUT="${FOUR_LAYER_EVIDENCE}/storage-candidate/storage-surfaces.actual.png"' "$RUNNER" >/dev/null
@@ -508,7 +633,7 @@ for stage in \
   testSidebarExposesAllFiveCurationDestinations \
   testContinueShelfRendersHonestEmptyFixture \
   testFavoritesShelfRootExists \
-  testFavoritesShelfRendersExactSeededCard \
+  testFavoritesShelfRendersExactSeededRowAndStatus \
   testCollectionsShelfRootExists \
   testCollectionsShelfRendersExactSeededRoute \
   testQueueShelfRendersHonestEmptyFixture \
@@ -545,6 +670,8 @@ grep -F 'moveSelected(.up)' "$COLLECTION_DETAIL" >/dev/null
 grep -F 'settleMove(assetSetID: members[index].assetSetID, to: destination)' "$COLLECTION_DETAIL" >/dev/null
 grep -F 'list.typeKey(.downArrow, modifierFlags: [])' "$CURATION_TEST" >/dev/null
 grep -F 'harness.app.typeKey("u", modifierFlags: [.command, .option])' "$CURATION_TEST" >/dev/null
+grep -F 'waitForKeyboardFocus(list, stage: "library-list-arrow-focus")' "$SURFACE_ACCESSIBILITY_TEST" >/dev/null
+grep -F 'readinessContent.swipeUp()' "$SURFACE_ACCESSIBILITY_TEST" >/dev/null
 grep -F 'curation-keyboard-stage=selection-target-not-reached' "$CURATION_TEST" >/dev/null
 grep -F 'harness.element(collectionRowID, type: .button)' "$CURATION_TEST" >/dev/null
 if grep -F 'try fixture.assertExactState()' "$UI_BOOTSTRAP" >/dev/null; then
@@ -555,7 +682,7 @@ for stage in \
   testDownloadsPauseResumeFlow \
   testQuotaEditAndFocusRestoration \
   testReclaimRouteSettlesToUniqueDownloadTrigger \
-  testReclaimRouteKeyboardFocusOwnsUniqueDownloadTrigger \
+  testReclaimRouteArrowSelectionTargetsUniqueDownloadTrigger \
   testReclaimRouteDirectActivationDispatchesQuotaEffect \
   testReclaimRouteActivationDispatchesQuotaEffect \
   testReclaimPromptPresentsProductionRoot \
@@ -614,13 +741,15 @@ import pathlib, sys
 source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
 storage = source.split("private func dismissStorageAndAssertCanonicalRows()", 1)[1].split("private func launchStorageProfile", 1)[0]
 markers = [
-    storage.find('dismissSheet(root: "playstead.surface.storage")'),
-    storage.find('harness.element("playstead.control.show-list", type: .button).clickWhenHittable()'),
-    storage.find('harness.element("playstead.surface.game-list").awaitExistence'),
+    storage.find('harness.element("playstead.sidebar.home").clickWhenHittable()'),
+    storage.find('harness.element("playstead.surface.library").awaitExistence(timeout: 5)'),
+    storage.find('harness.element("playstead.control.show-list").clickWhenHittable()'),
+    storage.find('harness.element("playstead.surface.game-list").awaitExistence(timeout: 5)'),
     storage.find('assertCanonicalRow(assetID: quotaReclaimAssetID'),
+    storage.find('assertCanonicalRow(assetID: quotaDownloadAssetID'),
 ]
 if any(marker < 0 for marker in markers) or markers != sorted(markers):
-    raise SystemExit("storage canonical proof must dismiss, reveal List without relaunch, then assert exact rows")
+    raise SystemExit("storage canonical proof must return through Home, reveal List, and assert both rows after mutation")
 if "launchStorageProfile" in storage or "harness.relaunch" in storage:
     raise SystemExit("storage canonical proof must inspect post-mutation state without reseeding")
 PY
@@ -668,40 +797,46 @@ if "} else if !library.catalogue.isEmpty {" not in code:
     sys.exit("the empty-list pane no longer distinguishes an empty library from an empty filter result")
 NOMATCH
 grep -F '.focused($libraryListHasFocus)' "$LIBRARY_SHELL" >/dev/null
-grep -F '.onAppear { libraryListHasFocus = true }' "$LIBRARY_SHELL" >/dev/null
+python3 - "$LIBRARY_SHELL" <<'PY'
+import pathlib, sys
+
+source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+focus = source.split(".focused($libraryListHasFocus)", 1)[1].split(".listStyle(.inset)", 1)[0]
+yielded = focus.find("await Task.yield()")
+assigned = focus.find("libraryListHasFocus = true")
+if "Task { @MainActor in" not in focus or yielded < 0 or assigned <= yielded:
+    raise SystemExit("library List focus must resume after the destination route settles")
+PY
 grep -F '.keyboardShortcut("d", modifiers: .command)' "$LIBRARY_SHELL" >/dev/null
 grep -F 'downloadCommand = LibraryDownloadCommand(' "$LIBRARY_SHELL" >/dev/null
 grep -F '.onChange(of: downloadCommand)' "$GAME_ROW" >/dev/null
 [ "$(grep -Fc '.keyboardShortcut("d", modifiers: .command)' "$LIBRARY_SHELL")" -eq 1 ]
-# The library List's focus must come from its concrete appearance lifecycle,
-# never from generic Task inference. Asserted as "the required
-# `.onAppear { libraryListHasFocus = true }` on line above is the ONLY place
-# this state is set", which is strictly stronger than the file-wide
-# `Task.yield()` ban this replaces -- that ban also caught unrelated focus
-# states, and this file now legitimately contains one: the sheet dismissal
-# control's runloop hop, which `sheet-focus-placement-test.sh` requires because
-# `.defaultFocus` is not observed to land on a `.sheet`-presented view (G-04-8).
+# The library List's focus is set only in its appearance lifecycle, after the
+# destination route has yielded a main-actor turn (covered by the ordered check
+# above). Keep a single assignment so keyboard focus cannot be stolen later.
 if [ "$(grep -Fc 'libraryListHasFocus = true' "$LIBRARY_SHELL")" -ne 1 ]; then
-  printf 'library List focus must use its concrete appearance lifecycle, not generic Task inference\n' >&2
-  exit 1
-fi
-if grep -E 'Task\.yield\(\)' -A 2 "$LIBRARY_SHELL" | grep -F 'libraryListHasFocus' >/dev/null; then
-  printf 'library List focus must not be placed through a yielded Task\n' >&2
+  printf 'library List focus must have one appearance-lifecycle assignment\n' >&2
   exit 1
 fi
 if grep -F '.keyboardShortcut(' "$GAME_ROW" >/dev/null; then
   printf 'row-local duplicate download shortcuts are forbidden\n' >&2
   exit 1
 fi
-grep -F 'list.value(forKey: "hasKeyboardFocus") as? Bool == true' "$STORAGE_TEST" >/dev/null
-grep -F 'let currentSelection = selection.value as? String' "$STORAGE_TEST" >/dev/null
-grep -F 'if currentSelection == quotaDownloadAssetID { break }' "$STORAGE_TEST" >/dev/null
-grep -F 'let settledSelection = selection.value as? String' "$STORAGE_TEST" >/dev/null
-grep -F 'XCTAssertEqual(settledSelection, quotaDownloadAssetID)' "$STORAGE_TEST" >/dev/null
-if grep -F 'where selection.value as? String' "$STORAGE_TEST" >/dev/null; then
-  printf 'XCUI selection casts must be materialized before control-flow predicates\n' >&2
-  exit 1
-fi
+python3 - "$STORAGE_TEST" <<'PY'
+import pathlib, sys
+
+source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+selection = source.split("private func selectQuotaDownloadByKeyboard()", 1)[1].split("private func activateSelectedDownloadByKeyboard()", 1)[0]
+markers = [
+    selection.find('XCTAssertEqual(list.value as? String, "Synthetic Quota Download")'),
+    selection.find('list.typeKey(.downArrow, modifierFlags: [])'),
+    selection.find('XCTAssertEqual(list.value as? String, "Synthetic Reclaim Candidate")'),
+    selection.find('list.typeKey(.upArrow, modifierFlags: [])'),
+    selection.find('XCTAssertEqual(list.value as? String, "Synthetic Quota Download")', selection.find('list.typeKey(.upArrow, modifierFlags: [])')),
+]
+if any(marker < 0 for marker in markers) or markers != sorted(markers):
+    raise SystemExit("keyboard test must prove exact List selection before, between, and after arrow movement")
+PY
 grep -F 'harness.app.typeKey("d", modifierFlags: [.command])' "$STORAGE_TEST" >/dev/null
 python3 - "$GAME_ROW" "$LIBRARY_SHELL" <<'PY'
 import pathlib, sys
@@ -779,13 +914,33 @@ grep -F -- '--self-test-contracts' "$WORKFLOW" >/dev/null || {
   printf 'ci.yml must invoke run-mac-verification.sh --self-test-contracts\n' >&2
   exit 1
 }
+grep -F -- '--run-unprivileged-verification' "$WORKFLOW" >/dev/null || {
+  printf 'the hosted macOS job must run the no-HID ordinary lane\n' >&2
+  exit 1
+}
+grep -F -- '--run-entitled-virtual-gamepad-verification' "$WORKFLOW" >/dev/null || {
+  printf 'the separately provisioned hosted lane must run the exact entitled test\n' >&2
+  exit 1
+}
+grep -F "vars.PLAYSTEAD_HID_RUNNER_AVAILABLE == 'true'" "$WORKFLOW" >/dev/null || {
+  printf 'the entitled CI lane must remain gated on explicit runner provisioning\n' >&2
+  exit 1
+}
+grep -F 'playstead-virtual-hid' "$WORKFLOW" >/dev/null || {
+  printf 'the entitled CI lane must target its explicit self-hosted label\n' >&2
+  exit 1
+}
+grep -F 'name: mac-ordinary-evidence' "$WORKFLOW" >/dev/null || {
+  printf 'the ordinary macOS lane must publish its sanitized evidence\n' >&2
+  exit 1
+}
 python3 - "$WORKFLOW" <<'PY_GATE'
 import pathlib, sys
 workflow = pathlib.Path(sys.argv[1]).read_text()
 gate = workflow.find("--self-test-contracts")
-build = workflow.find("--run-four-layer-verification")
+build = workflow.find("--run-unprivileged-verification")
 if gate < 0 or build < 0 or gate > build:
-    raise SystemExit("the static contract gate must run before the four-layer build")
+    raise SystemExit("the static contract gate must run before the ordinary no-HID Mac job")
 print("contract gate wiring: passed")
 PY_GATE
 # T-03.5-01/T-03.5-20: the hosted-evidence validator must stay wired to a real
@@ -827,7 +982,7 @@ if "contents: write" in workflow or "pull-requests: write" in workflow:
 print("hosted-evidence wiring: passed")
 PY_EVIDENCE
 grep -F 'if: failure()' "$WORKFLOW" >/dev/null
-grep -F 'path: playstead-mac/.build/ci/failure-evidence' "$WORKFLOW" >/dev/null
+grep -F 'path: playstead-mac/.build/ci/ordinary-failure-evidence' "$WORKFLOW" >/dev/null
 grep -F 'retention-days: 7' "$WORKFLOW" >/dev/null
 if grep -E 'path: .*\.(xcresult)|path: .*DerivedData' "$WORKFLOW" >/dev/null; then
   printf 'CI upload paths must exclude raw xcresults and DerivedData\n' >&2
@@ -874,7 +1029,16 @@ grep -F '{"test_identifier", "category", "element_identifier", "element_role"}' 
 # override, and nothing else in the suite would notice if it were dropped --
 # the layer would just start failing at a preflight line number again.
 plutil -lint "$UITEST_ENTITLEMENTS" >/dev/null
-[ "$(grep -c 'CODE_SIGN_ENTITLEMENTS = PlaysteadUITests/PlaysteadUITests.entitlements;' "$PBXPROJ")" -eq 2 ]
+[ "$(grep -c 'CODE_SIGN_ENTITLEMENTS = "$(PLAYSTEAD_UI_TEST_ENTITLEMENTS)";' "$PBXPROJ")" -eq 2 ]
+[ "$(grep -Ec 'PLAYSTEAD_UI_TEST_ENTITLEMENTS = "?PlaysteadUITests/PlaysteadUITests\.no-hid\.entitlements"?;' "$PBXPROJ")" -eq 2 ]
+[ "$(grep -c 'CODE_SIGN_IDENTITY = "-";' "$PBXPROJ")" -eq 6 ]
+[ "$(grep -c 'CODE_SIGN_STYLE = Manual;' "$PBXPROJ")" -eq 6 ]
+[ "$(grep -c 'DEVELOPMENT_TEAM = "";' "$PBXPROJ")" -eq 6 ]
+[ "$(grep -c 'PROVISIONING_PROFILE_SPECIFIER = "";' "$PBXPROJ")" -eq 6 ]
+if grep -F 'REPLACE_WITH_YOUR_TEAM_ID' "$PBXPROJ" >/dev/null; then
+  printf 'ordinary Xcode targets must not require a placeholder Apple team\n' >&2
+  exit 1
+fi
 python3 - "$UITEST_ENTITLEMENTS" "$APP_ENTITLEMENTS" <<'SANDBOX'
 import pathlib, plistlib, sys
 
@@ -897,5 +1061,67 @@ SANDBOX
 "$PROMPT_SAFETY"
 bash "$KEYBOARD_CLEANUP"
 bash "$SWIFT_SEMANTIC"
+python3 - "$PG_STARTUP_CLASSIFIER" "$PHOENIX_STARTUP_CLASSIFIER" "$PHOENIX_HEALTH_CLASSIFIER" "$XCODE_FAILURE_CLASSIFIER" <<'PGCLASS'
+import pathlib, subprocess, sys, tempfile
+
+pg_classifier, phoenix_classifier, probe_classifier, xcode_classifier = sys.argv[1:5]
+allowed = {"shared_memory", "port_binding", "permission", "resource_exhaustion", "config_or_data", "log_missing", "unknown"}
+phoenix_allowed = {"listener", "db_connection", "endpoint_name", "certificate_trust", "protocol", "cipher", "handshake", "runtime_exit", "readiness_timeout", "log_missing", "unknown"}
+probe_allowed = {"certificate_trust", "endpoint_name", "protocol", "cipher", "handshake", "listener", "unknown"}
+xcode_allowed = {"compile", "signing", "package_resolution", "test_plan_selection", "simulator_runner", "unknown", "log_missing"}
+private_marker = "PRIVATE_PATH_AND_USER_MUST_NEVER_ESCAPE"
+with tempfile.TemporaryDirectory() as directory:
+    log_path = pathlib.Path(directory) / "postgres.log"
+    log_path.write_text(f"FATAL: could not create shared memory segment for {private_marker}\n", encoding="utf-8")
+    result = subprocess.run([sys.executable, pg_classifier, str(log_path)], capture_output=True, text=True, check=True)
+    if result.stdout.strip() not in allowed or result.stdout != "shared_memory\n" or result.stderr or private_marker in result.stdout + result.stderr:
+        raise SystemExit("PostgreSQL classifier did not emit a category-only shared-memory result")
+    log_path.write_text(f"unclassified diagnostic {private_marker}\n", encoding="utf-8")
+    result = subprocess.run([sys.executable, pg_classifier, str(log_path)], capture_output=True, text=True, check=True)
+    if result.stdout.strip() not in allowed or result.stdout != "unknown\n" or result.stderr or private_marker in result.stdout + result.stderr:
+        raise SystemExit("PostgreSQL classifier leaked or misclassified unrecognized log content")
+    result = subprocess.run([sys.executable, pg_classifier, str(pathlib.Path(directory) / "absent.log")], capture_output=True, text=True, check=True)
+    if result.stdout != "log_missing\n" or result.stderr:
+        raise SystemExit("PostgreSQL classifier did not safely classify a missing log")
+    phoenix_log = pathlib.Path(directory) / "phoenix.log"
+    phoenix_log.write_text(f"TLS alert Protocol Version at {private_marker}\n", encoding="utf-8")
+    result = subprocess.run([sys.executable, phoenix_classifier, str(phoenix_log), "deadline"], capture_output=True, text=True, check=True)
+    if result.stdout.strip() not in phoenix_allowed or result.stdout != "protocol\n" or result.stderr or private_marker in result.stdout + result.stderr:
+        raise SystemExit("Phoenix classifier did not emit only its protocol category")
+    for diagnostic, expected in (("unknown ca", "certificate_trust"), ("IP address mismatch", "endpoint_name"), ("no shared cipher", "cipher"), ("handshake failure", "handshake"), ("EADDRINUSE", "listener")):
+        phoenix_log.write_text(f"TLS startup diagnostic {diagnostic} {private_marker}\n", encoding="utf-8")
+        result = subprocess.run([sys.executable, phoenix_classifier, str(phoenix_log), "deadline"], capture_output=True, text=True, check=True)
+        if result.stdout.strip() not in phoenix_allowed or result.stdout != expected + "\n" or result.stderr or private_marker in result.stdout + result.stderr:
+            raise SystemExit("Phoenix log classifier returned an unsafe or incorrect TLS subtype")
+    phoenix_log.write_text(f"unrecognized diagnostic {private_marker}\n", encoding="utf-8")
+    result = subprocess.run([sys.executable, phoenix_classifier, str(phoenix_log), "deadline"], capture_output=True, text=True, check=True)
+    if result.stdout.strip() not in phoenix_allowed or result.stdout != "readiness_timeout\n" or result.stderr or private_marker in result.stdout + result.stderr:
+        raise SystemExit("Phoenix classifier leaked unrecognized log content")
+    result = subprocess.run([sys.executable, phoenix_classifier, str(pathlib.Path(directory) / "absent-phoenix.log"), "exited"], capture_output=True, text=True, check=True)
+    if result.stdout != "log_missing\n" or result.stderr:
+        raise SystemExit("Phoenix classifier did not safely classify a missing log")
+    for code, expected in (("10", "certificate_trust"), ("11", "endpoint_name"), ("12", "protocol"), ("13", "cipher"), ("14", "handshake"), ("15", "listener"), ("16", "unknown"), ("99", "unknown")):
+        result = subprocess.run([sys.executable, probe_classifier, code], capture_output=True, text=True, check=True)
+        if result.stdout.strip() not in probe_allowed or result.stdout != expected + "\n" or result.stderr:
+            raise SystemExit("health probe exit classifier emitted a non-enum result")
+    xcode_log = pathlib.Path(directory) / "xcodebuild.log"
+    for diagnostic, expected in (("Swift compiler error: failed to emit module", "compile"), ("error: Signing for AppTarget requires a development team", "signing"), ("Unable to resolve package dependencies", "package_resolution"), ("No tests found in selected test plan", "test_plan_selection"), ("Unable to boot test runner", "simulator_runner")):
+        xcode_log.write_text(f"{diagnostic} {private_marker} /private/secret/user-path\n", encoding="utf-8")
+        result = subprocess.run([sys.executable, xcode_classifier, str(xcode_log)], capture_output=True, text=True, check=True)
+        if result.stdout.strip() not in xcode_allowed or result.stdout != expected + "\n" or result.stderr or private_marker in result.stdout + result.stderr or "/private/secret" in result.stdout + result.stderr:
+            raise SystemExit("xcodebuild classifier leaked details or misclassified its fixed category")
+    xcode_log.write_text(f"CodeSign /private/secret/user-path {private_marker}\nSwiftCompile normal arm64\n", encoding="utf-8")
+    result = subprocess.run([sys.executable, xcode_classifier, str(xcode_log)], capture_output=True, text=True, check=True)
+    if result.stdout.strip() not in xcode_allowed or result.stdout != "unknown\n" or result.stderr or private_marker in result.stdout + result.stderr or "/private/secret" in result.stdout + result.stderr:
+        raise SystemExit("routine signing/compiler progress must not be classified as a signing failure")
+    xcode_log.write_text(f"unrecognized xcode output {private_marker}\n", encoding="utf-8")
+    result = subprocess.run([sys.executable, xcode_classifier, str(xcode_log)], capture_output=True, text=True, check=True)
+    if result.stdout.strip() not in xcode_allowed or result.stdout != "unknown\n" or result.stderr or private_marker in result.stdout + result.stderr:
+        raise SystemExit("xcodebuild classifier leaked an unrecognized diagnostic")
+    result = subprocess.run([sys.executable, xcode_classifier, str(pathlib.Path(directory) / "absent-xcode.log")], capture_output=True, text=True, check=True)
+    if result.stdout != "log_missing\n" or result.stderr:
+        raise SystemExit("xcodebuild classifier did not safely classify a missing log")
+print("PostgreSQL, Phoenix, and Xcode classifier contracts: passed")
+PGCLASS
 
 printf 'four-layer topology contract: passed\n'
