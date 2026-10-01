@@ -146,16 +146,16 @@ PY
 done
 
 release_guide="$SCRIPT_DIR/../../../docs/RELEASE.md"
-if ! rg -Fq 'exit 0 is verified recovery' "$release_guide" ||
-   ! rg -Fq 'exit 77 is an' "$release_guide" ||
-   ! rg -Fq 'unmet Docker precondition' "$release_guide" ||
-   ! rg -Fq 'any other exit is failure' "$release_guide" ||
-   ! rg -Fq 'parser fixture is validation mechanics only' -i "$release_guide" ||
-   ! rg -Fq 'the only human observation gate' "$release_guide"; then
+if ! grep -Fq 'exit 0 is verified recovery' "$release_guide" ||
+   ! grep -Fq 'exit 77 is an' "$release_guide" ||
+   ! grep -Fq 'unmet Docker precondition' "$release_guide" ||
+   ! grep -Fq 'any other exit is failure' "$release_guide" ||
+   ! grep -Fq 'parser fixture is validation mechanics only' -i "$release_guide" ||
+   ! grep -Fq 'the only human observation gate' "$release_guide"; then
   printf 'FAIL: RELEASE.md does not preserve verified, skipped, parser-only, and named-observation states\n' >&2
   exit 1
 fi
-if rg -qi 'parser fixture (is|provides) (verified recovery|known-playable (evidence|proof))|known-playable proof pending.*is a known-playable pass' "$release_guide"; then
+if grep -Eqi 'parser fixture (is|provides) (verified recovery|known-playable (evidence|proof))|known-playable proof pending.*is a known-playable pass' "$release_guide"; then
   printf 'FAIL: RELEASE.md promotes a parser fixture or pending Mac receipt to proof\n' >&2
   exit 1
 fi
@@ -166,47 +166,47 @@ fi
 bootstrap="$SCRIPT_DIR/../../../Playstead/UITesting/UITestBootstrap.swift"
 app_entry="$SCRIPT_DIR/../../../Playstead/App/PlaysteadApp.swift"
 pin_capture="$SCRIPT_DIR/../../../Playstead/Pairing/PinnedCertificateCapture.swift"
-if ! rg -Fq 'PLAYSTEAD_MAC_DEV_SIGNING_IDENTITY' "$PROVER" ||
-   ! rg -Fq 'PLAYSTEAD_TEAM_ID' "$PROVER" ||
-   ! rg -Fq 'security find-certificate' "$PROVER" ||
-   ! rg -Fq 'openssl x509' "$PROVER" ||
-   ! rg -Fq 'configured_team="$actual_team"' "$PROVER" ||
-   rg -Fq 'CODE_SIGN_IDENTITY=-' "$PROVER" ||
-   ! rg -Fq 'xcodebuild build -project "$mac_root/Playstead.xcodeproj" -target Playstead' "$PROVER" ||
-   ! rg -Fq 'recovery_bundle_id="dev.playstead.mac.recovery.direct"' "$PROVER" ||
-   ! rg -Fq 'PRODUCT_BUNDLE_IDENTIFIER="$recovery_bundle_id"' "$PROVER" ||
-   ! rg -Fq 'plutil -extract CFBundleIdentifier raw -o - "$app_path/Contents/Info.plist"' "$PROVER" ||
-   ! rg -Fq '[ "$built_bundle_id" = "$recovery_bundle_id" ]' "$PROVER" ||
-   ! rg -Fq 'open -n -W' "$PROVER" ||
-   rg -Fq 'open -n -W -g' "$PROVER" ||
-   ! rg -Fq -- '--env "PLAYSTEAD_UI_TESTING=1"' "$PROVER" ||
-   ! rg -Fq -- '--env "PLAYSTEAD_UI_TEST_KEYCHAIN=$profile_root/recovery-ui.keychain-db"' "$PROVER" ||
-   ! rg -Fq -- '--env "PLAYSTEAD_RECOVERY_DIRECT_PAIRING_TARGET=$target_url"' "$PROVER" ||
-   ! rg -Fq -- '--env "PLAYSTEAD_RECOVERY_DIRECT_REPORT=$ui_report"' "$PROVER" ||
-   ! rg -Fq -- '--env "PLAYSTEAD_RECOVERY_DIRECT_TRUST_ANCHOR=$recovery_trust_anchor"' "$PROVER" ||
-   rg -Fq 'kill -TERM "$app_pid"' "$PROVER" ||
-   rg -Fq '"$app_executable" >/dev/null 2>&1 &' "$PROVER" ||
-   ! rg -Fq 'PLAYSTEAD_RECOVERY_DIRECT_PAIRING_TARGET' "$PROVER" ||
-   ! rg -Fq 'PLAYSTEAD_RECOVERY_DIRECT_REPORT' "$PROVER" ||
-   ! rg -Fq 'PLAYSTEAD_RECOVERY_DIRECT_TRUST_ANCHOR' "$PROVER" ||
-   ! rg -Fq 'openssl x509 -in "$ca_cert" -outform DER -out "$recovery_trust_anchor"' "$PROVER" ||
-   ! rg -Fq 'chmod 600 "$recovery_trust_anchor"' "$PROVER" ||
-   ! rg -Fq 'codesign --verify --deep --strict "$app_path"' "$PROVER" ||
-   rg -Fq 'PlaysteadUITests/RecoveryKnownPlayableTests/testPreparedRecoveryTargetLaunchesTheCleanMacAppAndRequestsPairing' "$PROVER" ||
-   rg -Fq 'CODE_SIGN_ENTITLEMENTS=PlaysteadUITests/RecoveryUITests.entitlements' "$PROVER" ||
-   ! rg -Fq 'PLAYSTEAD_RECOVERY_DIRECT_PAIRING_TARGET' "$bootstrap" ||
-   ! rg -Fq 'PLAYSTEAD_RECOVERY_DIRECT_REPORT' "$bootstrap" ||
-   ! rg -Fq 'PLAYSTEAD_RECOVERY_DIRECT_TRUST_ANCHOR' "$bootstrap" ||
-   ! rg -Fq 'PinnedCertificateCapture.certificateData(fromRecoveryFile: rawTrustAnchorData)' "$bootstrap" ||
-   ! rg -Fq 'SecCertificateCreateWithData(nil, suppliedTrustAnchorData as CFData)' "$pin_capture" ||
-   ! rg -Fq 'createScopedKeychainIfNeeded' "$bootstrap" ||
-   ! rg -Fq 'environment[unpairedKey] == "1"' "$bootstrap" ||
-   ! rg -Fq 'containedDestinationURL(rawReport, root: root)' "$bootstrap" ||
-   ! rg -Fq 'suppliedTrustAnchorData: recovery.trustAnchorData' "$app_entry" ||
-   ! rg -Fq 'guard case .awaitingApproval = coordinator.state else { return }' "$app_entry" ||
-   ! rg -Fq 'Task.sleep(nanoseconds: 20_000_000_000)' "$app_entry" ||
-   ! rg -Fq 'NSApplication.shared.terminate(nil)' "$app_entry" ||
-   ! rg -Fq 'credentials, certificate bytes, and errors' "$app_entry"; then
+if ! grep -Fq 'PLAYSTEAD_MAC_DEV_SIGNING_IDENTITY' "$PROVER" ||
+   ! grep -Fq 'PLAYSTEAD_TEAM_ID' "$PROVER" ||
+   ! grep -Fq 'security find-certificate' "$PROVER" ||
+   ! grep -Fq 'openssl x509' "$PROVER" ||
+   ! grep -Fq 'configured_team="$actual_team"' "$PROVER" ||
+   grep -Fq 'CODE_SIGN_IDENTITY=-' "$PROVER" ||
+   ! grep -Fq 'xcodebuild build -project "$mac_root/Playstead.xcodeproj" -target Playstead' "$PROVER" ||
+   ! grep -Fq 'recovery_bundle_id="dev.playstead.mac.recovery.direct"' "$PROVER" ||
+   ! grep -Fq 'PRODUCT_BUNDLE_IDENTIFIER="$recovery_bundle_id"' "$PROVER" ||
+   ! grep -Fq 'plutil -extract CFBundleIdentifier raw -o - "$app_path/Contents/Info.plist"' "$PROVER" ||
+   ! grep -Fq '[ "$built_bundle_id" = "$recovery_bundle_id" ]' "$PROVER" ||
+   ! grep -Fq 'open -n -W' "$PROVER" ||
+   grep -Fq 'open -n -W -g' "$PROVER" ||
+   ! grep -Fq -- '--env "PLAYSTEAD_UI_TESTING=1"' "$PROVER" ||
+   ! grep -Fq -- '--env "PLAYSTEAD_UI_TEST_KEYCHAIN=$profile_root/recovery-ui.keychain-db"' "$PROVER" ||
+   ! grep -Fq -- '--env "PLAYSTEAD_RECOVERY_DIRECT_PAIRING_TARGET=$target_url"' "$PROVER" ||
+   ! grep -Fq -- '--env "PLAYSTEAD_RECOVERY_DIRECT_REPORT=$ui_report"' "$PROVER" ||
+   ! grep -Fq -- '--env "PLAYSTEAD_RECOVERY_DIRECT_TRUST_ANCHOR=$recovery_trust_anchor"' "$PROVER" ||
+   grep -Fq 'kill -TERM "$app_pid"' "$PROVER" ||
+   grep -Fq '"$app_executable" >/dev/null 2>&1 &' "$PROVER" ||
+   ! grep -Fq 'PLAYSTEAD_RECOVERY_DIRECT_PAIRING_TARGET' "$PROVER" ||
+   ! grep -Fq 'PLAYSTEAD_RECOVERY_DIRECT_REPORT' "$PROVER" ||
+   ! grep -Fq 'PLAYSTEAD_RECOVERY_DIRECT_TRUST_ANCHOR' "$PROVER" ||
+   ! grep -Fq 'openssl x509 -in "$ca_cert" -outform DER -out "$recovery_trust_anchor"' "$PROVER" ||
+   ! grep -Fq 'chmod 600 "$recovery_trust_anchor"' "$PROVER" ||
+   ! grep -Fq 'codesign --verify --deep --strict "$app_path"' "$PROVER" ||
+   grep -Fq 'PlaysteadUITests/RecoveryKnownPlayableTests/testPreparedRecoveryTargetLaunchesTheCleanMacAppAndRequestsPairing' "$PROVER" ||
+   grep -Fq 'CODE_SIGN_ENTITLEMENTS=PlaysteadUITests/RecoveryUITests.entitlements' "$PROVER" ||
+   ! grep -Fq 'PLAYSTEAD_RECOVERY_DIRECT_PAIRING_TARGET' "$bootstrap" ||
+   ! grep -Fq 'PLAYSTEAD_RECOVERY_DIRECT_REPORT' "$bootstrap" ||
+   ! grep -Fq 'PLAYSTEAD_RECOVERY_DIRECT_TRUST_ANCHOR' "$bootstrap" ||
+   ! grep -Fq 'PinnedCertificateCapture.certificateData(fromRecoveryFile: rawTrustAnchorData)' "$bootstrap" ||
+   ! grep -Fq 'SecCertificateCreateWithData(nil, suppliedTrustAnchorData as CFData)' "$pin_capture" ||
+   ! grep -Fq 'createScopedKeychainIfNeeded' "$bootstrap" ||
+   ! grep -Fq 'environment[unpairedKey] == "1"' "$bootstrap" ||
+   ! grep -Fq 'containedDestinationURL(rawReport, root: root)' "$bootstrap" ||
+   ! grep -Fq 'suppliedTrustAnchorData: recovery.trustAnchorData' "$app_entry" ||
+   ! grep -Fq 'guard case .awaitingApproval = coordinator.state else { return }' "$app_entry" ||
+   ! grep -Fq 'Task.sleep(nanoseconds: 20_000_000_000)' "$app_entry" ||
+   ! grep -Fq 'NSApplication.shared.terminate(nil)' "$app_entry" ||
+   ! grep -Fq 'credentials, certificate bytes, and errors' "$app_entry"; then
   printf 'FAIL: recovery proof must launch only the signed app with the isolated direct-app seam\n' >&2
   exit 1
 fi

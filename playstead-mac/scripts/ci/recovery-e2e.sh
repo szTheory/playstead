@@ -1049,7 +1049,7 @@ if [ "${PLAYSTEAD_RECOVERY_TEST_OWNER_APPROVAL:-}" = 1 ]; then
   approval_rc=0
   wait "$approval_pid" || approval_rc=$?
   approval_pid=""
-  if [ "$approval_rc" -ne 0 ] || ! rg -q '^RECOVERY_TEST_OWNER stage=approval_driver outcome=approved$' "$approval_log"; then
+  if [ "$approval_rc" -ne 0 ] || ! grep -Eq '^RECOVERY_TEST_OWNER stage=approval_driver outcome=approved$' "$approval_log"; then
     FAILED_STAGE="owner_approval"
     blocked 'test-owner approval did not match the current pairing request'
   fi

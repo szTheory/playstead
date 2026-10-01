@@ -148,7 +148,10 @@ defmodule PlaysteadWeb.ReferencePacksLive do
           </p>
         </div>
 
-        <section id="import-pack-section" class="rounded-lg border border-app-border bg-app-surface p-6">
+        <section
+          id="import-pack-section"
+          class="rounded-lg border border-app-border bg-app-surface p-6"
+        >
           <form id="reference-pack-form" phx-change="validate" phx-submit="import">
             <label
               for={@uploads.pack.ref}

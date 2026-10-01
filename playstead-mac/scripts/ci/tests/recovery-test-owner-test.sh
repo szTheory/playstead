@@ -109,8 +109,8 @@ PY
 if FAKE_BAD_TOPOLOGY=1 PATH="$BIN:$PATH" PLAYSTEAD_RECOVERY_RESTORE_HANDOFF="$HANDOFF" "$SANDBOX/recovery-test-owner.sh" prepare >"$TMP_ROOT/refusal.out" 2>/dev/null; then
   printf '%s\n' 'FAIL: wrong isolated network was accepted' >&2; exit 1
 fi
-rg -q '^RECOVERY_TEST_OWNER stage=target_scope outcome=blocked$' "$TMP_ROOT/refusal.out"
-! rg -q 'seed-owner|password|localhost|18443|fake ca' "$TMP_ROOT/refusal.out"
+grep -Eq '^RECOVERY_TEST_OWNER stage=target_scope outcome=blocked$' "$TMP_ROOT/refusal.out"
+! grep -Eq 'seed-owner|password|localhost|18443|fake ca' "$TMP_ROOT/refusal.out"
 python3 - "$STATE" <<'PY'
 import json,pathlib,sys
 assert json.loads(pathlib.Path(sys.argv[1]).read_text())["reset_count"]==1
@@ -124,7 +124,7 @@ chmod 600 "$record"
 if PATH="$BIN:$PATH" PLAYSTEAD_RECOVERY_RESTORE_HANDOFF="$HANDOFF" "$SANDBOX/recovery-test-owner.sh" check >"$TMP_ROOT/malformed.out" 2>/dev/null; then
   printf '%s\n' 'FAIL: malformed credential record was accepted' >&2; exit 1
 fi
-rg -q '^RECOVERY_TEST_OWNER stage=owner_record outcome=blocked$' "$TMP_ROOT/malformed.out"
+grep -Eq '^RECOVERY_TEST_OWNER stage=owner_record outcome=blocked$' "$TMP_ROOT/malformed.out"
 [ ! -s "$FAKE_DOCKER_TRACE" ]
 python3 - "$record" "$STATE" <<'PY'
 import json,pathlib,sys
@@ -149,16 +149,16 @@ chmod 600 "$TMP_ROOT/runner/profile/recovery-approval-request.json"
 if PATH="$BIN:$PATH" PLAYSTEAD_RECOVERY_RESTORE_HANDOFF="$HANDOFF" "$SANDBOX/recovery-test-owner.sh" approve-once "$TMP_ROOT/runner/profile" >"$TMP_ROOT/approval-disabled.out" 2>&1; then
   printf '%s\n' 'FAIL: approval helper ran without the explicit test opt-in' >&2; exit 1
 fi
-rg -q '^RECOVERY_TEST_OWNER stage=approval_driver outcome=disabled$' "$TMP_ROOT/approval-disabled.out"
+grep -Eq '^RECOVERY_TEST_OWNER stage=approval_driver outcome=disabled$' "$TMP_ROOT/approval-disabled.out"
 if ! out=$(PLAYSTEAD_RECOVERY_TEST_OWNER_APPROVAL=1 PATH="$BIN:$PATH" PLAYSTEAD_RECOVERY_RESTORE_HANDOFF="$HANDOFF" "$SANDBOX/recovery-test-owner.sh" approve-once "$TMP_ROOT/runner/profile" 2>"$TMP_ROOT/approval.err"); then
   cat "$FAKE_DOCKER_TRACE" >&2
   printf '%s\n' "$out" >&2
   exit 1
 fi
 [[ "$out" == 'RECOVERY_TEST_OWNER stage=approval_driver outcome=approved' ]]
-rg -q '^approval_driver=test_owner$' "$TMP_ROOT/approval.err"
-! printf '%s\n' "$out" | rg -q 'seed-owner|password|BCDF-GHJK|localhost|18443'
-! rg -q 'seed-owner|password|BCDF-GHJK|localhost|18443' "$TMP_ROOT/approval.err"
+grep -Eq '^approval_driver=test_owner$' "$TMP_ROOT/approval.err"
+! printf '%s\n' "$out" | grep -Eq 'seed-owner|password|BCDF-GHJK|localhost|18443'
+! grep -Eq 'seed-owner|password|BCDF-GHJK|localhost|18443' "$TMP_ROOT/approval.err"
 python3 - "$STATE" <<'PY'
 import json,pathlib,sys
 s=json.loads(pathlib.Path(sys.argv[1]).read_text())

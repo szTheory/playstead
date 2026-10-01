@@ -147,10 +147,10 @@ PY
 run_helper() { local result=0; "$HELPER" "$1" >"$ROOT/out" 2>"$ROOT/err" || result=$?; printf '%s' "$result" >"$ROOT/status"; }
 expect_status() { [ "$(<"$ROOT/status")" = "$1" ]; }
 assert_safe_output() {
-  ! rg -q 'localhost|[0-9]{4,}|restore-test|restore-receipt|caddy-root|[0-9a-f]{64}|Recovery Test CA|Different Test CA' "$ROOT/out" "$ROOT/err" || {
+  ! grep -Eq 'localhost|[0-9]{4,}|restore-test|restore-receipt|caddy-root|[0-9a-f]{64}|Recovery Test CA|Different Test CA' "$ROOT/out" "$ROOT/err" || {
     printf '%s\n' 'FAIL: helper emitted private recovery details' >&2; exit 1;
   }
-  rg -q '^RECOVERY_BROWSER_TRUST stage=[a-z_]+ outcome=[a-z_]+$' "$ROOT/out"
+  grep -Eq '^RECOVERY_BROWSER_TRUST stage=[a-z_]+ outcome=[a-z_]+$' "$ROOT/out"
 }
 
 # An invalid owner/mode handoff must fail before calling any mutation command.
@@ -182,20 +182,20 @@ FAILURE_CODE=ca_install
 run_helper ensure
 expect_status 0
 assert_safe_output
-rg -q 'outcome=installed$' "$ROOT/out"
+grep -Eq 'outcome=installed$' "$ROOT/out"
 [ "$(wc -l <"$FAKE_CALLS" | tr -d ' ')" = 1 ]
 run_helper ensure
 expect_status 0
 assert_safe_output
-rg -q 'outcome=already_trusted$' "$ROOT/out"
+grep -Eq 'outcome=already_trusted$' "$ROOT/out"
 [ "$(wc -l <"$FAKE_CALLS" | tr -d ' ')" = 1 ]
 
 # Coordinator prepare/check are explicit; default mode checks silently before Xcode.
 FAILURE_CODE=authorization_reconcile
 env -u PLAYSTEAD_TEAM_ID "$COORDINATOR" --check-browser-trust >"$ROOT/out" 2>"$ROOT/err"
-rg -q '^RECOVERY_BROWSER_TRUST stage=browser_trust outcome=trusted$' "$ROOT/out"
+grep -Eq '^RECOVERY_BROWSER_TRUST stage=browser_trust outcome=trusted$' "$ROOT/out"
 env -u PLAYSTEAD_TEAM_ID "$COORDINATOR" --prepare-browser-trust >"$ROOT/out" 2>"$ROOT/err"
-rg -q '^RECOVERY_BROWSER_TRUST stage=browser_trust outcome=already_trusted$' "$ROOT/out"
+grep -Eq '^RECOVERY_BROWSER_TRUST stage=browser_trust outcome=already_trusted$' "$ROOT/out"
 set +e
 env -u PLAYSTEAD_TEAM_ID "$COORDINATOR" >"$ROOT/out" 2>"$ROOT/err"
 coordinator_status=$?
@@ -223,7 +223,7 @@ FAILURE_CODE=authorization_reconcile
 export FAKE_TIMEOUT_ADD=1
 run_helper ensure; expect_status 77
 assert_safe_output
-rg -q 'outcome=authorization_required$' "$ROOT/out"
+grep -Eq 'outcome=authorization_required$' "$ROOT/out"
 python3 - "$ROOT/target/browser-trust-ownership.json" <<'PY'
 import json,pathlib,stat,sys
 p=pathlib.Path(sys.argv[1]); d=json.loads(p.read_text())
@@ -232,7 +232,7 @@ PY
 unset FAKE_TIMEOUT_ADD
 run_helper ensure; expect_status 0
 assert_safe_output
-rg -q 'outcome=installed$' "$ROOT/out"
+grep -Eq 'outcome=installed$' "$ROOT/out"
 
 # Cleanup works after the target is offline and only consumes our exact marker.
 FAILURE_CODE=owned_cleanup
@@ -243,7 +243,7 @@ kill "$TLS_PID" 2>/dev/null || true; wait "$TLS_PID" 2>/dev/null || true; TLS_PI
 run_helper remove-owned
 expect_status 0
 assert_safe_output
-rg -q 'outcome=removed$' "$ROOT/out"
+grep -Eq 'outcome=removed$' "$ROOT/out"
 [ ! -e "$FAKE_TRUSTED" ] && [ ! -e "$ROOT/target/browser-trust-ownership.json" ]
 
 printf '%s\n' 'recovery-browser-trust contracts: passed'

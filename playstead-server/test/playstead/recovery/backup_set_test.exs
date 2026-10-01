@@ -105,7 +105,9 @@ defmodule Playstead.Recovery.BackupSetTest do
     refute File.exists?(Path.join(root, "database.dump"))
   end
 
-  test "refuses an incomplete file-backed dump before an incremental set can publish", %{root: root} do
+  test "refuses an incomplete file-backed dump before an incremental set can publish", %{
+    root: root
+  } do
     dump_path = Path.join(root, "incomplete.dump")
     File.write!(dump_path, "not a PostgreSQL archive")
 

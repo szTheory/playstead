@@ -311,7 +311,8 @@ defmodule PlaysteadWeb.LibraryLiveTest do
       css = File.read!("assets/css/app.css")
 
       system_accents =
-        Regex.scan(~r/--color-system-accent-[a-z]+:\s*(#[0-9a-fA-F]+);/, css) |> Enum.map(&List.last/1)
+        Regex.scan(~r/--color-system-accent-[a-z]+:\s*(#[0-9a-fA-F]+);/, css)
+        |> Enum.map(&List.last/1)
 
       statuses =
         Regex.scan(~r/--color-status-[a-z-]+:\s*(#[0-9a-fA-F]+);/, css) |> Enum.map(&List.last/1)

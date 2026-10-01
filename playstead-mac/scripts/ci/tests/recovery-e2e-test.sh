@@ -99,7 +99,7 @@ assert_blocked_without_side_effects() {
     printf 'FAIL: %s handoff unexpectedly passed\n' "$name" >&2; exit 1
   fi
   [ ! -e "$root/profile" ] || { printf 'FAIL: %s created a profile before validation\n' "$name" >&2; exit 1; }
-  ! rg -q 'localhost|18443|server-handoff|restore-receipt|caddy-root|credential|chain-opaque' "$TMP_ROOT/$name.out" "$TMP_ROOT/$name.err" || {
+  ! grep -Eq 'localhost|18443|server-handoff|restore-receipt|caddy-root|credential|chain-opaque' "$TMP_ROOT/$name.out" "$TMP_ROOT/$name.err" || {
     printf 'FAIL: %s leaked private handoff data\n' "$name" >&2; exit 1;
   }
 }
@@ -120,8 +120,8 @@ fi
 valid="$TMP_ROOT/valid"; make_handoff "$valid"
 PATH="$BIN_DIR:$PATH" PLAYSTEAD_RECOVERY_RESTORE_HANDOFF="$valid/server-handoff.json" \
   "$COORDINATOR" --validate-only >"$TMP_ROOT/valid.out" 2>"$TMP_ROOT/valid.err"
-rg -q '^RECOVERY_HANDOFF_VALID$' "$TMP_ROOT/valid.out"
-! rg -q 'localhost|18443|server-handoff|restore-receipt|caddy-root' "$TMP_ROOT/valid.out" "$TMP_ROOT/valid.err"
+grep -Eq '^RECOVERY_HANDOFF_VALID$' "$TMP_ROOT/valid.out"
+! grep -Eq 'localhost|18443|server-handoff|restore-receipt|caddy-root' "$TMP_ROOT/valid.out" "$TMP_ROOT/valid.err"
 
 # Patch a generated test bundle without launching Xcode or contacting a target.
 patch_root="$TMP_ROOT/xctestrun-patch"
@@ -151,7 +151,7 @@ python3 - "$TMP_ROOT/xctestrun-patch.out" "$patch_root/DerivedData/Build/Product
 import pathlib,sys
 assert pathlib.Path(sys.argv[1]).read_text().strip()==str(pathlib.Path(sys.argv[2]).resolve())
 PY
-! rg -q 'localhost|18443|server-handoff|restore-receipt|caddy-root' "$TMP_ROOT/xctestrun-patch.out" "$TMP_ROOT/xctestrun-patch.err"
+! grep -Eq 'localhost|18443|server-handoff|restore-receipt|caddy-root' "$TMP_ROOT/xctestrun-patch.out" "$TMP_ROOT/xctestrun-patch.err"
 python3 - "$patch_root/DerivedData/Build/Products/fixture.xctestrun" "$patch_root" "$patch_report" "$valid/server-handoff.json" "$valid/caddy-root-ca.pem" <<'PY'
 import json,pathlib,plistlib,stat,sys
 path=pathlib.Path(sys.argv[1]); root=pathlib.Path(sys.argv[2]); report=pathlib.Path(sys.argv[3]); handoff=json.loads(pathlib.Path(sys.argv[4]).read_text()); ca=pathlib.Path(sys.argv[5])
@@ -186,7 +186,7 @@ stages={"clean_launch":"passed","local_ca_pairing_request":"passed","owner_appro
 json.dump({"schema":"playstead.recovery-mac-ui.v2","run_id":str(uuid.uuid4()),"lane":"restored_target","stages":stages,"outcome":"blocked"},open(sys.argv[1],"w"))
 PY
 PLAYSTEAD_RECOVERY_RESTORE_HANDOFF="$valid/server-handoff.json" "$COORDINATOR" --validate-ui-report "$report" >"$TMP_ROOT/ui-report.out"
-rg -q '^blocked owner_approval$' "$TMP_ROOT/ui-report.out"
+grep -Eq '^blocked owner_approval$' "$TMP_ROOT/ui-report.out"
 python3 - "$report" <<'PY'
 import json,pathlib,sys
 p=pathlib.Path(sys.argv[1]); d=json.loads(p.read_text()); del d["stages"]["persistent_save_transport_restore"]; p.write_text(json.dumps(d))
@@ -240,7 +240,7 @@ assert d["schema"]=="playstead.recovery-e2e-local.v1"
 assert d["lane"]=="same_host_restored_target" and d["stage"]==sys.argv[2] and d["outcome"]=="blocked", (d.get("lane"),d.get("stage"),d.get("outcome"))
 uuid.UUID(d["run_id"])
 PY
-  ! rg -q 'localhost|18443|server-handoff|restore-receipt|caddy-root|credential|chain-opaque|test-team-override' "$TMP_ROOT/$name.out" "$TMP_ROOT/$name.err" || {
+  ! grep -Eq 'localhost|18443|server-handoff|restore-receipt|caddy-root|credential|chain-opaque|test-team-override' "$TMP_ROOT/$name.out" "$TMP_ROOT/$name.err" || {
     printf 'FAIL: %s leaked private recovery data\n' "$name" >&2; exit 1;
   }
 }

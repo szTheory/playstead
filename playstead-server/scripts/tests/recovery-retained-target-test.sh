@@ -46,10 +46,10 @@ fi
 
 # The following static checks keep emitted handoff forms and exact cleanup
 # boundaries visible without representing any recovery evidence.
-rg -q 'PLAYSTEAD_RECOVERY_RESTORE_HANDOFF=' lib/playstead/recovery/restore.ex
-rg -q 'prove-recovery-known-playable\.sh --prepare' lib/playstead/recovery/restore.ex
-rg -q 'Path\.join\(root, "server-handoff\.json"\)' lib/playstead/recovery/restore.ex
-rg -q 'cleanup_refused' lib/playstead/recovery/restore.ex
-rg -q '"down", "--volumes", "--remove-orphans"' lib/playstead/recovery/restore.ex
+grep -Eq 'PLAYSTEAD_RECOVERY_RESTORE_HANDOFF=' lib/playstead/recovery/restore.ex
+grep -Eq 'prove-recovery-known-playable\.sh --prepare' lib/playstead/recovery/restore.ex
+grep -Eq 'Path\.join\(root, "server-handoff\.json"\)' lib/playstead/recovery/restore.ex
+grep -Eq 'cleanup_refused' lib/playstead/recovery/restore.ex
+grep -Eq '"down", "--volumes", "--remove-orphans"' lib/playstead/recovery/restore.ex
 
 echo "retained recovery command-contract fixtures passed (not recovery or playability evidence)"

@@ -25,7 +25,7 @@ d=json.loads(pathlib.Path(sys.argv[1]).read_text())
 assert set(d)=={"schema","run_id","stage","outcome"}
 assert d["schema"]=="playstead.continuation-local.v1" and d["stage"]=="preflight" and d["outcome"]=="blocked-capability"
 PY
-! rg -q 'private-contract-sentinel|private-receipt-sentinel|private-adapter-sentinel|CONTINUATION_FIXTURE|fixture_id' "$TMP_ROOT/result.json" "$TMP_ROOT/error.log"
+! grep -Eq 'private-contract-sentinel|private-receipt-sentinel|private-adapter-sentinel|CONTINUATION_FIXTURE|fixture_id' "$TMP_ROOT/result.json" "$TMP_ROOT/error.log"
 
 # Selector substitution is rejected by the parent runner before adapter lookup.
 for selector in arbitrary-command 'macos-seatbelt-v1;id' linux-bwrap-v1; do
@@ -35,7 +35,7 @@ for selector in arbitrary-command 'macos-seatbelt-v1;id' linux-bwrap-v1; do
       printf 'FAIL: unsupported selector %s qualified\n' "$selector" >&2; exit 1
     fi
   fi
-  ! rg -q 'adapter|fixture|contract|private|qualified' "$TMP_ROOT/probe.out" "$TMP_ROOT/probe.err"
+  ! grep -Eq 'adapter|fixture|contract|private|qualified' "$TMP_ROOT/probe.out" "$TMP_ROOT/probe.err"
 done
 
 # Standalone child actions are intentionally unavailable; only the spike can
@@ -47,7 +47,7 @@ for action in qualify initial-run continue; do
       "$RUNNER" "$action" >"$TMP_ROOT/standalone-action.out" 2>"$TMP_ROOT/standalone-action.err"; then
     printf 'FAIL: standalone %s action was accepted\n' "$action" >&2; exit 1
   fi
-  ! rg -q 'private-adapter-sentinel|private-root-sentinel|CONTINUATION_RESULT' "$TMP_ROOT/standalone-action.out" "$TMP_ROOT/standalone-action.err"
+  ! grep -Eq 'private-adapter-sentinel|private-root-sentinel|CONTINUATION_RESULT' "$TMP_ROOT/standalone-action.out" "$TMP_ROOT/standalone-action.err"
 done
 
 # Sanitizer recognizes only the reduced local continuation vocabulary.
