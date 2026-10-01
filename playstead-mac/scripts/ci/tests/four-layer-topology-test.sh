@@ -918,22 +918,67 @@ grep -F -- '--run-unprivileged-verification' "$WORKFLOW" >/dev/null || {
   printf 'the hosted macOS job must run the no-HID ordinary lane\n' >&2
   exit 1
 }
-grep -F -- '--run-entitled-virtual-gamepad-verification' "$WORKFLOW" >/dev/null || {
-  printf 'the separately provisioned hosted lane must run the exact entitled test\n' >&2
-  exit 1
-}
-grep -F "vars.PLAYSTEAD_HID_RUNNER_AVAILABLE == 'true'" "$WORKFLOW" >/dev/null || {
-  printf 'the entitled CI lane must remain gated on explicit runner provisioning\n' >&2
-  exit 1
-}
-grep -F 'playstead-virtual-hid' "$WORKFLOW" >/dev/null || {
-  printf 'the entitled CI lane must target its explicit self-hosted label\n' >&2
-  exit 1
-}
 grep -F 'name: mac-ordinary-evidence' "$WORKFLOW" >/dev/null || {
   printf 'the ordinary macOS lane must publish its sanitized evidence\n' >&2
   exit 1
 }
+python3 - "$WORKFLOW" <<'PY_RUNNER'
+import pathlib, re, sys
+
+workflow = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+
+# This is trusted-code regression coverage only. A fork can modify both the
+# workflow and this guard, so runner availability/access policy is the actual
+# security boundary for public pull requests.
+runner_specs = []
+lines = workflow.splitlines()
+index = 0
+while index < len(lines):
+    match = re.match(r"^([ \t]*)runs-on[ \t]*:[ \t]*(.*)$", lines[index])
+    if not match:
+        index += 1
+        continue
+    indent = len(match.group(1))
+    spec = [match.group(2).split("#", 1)[0]]
+    index += 1
+    while index < len(lines):
+        current = lines[index]
+        stripped = current.lstrip()
+        if not stripped or stripped.startswith("#"):
+            index += 1
+            continue
+        current_indent = len(current) - len(stripped)
+        if current_indent <= indent:
+            break
+        spec.append(current.split("#", 1)[0])
+        index += 1
+    runner_specs.append(" ".join(spec))
+
+if not runner_specs:
+    raise SystemExit("CI workflow must declare inspectable runner targets")
+
+allowed_hosted_targets = {"ubuntu-24.04", "macos-26"}
+
+def is_allowed_hosted_target(spec):
+    normalized = spec.strip().strip("[]").strip().strip("\"'")
+    return normalized in allowed_hosted_targets
+
+if any(not is_allowed_hosted_target(spec) for spec in runner_specs):
+    raise SystemExit("public CI runner targets must stay on the reviewed GitHub-hosted labels")
+for unsafe_target in (
+    "[self-hosted, macOS, playstead-virtual-hid]",
+    "playstead-virtual-hid",
+    "${{ vars.PLAYSTEAD_RUNNER }}",
+):
+    if is_allowed_hosted_target(unsafe_target):
+        raise SystemExit(f"runner guard accepted an unsafe target: {unsafe_target}")
+if "--run-entitled-virtual-gamepad-verification" in workflow:
+    raise SystemExit("public pull-request CI must not invoke the entitled virtual-gamepad lane")
+if re.search(r"(?m)^\s*mac-entitled-virtual-gamepad\s*:", workflow):
+    raise SystemExit("public pull-request CI must not define the entitled runner job")
+
+print("public workflow runner trust-boundary regression guard: passed")
+PY_RUNNER
 python3 - "$WORKFLOW" <<'PY_GATE'
 import pathlib, sys
 workflow = pathlib.Path(sys.argv[1]).read_text()
