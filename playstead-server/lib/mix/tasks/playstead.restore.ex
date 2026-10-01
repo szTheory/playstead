@@ -20,7 +20,12 @@ defmodule Mix.Tasks.Playstead.Restore do
 
     case selected_mode(opts, paths, invalid) do
       :fixture ->
-        if docker_available?(), do: run_fixture!(), else: System.halt(77)
+        if docker_available?() do
+          run_fixture!()
+        else
+          Mix.shell().info("PLAYSTEAD_RECOVERY_FIXTURE_FAILURE_STAGE=source-compose-startup")
+          System.halt(77)
+        end
 
       :retain ->
         if docker_available?(), do: run_retained!(opts), else: System.halt(77)
@@ -80,6 +85,8 @@ defmodule Mix.Tasks.Playstead.Restore do
   end
 
   defp run_fixture! do
+    Process.put(:playstead_recovery_fixture_failure_stage, "unknown")
+
     root =
       Path.join(
         System.tmp_dir!(),
@@ -88,99 +95,168 @@ defmodule Mix.Tasks.Playstead.Restore do
 
     project = "playstead-restore-source-#{System.unique_integer([:positive])}"
     source_file = Path.join(root, "source.compose.yml")
-    File.mkdir_p!(root)
-    File.write!(source_file, source_compose())
+
+    work_result =
+      try do
+        Process.put(:playstead_recovery_fixture_failure_stage, "source-fixture-create")
+        File.mkdir_p!(root)
+        File.write!(source_file, source_compose())
+
+        Process.put(:playstead_recovery_fixture_failure_stage, "source-compose-startup")
+        :ok = source(project, source_file, ["up", "-d"])
+
+        Process.put(:playstead_recovery_fixture_failure_stage, "source-readiness")
+        :ok = await_source(project, source_file, 20)
+
+        Process.put(:playstead_recovery_fixture_failure_stage, "source-fixture-create")
+
+        :ok =
+          source(project, source_file, [
+            "exec",
+            "-T",
+            "db",
+            "psql",
+            "-U",
+            "restore_source",
+            "-d",
+            "restore_source",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-c",
+            "CREATE TABLE restore_fixture (id integer primary key, note text); INSERT INTO restore_fixture VALUES (1, 'real pg_dump source');"
+          ])
+
+        Process.put(:playstead_recovery_fixture_failure_stage, "source-dump")
+
+        {:ok, dump} =
+          source_output(project, source_file, [
+            "exec",
+            "-T",
+            "db",
+            "pg_dump",
+            "-U",
+            "restore_source",
+            "-d",
+            "restore_source",
+            "--format=custom"
+          ])
+
+        Process.put(:playstead_recovery_fixture_failure_stage, "backup-publication")
+
+        {:ok, set} =
+          BackupSet.build(%{
+            id: "fixture-full",
+            correlation_id: "fixture-correlation",
+            kind: :full,
+            dump: %{relative: "database.dump", bytes: dump},
+            members: [],
+            metadata: %{release: "fixture", configuration: %{storage: "local"}}
+          })
+
+        {:ok, published} = BackupSet.publish(Path.join(root, "backups"), set, attested: true)
+
+        target_root = Path.join(root, "target")
+        handoff_output = Path.join(target_root, "server-handoff.json")
+
+        Process.put(:playstead_recovery_fixture_failure_stage, "target-restore")
+
+        case Restore.retain([published.path],
+               canonical_project: "playstead",
+               canonical_roots: [Path.join(root, "canonical")],
+               target_root: target_root,
+               handoff_output: handoff_output,
+               cleanup_failed_target: true
+             ) do
+          {:ok, receipt, _handoff} ->
+            Process.put(:playstead_recovery_fixture_failure_stage, "target-cleanup")
+
+            case Restore.cleanup(target_root: target_root, handoff_output: handoff_output) do
+              :ok ->
+                {:ok, receipt["correlation_id"], receipt["stages"]}
+
+              {:error, reason} ->
+                Mix.raise("restore cleanup failed: #{inspect(reason)}")
+            end
+
+          {:error, receipt} when is_map(receipt) ->
+            if receipt["cleanup_code"] do
+              Mix.raise("restore proof failed: #{receipt["code"]}; target cleanup failed")
+            else
+              Mix.raise("restore proof failed: #{receipt["code"]}")
+            end
+
+          {:error, reason} ->
+            Mix.raise("restore proof failed: #{inspect(reason)}")
+        end
+      rescue
+        error ->
+          {:failure, :error, error, __STACKTRACE__,
+           Process.get(:playstead_recovery_fixture_failure_stage) || "unknown"}
+      catch
+        kind, reason ->
+          {:failure, kind, reason, __STACKTRACE__,
+           Process.get(:playstead_recovery_fixture_failure_stage) || "unknown"}
+      end
+
+    cleanup_result = cleanup_fixture(project, source_file, root)
 
     try do
-      :ok = source(project, source_file, ["up", "-d"])
+      case {work_result, cleanup_result} do
+        {{:ok, correlation_id, stages}, :ok} ->
+          emit_fixture_result(correlation_id, stages)
 
-      :ok = await_source(project, source_file, 20)
+        {{:failure, kind, reason, stacktrace, stage}, _cleanup_result} ->
+          Mix.shell().info("PLAYSTEAD_RECOVERY_FIXTURE_FAILURE_STAGE=#{stage}")
+          :erlang.raise(kind, reason, stacktrace)
 
-      :ok =
-        source(project, source_file, [
-          "exec",
-          "-T",
-          "db",
-          "psql",
-          "-U",
-          "restore_source",
-          "-d",
-          "restore_source",
-          "-v",
-          "ON_ERROR_STOP=1",
-          "-c",
-          "CREATE TABLE restore_fixture (id integer primary key, note text); INSERT INTO restore_fixture VALUES (1, 'real pg_dump source');"
-        ])
-
-      {:ok, dump} =
-        source_output(project, source_file, [
-          "exec",
-          "-T",
-          "db",
-          "pg_dump",
-          "-U",
-          "restore_source",
-          "-d",
-          "restore_source",
-          "--format=custom"
-        ])
-
-      {:ok, set} =
-        BackupSet.build(%{
-          id: "fixture-full",
-          correlation_id: "fixture-correlation",
-          kind: :full,
-          dump: %{relative: "database.dump", bytes: dump},
-          members: [],
-          metadata: %{release: "fixture", configuration: %{storage: "local"}}
-        })
-
-      {:ok, published} = BackupSet.publish(Path.join(root, "backups"), set, attested: true)
-
-      target_root = Path.join(root, "target")
-      handoff_output = Path.join(target_root, "server-handoff.json")
-
-      case Restore.retain([published.path],
-             canonical_project: "playstead",
-             canonical_roots: [Path.join(root, "canonical")],
-             target_root: target_root,
-             handoff_output: handoff_output,
-             cleanup_failed_target: true
-           ) do
-        {:ok, receipt, _handoff} ->
-          case Restore.cleanup(target_root: target_root, handoff_output: handoff_output) do
-            :ok ->
-              Mix.shell().info("restore proof verified: #{receipt["correlation_id"]}")
-
-              Mix.shell().info(
-                "PLAYSTEAD_RECOVERY_FIXTURE_JSON=" <>
-                  Jason.encode!(%{
-                    "schema_version" => 1,
-                    "run_id" => receipt["correlation_id"],
-                    "lane" => "linux_restore_fixture",
-                    "stages" => receipt["stages"],
-                    "outcome" => "passed"
-                  })
-              )
-
-            {:error, reason} ->
-              Mix.raise("restore cleanup failed: #{inspect(reason)}")
-          end
-
-        {:error, receipt} when is_map(receipt) ->
-          if receipt["cleanup_code"] do
-            Mix.raise("restore proof failed: #{receipt["code"]}; target cleanup failed")
-          else
-            Mix.raise("restore proof failed: #{receipt["code"]}")
-          end
-
-        {:error, reason} ->
-          Mix.raise("restore proof failed: #{inspect(reason)}")
+        {{:ok, _correlation_id, _stages}, {:error, _}} ->
+          Mix.shell().info("PLAYSTEAD_RECOVERY_FIXTURE_FAILURE_STAGE=target-cleanup")
+          Mix.raise("restore fixture teardown failed")
       end
     after
-      _ = source(project, source_file, ["down", "--volumes", "--remove-orphans"])
-      File.rm_rf(root)
+      Process.delete(:playstead_recovery_fixture_failure_stage)
     end
+  end
+
+  defp emit_fixture_result(correlation_id, stages) do
+    Process.put(:playstead_recovery_fixture_failure_stage, "result-validation")
+    Mix.shell().info("restore proof verified: #{correlation_id}")
+
+    Mix.shell().info(
+      "PLAYSTEAD_RECOVERY_FIXTURE_JSON=" <>
+        Jason.encode!(%{
+          "schema_version" => 1,
+          "run_id" => correlation_id,
+          "lane" => "linux_restore_fixture",
+          "stages" => stages,
+          "outcome" => "passed"
+        })
+    )
+  rescue
+    _ ->
+      Mix.shell().info("PLAYSTEAD_RECOVERY_FIXTURE_FAILURE_STAGE=result-validation")
+      Mix.raise("restore fixture result validation failed")
+  end
+
+  defp cleanup_fixture(project, source_file, root) do
+    compose_result =
+      if File.regular?(source_file) do
+        source(project, source_file, ["down", "--volumes", "--remove-orphans"])
+      else
+        :ok
+      end
+
+    remove_result =
+      case File.rm_rf(root) do
+        {:ok, _removed_paths} -> :ok
+        {:error, _reason, _path} -> {:error, :target_cleanup_failed}
+      end
+
+    if compose_result == :ok and remove_result == :ok,
+      do: :ok,
+      else: {:error, :target_cleanup_failed}
+  rescue
+    _ -> {:error, :target_cleanup_failed}
   end
 
   defp docker_available?,
