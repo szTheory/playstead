@@ -48,8 +48,20 @@ fi
 # boundaries visible without representing any recovery evidence.
 grep -Eq 'PLAYSTEAD_RECOVERY_RESTORE_HANDOFF=' lib/playstead/recovery/restore.ex
 grep -Eq 'prove-recovery-known-playable\.sh --prepare' lib/playstead/recovery/restore.ex
-grep -Eq 'Path\.join\(root, "server-handoff\.json"\)' lib/playstead/recovery/restore.ex
+grep -Fq 'Path.join(target, "server-handoff.json")' lib/playstead/recovery/restore.ex
 grep -Eq 'cleanup_refused' lib/playstead/recovery/restore.ex
-grep -Eq '"down", "--volumes", "--remove-orphans"' lib/playstead/recovery/restore.ex
+python3 - lib/playstead/recovery/restore.ex <<'PY'
+import sys
+
+source = open(sys.argv[1], encoding="utf-8").read()
+marker = source.find('"--remove-orphans"')
+start = source.rfind("args = [", 0, marker) if marker >= 0 else -1
+end = source.find("]", marker) if marker >= 0 else -1
+block = source[start:end] if start >= 0 and end >= 0 else ""
+required = ['"down"', '"--volumes"', '"--remove-orphans"']
+positions = [block.find(value) for value in required]
+if start < 0 or end < 0 or any(position < 0 for position in positions) or positions != sorted(positions):
+    raise SystemExit("cleanup command must include volume and orphan removal")
+PY
 
 echo "retained recovery command-contract fixtures passed (not recovery or playability evidence)"
