@@ -8,6 +8,7 @@ trap 'rm -rf "$TMP_ROOT"' EXIT
 
 PASS_COUNT=0
 FAIL_COUNT=0
+ZERO_NETWORK_STAGES=(stand-in-signing adapter-selection synthetic-cas catalogue-readiness materialization-save-setup adapter-launch adapter-exit unclassified)
 
 expect_pass() {
   local name="$1"
@@ -32,6 +33,47 @@ expect_fail() {
   fi
 }
 
+expect_zero_network_sanitizer_stage() {
+  local stage="$1" root="$TMP_ROOT/zero-stage-$1" output="$TMP_ROOT/zero-stage-$1-output"
+  make_valid "$root"
+  python3 - "$root/evidence/ui-tests.json" "$stage" <<'PY'
+import json, pathlib, sys
+path=pathlib.Path(sys.argv[1]); stage=sys.argv[2]; data=json.loads(path.read_text())
+data["failure_diagnostics"].append({"test_identifier":"ZeroNetworkPlayFlowTests/testWholePlayFlowRecordsZeroHTTPRequests()","assertion":"XCTAssertNil","source_file":"PlaysteadUITests/ZeroNetworkPlayFlowTests.swift","source_line":53,"failure_stage":stage})
+data["failure_diagnostic_count"] += 1
+path.write_text(json.dumps(data))
+PY
+  expect_pass "zero_stage_$stage" "$SANITIZER" --input "$root" --output "$output"
+  python3 - "$output/ui-tests.json" "$stage" <<'PY'
+import json, pathlib, sys
+d=json.loads(pathlib.Path(sys.argv[1]).read_text())
+r=[x for x in d["failure_diagnostics"] if x["test_identifier"].startswith("ZeroNetworkPlayFlowTests/")]
+assert len(r)==1 and r[0]["failure_stage"]==sys.argv[2]
+PY
+}
+
+python3 - "$SCRIPT_DIR/../../../Playstead/UITesting/UITestBootstrap.swift" "$SCRIPT_DIR/../../../PlaysteadUITests/ZeroNetworkPlayFlowTests.swift" <<'PY'
+import pathlib, re, sys
+bootstrap=pathlib.Path(sys.argv[1]).read_text(); test=pathlib.Path(sys.argv[2]).read_text()
+enum=re.search(r"private enum ZeroNetworkPlayFlowStage: String \{(.*?)\n    \}", bootstrap, re.S)
+assert enum, "zero-network diagnostic stage enum missing"
+declared=set(re.findall(r'= "([a-z-]+)"', enum.group(1)))
+expected={"stand-in-signing","adapter-selection","synthetic-cas","catalogue-readiness","materialization-save-setup","adapter-launch","adapter-exit","unclassified"}
+assert declared == expected, f"unexpected Mac stage enum: {declared}"
+assert "failureStage = .unclassified" in bootstrap
+assert "failureStage = .adapterExit" not in bootstrap
+pin=bootstrap.index("pin = try AdapterPin.load()")
+assert ".adapterSelection" in bootstrap[pin:pin+220], "adapter pin load must map to adapter-selection"
+flow=bootstrap[bootstrap.index("private static func runZeroNetworkPlayFlow"):bootstrap.index("/// A tiny async-friendly exit latch")]
+assert flow.count("ZeroNetworkPlayFlowFailure(stage: .adapterExit)") == 1
+assert "try await exited.wait(timeoutSeconds: 20)" in flow
+assert "ZeroNetworkPlayFlowFailure(stage: .adapterLaunch)" in flow
+assert "CFGetTypeID(countNumber) != CFBooleanGetTypeID()" in test
+assert 'countEncoding != "f", countEncoding != "d"' in test
+assert "countText.utf8.allSatisfy" in test and "Int(countText)" in test
+print("zero-network stage mapping and strict integer source contracts passed")
+PY
+
 make_valid() {
   local root="$1"
   mkdir -p "$root/evidence/snapshot-triplet" "$root/evidence/storage-candidate" "$root/evidence/logs" "$root/raw/Unit.xcresult" "$root/DerivedData"
@@ -39,7 +81,7 @@ make_valid() {
   printf '%s\n' '{"schema_version":1,"build_count":1,"automatic_retries":0,"aggregate_outcome":"failed","layers":[]}' >"$root/evidence/layers.json"
   printf '%s\n' '{"schema_version":1,"run_id":"123e4567-e89b-42d3-a456-426614174000","lane":"linux_restore_fixture","stages":["chain","preflight","database","cas","manifest","api"],"outcome":"passed"}' >"$root/evidence/recovery-e2e.json"
   printf '%s\n' '{"schema_version":1,"layer":"ui","executed_test_count":2,"runner_process_error_count":0,"required_tests":[{"identifier":"PlaysteadUITests.HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice","discovered":true,"execution_count":1,"skipped":false,"outcome":"passed"}],"failed_test_count":1,"failed_tests_truncated":false,"failed_tests":[{"identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","outcome":"failed"}],"failure_diagnostic_count":1,"failure_diagnostics_truncated":false,"failure_diagnostics":[{"test_identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","assertion":"XCTAssertTrue","source_file":"PlaysteadUITests/SurfaceAccessibilityTests.swift","source_line":137}],"layout_diagnostic_count":0,"layout_diagnostics_truncated":false,"layout_diagnostics":[],"audit_issue_count":1,"audit_issues_truncated":false,"audit_issues":[{"test_identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","category":"parentChild","element_identifier":"playstead.surface.library","element_role":"role-3"}],"in_test_seconds_total":42.2,"timed_test_count":2,"slowest_tests":[{"identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","seconds":1.5}]}' >"$root/evidence/ui-tests.json"
-  printf 'safe app event at /Users/example/private/location\n' >"$root/evidence/logs/app.log"
+printf 'safe app event at /Users/example/private/location\n' >"$root/evidence/logs/app.log"
   printf 'server health passed\n' >"$root/evidence/logs/server.log"
   printf '\211PNG\r\n\032\nreference' >"$root/evidence/snapshot-triplet/reference.png"
   printf '\211PNG\r\n\032\nactual' >"$root/evidence/snapshot-triplet/actual.png"
@@ -61,6 +103,59 @@ grep -F '[PATH]' "$TMP_ROOT/output/logs/app.log" >/dev/null || { printf 'FAIL: l
 [ ! -e "$TMP_ROOT/output/DerivedData" ]
 [ -s "$TMP_ROOT/output/storage-candidate/storage-surfaces.actual.png" ]
 PASS_COUNT=$((PASS_COUNT + 4))
+
+for stage in "${ZERO_NETWORK_STAGES[@]}"; do
+  input="$TMP_ROOT/verifier-zero-$stage.json"; summary="$TMP_ROOT/verifier-zero-$stage-summary.json"
+  python3 - "$input" "$stage" <<'PY'
+import json,pathlib,sys
+path=pathlib.Path(sys.argv[1]); stage=sys.argv[2]
+case={"nodeType":"Test Case","nodeIdentifier":"ZeroNetworkPlayFlowTests/testWholePlayFlowRecordsZeroHTTPRequests()","name":"testWholePlayFlowRecordsZeroHTTPRequests()","result":"Failed","children":[{"nodeType":"Failure Message","name":f"ZeroNetworkPlayFlowTests.swift:53: XCTAssertNil failed: PLAYSTEAD_ZERO_NETWORK_FAILURE_STAGE[{stage}]","result":"Failed"}]}
+path.write_text(json.dumps({"testNodes":[{"nodeType":"Test Plan","children":[case]}]}))
+PY
+  expect_fail "verifier_zero_$stage" "$SCRIPT_DIR/../run-mac-verification.sh" --verify-layer-result "$input" ui "$summary" --required-test PlaysteadUITests.ZeroNetworkPlayFlowTests/testWholePlayFlowRecordsZeroHTTPRequests
+  python3 - "$summary" "$stage" <<'PY'
+import json,pathlib,sys
+d=json.loads(pathlib.Path(sys.argv[1]).read_text()); r=d["failure_diagnostics"]
+assert len(r)==1 and r[0]["failure_stage"]==sys.argv[2]
+PY
+  "$SCRIPT_DIR/../run-mac-verification.sh" --print-failure-diagnostics "$summary" ui >"$TMP_ROOT/verifier-zero-$stage-diagnostic.out"
+  grep -F "failure_stage=$stage" "$TMP_ROOT/verifier-zero-$stage-diagnostic.out" >/dev/null
+done
+
+for marker in 'unknown' 'adapter-exit] PLAYSTEAD_ZERO_NETWORK_FAILURE_STAGE[adapter-launch' '/Users/private/token'; do
+  input="$TMP_ROOT/verifier-zero-invalid-$PASS_COUNT.json"; summary="$TMP_ROOT/verifier-zero-invalid-$PASS_COUNT-summary.json"
+  python3 - "$input" "$marker" <<'PY'
+import json,pathlib,sys
+path=pathlib.Path(sys.argv[1]); marker=sys.argv[2]
+case={"nodeType":"Test Case","nodeIdentifier":"ZeroNetworkPlayFlowTests/testWholePlayFlowRecordsZeroHTTPRequests()","result":"Failed","children":[{"nodeType":"Failure Message","name":f"ZeroNetworkPlayFlowTests.swift:53: XCTAssertNil failed: PLAYSTEAD_ZERO_NETWORK_FAILURE_STAGE[{marker}]","result":"Failed"}]}
+path.write_text(json.dumps({"testNodes":[{"nodeType":"Test Plan","children":[case]}]}))
+PY
+  expect_fail "verifier_zero_invalid_$PASS_COUNT" "$SCRIPT_DIR/../run-mac-verification.sh" --verify-layer-result "$input" ui "$summary" --required-test PlaysteadUITests.ZeroNetworkPlayFlowTests/testWholePlayFlowRecordsZeroHTTPRequests
+  [ ! -s "$summary" ] || { printf 'FAIL: invalid zero-network stage produced a summary\n' >&2; exit 1; }
+done
+
+for stage in "${ZERO_NETWORK_STAGES[@]}"; do
+  expect_zero_network_sanitizer_stage "$stage"
+done
+
+for bad_stage in unknown '' null '/Users/private/game.gba' 'token=synthetic-secret'; do
+  name="zero-stage-invalid-${bad_stage:-missing}"
+  root="$TMP_ROOT/$name"; make_valid "$root"
+  python3 - "$root/evidence/ui-tests.json" "$bad_stage" <<'PY'
+import json,pathlib,sys
+p=pathlib.Path(sys.argv[1]); d=json.loads(p.read_text()); value=sys.argv[2]
+d["failure_diagnostics"].append({"test_identifier":"ZeroNetworkPlayFlowTests/testWholePlayFlowRecordsZeroHTTPRequests()","assertion":"XCTAssertNil","source_file":"PlaysteadUITests/ZeroNetworkPlayFlowTests.swift","source_line":53,"failure_stage":None if value == "null" else value})
+d["failure_diagnostic_count"] += 1; p.write_text(json.dumps(d))
+PY
+  expect_fail "$name" "$SANITIZER" --input "$root" --output "$TMP_ROOT/$name-output"
+done
+
+zero_stage_extra_key="$TMP_ROOT/zero-stage-extra-key"; make_valid "$zero_stage_extra_key"
+python3 - "$zero_stage_extra_key/evidence/ui-tests.json" <<'PY'
+import json,pathlib,sys
+p=pathlib.Path(sys.argv[1]); d=json.loads(p.read_text()); d["failure_diagnostics"].append({"test_identifier":"ZeroNetworkPlayFlowTests/testWholePlayFlowRecordsZeroHTTPRequests()","assertion":"XCTAssertNil","source_file":"PlaysteadUITests/ZeroNetworkPlayFlowTests.swift","source_line":53,"failure_stage":"adapter-exit","raw":"/Users/private/token"}); d["failure_diagnostic_count"]+=1; p.write_text(json.dumps(d))
+PY
+expect_fail zero_stage_extra_key "$SANITIZER" --input "$zero_stage_extra_key" --output "$TMP_ROOT/zero-stage-extra-key-output"
 
 virtual_gamepad_blocked="$TMP_ROOT/virtual-gamepad-blocked"
 make_valid "$virtual_gamepad_blocked"

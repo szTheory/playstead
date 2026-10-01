@@ -1185,6 +1185,21 @@ enum UITestBootstrap {
     // app's own `APIClient` session.
     static let zeroNetworkResultPathKey = "PLAYSTEAD_UI_TEST_ZERO_NETWORK_PLAY_FLOW_RESULT_PATH"
 
+    private enum ZeroNetworkPlayFlowStage: String {
+        case standInSigning = "stand-in-signing"
+        case adapterSelection = "adapter-selection"
+        case syntheticCAS = "synthetic-cas"
+        case catalogueReadiness = "catalogue-readiness"
+        case materializationSaveSetup = "materialization-save-setup"
+        case adapterLaunch = "adapter-launch"
+        case adapterExit = "adapter-exit"
+        case unclassified = "unclassified"
+    }
+
+    private struct ZeroNetworkPlayFlowFailure: Error {
+        let stage: ZeroNetworkPlayFlowStage
+    }
+
     private static func maybeRunZeroNetworkPlayFlowProof(
         environment: [String: String], root: URL, appEnvironment: AppEnvironment
     ) {
@@ -1194,19 +1209,22 @@ enum UITestBootstrap {
         else { return }
 
         Task {
-            var requestCount = -1
-            var failureReason: String?
+            var failureStage: ZeroNetworkPlayFlowStage?
             RecordingURLProtocol.armRecording()
             do {
                 try await runZeroNetworkPlayFlow(root: root, appEnvironment: appEnvironment)
+            } catch let failure as ZeroNetworkPlayFlowFailure {
+                failureStage = failure.stage
             } catch {
-                failureReason = String(describing: error)
+                failureStage = .unclassified
             }
-            requestCount = RecordingURLProtocol.recordedRequestCount
+            let requestCount = RecordingURLProtocol.recordedRequestCount
             RecordingURLProtocol.disarmRecording()
 
-            var result: [String: Any] = ["recorded_request_count": requestCount]
-            if let failureReason { result["failure_reason"] = failureReason }
+            let result: [String: Any] = [
+                "recorded_request_count": requestCount,
+                "failure_stage": failureStage?.rawValue as Any? ?? NSNull()
+            ]
             if let data = try? JSONSerialization.data(withJSONObject: result) {
                 try? data.write(to: resultURL, options: .atomic)
             }
@@ -1240,15 +1258,24 @@ enum UITestBootstrap {
     }
 
     private static func runZeroNetworkPlayFlow(root: URL, appEnvironment: AppEnvironment) async throws {
-        let pin = try AdapterPin.load()
+        let pin: AdapterPin
+        do {
+            pin = try AdapterPin.load()
+        } catch {
+            throw ZeroNetworkPlayFlowFailure(stage: .adapterSelection)
+        }
         let appURL = root.appendingPathComponent("ZeroNetworkStandIn.app", isDirectory: true)
-        try installStandInAdapterExecutable(in: appURL, at: pin.launch.executableRelativePath)
+        do {
+            try installStandInAdapterExecutable(in: appURL, at: pin.launch.executableRelativePath)
+        } catch {
+            throw ZeroNetworkPlayFlowFailure(stage: .standInSigning)
+        }
 
         guard await appEnvironment.selectExistingAdapter(appURL: appURL) else {
-            throw DeterministicProfileError.stateMismatch("zero-network-play-flow: stand-in adapter selection failed")
+            throw ZeroNetworkPlayFlowFailure(stage: .adapterSelection)
         }
         guard let host = await appEnvironment.adapterHost else {
-            throw DeterministicProfileError.stateMismatch("zero-network-play-flow: no adapter host")
+            throw ZeroNetworkPlayFlowFailure(stage: .adapterSelection)
         }
 
         // A synthetic playable entry with one verified, locally committed
@@ -1258,16 +1285,24 @@ enum UITestBootstrap {
         let assetSetID = "zero-network-play-flow-asset"
         let romBytes = Data(repeating: 0xAB, count: 256)
         let romDigest = sha256Hex(of: romBytes)
-        let partial = try await appEnvironment.appPaths.partialURL(for: romDigest)
-        try await FileManager.default.createDirectory(at: appEnvironment.appPaths.partials, withIntermediateDirectories: true)
-        try romBytes.write(to: partial)
-        try await appEnvironment.casManager.commit(partialAt: partial, sha256: romDigest)
+        do {
+            let partial = try await appEnvironment.appPaths.partialURL(for: romDigest)
+            try await FileManager.default.createDirectory(at: appEnvironment.appPaths.partials, withIntermediateDirectories: true)
+            try romBytes.write(to: partial)
+            try await appEnvironment.casManager.commit(partialAt: partial, sha256: romDigest)
+        } catch {
+            throw ZeroNetworkPlayFlowFailure(stage: .syntheticCAS)
+        }
 
         let entry = CatalogueEntry(
             id: assetSetID, system: "gba", displayTitle: "Zero Network Play Flow", tags: [:],
             members: [AssetMember(ordinal: 0, role: "rom", required: true, sha256: romDigest, size: romBytes.count, name: "rom.gba")]
         )
-        try await appEnvironment.catalogueStore.upsert(entry)
+        do {
+            try await appEnvironment.catalogueStore.upsert(entry)
+        } catch {
+            throw ZeroNetworkPlayFlowFailure(stage: .catalogueReadiness)
+        }
 
         let members = entry.members.compactMap { member -> (sha256: String, declaredName: String)? in
             guard let sha256 = member.sha256, let name = member.name else { return nil }
@@ -1276,15 +1311,24 @@ enum UITestBootstrap {
 
         let report = await appEnvironment.readinessReport(for: entry)
         guard report.isReady else {
-            throw DeterministicProfileError.stateMismatch("zero-network-play-flow: synthetic entry was not readiness-ready")
+            throw ZeroNetworkPlayFlowFailure(stage: .catalogueReadiness)
         }
 
-        let materialized = try await appEnvironment.launchMaterializer.materialize(assetSetID: entry.id, members: members)
-        guard let romURL = materialized.files.first else {
-            throw DeterministicProfileError.stateMismatch("zero-network-play-flow: materialize produced no launchable member")
+        let romURL: URL
+        let saveDir: URL
+        do {
+            let materialized = try await appEnvironment.launchMaterializer.materialize(assetSetID: entry.id, members: members)
+            guard let launchable = materialized.files.first else {
+                throw ZeroNetworkPlayFlowFailure(stage: .materializationSaveSetup)
+            }
+            romURL = launchable
+            saveDir = try await appEnvironment.saveDirectoryURL(forAssetSetID: entry.id)
+            try FileManager.default.createDirectory(at: saveDir, withIntermediateDirectories: true)
+        } catch let failure as ZeroNetworkPlayFlowFailure {
+            throw failure
+        } catch {
+            throw ZeroNetworkPlayFlowFailure(stage: .materializationSaveSetup)
         }
-        let saveDir = try await appEnvironment.saveDirectoryURL(forAssetSetID: entry.id)
-        try FileManager.default.createDirectory(at: saveDir, withIntermediateDirectories: true)
 
         // The two fire-and-forget calls the real `GameRowView.play()` makes
         // between readiness and spawn -- exercised here unchanged, so a
@@ -1293,14 +1337,22 @@ enum UITestBootstrap {
         await appEnvironment.refreshCurationViewModels()
 
         let exited = SpawnExitSignal()
-        _ = try await host.launch(assetSetID: entry.id, romPath: romURL.path, saveDir: saveDir.path) { _ in
-            Task { @MainActor in
-                appEnvironment.playSessionRecorder.ended(sessionID)
-                appEnvironment.refreshCurationViewModels()
+        do {
+            _ = try await host.launch(assetSetID: entry.id, romPath: romURL.path, saveDir: saveDir.path) { _ in
+                Task { @MainActor in
+                    appEnvironment.playSessionRecorder.ended(sessionID)
+                    appEnvironment.refreshCurationViewModels()
+                }
+                exited.signal()
             }
-            exited.signal()
+        } catch {
+            throw ZeroNetworkPlayFlowFailure(stage: .adapterLaunch)
         }
-        try await exited.wait(timeoutSeconds: 20)
+        do {
+            try await exited.wait(timeoutSeconds: 20)
+        } catch {
+            throw ZeroNetworkPlayFlowFailure(stage: .adapterExit)
+        }
     }
 
     /// A tiny async-friendly exit latch — `AdapterHost.launch`'s `onExit`

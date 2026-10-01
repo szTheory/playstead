@@ -1,4 +1,5 @@
 import XCTest
+import CoreFoundation
 
 /// Plan 04-13 task 1: the strict zero-network Play flow assertion.
 /// Deliberately stricter than the shipped blob-only precedent -- this
@@ -48,19 +49,43 @@ final class ZeroNetworkPlayFlowTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: resultURL.path), "zero-network-play-flow result was never written within 60s")
 
         let resultData = try Data(contentsOf: resultURL)
-        let result = try JSONDecoder().decode(ZeroNetworkPlayFlowResult.self, from: resultData)
-
-        XCTAssertNil(result.failureReason, "the in-process Play flow must complete without error: \(result.failureReason ?? "")")
-        XCTAssertEqual(result.recordedRequestCount, 0, "the whole Play flow -- plan, execute, spawn, and any task started along the way -- must attempt zero HTTP requests")
-    }
-
-    private struct ZeroNetworkPlayFlowResult: Decodable {
-        let recordedRequestCount: Int
-        let failureReason: String?
-
-        enum CodingKeys: String, CodingKey {
-            case recordedRequestCount = "recorded_request_count"
-            case failureReason = "failure_reason"
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: resultData) as? [String: Any])
+        let hasClosedSchema = Set(object.keys) == ["recorded_request_count", "failure_stage"]
+        XCTAssertTrue(hasClosedSchema, "zero-network Play flow result schema must remain closed")
+        guard hasClosedSchema else { return }
+        guard let countNumber = object["recorded_request_count"] as? NSNumber,
+              CFGetTypeID(countNumber) != CFBooleanGetTypeID() else {
+            XCTFail("zero-network Play flow request count has an invalid type")
+            return
         }
+        let countEncoding = String(cString: countNumber.objCType)
+        let countText = countNumber.stringValue
+        guard countEncoding != "f", countEncoding != "d",
+              !countText.isEmpty,
+              countText.utf8.allSatisfy({ $0 >= 48 && $0 <= 57 }),
+              let requestCount = Int(countText) else {
+            XCTFail("zero-network Play flow request count has an invalid type")
+            return
+        }
+        let stageValue = object["failure_stage"]
+        let allowedStages: Set<String> = [
+            "stand-in-signing", "adapter-selection", "synthetic-cas", "catalogue-readiness",
+            "materialization-save-setup", "adapter-launch", "adapter-exit", "unclassified",
+        ]
+        let failureStage: String?
+        if stageValue is NSNull {
+            failureStage = nil
+        } else {
+            guard let stage = stageValue as? String else {
+                XCTFail("zero-network Play flow failure stage has an invalid type")
+                return
+            }
+            let isAllowed = allowedStages.contains(stage)
+            XCTAssertTrue(isAllowed, "zero-network Play flow stage value is invalid")
+            failureStage = isAllowed ? stage : nil
+        }
+
+        XCTAssertNil(failureStage, failureStage.map { "PLAYSTEAD_ZERO_NETWORK_FAILURE_STAGE[\($0)]" } ?? "")
+        XCTAssertEqual(requestCount, 0, "the whole Play flow -- plan, execute, spawn, and any task started along the way -- must attempt zero HTTP requests")
     }
 }

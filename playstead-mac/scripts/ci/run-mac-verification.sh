@@ -665,10 +665,15 @@ layout_diagnostics = []
 failure_stages = set()
 audit_pattern = re.compile(r"PLAYSTEAD_A11Y_ISSUES\[([A-Za-z]+)\]=([a-z0-9.,@-]+)")
 ui_stage_pattern = re.compile(r"PLAYSTEAD_FAILURE_STAGE\[([a-z0-9-]+)\]")
+zero_network_stage_pattern = re.compile(r"PLAYSTEAD_ZERO_NETWORK_FAILURE_STAGE\[([^\]]*)\]")
 live_stage_pattern = re.compile(r"live-server-stage=([a-z0-9-]+) action=([a-z0-9-]+)")
 allowed_ui_stages = {
     "all-surface-library-layout", "all-surface-collection-reorder",
     "all-surface-quota-list", "all-surface-adapter-actions",
+}
+allowed_zero_network_stages = {
+    "stand-in-signing", "adapter-selection", "synthetic-cas", "catalogue-readiness",
+    "materialization-save-setup", "adapter-launch", "adapter-exit", "unclassified",
 }
 allowed_live_stages = {
     "validate-input", "resolve-server-root", "create-control-root",
@@ -805,6 +810,17 @@ def walk(value):
                 durations.append((test_identifier, float(seconds)))
             for failure_record in failure_records(value):
                 diagnostic = bounded_failure_diagnostic(failure_record, test_identifier)
+                stage_matches = [
+                    match.group(1)
+                    for text in strings(failure_record)
+                    for match in zero_network_stage_pattern.finditer(text)
+                ]
+                if test_identifier == "ZeroNetworkPlayFlowTests/testWholePlayFlowRecordsZeroHTTPRequests()" and stage_matches:
+                    if len(stage_matches) != 1 or stage_matches[0] not in allowed_zero_network_stages:
+                        raise SystemExit(f"{layer}: zero-network Play flow stage is malformed")
+                    failure_stages.add(f"zero-network-play-flow-{stage_matches[0]}")
+                    if diagnostic is not None:
+                        diagnostic["failure_stage"] = stage_matches[0]
                 if diagnostic is not None:
                     failure_diagnostics.append(diagnostic)
                 layout_diagnostics.extend(bounded_layout_diagnostics(failure_record))
@@ -979,7 +995,8 @@ if (not truncated and count != len(diagnostics)) or (truncated and (count <= 50 
 root = pathlib.Path(mac_root).resolve()
 safe = []
 for record in diagnostics:
-    if not isinstance(record, dict) or set(record) != {"test_identifier", "assertion", "source_file", "source_line"}:
+    base_keys = {"test_identifier", "assertion", "source_file", "source_line"}
+    if not isinstance(record, dict) or set(record) not in (base_keys, base_keys | {"failure_stage"}):
         raise SystemExit(1)
     test = record.get("test_identifier")
     assertion = record.get("assertion")
@@ -997,10 +1014,19 @@ for record in diagnostics:
         raise SystemExit(1)
     if type(source_line) is not int or not 1 <= source_line <= 1_000_000:
         raise SystemExit(1)
-    safe.append((test, assertion, source_file, source_line))
+    stage = record.get("failure_stage")
+    if "failure_stage" in record:
+        allowed_zero_network_stages = {
+            "stand-in-signing", "adapter-selection", "synthetic-cas", "catalogue-readiness",
+            "materialization-save-setup", "adapter-launch", "adapter-exit", "unclassified",
+        }
+        if test != "ZeroNetworkPlayFlowTests/testWholePlayFlowRecordsZeroHTTPRequests()" or stage not in allowed_zero_network_stages:
+            raise SystemExit(1)
+    safe.append((test, assertion, source_file, source_line, stage))
 
-for test, assertion, source_file, source_line in safe:
-    print(f"{layer}: FAILURE_DIAGNOSTIC {test} {assertion} {source_file}:{source_line}")
+for test, assertion, source_file, source_line, stage in safe:
+    suffix = f" failure_stage={stage}" if stage is not None else ""
+    print(f"{layer}: FAILURE_DIAGNOSTIC {test} {assertion} {source_file}:{source_line}{suffix}")
 if truncated:
     print(f"{layer}: FAILURE_DIAGNOSTICS_TRUNCATED shown={len(safe)} total={count}")
 PY

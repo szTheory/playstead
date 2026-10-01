@@ -300,10 +300,20 @@ def validate_test_evidence(data, relative):
         "XCTAssertThrowsError", "XCTFail", "XCTUnwrap",
     }
     for record in diagnostics:
-        if not isinstance(record, dict) or set(record) != {"test_identifier", "assertion", "source_file", "source_line"}:
+        base_diagnostic_keys = {"test_identifier", "assertion", "source_file", "source_line"}
+        if not isinstance(record, dict) or set(record) not in (base_diagnostic_keys, base_diagnostic_keys | {"failure_stage"}):
             raise SystemExit(f"failure diagnostic contains non-allowlisted fields: {relative}")
         if not isinstance(record.get("test_identifier"), str) or not test_identifier.fullmatch(record["test_identifier"]):
             raise SystemExit(f"failure diagnostic test identifier is not canonical: {relative}")
+        if "failure_stage" in record:
+            allowed_zero_network_stages = {
+                "stand-in-signing", "adapter-selection", "synthetic-cas", "catalogue-readiness",
+                "materialization-save-setup", "adapter-launch", "adapter-exit", "unclassified",
+            }
+            if record["test_identifier"] != "ZeroNetworkPlayFlowTests/testWholePlayFlowRecordsZeroHTTPRequests()":
+                raise SystemExit(f"failure stage belongs to an unexpected test: {relative}")
+            if record.get("failure_stage") not in allowed_zero_network_stages:
+                raise SystemExit(f"failure stage is not allowlisted: {relative}")
         if record.get("assertion") not in allowed_assertions:
             raise SystemExit(f"failure diagnostic assertion is not canonical: {relative}")
         source_file = record.get("source_file")
