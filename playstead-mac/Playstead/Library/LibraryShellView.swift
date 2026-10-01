@@ -195,13 +195,6 @@ struct LibraryShellView: View {
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .navigationTitle(Self.title(for: selection ?? .home))
-                .toolbar {
-                    if selection == .home {
-                        ToolbarItem(placement: .primaryAction) {
-                            libraryLayoutPicker
-                        }
-                    }
-                }
 #if UI_TESTING
                 .overlay {
                 // MC-02 test-only observability (see
@@ -623,6 +616,9 @@ struct LibraryShellView: View {
 
     private var libraryControls: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+            libraryLayoutPicker
+                .frame(maxWidth: .infinity, alignment: .leading)
+
             FilterChipRow(
                 chips: libraryFilterChips,
                 selectedIDs: selectedLibraryFilterIDs,
@@ -635,8 +631,9 @@ struct LibraryShellView: View {
                 listOnlyControls
             }
         }
-        // Scope stays in a content filter row. Cards/List lives in the
-        // window toolbar, so list-only actions never move the view switch.
+        // Keep the view switch in the library content so searchable toolbar
+        // pressure and narrow windows cannot collapse its click target. Filter
+        // and list-only controls stay below it, so their state never moves it.
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 

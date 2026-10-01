@@ -361,7 +361,15 @@ def check_audit_repairs(shell_source, row_source, token_source, focus_source):
         ".accessibilityHidden(true)",
     )
     missing = [marker for marker in required_shell if marker not in shell_source]
-    if missing or "ToolbarItem(placement: .primaryAction)" not in shell_source:
+    controls_start = shell_source.find("private var libraryControls: some View {")
+    controls_end = shell_source.find("private var libraryLayoutPicker: some View {", controls_start)
+    controls = shell_source[controls_start:controls_end] if controls_start >= 0 and controls_end > controls_start else ""
+    picker_is_fixed_in_content = (
+        "libraryLayoutPicker" in controls
+        and controls.find("libraryLayoutPicker") < controls.find("FilterChipRow(")
+        and "ToolbarItem(placement: .primaryAction)" not in shell_source
+    )
+    if missing or not picker_is_fixed_in_content:
         raise AssertionError(f"native view switch or labeled sheet contract regressed: {missing}")
     if "static let background = Color(nsColor: .windowBackgroundColor)" not in token_source:
         raise AssertionError("the app canvas must follow the semantic macOS window color")

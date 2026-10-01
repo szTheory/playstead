@@ -43,6 +43,29 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
+      # The recovery integration test invokes pg_dump from the runner. Keep
+      # its client major aligned with the PostgreSQL 17 service above; the
+      # Ubuntu image's default pg_dump is 16 and refuses to dump a 17 server.
+      - name: Install PostgreSQL 17 client
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error \
+            -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          sudo tee /etc/apt/sources.list.d/pgdg.sources >/dev/null <<'EOF'
+          Types: deb
+          URIs: https://apt.postgresql.org/pub/repos/apt
+          Suites: noble-pgdg
+          Architectures: amd64
+          Components: main
+          Signed-By: /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+          EOF
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+          export PATH="/usr/lib/postgresql/17/bin:$PATH"
+          pg_dump --version | grep -F "17."
+
       # Cheap, dependency-free guard (no toolchain needed): every phase
       # UAT file's Summary footer must agree with its own body, or this
       # fails closed before any real work starts (plan 03-14). Runs from
