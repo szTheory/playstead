@@ -224,7 +224,7 @@ def validate_recovery_failure_evidence(data, relative):
         raise SystemExit(f"recovery failure identity is malformed: {relative}")
     allowed_stages = {
         "source-compose-startup", "source-readiness", "source-fixture-filesystem-create",
-        "source-fixture-database-seed",
+        "source-fixture-database-connect", "source-fixture-database-seed",
         "source-dump", "backup-publication", "target-restore", "target-cleanup",
         "result-validation", "unknown",
     }
