@@ -37,8 +37,13 @@ max_storage_candidate = 8 * 1024 * 1024
 
 allowed = []
 recovery_candidate = source / "recovery-e2e.json"
+recovery_failure_candidate = source / "recovery-failure.json"
+if recovery_candidate.is_file() and recovery_failure_candidate.is_file():
+    raise SystemExit("both passing and failed recovery receipts are present")
 if recovery_candidate.is_file():
     allowed.append(recovery_candidate)
+if recovery_failure_candidate.is_file():
+    allowed.append(recovery_failure_candidate)
 continuation_candidate = source / "continuation.json"
 if continuation_candidate.is_file():
     allowed.append(continuation_candidate)
@@ -207,6 +212,33 @@ def validate_recovery_evidence(data, relative):
     allowed_stages = ["chain", "preflight", "database", "cas", "manifest", "api"]
     if not isinstance(stages, list) or stages != allowed_stages:
         raise SystemExit(f"recovery stage list is malformed: {relative}")
+
+
+def validate_recovery_failure_evidence(data, relative):
+    expected = {"schema", "lane", "outcome", "failure_stage"}
+    if not isinstance(data, dict) or set(data) != expected:
+        raise SystemExit(f"recovery failure evidence has unexpected schema: {relative}")
+    if data.get("schema") != "playstead.recovery-failure.v1":
+        raise SystemExit(f"recovery failure schema is malformed: {relative}")
+    if data.get("lane") != "linux_restore_fixture" or data.get("outcome") != "failed":
+        raise SystemExit(f"recovery failure identity is malformed: {relative}")
+    allowed_stages = {
+        "source-compose-startup", "source-readiness", "source-fixture-create",
+        "source-dump", "backup-publication", "target-restore", "target-cleanup",
+        "result-validation", "unknown",
+    }
+    failure_stage = data.get("failure_stage")
+    if not isinstance(failure_stage, str) or failure_stage not in allowed_stages:
+        raise SystemExit(f"recovery failure stage is not allowlisted: {relative}")
+
+
+def reject_duplicate_json_keys(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON key")
+        result[key] = value
+    return result
 
 
 def validate_test_evidence(data, relative):
@@ -490,9 +522,17 @@ for item in allowed:
     destination.parent.mkdir(parents=True, exist_ok=True)
     if suffix == ".json":
         try:
-            data = json.loads(item.read_text(encoding="utf-8"))
-        except Exception as exc:
-            raise SystemExit(f"invalid JSON evidence {relative}: {exc}")
+            if relative.as_posix() == "recovery-failure.json":
+                data = json.loads(
+                    item.read_text(encoding="utf-8"),
+                    object_pairs_hook=reject_duplicate_json_keys,
+                )
+            else:
+                data = json.loads(item.read_text(encoding="utf-8"))
+        except Exception:
+            if relative.as_posix() == "recovery-failure.json":
+                raise SystemExit("invalid JSON recovery failure evidence") from None
+            raise SystemExit(f"invalid JSON evidence {relative}") from None
         if relative.name.endswith("-tests.json"):
             if isinstance(data, dict) and data.get("kind") == "static-sweep":
                 validate_static_sweep_evidence(data, relative)
@@ -504,6 +544,8 @@ for item in allowed:
             validate_save_reliability(data, relative)
         if relative.as_posix() == "recovery-e2e.json":
             validate_recovery_evidence(data, relative)
+        if relative.as_posix() == "recovery-failure.json":
+            validate_recovery_failure_evidence(data, relative)
         if relative.as_posix() == "continuation.json":
             validate_recovery_evidence(data, relative)
         scan_json(data)

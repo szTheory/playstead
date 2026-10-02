@@ -95,6 +95,30 @@ PY
   printf 'raw result must stay outside upload' >"$root/raw/Unit.xcresult/raw"
 }
 
+make_failure() {
+  local root="$1" stage="$2"
+  make_valid "$root"
+  rm "$root/evidence/recovery-e2e.json"
+  python3 - "$root/evidence/recovery-failure.json" "$stage" <<'PY'
+import json, pathlib, sys
+path=pathlib.Path(sys.argv[1])
+path.write_text(json.dumps({"schema":"playstead.recovery-failure.v1","lane":"linux_restore_fixture","outcome":"failed","failure_stage":sys.argv[2]}))
+PY
+}
+
+expect_recovery_failure_rejected() {
+  local name="$1" root="$2" output="$3"
+  expect_fail "$name" "$SANITIZER" --input "$root" --output "$output"
+  if grep -E 'private-path-token|private path|/Users/|game\.gba|must-not-print|token=' "$TMP_ROOT/$name.out" "$TMP_ROOT/$name.err" "$output/recovery-failure.json" 2>/dev/null; then
+    printf 'FAIL: sentinel reached sanitizer output for %s\n' "$name" >&2
+    exit 1
+  fi
+  [ ! -e "$output/recovery-failure.json" ] || {
+    printf 'FAIL: rejected failure document was published for %s\n' "$name" >&2
+    exit 1
+  }
+}
+
 valid="$TMP_ROOT/valid"
 make_valid "$valid"
 expect_pass valid "$SANITIZER" --input "$valid" --output "$TMP_ROOT/output"
@@ -195,6 +219,92 @@ import json, pathlib, sys
 p=pathlib.Path(sys.argv[1]); d=json.loads(p.read_text()); d["stages"].pop(); p.write_text(json.dumps(d))
 PY
 expect_fail recovery_stage "$SANITIZER" --input "$recovery_stage" --output "$TMP_ROOT/recovery-stage-output"
+
+recovery_failure_stages=(source-compose-startup source-readiness source-fixture-create source-dump backup-publication target-restore target-cleanup result-validation unknown)
+for stage in "${recovery_failure_stages[@]}"; do
+  root="$TMP_ROOT/recovery-failure-$stage"
+  output="$TMP_ROOT/recovery-failure-$stage-output"
+  make_failure "$root" "$stage"
+  expect_pass "recovery_failure_$stage" "$SANITIZER" --input "$root" --output "$output"
+  python3 - "$output/recovery-failure.json" "$stage" <<'PY'
+import json, pathlib, sys
+path=pathlib.Path(sys.argv[1]); data=json.loads(path.read_text())
+assert set(data)=={"schema","lane","outcome","failure_stage"}
+assert data=={"schema":"playstead.recovery-failure.v1","lane":"linux_restore_fixture","outcome":"failed","failure_stage":sys.argv[2]}
+assert not any(s in path.read_text() for s in ("private-path-token","private path","/Users/","game.gba","must-not-print","token="))
+PY
+  [ ! -e "$output/recovery-e2e.json" ]
+done
+
+failure_missing="$TMP_ROOT/recovery-failure-missing"
+make_failure "$failure_missing" target-restore
+python3 - "$failure_missing/evidence/recovery-failure.json" <<'PY'
+import json, pathlib, sys
+path=pathlib.Path(sys.argv[1]); data=json.loads(path.read_text()); data.pop("outcome"); path.write_text(json.dumps(data))
+PY
+expect_recovery_failure_rejected recovery_failure_missing "$failure_missing" "$TMP_ROOT/recovery-failure-missing-output"
+
+failure_extra="$TMP_ROOT/recovery-failure-extra"
+make_failure "$failure_extra" target-restore
+python3 - "$failure_extra/evidence/recovery-failure.json" <<'PY'
+import json, pathlib, sys
+path=pathlib.Path(sys.argv[1]); data=json.loads(path.read_text()); data["private_field"]="forbidden"; path.write_text(json.dumps(data))
+PY
+expect_recovery_failure_rejected recovery_failure_extra "$failure_extra" "$TMP_ROOT/recovery-failure-extra-output"
+
+failure_duplicate="$TMP_ROOT/recovery-failure-duplicate"
+make_valid "$failure_duplicate"
+rm "$failure_duplicate/evidence/recovery-e2e.json"
+printf '%s\n' '{"schema":"playstead.recovery-failure.v1","lane":"linux_restore_fixture","outcome":"failed","failure_stage":"target-restore","failure_stage":"source-dump"}' >"$failure_duplicate/evidence/recovery-failure.json"
+expect_recovery_failure_rejected recovery_failure_duplicate "$failure_duplicate" "$TMP_ROOT/recovery-failure-duplicate-output"
+
+failure_conflict="$TMP_ROOT/recovery-failure-conflict"
+make_valid "$failure_conflict"
+python3 - "$failure_conflict/evidence/recovery-failure.json" <<'PY'
+import json, pathlib, sys
+path=pathlib.Path(sys.argv[1]); path.write_text(json.dumps({"schema":"playstead.recovery-failure.v1","lane":"linux_restore_fixture","outcome":"failed","failure_stage":"target-restore"}))
+PY
+expect_recovery_failure_rejected recovery_failure_conflict "$failure_conflict" "$TMP_ROOT/recovery-failure-conflict-output"
+
+for invalid in schema lane outcome stage path-sentinel token-sentinel malformed; do
+  root="$TMP_ROOT/recovery-failure-invalid-$invalid"
+  output="$TMP_ROOT/recovery-failure-invalid-$invalid-output"
+  make_failure "$root" target-restore
+  case "$invalid" in
+    schema) python3 - "$root/evidence/recovery-failure.json" <<'PY'
+import json,pathlib,sys
+path=pathlib.Path(sys.argv[1]); data=json.loads(path.read_text()); data["schema"]="playstead.recovery-failure.v2"; path.write_text(json.dumps(data))
+PY
+      ;;
+    lane) python3 - "$root/evidence/recovery-failure.json" <<'PY'
+import json,pathlib,sys
+path=pathlib.Path(sys.argv[1]); data=json.loads(path.read_text()); data["lane"]="mac_restore_fixture"; path.write_text(json.dumps(data))
+PY
+      ;;
+    outcome) python3 - "$root/evidence/recovery-failure.json" <<'PY'
+import json,pathlib,sys
+path=pathlib.Path(sys.argv[1]); data=json.loads(path.read_text()); data["outcome"]="passed"; path.write_text(json.dumps(data))
+PY
+      ;;
+    stage) python3 - "$root/evidence/recovery-failure.json" <<'PY'
+import json,pathlib,sys
+path=pathlib.Path(sys.argv[1]); data=json.loads(path.read_text()); data["failure_stage"]="private-stage"; path.write_text(json.dumps(data))
+PY
+      ;;
+    path-sentinel) python3 - "$root/evidence/recovery-failure.json" <<'PY'
+import json,pathlib,sys
+path=pathlib.Path(sys.argv[1]); data=json.loads(path.read_text()); data["failure_stage"]="/Users/private/game.gba"; path.write_text(json.dumps(data))
+PY
+      ;;
+    token-sentinel) python3 - "$root/evidence/recovery-failure.json" <<'PY'
+import json,pathlib,sys
+path=pathlib.Path(sys.argv[1]); data=json.loads(path.read_text()); data["failure_stage"]="token=must-not-print"; path.write_text(json.dumps(data))
+PY
+      ;;
+    malformed) printf '%s\n' '{"schema":"playstead.recovery-failure.v1","failure_stage":' >"$root/evidence/recovery-failure.json" ;;
+  esac
+  expect_recovery_failure_rejected "recovery_failure_$invalid" "$root" "$output"
+done
 
 # Same-host Mac recovery receipts use a separate compact schema. Keep their
 # stage/outcome pair strict without changing the Linux fixture receipt above.

@@ -62,13 +62,15 @@ EOF
 chmod 700 "$tmp/bin/mix"
 allowed_stages=(source-compose-startup source-readiness source-fixture-create source-dump backup-publication target-restore target-cleanup result-validation)
 TMPDIR="$tmp" PATH="$tmp/bin:$PATH" "$coordinator" --output "$tmp/pass"
-python3 - "$tmp/pass/recovery-e2e.json" <<'PY'
+python3 - "$tmp/pass" <<'PY'
 import json, pathlib, sys
-data=json.loads(pathlib.Path(sys.argv[1]).read_text())
+root=pathlib.Path(sys.argv[1])
+assert sorted(path.name for path in root.iterdir())==["recovery-e2e.json"]
+data=json.loads((root/"recovery-e2e.json").read_text())
 assert set(data)=={"schema_version","run_id","lane","stages","outcome"}
 assert data["outcome"]=="passed"
 PY
-for mode in fail missing-marker duplicate-marker unknown-marker sentinels; do
+for mode in fail missing-marker duplicate-marker malformed-marker unknown-marker sentinels; do
   output="$tmp/failure-$mode.out"
   if TMPDIR="$tmp" FAKE_MODE="$mode" PATH="$tmp/bin:$PATH" "$coordinator" --output "$tmp/fail-$mode" >"$output" 2>&1; then
     echo "failed fixture must not produce evidence ($mode)" >&2; exit 1
@@ -135,8 +137,9 @@ workflow="$root/../.github/workflows/ci.yml"
 grep -Fq '  recovery-fixture:' "$workflow"
 grep -Fq 'timeout-minutes: 35' "$workflow"
 grep -Fq 'timeout 20m bash playstead-server/scripts/ci/recovery-fixture.sh --output' "$workflow"
-grep -Fq 'path: ${{ runner.temp }}/recovery-sanitized/recovery-e2e.json' "$workflow"
+grep -Fq 'path: ${{ runner.temp }}/recovery-sanitized/recovery-*.json' "$workflow"
 grep -Fq 'retention-days: 7' "$workflow"
+grep -Fq 'always()' "$workflow"
 python3 - "$workflow" <<'PY'
 import pathlib, sys, yaml
 jobs=yaml.safe_load(pathlib.Path(sys.argv[1]).read_text())["jobs"]
@@ -144,5 +147,23 @@ job=jobs["recovery-fixture"]
 assert job["defaults"]["run"]["working-directory"] == "."
 assert any(s.get("name") == "Compile recovery task and dependencies" and s.get("run") == "mix compile --warnings-as-errors" and s.get("working-directory") == "playstead-server" for s in job["steps"])
 assert not job.get("needs")
+restore=next(s for s in job["steps"] if s.get("name") == "Run isolated restore fixture")
+assert restore.get("id") == "restore"
+assert 'timeout 20m bash playstead-server/scripts/ci/recovery-fixture.sh --output "$RUNNER_TEMP/recovery-input/evidence"' in restore["run"]
+sanitize=next(s for s in job["steps"] if s.get("name") == "Sanitize recovery evidence")
+assert sanitize.get("id") == "sanitize"
+assert sanitize.get("if") == "${{ always() && (steps.restore.outcome == 'success' || steps.restore.outcome == 'failure') }}"
+assert sanitize.get("env", {}).get("RESTORE_OUTCOME") == "${{ steps.restore.outcome }}"
+assert 'sanitize-evidence.sh --input "$RUNNER_TEMP/recovery-input" --output "$RUNNER_TEMP/recovery-sanitized"' in sanitize["run"]
+assert 'test -s "$RUNNER_TEMP/recovery-sanitized/recovery-e2e.json"' in sanitize["run"]
+assert 'test -s "$RUNNER_TEMP/recovery-sanitized/recovery-failure.json"' in sanitize["run"]
+upload=next(s for s in job["steps"] if s.get("name") == "Upload sanitized Linux recovery evidence")
+assert upload.get("if") == "${{ always() && steps.sanitize.outcome == 'success' }}"
+assert upload.get("uses") == "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02"
+assert upload.get("with", {}).get("path") == "${{ runner.temp }}/recovery-sanitized/recovery-*.json"
+assert upload["with"].get("if-no-files-found") == "error"
+assert "recovery-input" not in upload["with"]["path"]
+assert not job.get("continue-on-error")
+assert all(not step.get("continue-on-error") for step in job["steps"])
 PY
 echo "recovery fixture coordinator contracts passed (fake command only)"
