@@ -42,7 +42,9 @@ config :playstead, Oban,
   # D-05/D-06: the import session queue is concurrency 1 and jobs are
   # unique per session id -- one job per session, never per-file
   # fan-out, so pausing one user's session can never touch another's.
-  queues: [default: 10, import: 1],
+  # Recovery sets are large, destination-bound custody work. One worker keeps
+  # retries serialized and prevents competing publication attempts.
+  queues: [default: 10, import: 1, recovery: 1],
   plugins: [
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
     # D-12: housekeeping-only sweep of stale pending pairing requests.

@@ -82,7 +82,7 @@ struct ConflictComparisonSheet: View {
                     .accessibilityIdentifier(Automation.result)
                     .padding(DesignTokens.Spacing.sm)
                     .background(DesignTokens.border.opacity(0.3))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.standard))
             }
 
             ScrollView {
@@ -217,7 +217,7 @@ private struct ConflictSideView: View {
         .padding(DesignTokens.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(DesignTokens.border.opacity(0.2))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.standard))
         // `.contain`, not `.ignore`/`.combine`: the choose/export buttons
         // must stay individually reachable by keyboard/VoiceOver. The
         // label below is this side's one complete comparison sentence

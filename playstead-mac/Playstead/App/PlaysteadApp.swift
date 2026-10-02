@@ -66,6 +66,9 @@ struct PlaysteadApp: App {
 /// The real library shell backed by one validated, isolated production-store profile.
 private struct UITestProfileRootView: View {
     @State private var session: UITestProfileSession
+    @State private var interactiveRecoveryCoordinator: PairingCoordinator?
+    @State private var initialSyncStarted = false
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         do {
@@ -79,6 +82,68 @@ private struct UITestProfileRootView: View {
         LibraryShellView()
             .environment(session.environment)
             .frame(minWidth: 960, minHeight: 560)
+            .task {
+                if session.isLiveServerSession {
+                    initialSyncStarted = true
+                    await session.environment.syncNow()
+                }
+                await runRecoveryDirectLaunchIfRequested()
+            }
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active, session.isLiveServerSession, initialSyncStarted else { return }
+                Task { await session.environment.applicationDidBecomeActive() }
+            }
+    }
+
+    /// The recovery proof cannot safely launch `PlaysteadUITests-Runner.app`
+    /// on hosts where Gatekeeper rejects that ad-hoc runner. This very narrow
+    /// DEBUG/UI_TESTING seam launches the already development-signed app with
+    /// the same isolated live-server root and file Keychain, then asks the
+    /// app's own PairingCoordinator to create a real pairing request.
+    ///
+    /// It intentionally reports only that the coordinator reached
+    /// awaiting-approval. The report excludes the display code, request ID,
+    /// credentials, certificate bytes, and errors; it cannot be mistaken for
+    /// approval, sync, cache, save, or game-continuation evidence.
+    private func runRecoveryDirectLaunchIfRequested() async {
+        guard let recovery = session.recoveryDirectLaunch else { return }
+        if recovery.interactive {
+            guard let coordinator = session.environment.makePairingCoordinator(
+                suppliedTrustAnchorData: recovery.trustAnchorData
+            ) else { return }
+            interactiveRecoveryCoordinator = coordinator
+            await coordinator.start(baseURLString: recovery.targetURL.absoluteString)
+            return
+        }
+        // This direct-app capability is launched by the recovery driver through
+        // LaunchServices with `open -W`. It must never become a second,
+        // user-facing Playstead instance: every return path closes only this
+        // recovery bundle, and the deadline also bounds a stalled request.
+        let deadline = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 20_000_000_000)
+            guard !Task.isCancelled else { return }
+            NSApplication.shared.terminate(nil)
+        }
+        defer {
+            deadline.cancel()
+            NSApplication.shared.terminate(nil)
+        }
+        guard let coordinator = session.environment.makePairingCoordinator(
+            suppliedTrustAnchorData: recovery.trustAnchorData
+        ) else { return }
+        await coordinator.start(baseURLString: recovery.targetURL.absoluteString)
+        guard case .awaitingApproval = coordinator.state else { return }
+
+        let report: [String: String] = [
+            "schema": "playstead.recovery-mac-ui.v1",
+            "state": "pairing_requested",
+            "pairing": "requested_in_app",
+            "target_url": recovery.targetURL.absoluteString,
+            "profile_root": session.environment.appPaths.root.path,
+            "launch_exit_relaunch": "passed"
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: report, options: [.sortedKeys]) else { return }
+        try? data.write(to: recovery.reportURL, options: [.atomic])
     }
 }
 #endif
@@ -91,6 +156,7 @@ private struct UITestProfileRootView: View {
 /// A launch-mechanism canary must never touch that user-owned store.
 private struct ProductionRootView: View {
     @State private var appEnvironment = AppEnvironment()
+    @State private var initialSyncStarted = false
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -104,15 +170,19 @@ private struct ProductionRootView: View {
             // `SaveSessionRecovery` was never constructed in production
             // at all (WINDOWS #46) — its own doc comment described the
             // caller this is.
-            .task { await appEnvironment.recoverAbandonedSaveSessionsAtLaunch() }
+            .task {
+                await appEnvironment.recoverAbandonedSaveSessionsAtLaunch()
+                initialSyncStarted = true
+                await appEnvironment.syncNow()
+            }
         // Becoming active is one of `OutboxWorker`'s three drain triggers
         // (the other two — after every enqueue, and on reachability being
         // regained — are wired inside `AppEnvironment.init`). Without this
         // one, intents enqueued while the app sat in the background after a
         // failed attempt would wait for the user's next mutation.
         .onChange(of: scenePhase) { _, phase in
-            guard phase == .active else { return }
-            appEnvironment.applicationDidBecomeActive()
+            guard phase == .active, initialSyncStarted else { return }
+            Task { await appEnvironment.applicationDidBecomeActive() }
         }
     }
 }
@@ -211,6 +281,21 @@ enum AdapterSetupPhase: Equatable {
 final class AppEnvironment {
     private static let startupLogger = Logger(subsystem: "dev.playstead.mac", category: "startup-recovery")
 
+    private struct CachedLibraryStatusFacts {
+        let entry: CatalogueEntry
+        let availability: AvailabilityState
+        let hasActiveTransfer: Bool
+        let hasSaveConflict: Bool
+    }
+
+    /// Memoizes presentation facts between source mutations so SwiftUI's
+    /// split-view animation does not repeat per-game SQLite and CAS reads.
+    /// Play/download actions still revalidate readiness independently.
+    @ObservationIgnored private var libraryStatusCache: [String: CachedLibraryStatusFacts] = [:]
+#if DEBUG
+    @ObservationIgnored private(set) var libraryStatusProjectionBuildCount = 0
+#endif
+
     let appPaths: AppPaths
     let localStore: LocalStore
     let casManager: CASManager
@@ -237,13 +322,11 @@ final class AppEnvironment {
     /// the instant any surface reads it (plan 03-10, D-14).
     let controllerHost = ControllerHost()
     let controllerMappingStore: ControllerMappingStore
-    /// Holds whatever BIOS a user has validated per system, so a launch
-    /// can inject it into the emulator's arguments (plan 03-09/03-10,
-    /// P2-CR-002). `references` starts empty — this client has no
-    /// confirmed reference BIOS digest yet (see `BiosStore`'s own doc
-    /// comment); until one is gathered, every candidate is correctly and
-    /// honestly rejected, which is the documented safe default, not a
-    /// stub.
+    /// Holds user-provided BIOS files that match the explicitly selected
+    /// reference set, so a launch can inject a validated managed file
+    /// into the emulator's arguments. Production composition uses the
+    /// pinned references; the finite UI-testing acceptance profile uses
+    /// one compiled synthetic reference.
     let biosStore: BiosStore
     /// Constructed here for the same reason `controllerHost` is —
     /// reduced-motion state must be known from the first frame, not
@@ -257,6 +340,9 @@ final class AppEnvironment {
     /// prohibition: a profile must never construct a real `KeychainStore`,
     /// and none of them ever presents `PairingView`).
     private let pairingKeychain: KeychainStore?
+    /// Present only for the explicitly scoped LiveServer pairing proof.
+    /// Production pairing keeps platform default trust evaluation.
+    private let pairingTrustAnchorData: Data?
 #if UI_TESTING
     /// Set before a deterministic profile shell renders. This prevents the
     /// background sync and download paths from consulting any Keychain or network.
@@ -270,6 +356,10 @@ final class AppEnvironment {
     /// the shipped MC-02 defect. A front-door journey reads this list,
     /// never a routing flag.
     private(set) var uiTestConsoleExportAttempts: [String] = []
+    /// The BIOS acceptance journey needs the ordinary readiness remedy to
+    /// reveal its existing BIOS surface. Production adapter requirements
+    /// remain derived only from the pinned adapter descriptor.
+    private(set) var uiTestingRequiresBiosForAcceptance = false
 #endif
     private(set) var adapterHost: AdapterHost?
     private(set) var adapterPinLoadError: Error?
@@ -427,6 +517,7 @@ final class AppEnvironment {
         /// scoped instance here, or pairing would write somewhere
         /// `apiClient` never reads from.
         pairingKeychain: KeychainStore? = nil,
+        pairingTrustAnchorData: Data? = nil,
         /// Injectable so a test can prove the periodic drain actually
         /// delivers without waiting a real minute for it.
         outboxDrainInterval: TimeInterval = OutboxDrainTicker.defaultInterval
@@ -441,6 +532,8 @@ final class AppEnvironment {
             reachability: reachability,
             downloadSession: downloadSession,
             pairingKeychain: keychain,
+            pairingTrustAnchorData: pairingTrustAnchorData,
+            biosReferences: BiosReferences.production,
             outboxDrainInterval: outboxDrainInterval
         )
     }
@@ -467,6 +560,8 @@ final class AppEnvironment {
         uiTestingPaths paths: AppPaths,
         localStore: LocalStore,
         reachability: Reachability,
+        biosReferences: [BiosStore.Reference],
+        requiresBiosForAcceptance: Bool = false,
         /// A deterministic profile's synthetic, offline pairing credential.
         /// `nil` (the default) keeps a profile genuinely unpaired; a value
         /// seeds "this Mac is already paired" world state, which a
@@ -488,8 +583,11 @@ final class AppEnvironment {
                 apiClient: APIClient.pairedForUITesting(credential),
                 reachability: reachability,
                 downloadSession: nil,
-                pairingKeychain: nil
+                pairingKeychain: nil,
+                pairingTrustAnchorData: nil,
+                biosReferences: biosReferences
             )
+            self.uiTestingRequiresBiosForAcceptance = requiresBiosForAcceptance
         } else {
             self.init(
                 paths: paths,
@@ -497,8 +595,11 @@ final class AppEnvironment {
                 apiClient: APIClient.unpairedForUITesting(),
                 reachability: reachability,
                 downloadSession: nil,
-                pairingKeychain: nil
+                pairingKeychain: nil,
+                pairingTrustAnchorData: nil,
+                biosReferences: biosReferences
             )
+            self.uiTestingRequiresBiosForAcceptance = requiresBiosForAcceptance
         }
     }
 #endif
@@ -510,16 +611,19 @@ final class AppEnvironment {
         reachability: Reachability,
         downloadSession: URLSession?,
         pairingKeychain: KeychainStore?,
+        pairingTrustAnchorData: Data?,
+        biosReferences: [BiosStore.Reference],
         outboxDrainInterval: TimeInterval = OutboxDrainTicker.defaultInterval
     ) {
         self.appPaths = paths
         self.downloadSessionOverride = downloadSession
         self.localStore = store
         self.controllerMappingStore = ControllerMappingStore(localStore: store)
-        self.biosStore = BiosStore(localStore: store, managedDirectory: paths.bios, references: BiosReferences.production)
+        self.biosStore = BiosStore(localStore: store, managedDirectory: paths.bios, references: biosReferences)
         let client = apiClient
         self.apiClient = client
         self.pairingKeychain = pairingKeychain
+        self.pairingTrustAnchorData = pairingTrustAnchorData
         self.reachability = reachability
 
         let catalogueStore = CatalogueStore(localStore: store)
@@ -550,7 +654,42 @@ final class AppEnvironment {
                 "could not recover stranded in_flight outbox entries: \(error.localizedDescription, privacy: .public)"
             )
         }
-        let syncEngine = SyncEngine(apiClient: client, localStore: store)
+        // The save prefetch callback shares the one CAS boundary used by
+        // ordinary game downloads. It is created before SyncEngine so a
+        // restored save received during the very first snapshot can be
+        // fetched into the same verified object store as its game bytes.
+        let cas = CASManager(paths: paths, objectLedger: CacheObjectStore(localStore: store))
+        let syncEngine = SyncEngine(apiClient: client, localStore: store) { [paths, cas, downloadSession] digest, size in
+            // Journal application runs inside a SQLite transaction; bytes
+            // must not hold that transaction open. The callback only
+            // schedules the established authenticated DownloadEngine path.
+            Task {
+                guard let credential = await client.credential,
+                      let safeDigest = try? PathSafety.validatedDigest(digest)
+                else { return }
+
+                let session = if let downloadSession {
+                    downloadSession
+                } else {
+                    await client.makeAuthenticatedDownloadSession()
+                }
+                guard let session else { return }
+                let engine = DownloadEngine(
+                    session: session,
+                    paths: paths,
+                    cas: cas
+                )
+                let url = credential.baseURL
+                    .appendingPathComponent("api/v1/blobs")
+                    .appendingPathComponent(safeDigest)
+                try? await engine.download(
+                    sha256: safeDigest,
+                    from: url,
+                    headers: ["Authorization": "Bearer \(credential.token)"],
+                    expectedSize: size
+                )
+            }
+        }
         let recorder = PlaySessionRecorder(localStore: store, curationStore: curationStore, outbox: outbox)
         // `onEntryDelivered`/`onDestructiveRejection` are wired exactly as
         // `OutboxWorker`'s own doc comments specify: a delivered play
@@ -583,7 +722,6 @@ final class AppEnvironment {
         // #52) -- moved up rather than making the property optional.
         // The ledger makes every commit visible to the quota gate and the
         // reclaim planner, whichever path did the committing (WINDOWS #75).
-        let cas = CASManager(paths: paths, objectLedger: CacheObjectStore(localStore: store))
         self.casManager = cas
         self.preflightChecker = PreflightChecker(cas: cas)
         self.launchMaterializer = LaunchMaterializer(paths: paths, cas: cas)
@@ -757,7 +895,11 @@ final class AppEnvironment {
     /// Drain trigger 3/3, called from `PlaysteadApp`'s `scenePhase`
     /// observer. Also re-reads the local model, since a background stretch
     /// may have applied journal entries.
-    func applicationDidBecomeActive() {
+    func applicationDidBecomeActive() async {
+        // Reconcile missed journal changes whenever a paired client returns
+        // to the foreground. Pairing's first sync is not enough: an existing
+        // credential can outlive a background interval with no notification.
+        await syncNow()
         drainOutbox()
         drainSaveOutbox()
         refreshCurationViewModels()
@@ -789,10 +931,10 @@ final class AppEnvironment {
     }
 
     /// Starts one `SaveUploadLane.drainOnce()` pass. The lane is an actor,
-    /// so overlapping calls never race the same REVISION -- but they are
-    /// not serialized either (actors are reentrant at `await`), which is
-    /// why the save-e2e harness reads its own pass's classification off
-    /// the drain result rather than the lane's shared cell (WINDOWS #87).
+    /// but actors are reentrant at `await`; its per-revision in-flight gate
+    /// makes overlapping calls share the same upload outcome. The
+    /// save-e2e harness still reads its pass's classification from the
+    /// returned result rather than the lane's shared cell (WINDOWS #87).
     @discardableResult
     func drainSaveUploads() -> Task<OutboxDrainResult, Never> {
         Task { [saveUploadLane] in await saveUploadLane.drainOnce() }
@@ -827,6 +969,7 @@ final class AppEnvironment {
     /// the Favorites shelf, a play session must show up in Continue and
     /// Recent).
     func refreshCurationViewModels() {
+        invalidateLibraryStatusCache()
         favoritesViewModel.refresh()
         queueViewModel.refresh()
         collectionsViewModel.refresh()
@@ -893,6 +1036,11 @@ final class AppEnvironment {
     /// launch re-hashes against — to `AdapterHost`.
     @discardableResult
     func installAdapter() async -> Bool {
+#if UI_TESTING
+        // Deterministic profiles activate the real keyboard-accessible
+        // control, but must never download or mount an external application.
+        guard !uiTestingBlocksExternalIO else { return false }
+#endif
         guard let installer = adapterInstaller else {
             adapterSetupPhase = .failed("No adapter is pinned in this build.")
             return false
@@ -999,17 +1147,25 @@ final class AppEnvironment {
     /// delegate is shared with the session `PairingClient` uses, so the
     /// certificate captured during the handshake is the one written to
     /// `pinned-ca.der` on success.
-    func makePairingCoordinator() -> PairingCoordinator? {
+    func makePairingCoordinator(suppliedTrustAnchorData: Data? = nil) -> PairingCoordinator? {
         guard let pairingKeychain else { return nil }
-        let capture = PinnedCertificateCapture()
+        let capture = PinnedCertificateCapture(
+            suppliedTrustAnchorData: suppliedTrustAnchorData ?? pairingTrustAnchorData
+        )
         let session = URLSession(
             configuration: .ephemeral, delegate: capture, delegateQueue: nil
         )
         return PairingCoordinator(
-            client: PairingClient(session: session),
+            client: PairingClient(
+                session: session,
+                consumeSuppliedTrustAnchorRejection: { capture.consumeSuppliedTrustAnchorRejection() }
+            ),
             keychain: pairingKeychain,
             certificateCapture: capture,
-            pinnedCertificateURL: appPaths.pinnedCertificate
+            pinnedCertificateURL: appPaths.pinnedCertificate,
+            afterPairing: { [weak self] in
+                await self?.syncNow()
+            }
         )
     }
 
@@ -1032,7 +1188,10 @@ final class AppEnvironment {
             // local-only revision exists, and a revision that exists on
             // exactly one device is the most dangerous state in the
             // product (D-32).
-            onPromoted: { [saveUploadLane] in Task { await saveUploadLane.drainOnce() } }
+            onPromoted: { [weak self, saveUploadLane] in
+                Task { @MainActor [weak self] in self?.invalidateLibraryStatusCache() }
+                Task { await saveUploadLane.drainOnce() }
+            }
         )
     }
 
@@ -1113,7 +1272,12 @@ final class AppEnvironment {
         // main-actor state would make an entirely local, synchronous
         // check depend on actor hopping.
         let installState = adapterInstallState
-        let biosRequired = adapterCatalog?.descriptor.biosRequired ?? false
+        let biosRequired: Bool
+#if UI_TESTING
+        biosRequired = uiTestingRequiresBiosForAcceptance || (adapterCatalog?.descriptor.biosRequired ?? false)
+#else
+        biosRequired = adapterCatalog?.descriptor.biosRequired ?? false
+#endif
         let hasBIOS = biosStore.hasManagedBIOS(forSystem: entry.system)
         let hasController = controllerHost.hasAnyController
         // MC-04: read once, by value, for the same actor-hopping reason
@@ -1192,7 +1356,12 @@ final class AppEnvironment {
     /// Reads `SaveStore` fresh on every call (D-21), never remembered
     /// state.
     func hasUnacknowledgedSaveDivergence(assetSetID: String) -> Bool {
-        guard let entry = catalogueEntry(assetSetID: assetSetID), let line = saveLine(for: entry) else { return false }
+        guard let entry = catalogueEntry(assetSetID: assetSetID) else { return false }
+        return hasUnacknowledgedSaveDivergence(for: entry)
+    }
+
+    private func hasUnacknowledgedSaveDivergence(for entry: CatalogueEntry) -> Bool {
+        guard let line = saveLine(for: entry) else { return false }
         let heads = saveStore.fetchHeads(saveLineID: line.id).map(\.id)
         let disposed = saveStore.fetchForkDisposition(saveLineID: line.id)?.headRevisionIDs
         return SaveAttentionSource.hasUnacknowledgedDivergence(headRevisionIDs: heads, disposedHeadIDs: disposed)
@@ -1318,10 +1487,12 @@ final class AppEnvironment {
     func resolveSaveDivergence(assetSetID: String, chosenRevisionID: String) -> SaveConflictResolution? {
         guard let entry = catalogueEntry(assetSetID: assetSetID), let line = saveLine(for: entry) else { return nil }
         let heads = saveStore.fetchHeads(saveLineID: line.id).map(\.id)
-        return try? saveConflictResolver.chooseSide(
+        let resolution = try? saveConflictResolver.chooseSide(
             saveLineID: line.id, chosenRevisionID: chosenRevisionID, headRevisionIDs: heads,
             originName: { [saveStore] id in saveStore.fetchRevision(id: id)?.originDeviceID ?? "another device" }
         )
+        if resolution != nil { invalidateLibraryStatusCache(assetSetID: assetSetID) }
+        return resolution
     }
 
     /// MC-06: "Keep both" — the exact `SaveConflictResolver.keepBoth`
@@ -1331,9 +1502,11 @@ final class AppEnvironment {
     func acknowledgeSaveDivergence(assetSetID: String, thisDeviceOrigin: String) -> SaveConflictResolution? {
         guard let entry = catalogueEntry(assetSetID: assetSetID), let line = saveLine(for: entry) else { return nil }
         let heads = saveStore.fetchHeads(saveLineID: line.id).map(\.id)
-        return try? saveConflictResolver.keepBoth(
+        let resolution = try? saveConflictResolver.keepBoth(
             saveLineID: line.id, headRevisionIDs: heads, thisDeviceOrigin: thisDeviceOrigin
         )
+        if resolution != nil { invalidateLibraryStatusCache(assetSetID: assetSetID) }
+        return resolution
     }
 
     /// MC-02's escape hatch: the console's saves-scope export surface
@@ -1376,16 +1549,20 @@ final class AppEnvironment {
         return FileManager.default.isWritableFile(atPath: saveDirectory.path)
     }
 
-    func makeDownloadEngine() -> DownloadEngine {
+    func makeDownloadEngine(
+        session: URLSession? = nil,
+        maxTransportAttempts: Int? = nil
+    ) -> DownloadEngine {
         // The injected session is the same seam the coordinator uses, so
         // a test drives the row's download path through `StubURLProtocol`
         // and can assert whether a connection was actually opened — which
         // is what makes "an over-quota download is refused" provable
         // rather than merely reported.
         DownloadEngine(
-            session: downloadSessionOverride ?? URLSession(configuration: .ephemeral),
+            session: session ?? downloadSessionOverride ?? URLSession(configuration: .ephemeral),
             paths: appPaths,
-            cas: casManager
+            cas: casManager,
+            maxTransportAttempts: maxTransportAttempts
         )
     }
 
@@ -1406,13 +1583,26 @@ final class AppEnvironment {
     /// runs *before* the first connection is opened: a blocked verdict
     /// returns without touching `DownloadEngine` at all.
     func attemptDownload(for entry: CatalogueEntry) async -> DownloadAttempt {
+        defer { invalidateLibraryStatusCache(assetSetID: entry.id) }
         let verdict = quotaVerdict(forDownloading: entry)
         guard verdict.allowed else { return .blocked(verdict) }
 
         guard let apiClient = await apiClientIfAvailable(),
               let credential = await apiClient.credential else { return .notPaired }
 
-        let engine = makeDownloadEngine()
+        let session = if let downloadSessionOverride {
+            downloadSessionOverride
+        } else {
+            await apiClient.makeAuthenticatedDownloadSession()
+        }
+        guard let session else {
+            return .notPaired
+        }
+        // A click is an interactive request: unlike the persistent queue,
+        // it must finish in a useful state instead of retrying a broken
+        // connection forever behind a spinner. The queue keeps the default
+        // unbounded offline retry policy.
+        let engine = makeDownloadEngine(session: session, maxTransportAttempts: 1)
         do {
             for member in Self.requiredMembers(of: entry) where !casManager.contains(member.sha256) {
                 // The digest is server-supplied and becomes a URL path
@@ -1430,9 +1620,47 @@ final class AppEnvironment {
                     expectedSize: member.size
                 )
             }
+            // A fresh restore receives save metadata before its game bytes,
+            // so JournalApplier correctly declines its first prefetch. Once
+            // this interactive download has made the game verified-local,
+            // hydrate those already-synced revisions immediately rather than
+            // waiting for a future unrelated save journal entry.
+            try await hydrateRestoredSaves(for: entry, using: engine, credential: credential)
             return .completed
         } catch {
-            return .failed("Download failed: \(error)")
+            return .failed(Self.downloadFailureSummary(error))
+        }
+    }
+
+    private static func downloadFailureSummary(_ error: Error) -> String {
+        guard let urlError = error as? URLError else { return "Download failed. Try again." }
+        if urlError.code == .serverCertificateUntrusted || urlError.code == .serverCertificateHasUnknownRoot {
+            return "Download paused: this recovery server’s certificate could not be verified."
+        }
+        return "Download failed. Check the download queue or try again."
+    }
+
+    private func hydrateRestoredSaves(
+        for entry: CatalogueEntry,
+        using engine: DownloadEngine,
+        credential: PairingCredential
+    ) async throws {
+        guard let line = saveStore.fetchLine(
+            contentKey: Self.saveContentKey(for: entry), saveKind: "battery", slot: "0"
+        ) else { return }
+
+        for revision in saveStore.fetchRevisions(saveLineID: line.id)
+            where !casManager.contains(revision.blobSHA256) {
+            let digest = try PathSafety.validatedDigest(revision.blobSHA256)
+            let url = credential.baseURL
+                .appendingPathComponent("api/v1/blobs")
+                .appendingPathComponent(digest)
+            try await engine.download(
+                sha256: digest,
+                from: url,
+                headers: ["Authorization": "Bearer \(credential.token)"],
+                expectedSize: revision.sizeBytes
+            )
         }
     }
 
@@ -1535,6 +1763,7 @@ final class AppEnvironment {
         let plan = evictionPlanner.plan(for: gameIDs)
         guard !plan.objectSHAs.isEmpty else { return 0 }
         try? evictionPlanner.execute(plan)
+        for id in gameIDs { invalidateLibraryStatusCache(assetSetID: id) }
         return plan.totalBytes
     }
 
@@ -1580,27 +1809,48 @@ final class AppEnvironment {
     }
 
     /// Every status condition that currently applies to one game, in the
-    /// shape `StatusSlotView`/`GameCardView` consume. More than one may
+    /// shape the status slot in the actionable `GameRowView` consumes. More than one may
     /// apply; the ladder picks exactly one to render (D-13/D-17).
     ///
-    /// Both library layouts call this, so the badge on a card and the
+    /// Both library layouts call this, so the badge and the row label
     /// label on a row can never disagree about the same game — before
     /// this, the grid was handed a hardcoded `.serverOnly` for every
     /// entry, so every card showed the "on your server, choose Download"
     /// cloud over content that was downloaded and playable (WINDOWS #72).
     func libraryStatuses(for entry: CatalogueEntry) -> [LibraryStatus] {
-        let inputs = availabilityInputs(for: entry)
-        let availability = AvailabilityState.derive(inputs)
+        let facts: CachedLibraryStatusFacts
+        if let cached = libraryStatusCache[entry.id], cached.entry == entry {
+            facts = cached
+        } else {
+            let inputs = availabilityInputs(for: entry)
+            facts = CachedLibraryStatusFacts(
+                entry: entry,
+                availability: AvailabilityState.derive(inputs),
+                hasActiveTransfer: inputs.activeMemberSHA != nil,
+                hasSaveConflict: hasUnacknowledgedSaveDivergence(for: entry)
+            )
+            libraryStatusCache[entry.id] = facts
+#if DEBUG
+            libraryStatusProjectionBuildCount += 1
+#endif
+        }
         return [
             LibraryStatus.forCard(
-                availability: availability,
-                activeMemberProgressPercent: inputs.activeMemberProgressPercent
+                availability: facts.availability,
+                activeMemberProgressPercent: facts.hasActiveTransfer ? downloadProgressByAssetSet[entry.id] : nil
             ),
-            // MC-03: unions the D-38 divergence badge into the ladder --
-            // `highestPriority` picks `.needsAttention` over any
-            // availability status whenever both are present.
-            LibraryStatus.forSaveState(conflicted: hasUnacknowledgedSaveDivergence(assetSetID: entry.id)),
+            LibraryStatus.forSaveState(conflicted: facts.hasSaveConflict),
         ].compactMap { $0 }
+    }
+
+    /// Discards derived presentation facts after a source transition. This
+    /// keeps database/filesystem work outside SwiftUI's body evaluation.
+    func invalidateLibraryStatusCache(assetSetID: String? = nil) {
+        if let assetSetID {
+            libraryStatusCache.removeValue(forKey: assetSetID)
+        } else {
+            libraryStatusCache.removeAll(keepingCapacity: true)
+        }
     }
 
     // MARK: - Pins
@@ -1620,6 +1870,7 @@ final class AppEnvironment {
         } else {
             try? pinStore.pin(assetSetID: assetSetID)
         }
+        invalidateLibraryStatusCache(assetSetID: assetSetID)
         return !wasPinned
     }
 
@@ -1646,9 +1897,21 @@ final class AppEnvironment {
         }
     }
 
-    func pauseDownload(id: String) { try? downloadQueue.pause(id: id) }
-    func resumeDownload(id: String) { try? downloadQueue.resume(id: id); Task { await startDownloadQueue() } }
-    func cancelDownload(id: String) { try? downloadQueue.cancel(id: id) }
+    func pauseDownload(id: String) {
+        try? downloadQueue.pause(id: id)
+        invalidateLibraryStatusCache()
+    }
+
+    func resumeDownload(id: String) {
+        try? downloadQueue.resume(id: id)
+        invalidateLibraryStatusCache()
+        Task { await startDownloadQueue() }
+    }
+
+    func cancelDownload(id: String) {
+        try? downloadQueue.cancel(id: id)
+        invalidateLibraryStatusCache()
+    }
 
     /// Reorder by one position, expressed in `DownloadQueue`'s own
     /// between-two-neighbours vocabulary so no other row is renumbered.
@@ -1676,6 +1939,7 @@ final class AppEnvironment {
     /// queue and starts the scheduler.
     func enqueueDownload(for entry: CatalogueEntry) {
         try? downloadQueue.enqueueGame(entry)
+        invalidateLibraryStatusCache(assetSetID: entry.id)
         Task { await startDownloadQueue() }
     }
 
@@ -1692,19 +1956,12 @@ final class AppEnvironment {
         guard let client = await apiClientIfAvailable(),
               let credential = await client.credential else { return nil }
 
-        let session: URLSession
-        if let downloadSessionOverride {
-            session = downloadSessionOverride
+        let session = if let downloadSessionOverride {
+            downloadSessionOverride
         } else {
-            // `DownloadCoordinator` calls `DownloadEngine.download` with
-            // no per-request headers, so the bearer token is carried by
-            // the session configuration instead — the one adaptation
-            // this wiring needed to reach the coordinator's API as it
-            // already exists.
-            let configuration = URLSessionConfiguration.ephemeral
-            configuration.httpAdditionalHeaders = ["Authorization": "Bearer \(credential.token)"]
-            session = URLSession(configuration: configuration)
+            await client.makeAuthenticatedDownloadSession()
         }
+        guard let session else { return nil }
 
         let base = credential.baseURL
         let coordinator = DownloadCoordinator(
@@ -1746,13 +2003,16 @@ final class AppEnvironment {
     private func apply(_ event: CoordinatorEvent) {
         switch event {
         case .started(_, let assetSetID, _):
+            invalidateLibraryStatusCache(assetSetID: assetSetID)
             downloadProgressByAssetSet[assetSetID] = 0
         case .progress(_, let assetSetID, _, let percent):
             downloadProgressByAssetSet[assetSetID] = percent
         case .committed(_, let assetSetID, _):
+            invalidateLibraryStatusCache(assetSetID: assetSetID)
             downloadProgressByAssetSet.removeValue(forKey: assetSetID)
             libraryViewModel.refresh()
         case .blocked(let itemID, let assetSetID, let reason):
+            invalidateLibraryStatusCache(assetSetID: assetSetID)
             downloadProgressByAssetSet.removeValue(forKey: assetSetID)
             lastBlockedDownload = (itemID: itemID, assetSetID: assetSetID, reason: reason)
         case .digestMismatchRequeued, .wentOffline, .resumedOnline:

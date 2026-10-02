@@ -71,7 +71,11 @@ actor SyncEngine {
 
     private(set) var state: SyncState = .neverSynced
 
-    init(apiClient: APIClient, localStore: LocalStore) {
+    init(
+        apiClient: APIClient,
+        localStore: LocalStore,
+        onSaveBytesPrefetch: @escaping (String, Int) -> Void = { _, _ in }
+    ) {
         self.apiClient = apiClient
         self.localStore = localStore
         self.changesClient = ChangesClient(apiClient: apiClient)
@@ -83,7 +87,10 @@ actor SyncEngine {
             catalogueStore: catalogueStore,
             curationStore: curationStore,
             saveStore: saveStore,
-            saveBytesPrefetcher: CacheObjectsSaveBytesPrefetcher(localStore: localStore)
+            saveBytesPrefetcher: CacheObjectsSaveBytesPrefetcher(
+                localStore: localStore,
+                onPrefetchNeeded: onSaveBytesPrefetch
+            )
         )
     }
 

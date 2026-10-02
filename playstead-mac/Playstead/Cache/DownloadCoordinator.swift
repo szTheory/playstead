@@ -1,6 +1,6 @@
 import Foundation
 
-/// One observable event `DownloadsView` (and `GameCardView`'s progress
+/// One observable event `DownloadsView` (and `GameRowView`'s progress
 /// ring, via `LibraryViewModel`) can subscribe to. Kept as a flat enum
 /// rather than a stored-and-diffed model — every consumer either reacts
 /// live or re-derives `AvailabilityState` from disk on its own schedule,

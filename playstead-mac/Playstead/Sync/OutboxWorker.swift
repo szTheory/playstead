@@ -2,7 +2,7 @@ import Foundation
 
 /// Counts from one `OutboxWorker.drainOnce()` pass — used by tests and,
 /// later, by a status indicator.
-struct OutboxDrainResult: Equatable {
+struct OutboxDrainResult: Equatable, Sendable {
     var sent = 0
     var rejected = 0
     /// `true` once this pass hit a transport/5xx/409 failure and stopped
@@ -19,6 +19,9 @@ struct OutboxDrainResult: Equatable {
     ///
     /// `.none` whenever the pass did not stop for retry.
     var failureClassification: SaveUploadFailureClassification = .none
+    /// Closed, privacy-safe cause for a retryable save upload failure.
+    /// Curation outbox passes leave this at `.none`.
+    var saveUploadFailureCause: SaveUploadFailureCause = .none
 }
 
 /// Drains `Outbox`'s pending entries one at a time, in creation order,

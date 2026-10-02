@@ -29,6 +29,9 @@ AUTOMATED_MAPPINGS = {
     6: (
         "LibraryContractSnapshotTests/testFiveCurationShelfVisualContract",
         "CurationInteractionTests/testContinueShelfRendersHonestEmptyFixture",
+        # The UAT record cites a specific hosted run, whose source revision
+        # used the earlier test identity. The current renamed test is gated
+        # independently by the ordinary Mac test registry.
         "CurationInteractionTests/testFavoritesShelfRendersExactSeededCard",
         "CurationInteractionTests/testCollectionsShelfRendersExactSeededRoute",
         "CurationInteractionTests/testQueueShelfRendersHonestEmptyFixture",

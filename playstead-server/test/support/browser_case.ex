@@ -63,18 +63,28 @@ defmodule PlaysteadWeb.BrowserCase do
 
   # `phx-mounted={JS.focus()}` runs on a requestAnimationFrame after the
   # connected render. Typing before it lands lets it steal focus mid-keystroke
-  # (the rest of the text goes into the newly focused field). Wait for it.
+  # (the rest of the text goes into the newly focused field). Wait for that
+  # exact target: navigation can leave another control focused, which is not
+  # evidence that the mounted focus command has run.
   defp initial_focus_settled(session) do
+    js(
+      session,
+      "window.__playsteadFocusFrameSettled = false; " <>
+        "requestAnimationFrame(() => requestAnimationFrame(() => { window.__playsteadFocusFrameSettled = true; })); " <>
+        "return true;"
+    )
+
     wait_until(
       session,
       fn s ->
         js(
           s,
-          "const auto = document.querySelector('[phx-mounted]'); " <>
-            "return !auto || document.activeElement !== document.body;"
+          "const target = document.querySelector(" <>
+            "'input[phx-mounted],textarea[phx-mounted],select[phx-mounted],button[phx-mounted],a[phx-mounted]'); " <>
+            "return window.__playsteadFocusFrameSettled === true && (!target || document.activeElement === target);"
         )
       end,
-      "the phx-mounted focus to settle"
+      "the phx-mounted focus target and browser frame to settle"
     )
   end
 
@@ -133,11 +143,41 @@ defmodule PlaysteadWeb.BrowserCase do
 
   @doc "Log in through the real form at /log-in."
   def log_in_via_browser(session, email, password) do
-    session
-    |> visit_live("/log-in")
-    |> Browser.fill_in(css("#login_form_email"), with: email)
-    |> Browser.fill_in(css("#login_form_password"), with: password)
-    |> Browser.click(css("#login_submit"))
+    session = visit_live(session, "/log-in")
+    session = fill_input_and_verify(session, "#login_form_email", email)
+    session = fill_input_and_verify(session, "#login_form_password", password)
+    Browser.click(session, css("#login_submit"))
+  end
+
+  defp fill_input_and_verify(session, selector, expected) do
+    query = css(selector)
+    session = Browser.fill_in(session, query, with: expected)
+
+    # WebDriver can finish an input action while a browser focus handoff is
+    # still settling. Check the value the real form will submit, then re-enter
+    # it once if the first fill was incomplete. Never click Log in with a
+    # truncated address or password.
+    session =
+      if browser_input_value_matches?(session, selector, expected) do
+        session
+      else
+        Browser.fill_in(session, query, with: expected)
+      end
+
+    wait_until(
+      session,
+      fn s -> browser_input_value_matches?(s, selector, expected) end,
+      "the exact value in #{selector}"
+    )
+  end
+
+  defp browser_input_value_matches?(session, selector, expected) do
+    js(
+      session,
+      "const input = document.querySelector(arguments[0]); " <>
+        "return !!input && input.value === arguments[1];",
+      [selector, expected]
+    )
   end
 
   @doc "Produce a signed session cookie value for `values` using the endpoint's real options."

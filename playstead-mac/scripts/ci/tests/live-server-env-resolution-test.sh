@@ -73,7 +73,11 @@ final class BadFixtureTests {
         URL(fileURLWithPath: #filePath).appendingPathComponent("scripts/ci/live-server.sh")
     }
     private func runtimeConfigurationURL() -> URL {
-        URL(fileURLWithPath: ".build/ci/four-layer/raw/live-server-runtime.json")
+        let path = ProcessInfo.processInfo.environment["PLAYSTEAD_TEST_LIVE_SERVER_RUNTIME_CONFIG"]!
+        return URL(fileURLWithPath: path)
+    }
+    private func runtimeConfigurationMatchesRun(_ url: URL, configured: [String: String]) -> Bool {
+        return url.lastPathComponent == "live-server-runtime.json"
     }
     private func resolvedFixtureEnvironment() -> [String: String]? {
         let inherited = ProcessInfo.processInfo.environment

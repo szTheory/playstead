@@ -72,7 +72,7 @@ what is downloaded — and `GameListView`, the one view that would render the wo
 | **What's needed** | cached, but something else blocks it (BIOS, adapter) |
 
 That button is trustworthy: it comes from the real six-check `ReadinessReport`,
-which reads the CAS through `PreflightChecker(cas:)`. **Check readiness** opens the
+which reads the CAS through `PreflightChecker(cas:)`. In List mode, select a game and choose **Details…** to open its
 full six-row report for a title.
 
 **From the terminal** — authoritative, and works with the server already stopped:

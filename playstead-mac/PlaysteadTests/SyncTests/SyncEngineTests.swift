@@ -50,12 +50,14 @@ final class SyncEngineTests: XCTestCase {
     private func snapshotResponseJSON(
         catalogue: [String],
         curation: [String],
+        save: [String] = [],
         cursor: String,
         hasMore: Bool,
         nextAfterID: String?
     ) -> Data {
         let catalogueJSON = "[" + catalogue.joined(separator: ",") + "]"
         let curationJSON = "[" + curation.joined(separator: ",") + "]"
+        let saveJSON = "[" + save.joined(separator: ",") + "]"
         let nextAfterField = nextAfterID.map { "\"\($0)\"" } ?? "null"
         let json = """
         {
@@ -65,7 +67,8 @@ final class SyncEngineTests: XCTestCase {
           "next_after_id": \(nextAfterField),
           "catalogue": \(catalogueJSON),
           "job": [],
-          "curation": \(curationJSON)
+          "curation": \(curationJSON),
+          "save": \(saveJSON)
         }
         """
         return Data(json.utf8)
@@ -175,6 +178,45 @@ final class SyncEngineTests: XCTestCase {
         let catalogueStore = CatalogueStore(localStore: localStore)
         XCTAssertEqual(catalogueStore.count(), 2)
         XCTAssertEqual(Set(catalogueStore.fetchAll().map(\.id)), Set(["game-1", "game-2"]))
+    }
+
+    func testBootstrapFromSnapshotMaterializesRestoredSaveAndSchedulesItsBytesWhenGameIsCached() async throws {
+        let contentKey = String(repeating: "a", count: 64)
+        let saveDigest = String(repeating: "b", count: 64)
+        try localStore.connection.execute(
+            """
+            INSERT INTO cache_objects (sha256, size, committed_at, last_used_at, verify_size, verify_inode, verify_mtime_ms)
+            VALUES (?, ?, ?, ?, ?, 0, 0);
+            """,
+            params: [contentKey, 32_768, "2026-09-22T00:00:00Z", "2026-09-22T00:00:00Z", 32_768]
+        )
+
+        StubURLProtocol.responder = { request in
+            XCTAssertEqual(request.url?.path, "/api/v1/snapshot")
+            return StubURLProtocol.Stub(
+                statusCode: 200,
+                headers: ["Content-Type": "application/json"],
+                body: self.snapshotResponseJSON(
+                    catalogue: [], curation: [], save: [self.savePayloadJSON(
+                        revisionID: "restored-revision", saveLineID: "restored-line",
+                        contentKey: contentKey, blobSHA256: saveDigest
+                    )], cursor: "CUR-SAVE", hasMore: false, nextAfterID: nil
+                )
+            )
+        }
+
+        var prefetched: [(String, Int)] = []
+        let engine = SyncEngine(apiClient: apiClient, localStore: localStore) { digest, size in
+            prefetched.append((digest, size))
+        }
+        await engine.syncNow()
+
+        let revision = SaveStore(localStore: localStore).fetchRevision(id: "restored-revision")
+        XCTAssertEqual(revision?.saveLineID, "restored-line")
+        XCTAssertEqual(revision?.blobSHA256, saveDigest)
+        XCTAssertEqual(prefetched.map(\.0), [saveDigest])
+        XCTAssertEqual(prefetched.map(\.1), [32_768])
+        XCTAssertEqual(CursorStore(localStore: localStore).load()?.rawValue, "CUR-SAVE")
     }
 
     // MARK: - Resumed sync

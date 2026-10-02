@@ -100,13 +100,33 @@ final class LibraryEmptyStateTests: XCTestCase {
     }
 
     private func showLayout(_ identifier: String, in harness: UITestHarness) {
-        let control = harness.element(identifier, type: .button)
-        XCTAssertTrue(control.awaitExistence(timeout: 5), "layout control missing: \(identifier)")
+        // The toolbar's segmented Picker is exposed as a compound AX
+        // container on macOS. Resolve its production root, then activate the
+        // visible, exact child segment instead of assuming an XCUI element
+        // type for the wrapper.
+        let picker = harness.element("playstead.library.view-mode")
+        XCTAssertTrue(picker.awaitExistence(timeout: 5), "library view picker is missing")
+        let segmentLabel: String
+        switch identifier {
+        case "playstead.control.show-list": segmentLabel = "List"
+        case "playstead.control.show-cards": segmentLabel = "Cards"
+        default: return XCTFail("unknown library view segment: \(identifier)")
+        }
+        let control = picker.descendants(matching: .any)[identifier]
+        XCTAssertTrue(control.awaitExistence(timeout: 5), "layout segment missing: \(segmentLabel)")
+        XCTAssertEqual(control.readableText, segmentLabel)
         control.clickWhenHittable()
+        let resultingSurface = segmentLabel == "List"
+            ? "playstead.library.sort"
+            : "playstead.surface.game-card"
+        XCTAssertTrue(
+            harness.element(resultingSurface).awaitExistence(timeout: 5),
+            "selecting \(segmentLabel) did not render its production layout"
+        )
     }
 
     private func search(_ query: String, in harness: UITestHarness) {
-        let field = harness.element("library.search.field", type: .textField)
+        let field = harness.app.searchFields["Search your library"]
         XCTAssertTrue(field.awaitExistence(timeout: 5), "the library search field is missing")
         field.clickWhenHittable()
         field.typeText(query)

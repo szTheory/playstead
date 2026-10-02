@@ -33,9 +33,9 @@ struct ControllerTestView: View {
             .foregroundStyle(isActive ? Color.black : DesignTokens.textPrimary)
             .frame(minWidth: DesignTokens.InteractiveTarget.minimum, minHeight: DesignTokens.InteractiveTarget.minimum)
             .background(isActive ? StatusToken.verified : DesignTokens.border.opacity(0.3))
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.compact))
             .overlay(
-                RoundedRectangle(cornerRadius: 6)
+                RoundedRectangle(cornerRadius: DesignTokens.Radius.compact)
                     .strokeBorder(isActive ? Color.black : Color.clear, lineWidth: 2)
             )
             .accessibilityElement(children: .ignore)

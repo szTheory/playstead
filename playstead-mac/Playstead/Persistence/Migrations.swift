@@ -76,6 +76,21 @@ enum Migrations {
             );
             """
         )
+        // Older clients keyed favorites only by row ID. Snapshot rows can
+        // carry a synthesized ID and later journal rows the server ID for
+        // the same game, so collapse legacy duplicates before enforcing the
+        // server's natural uniqueness rule locally as well.
+        try connection.execute(
+            """
+            DELETE FROM curation_favorites
+            WHERE rowid NOT IN (
+                SELECT MIN(rowid) FROM curation_favorites GROUP BY asset_set_id
+            );
+            """
+        )
+        try connection.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_curation_favorites_asset_set ON curation_favorites(asset_set_id);"
+        )
         try connection.execute(
             """
             CREATE TABLE IF NOT EXISTS curation_collections (
@@ -452,6 +467,7 @@ enum Migrations {
                 play_session_id TEXT,
                 durability TEXT NOT NULL DEFAULT 'localOnly',
                 local_path TEXT,
+                upload_command_id TEXT,
                 tier TEXT NOT NULL DEFAULT 'promoted',
                 origin TEXT NOT NULL DEFAULT 'session',
                 manifest_digest TEXT,
@@ -491,6 +507,10 @@ enum Migrations {
         try? connection.execute("ALTER TABLE save_revision ADD COLUMN restored_here_at TEXT;")
         try? connection.execute("ALTER TABLE save_revision ADD COLUMN session_id TEXT;")
         try? connection.execute("ALTER TABLE save_revision ADD COLUMN artifact_set_json TEXT;")
+        // Save upload and metadata commit share this stable UUIDv7 across
+        // retries. Persisting it with the local revision lets an app restart
+        // replay the same idempotent request body after an uncertain response.
+        try? connection.execute("ALTER TABLE save_revision ADD COLUMN upload_command_id TEXT;")
         try connection.execute("CREATE INDEX IF NOT EXISTS idx_save_revision_line ON save_revision(save_line_id, parent_revision_id);")
         try connection.execute("CREATE INDEX IF NOT EXISTS idx_save_revision_durability ON save_revision(durability);")
         try connection.execute("CREATE INDEX IF NOT EXISTS idx_save_revision_session ON save_revision(session_id);")

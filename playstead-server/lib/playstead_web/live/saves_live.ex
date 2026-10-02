@@ -326,12 +326,12 @@ defmodule PlaysteadWeb.SavesLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen bg-[#0F172A] px-8 py-12 font-sans">
+    <div class="min-h-screen bg-app-canvas px-8 py-12 font-sans">
       <Layouts.flash_group flash={@flash} />
       <div class="mx-auto max-w-4xl space-y-8">
         <div>
-          <h1 class="text-display font-semibold text-[#F1F5F9]">Saves</h1>
-          <p class="mt-1 text-sm text-[#94A3B8]">
+          <h1 class="text-display font-semibold text-app-text">Saves</h1>
+          <p class="mt-1 text-sm text-app-muted">
             Every game you have a save for. Open one to look through its versions or export it.
           </p>
         </div>
@@ -340,10 +340,10 @@ defmodule PlaysteadWeb.SavesLive do
           <div
             :if={@save_lines == []}
             id="saves-empty"
-            class="rounded-lg border border-[#334155] bg-[#1E293B] p-6"
+            class="rounded-lg border border-app-border bg-app-surface p-6"
           >
-            <p class="text-base text-[#F1F5F9]">No saves yet.</p>
-            <p class="mt-1 text-sm text-[#94A3B8]">
+            <p class="text-base text-app-text">No saves yet.</p>
+            <p class="mt-1 text-sm text-app-muted">
               Play a game through Playstead and its saves will show up here.
             </p>
           </div>
@@ -352,13 +352,13 @@ defmodule PlaysteadWeb.SavesLive do
             <li :for={line <- @save_lines} id={"line-#{line.id}"}>
               <.link
                 href={"/saves/#{line.id}"}
-                class="flex items-center justify-between gap-4 rounded-lg border border-[#334155] bg-[#1E293B] p-4 text-[#F1F5F9] hover:border-[#38BDF8]"
+                class="flex items-center justify-between gap-4 rounded-lg border border-app-border bg-app-surface p-4 text-app-text hover:border-app-accent"
               >
                 <span>{line.title}</span>
                 <span
                   :if={line.needs_decision?}
                   id={"needs-decision-#{line.id}"}
-                  class="shrink-0 text-sm text-[#94A3B8]"
+                  class="shrink-0 text-sm text-app-muted"
                 >
                   Two versions to compare
                 </span>

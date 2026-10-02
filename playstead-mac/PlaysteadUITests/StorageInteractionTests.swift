@@ -5,7 +5,7 @@ final class StorageInteractionTests: XCTestCase {
     private var harness: UITestHarness!
     private let quotaReclaimAssetID = "00000000-0000-7000-8000-000000000041"
     private let quotaDownloadAssetID = "00000000-0000-7000-8000-000000000042"
-    private let gameCardIdentifier = "library.card"
+    private let gameCardIdentifier = "playstead.surface.game-card"
     private let showListControl = "playstead.control.show-list"
     private var quotaDownloadAction: String {
         "playstead.game.\(quotaDownloadAssetID).download"
@@ -23,7 +23,7 @@ final class StorageInteractionTests: XCTestCase {
     func testDownloadsPauseResumeFlow() throws {
         launchStorageProfile(.pausedActiveQueue)
         openSurface(
-            control: "playstead.control.open-downloads",
+            control: "playstead.sidebar.downloads",
             root: "playstead.surface.downloads"
         )
 
@@ -83,7 +83,7 @@ final class StorageInteractionTests: XCTestCase {
         _ = waitForUniqueDownloadAction()
     }
 
-    func testReclaimRouteKeyboardFocusOwnsUniqueDownloadTrigger() {
+    func testReclaimRouteArrowSelectionTargetsUniqueDownloadTrigger() {
         navigateToQuotaFixtureList()
         selectQuotaDownloadByKeyboard()
     }
@@ -225,10 +225,7 @@ final class StorageInteractionTests: XCTestCase {
 
     func testStorageInventoryProtectsPinnedCopy() {
         launchStorageProfile(.storage)
-        openSurface(
-            control: "playstead.control.open-storage",
-            root: "playstead.surface.storage"
-        )
+        openStorageSettings()
         assertValue(
             "playstead.storage.state",
             equals: "used=32;candidate-count=0;pinned-count=1;unreferenced-count=0;quarantined-count=0"
@@ -254,20 +251,22 @@ final class StorageInteractionTests: XCTestCase {
 
         let card = harness.element(gameCardIdentifier)
         XCTAssertTrue(card.awaitExistence(timeout: 5), "the seeded game's card never rendered")
+        let cardStatus = harness.element("library.status-slot")
+        XCTAssertTrue(cardStatus.awaitExistence(timeout: 5), "the seeded game's card rendered no status")
         XCTAssertTrue(
-            card.readableText.hasSuffix("is pinned and ready to play offline."),
-            "a cached, pinned game's card must not describe it as being on the server: \(card.readableText)"
+            cardStatus.readableText.hasSuffix("is kept on this Mac and protected from automatic removal."),
+            "a cached, pinned game's card must not describe it as being on the server: \(cardStatus.readableText)"
         )
 
         // The list layout is what the shipped app renders for the list
         // view, and QUAL-01 requires it to pair the glyph with a text
         // label. Those strings previously existed only in `GameListView`, since deleted,
         // which nothing in production renders.
-        harness.element(showListControl, type: .button).clickWhenHittable()
+        harness.element(showListControl).clickWhenHittable()
         let slot = harness.element("library.status-slot")
         XCTAssertTrue(slot.awaitExistence(timeout: 5), "the list row rendered no status indicator at all")
         XCTAssertTrue(
-            slot.readableText.hasSuffix("is pinned and ready to play offline."),
+            slot.readableText.hasSuffix("is kept on this Mac and protected from automatic removal."),
             "the list row's status must describe the real state: \(slot.readableText)"
         )
         let label = harness.element("library.status-label")
@@ -275,16 +274,12 @@ final class StorageInteractionTests: XCTestCase {
             label.exists,
             "QUAL-01: the list row must show the status's text label, never the glyph alone"
         )
-        XCTAssertEqual(label.readableText, "Pinned", "the label must state the real status")
+        XCTAssertEqual(label.readableText, "Kept on this Mac", "the label must state the real status")
     }
 
     private func exerciseQuotaAndFocusRestoration() {
         launchStorageProfile(.quotaBlockReclaim)
-        let opener = harness.element("playstead.control.open-storage", type: .button)
-        openSurface(
-            control: "playstead.control.open-storage",
-            root: "playstead.surface.storage"
-        )
+        openStorageSettings()
         harness.require([
             "playstead.quota.root",
             "playstead.quota.state",
@@ -305,8 +300,11 @@ final class StorageInteractionTests: XCTestCase {
             "playstead.quota.state",
             equals: "used=32;quota=1073741840;floor=10737418240"
         )
-        dismissSheet(root: "playstead.surface.storage")
-        XCTAssertTrue(opener.value(forKey: "hasKeyboardFocus") as? Bool == true)
+        XCTAssertTrue(
+            harness.element("playstead.quota.increase", type: .button)
+                .value(forKey: "hasKeyboardFocus") as? Bool == true,
+            "editing the persistent Storage settings pane must keep focus on its quota action"
+        )
     }
 
     private func openReclaimPrompt() {
@@ -319,14 +317,11 @@ final class StorageInteractionTests: XCTestCase {
 
     private func navigateToQuotaFixtureList() {
         launchStorageProfile(.quotaBlockReclaim)
-        harness.traverseExactFocusSequence(
-            [
-                "playstead.control.show-cards",
-                "playstead.control.show-list",
-                "playstead.control.open-readiness"
-            ],
-            activate: "playstead.control.show-list"
-        )
+        let showList = harness.element("playstead.control.show-list", type: .radioButton)
+        XCTAssertTrue(showList.awaitExistence(timeout: 5), "the List radio segment is missing")
+        showList.clickWhenHittable()
+        XCTAssertTrue(harness.element("playstead.surface.game-list").awaitExistence(timeout: 5))
+        XCTAssertTrue(harness.element(quotaDownloadAction, type: .button).awaitExistence(timeout: 5))
     }
 
     private func requireInitialReclaimEvidence() {
@@ -384,6 +379,14 @@ final class StorageInteractionTests: XCTestCase {
 
     private func openEligibleStorageInventory() {
         launchStorageProfile(.quotaBlockReclaim)
+        openStorageSettings()
+    }
+
+    private func openStorageSettings() {
+        openSurface(
+            control: "playstead.sidebar.settings",
+            root: "playstead.settings"
+        )
         openSurface(
             control: "playstead.control.open-storage",
             root: "playstead.surface.storage"
@@ -433,12 +436,14 @@ final class StorageInteractionTests: XCTestCase {
     }
 
     private func dismissStorageAndAssertCanonicalRows() {
-        dismissSheet(root: "playstead.surface.storage")
+        harness.element("playstead.sidebar.home").clickWhenHittable()
+        XCTAssertTrue(harness.element("playstead.surface.library").awaitExistence(timeout: 5))
         // Storage opens from the default Cards layout, unlike the reclaim
-        // prompt journey that starts in List. Reveal the same production
+        // prompt journey that starts in List. Return to the game library and
+        // reveal the same production
         // GameRow identities without relaunching or reseeding; the mutation
         // proof above therefore remains the state being inspected.
-        harness.element("playstead.control.show-list", type: .button).clickWhenHittable()
+        harness.element("playstead.control.show-list").clickWhenHittable()
         XCTAssertTrue(harness.element("playstead.surface.game-list").awaitExistence(timeout: 5))
         assertCanonicalRow(assetID: quotaReclaimAssetID, title: "Synthetic Reclaim Candidate")
         assertCanonicalRow(assetID: quotaDownloadAssetID, title: "Synthetic Quota Download")
@@ -451,7 +456,7 @@ final class StorageInteractionTests: XCTestCase {
     }
 
     private func openSurface(control: String, root: String) {
-        harness.element(control, type: .button).clickWhenHittable()
+        harness.element(control).clickWhenHittable()
         XCTAssertTrue(harness.element(root).awaitExistence(timeout: 5))
     }
 
@@ -493,21 +498,11 @@ final class StorageInteractionTests: XCTestCase {
         _ = waitForUniqueDownloadAction()
         let list = harness.element("playstead.surface.game-list")
         XCTAssertTrue(list.awaitExistence(timeout: 5))
-        XCTAssertTrue(
-            list.value(forKey: "hasKeyboardFocus") as? Bool == true,
-            "activating List must transfer keyboard focus to its production selection model"
-        )
-
-        let selection = harness.element("playstead.library.list-selection")
-        XCTAssertTrue(selection.awaitExistence(timeout: 5))
-        for _ in 0..<2 {
-            let currentSelection = selection.value as? String
-            if currentSelection == quotaDownloadAssetID { break }
-            list.typeKey(.downArrow, modifierFlags: [])
-        }
-        let settledSelection = selection.value as? String
-        XCTAssertEqual(settledSelection, quotaDownloadAssetID)
-        XCTAssertTrue(list.value(forKey: "hasKeyboardFocus") as? Bool == true)
+        XCTAssertEqual(list.value as? String, "Synthetic Quota Download")
+        list.typeKey(.downArrow, modifierFlags: [])
+        XCTAssertEqual(list.value as? String, "Synthetic Reclaim Candidate")
+        list.typeKey(.upArrow, modifierFlags: [])
+        XCTAssertEqual(list.value as? String, "Synthetic Quota Download")
 
         let command = harness.element("playstead.control.download-selected", type: .button)
         XCTAssertTrue(command.awaitExistence(timeout: 5))

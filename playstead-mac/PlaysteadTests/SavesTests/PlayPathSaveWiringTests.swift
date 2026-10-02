@@ -152,8 +152,9 @@ final class PlayPathSaveWiringTests: XCTestCase {
             source.components(separatedBy: "provenance: saveCaptureProvenance").count - 1, 2,
             "both SaveSessionRecovery and makeSaveSessionCoordinator must be handed the same provenance value"
         )
+        let normalizedSource = source.split(whereSeparator: \.isWhitespace).joined(separator: " ")
         XCTAssertTrue(
-            source.contains(".task { await appEnvironment.recoverAbandonedSaveSessionsAtLaunch() }"),
+            normalizedSource.contains(".task { await appEnvironment.recoverAbandonedSaveSessionsAtLaunch()"),
             "the production root view must actually run the replay pass at launch"
         )
     }

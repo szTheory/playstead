@@ -1,0 +1,98 @@
+# Phase 06 Hosted Evidence
+
+## Review target
+
+- Draft PR: https://github.com/szTheory/playstead/pull/6
+- Branch: `phase06/hosted-evidence-20261001`
+- Base: `feat/dev-standup-and-uat7-closure`
+- Historical passing repair commit: `631edf9665ace49c91a02bdebcbd49dbc0f0e6ba` (retained recovery cleanup return handling).
+- Current pushed security repair: `f978fa8268328e0c2106f1aa0b45315832ce440f`; it removes the public PR self-hosted runner path. This isolated checkout carries the security source change, but the current CI attempts below are failing and PR #6 remains draft and unmerged.
+- The source commit excludes `.planning/`, local CA/signing artifacts, local fixture/account notes, and raw test evidence. The evidence ledger is copied into this isolated review branch for the open draft PR.
+
+The ordinary hosted workflow is the source of truth for the Mac app layers. The local no-HID runner refused to launch the app because the automated GSD guard requires a human-set `PLAYSTEAD_HUMAN_APPROVED_LOCAL_APP_LAUNCH` opt-in; that setting was not injected by automation.
+
+## Runner inventory and exact-head CI history
+
+Runner inventory was checked at `2026-10-01T21:09:22Z` immediately before this update: repository owner type `User`; repository Actions runner count `0`. Organization/enterprise runner-group inventory is not applicable to this personal-user-owned repository. No self-hosted runner or repository/organization settings were changed. The in-repository topology check is trusted-code regression coverage only; it is not a security boundary against a public fork changing workflow and guard together.
+
+The historical passing workflow below is not current-head proof. On security-repair SHA `f978fa8268328e0c2106f1aa0b45315832ce440f`, workflow [36920283265](https://github.com/szTheory/playstead/actions/runs/36920283265) failed in both independent recovery lanes. Attempt 1: server `mix precommit` job `110564318056` passed; Docker cold-start job `110564318702` passed; Linux recovery job `110564318328` failed; ordinary Mac job `110567365139` failed. The failed-only retry (attempt 2) still failed Linux recovery in job `110579269830`; the Mac failure from attempt 1 remains failed and was not rerun. The successful server and Docker results belong to attempt 1 only. Later Plan 06-21 runs supersede this status for the ordinary Mac lane; the exact-head Linux recovery lane remains failing.
+
+The Mac failure evidence for that older head was reviewed only through the sanitized artifact: Unit 759/759, Rendering 52/52, UI 121/122 (one failed), and LiveServer 6/6. The one failing test is `ZeroNetworkPlayFlowTests/testWholePlayFlowRecordsZeroHTTPRequests()` at `XCTAssertNil` line 53. The same sanitized artifact reports entitled status `blocked/not-configured` with `gate_passed: false`. During that earlier diagnosis, the raw job log was fetched only into private temporary storage and scanned with a fixed-vocabulary classifier; it did not identify a trusted failure stage. No raw log lines, raw `failure_reason`, screenshot/PNG, or fixture data were displayed or copied into tracked evidence. Plan 06-22's sanitized stage `source-fixture-create` conflated filesystem creation and database seeding. Plan 06-23 replaced that marker; its exact-head artifact reported `source-fixture-database-seed`, which identifies an operation boundary only and establishes no root cause. PR #6 stays draft and unmerged until hosted CI is green on the exact current head.
+
+## Plan 06-21 exact-head outcome
+
+The first Plan 06-21 hosted run, [36931486120](https://github.com/szTheory/playstead/actions/runs/36931486120), used SHA `3f2316d0a99ca0aff09da789dd1ea690d4bae8ab`. Server `mix precommit` and Docker cold-start passed; Linux restore failed and its sanitizer/upload steps were skipped. The ordinary Mac job failed before app/native test layers at the `Verify static contract guards` check. Local static reproduction identified a bare closed-schema early return; commit `cf978f4` corrected that guard. `fail-open-test-guard-test.sh` and `run-mac-verification.sh --self-test-contracts` then passed locally, completing all static guards. Linux source was unchanged by this Mac-only correction; its synthetic tests had passed before the correction.
+
+Fresh workflow [36947656348](https://github.com/szTheory/playstead/actions/runs/36947656348) ran on exact PR head `cf978f4d3ece48197bf209b31cc451b73f84759e`. Server `mix precommit` job `110653291608`, Docker cold-start job `110653291243`, and ordinary Mac job `110655090300` passed. Linux isolated recovery job `110653291551` failed at the `Run isolated restore fixture` step; sanitizer and upload steps were skipped. No Linux sanitized artifact exists for this run, so no internal failure stage is attributed and no raw job output was inspected.
+
+The exact-head Mac artifact `mac-ordinary-evidence` contained 11 files. Reachability passed; Unit 759/759, Rendering 52/52, UI 122/122, and LiveServer 6/6 passed. The artifact reports zero failed tests, accessibility audit issues, and layout diagnostics. `entitled-gamepad.json` records `blocked/not-configured`; this is not an entitled-lane pass. The Linux failure remains non-passing and is the scoped subject of Plan 06-22. PORT-04, QUAL-02, phase aggregate completion, and the full regression gate remain open.
+
+## Plan 06-22 exact-head outcome
+
+Workflow [36952647897](https://github.com/szTheory/playstead/actions/runs/36952647897) completed on exact PR head `56b64e88fb55b3224206f3ef213f45eed5711586`. Docker cold-start job `110668721913`, server `mix precommit` job `110668722036`, and ordinary Mac job `110670579867` succeeded. Linux isolated recovery job `110668722059` failed only at `Run isolated restore fixture`; its sanitizer and sanitized-artifact upload steps succeeded, so the restore remained red while its bounded evidence was preserved.
+
+Only the sanitized `linux-recovery-evidence/recovery-failure.json` artifact was inspected. It contained the exact four fields `schema`, `lane`, `outcome`, and `failure_stage`, with stage `source-fixture-create`. The wrapper assigned that marker before both filesystem source-fixture creation and PostgreSQL source-database seeding; the artifact therefore identifies neither operation nor root cause. The exact enum split is the scope of Plan 06-23. No raw logs, raw artifacts, fixture bytes, paths, or credentials were inspected or recorded. Synthetic wrapper and sanitizer contracts, shell syntax, whitespace checks, and the Mac static-contract self-test passed in this execution; no local app, Xcode/XCTest, Docker restore, or private fixture run was performed.
+
+## Plan 06-23 exact-head outcome
+
+Workflow [36961936830](https://github.com/szTheory/playstead/actions/runs/36961936830) completed on exact PR head `dbe3f3802ba1a88b877c6144492835b9a87ea338`. Server `mix precommit` job `110697303490`, Docker cold-start job `110697303449`, and ordinary Mac job `110698990104` succeeded. Linux isolated recovery job `110697303338` failed only at `Run isolated restore fixture`; its sanitizer and sanitized-artifact upload succeeded, leaving the workflow red.
+
+Only the named `linux-recovery-evidence` artifact was downloaded. It contained exactly one regular file, `recovery-failure.json`, with no duplicate keys and the unchanged four-field schema `schema`, `lane`, `outcome`, and `failure_stage`. Its fixed stage is `source-fixture-database-seed`, identifying the source PostgreSQL fixture-seed operation boundary only; it does not establish why the command failed. Plan 06-24 narrows diagnostics within that operation. PORT-04, QUAL-02, entitlement, continuation, and aggregate regression gates remain open. No raw logs, raw artifacts, fixture bytes, paths, or credentials were inspected or recorded. Recovery wrapper contracts, 122 sanitizer checks, Mac static-contract checks, shell syntax, and whitespace validation passed; no local app, Xcode/XCTest, Docker restore, or private fixture run was performed.
+
+## Plan 06-24 exact-head outcome
+
+Workflow [36971165164](https://github.com/szTheory/playstead/actions/runs/36971165164) completed on exact code SHA `a662c75227b9c54a3ba66af62591dfaa407912ed`. Docker cold-start job `110727469629`, server `mix precommit` job `110727469826`, and ordinary Mac job `110729213046` succeeded. Linux isolated recovery job `110727469818` failed only at `Run isolated restore fixture`; the sanitizer and sanitized-artifact upload steps succeeded, leaving the workflow red.
+
+Only the named `linux-recovery-evidence` artifact was downloaded. It contained exactly one regular `recovery-failure.json` receipt with the unchanged four-field schema `schema`, `lane`, `outcome`, and `failure_stage`, no duplicate keys, and the fixed stage `source-fixture-database-connect`. This identifies the source PostgreSQL connection-probe operation boundary only; it does not prove a cause. The stage-matched Plan 06-25 scopes a bounded retry of the same read-only connection query, while explicitly treating initialization timing as a hypothesis. No raw logs, raw artifacts, fixture bytes, paths, or credentials were inspected or recorded. Synthetic wrapper/sanitizer contracts, shell syntax, Mac static-contract checks, and whitespace validation passed; no local Playstead app, Xcode/XCTest, Docker, real restore, or private fixture data was used.
+
+## Plan 06-25 source-code-head outcome
+
+Workflow [36983412255](https://github.com/szTheory/playstead/actions/runs/36983412255) completed successfully as a `pull_request` run on exact source SHA `a9c5adfe72a56c88ea567ad470757fdc44e006ef`. Docker cold-start job `110762899299`, server `mix precommit` job `110762899658`, Linux isolated recovery job `110762899730`, and ordinary Mac job `110765032780` all concluded `success`.
+
+The Linux job's sole named `linux-recovery-evidence` artifact validated as exactly one sanitized `recovery-e2e.json` receipt: `schema_version` 1, lane `linux_restore_fixture`, outcome `passed`, with stages `chain`, `preflight`, `database`, `cas`, `manifest`, and `api`. Sanitizer and upload steps passed. This records a successful recovery run after the bounded connection-probe change; it does not establish the cause of the earlier connection-stage failure or prove retries were needed. No raw logs, raw artifacts, fixture bytes, paths, or credentials were inspected or recorded.
+
+This is source-code-head evidence. It predates the evidence/summary documentation commit; a separate completed exact-current-PR-head run is required as the final merge gate. Final-gate metadata is not part of this tracked source record. PORT-04, QUAL-02, entitlement, continuation, and aggregate regression gates remain open.
+
+## Hosted runs
+
+| Run | Reviewed SHA | Run ID / URL | Linux recovery | Mac ordinary | Docker | Entitled HID |
+|---|---|---|---|---|---|---|
+| Initial review | `911cfd8f1cfebde67dfd8c9641ff1b9f01dd326f` | [36896743418](https://github.com/szTheory/playstead/actions/runs/36896743418) | Failed before fixture: runner lacked `rg` | Failed static guards for the same missing tool | Passed | Skipped; runner not configured |
+| Portability repair | `e5f1a0a081c442f3b9c3c61e3e8e1ef9f292eb18` | [36898163971](https://github.com/szTheory/playstead/actions/runs/36898163971) | Failed the stale retained-target assertion; corrected in `d5218c2` | Static guards passed; UI layer failed because the Cards/List switch was not hittable in the hosted window | Passed | Skipped; runner not configured |
+| Picker and PostgreSQL client repair | `e19fedc7f65dcb2fba949d0c05f4c41cf6321707` | [36904947936](https://github.com/szTheory/playstead/actions/runs/36904947936) | Failed during isolated restore cleanup: `File.rm_rf/1` returns `{:ok, paths}` but cleanup matched only `:ok`; fixed in `631edf9` | Passed: reachability; Unit 759/759; Rendering 52/52; UI 122/122; LiveServer 6/6. The previously failing `SaveFrontDoorJourneyTests/testReadinessSaveRowReportsRealStateForAGameWithSavedProgress()` passed after moving the view picker into the content row | Passed | Skipped; sanitized evidence records `blocked/not-configured` |
+| Recovery cleanup return fix | `631edf9665ace49c91a02bdebcbd49dbc0f0e6ba` | [36910091796](https://github.com/szTheory/playstead/actions/runs/36910091796) | Passed (job `110530300591`; sanitized `linux-recovery-evidence/recovery-e2e.json`, all six stages) | Passed (job `110532872266`; Unit 759, Rendering 52, UI 122, LiveServer 6; zero failures) | Passed (job `110530300975`) | Skipped; runner not configured |
+| Public self-hosted runner removal, attempt 1 | `f978fa8268328e0c2106f1aa0b45315832ce440f` | [36920283265](https://github.com/szTheory/playstead/actions/runs/36920283265) | Failed (`110564318328`; internal stage unresolved) | Failed (`110567365139`; zero-network play-flow assertion, sanitized artifact counts below) | Passed (`110564318702`) | No entitled self-hosted job; ordinary artifact says blocked/not-configured, gate_passed false |
+| Failed-only retry, attempt 2 | `f978fa8268328e0c2106f1aa0b45315832ce440f` | [36920283265](https://github.com/szTheory/playstead/actions/runs/36920283265) | Failed (`110579269830`; stage unresolved) | Original attempt-1 Mac failure remains; not rerun | Attempt-1 success retained | No entitled self-hosted job; no pass claimed |
+| Plan 06-21 first diagnostic run | `3f2316d0a99ca0aff09da789dd1ea690d4bae8ab` | [36931486120](https://github.com/szTheory/playstead/actions/runs/36931486120) | Failed; no sanitized receipt uploaded | Failed at static contract guard before app/native layers | Passed | Entitled lane unavailable |
+| Plan 06-21 corrected exact head | `cf978f4d3ece48197bf209b31cc451b73f84759e` | [36947656348](https://github.com/szTheory/playstead/actions/runs/36947656348) | Failed (`110653291551`; no sanitized artifact, internal stage unattributed) | Passed (`110655090300`; 759/759 Unit, 52/52 Rendering, 122/122 UI, 6/6 LiveServer) | Passed (`110653291243`) | `blocked/not-configured`; no entitled pass |
+| Plan 06-22 sanitized failure evidence | `56b64e88fb55b3224206f3ef213f45eed5711586` | [36952647897](https://github.com/szTheory/playstead/actions/runs/36952647897) | Failed (`110668722059`; sanitizer/upload passed; stage `source-fixture-create` remains ambiguous) | Passed (`110670579867`) | Passed (`110668721913`) | `blocked/not-configured`; no entitled pass |
+| Plan 06-23 database-seed diagnostic | `dbe3f3802ba1a88b877c6144492835b9a87ea338` | [36961936830](https://github.com/szTheory/playstead/actions/runs/36961936830) | Failed (`110697303338`; sanitizer/upload passed; stage `source-fixture-database-seed`, operation only) | Passed (`110698990104`) | Passed (`110697303449`) | `blocked/not-configured`; no entitled pass |
+| Plan 06-24 database-connect diagnostic | `a662c75227b9c54a3ba66af62591dfaa407912ed` | [36971165164](https://github.com/szTheory/playstead/actions/runs/36971165164) | Failed (`110727469818`; sanitizer/upload passed; stage `source-fixture-database-connect`, operation only) | Passed (`110729213046`) | Passed (`110727469629`) | `blocked/not-configured`; no entitled pass |
+| Plan 06-25 source-code-head result | `a9c5adfe72a56c88ea567ad470757fdc44e006ef` | [36983412255](https://github.com/szTheory/playstead/actions/runs/36983412255) | Passed (`110762899730`; sanitized `recovery-e2e.json`, all six stages) | Passed (`110765032780`) | Passed (`110762899299`) | No applicable entitlement job; no entitled pass |
+
+Server `mix precommit` also passed as job `110530300895` on the same SHA.
+
+The first run also found three Elixir files that failed `mix format --check-formatted`; those were formatted. The static Mac contract suite passed on the portability repair, including a local run with `rg` deliberately unavailable. The retained-target contract now passes locally after being aligned with the implementation's `target` path and multiline cleanup argument list.
+
+The Linux PostgreSQL test job initially failed because Ubuntu's default `pg_dump` 16 cannot dump the PostgreSQL 17 service. The workflow now installs the official PostgreSQL 17 client from PGDG and verifies that binary before `mix precommit`; the server job and Docker cold-start passed on run `36904947936`.
+
+The hosted Mac evidence for run `36904947936` is the sanitized artifact `mac-ordinary-evidence`; its manifest lists the four ordinary layers and reports 0 test failures, 0 accessibility audit issues, and 0 layout diagnostics. The virtual-gamepad evidence is separate and says `blocked/not-configured`; the ordinary Mac pass does not close the full regression gate.
+
+## Certified Plan 06-09 evidence
+
+- Final reviewed source: `631edf9665ace49c91a02bdebcbd49dbc0f0e6ba`, branch `phase06/hosted-evidence-20261001`, draft PR [#6](https://github.com/szTheory/playstead/pull/6).
+- Workflow [36910091796](https://github.com/szTheory/playstead/actions/runs/36910091796) completed successfully on that exact SHA. Linux recovery job `110530300591`, server `mix precommit` job `110530300895`, Docker cold-start job `110530300975`, and ordinary Mac job `110532872266` all concluded `success`. The distinct entitled virtual-gamepad job `110530302434` was `skipped` because its runner/profile is not configured.
+- Linux sanitized receipt: `linux-recovery-evidence/recovery-e2e.json`; outcome `passed`, stages `chain`, `preflight`, `database`, `cas`, `manifest`, and `api`.
+- Mac sanitized artifact: `mac-ordinary-evidence` (11 files, 86,024 bytes). Reachability passed; Unit 759/759, Rendering 52/52, UI 122/122, and LiveServer 6/6 passed. The artifact reports zero failures, accessibility audit issues, and layout diagnostics. Environment: macOS 26.6.2 ARM64, Xcode 26.6 (17F113).
+- Entitled artifact `entitled-gamepad.json` truthfully records `status: blocked/not-configured` and `gate_passed: false`. This is not an entitled-lane pass and does not close the aggregate regression gate.
+- The exact-SHA/run/job/artifact checks for Plan 06-09 passed against GitHub's completed run record and the downloaded sanitized receipts. The broader `--verify-hosted-run complete` verifier is not claimed: it currently expects a stale ordinary-job name and its full-gate scope requires entitlement evidence, which this plan explicitly keeps separate.
+
+The local synthetic restore fixture identified the cleanup return mismatch while using a temporary Buildx config. Later local fixture attempts hit intermittent source-database startup failures under the workstation Docker environment, so those attempts are diagnostic only and are not counted as recovery evidence. The required current Linux result remains the hosted run above.
+
+## Remaining phase gates
+
+- Plan 06-09's hosted Linux and ordinary Mac deliverables are complete on the exact reviewed SHA above.
+- Keep the virtual-gamepad lane separately `blocked/not-configured` until an entitled runner/profile produces its own real result.
+- Plan 06-21 corrected the Mac static guard defect and passed the fresh exact-head ordinary Mac job. Plan 06-24's source-code head failed at the `source-fixture-database-connect` operation boundary only; Plan 06-25's bounded retry source-code head passed the Linux recovery lane and its sanitized receipt. This does not establish the earlier failure's cause. The evidence/summary commit still requires a separate exact-current-PR-head CI gate.
+- Keep PR #6 draft and unmerged until all hosted CI checks pass on the exact head.
+- `PORT-04`, `QUAL-02`, and the full regression gate remain open for their broader restore/export, entitled-device, continuation, and release-quality evidence. Do not treat this hosted ordinary-lane pass as phase completion.

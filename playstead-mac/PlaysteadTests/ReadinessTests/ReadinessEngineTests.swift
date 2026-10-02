@@ -122,6 +122,31 @@ final class ReadinessEngineTests: XCTestCase {
         XCTAssertTrue(manyReport.isReady)
     }
 
+    func testEveryRequiredMemberMustBeVerifiedBeforeOfflineLaunchIsReady() throws {
+        let first = try seedVerifiedObject(seed: "first")
+        let second = try seedVerifiedObject(seed: "second")
+        let bytes = Data(repeating: 0x5a, count: 321)
+        let missing = RequiredMember(sha256: sha256Hex(bytes), size: bytes.count)
+        let engine = makeEngine()
+
+        let partialReport = engine.evaluate(assetSetID: "required-members", requiredMembers: [first, second, missing])
+
+        XCTAssertFalse(partialReport.isReady)
+        XCTAssertTrue(check(partialReport, .gameAssets)?.outcome.isBlocking == true)
+        XCTAssertEqual(check(partialReport, .gameAssets)?.remedy?.action, .downloadMember(sha256: missing.sha256))
+
+        // Seed an object under the declared digest to model a completed,
+        // locally verified member without putting fixture bytes on a network.
+        let partial = try paths.partialURL(for: missing.sha256)
+        try FileManager.default.createDirectory(at: paths.partials, withIntermediateDirectories: true)
+        try bytes.write(to: partial)
+        try cas.commit(partialAt: partial, sha256: missing.sha256)
+
+        let completeReport = engine.evaluate(assetSetID: "required-members", requiredMembers: [first, second, missing])
+        XCTAssertTrue(completeReport.isReady)
+        XCTAssertTrue(completeReport.checks.allSatisfy { $0.outcome == .ready })
+    }
+
     // MARK: - Missing adapter
 
     func testMissingAdapterBlocksWithInstallRemedy() throws {

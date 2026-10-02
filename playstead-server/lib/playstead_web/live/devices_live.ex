@@ -59,20 +59,20 @@ defmodule PlaysteadWeb.DevicesLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen bg-[#0F172A] px-8 py-12 font-sans">
+    <div class="min-h-screen bg-app-canvas px-8 py-12 font-sans">
       <Layouts.flash_group flash={@flash} />
       <div class="mx-auto max-w-4xl space-y-8">
         <div>
-          <h1 class="text-display font-semibold text-[#F1F5F9]">Devices</h1>
+          <h1 class="text-display font-semibold text-app-text">Devices</h1>
           <.ca_fingerprint_panel ca_fingerprint={@ca_fingerprint} transport_state={@transport_state} />
         </div>
 
         <section id="pairing-requests">
-          <h2 class="text-heading font-semibold text-[#F1F5F9]">Pairing requests</h2>
+          <h2 class="text-heading font-semibold text-app-text">Pairing requests</h2>
           <p
             :if={@pending_count >= @pending_cap}
             id="queue-full-notice"
-            class="mt-2 text-sm text-[#FBBF24]"
+            class="mt-2 text-sm text-app-warning"
           >
             {@pending_count} pending — queue full — oldest request will be evicted.
           </p>
@@ -80,10 +80,10 @@ defmodule PlaysteadWeb.DevicesLive do
           <div
             :if={@requests == []}
             id="requests-empty"
-            class="mt-4 rounded-lg border border-[#334155] bg-[#1E293B] p-6"
+            class="mt-4 rounded-lg border border-app-border bg-app-surface p-6"
           >
-            <p class="text-base text-[#F1F5F9]">No pairing requests</p>
-            <p class="mt-1 text-sm text-[#94A3B8]">
+            <p class="text-base text-app-text">No pairing requests</p>
+            <p class="mt-1 text-sm text-app-muted">
               When a Mac requests to pair, its code will appear here for you to approve. Nothing to do right now.
             </p>
           </div>
@@ -93,19 +93,19 @@ defmodule PlaysteadWeb.DevicesLive do
           </div>
         </section>
 
-        <section id="paired-devices" class="border-t border-[#334155] pt-8">
-          <h2 class="text-heading font-semibold text-[#F1F5F9]">Paired devices</h2>
-          <p class="mt-1 text-sm text-[#94A3B8]">
+        <section id="paired-devices" class="border-t border-app-border pt-8">
+          <h2 class="text-heading font-semibold text-app-text">Paired devices</h2>
+          <p class="mt-1 text-sm text-app-muted">
             A revoked Mac keeps its downloaded games and saves and can pair again from its Settings screen.
           </p>
 
           <div
             :if={@active_devices == [] and @revoked_devices == []}
             id="devices-empty"
-            class="mt-4 rounded-lg border border-[#334155] bg-[#1E293B] p-6"
+            class="mt-4 rounded-lg border border-app-border bg-app-surface p-6"
           >
-            <p class="text-base text-[#F1F5F9]">No devices paired yet</p>
-            <p class="mt-1 text-sm text-[#94A3B8]">
+            <p class="text-base text-app-text">No devices paired yet</p>
+            <p class="mt-1 text-sm text-app-muted">
               Pair a Mac from its Settings screen, then approve the request here.
             </p>
           </div>
@@ -113,7 +113,7 @@ defmodule PlaysteadWeb.DevicesLive do
           <div
             :if={@active_devices != []}
             id="active-devices"
-            class="mt-4 rounded-lg border border-[#334155] bg-[#1E293B] divide-y divide-[#334155]"
+            class="mt-4 rounded-lg border border-app-border bg-app-surface divide-y divide-border"
           >
             <.device_row
               :for={device <- @active_devices}
@@ -125,8 +125,8 @@ defmodule PlaysteadWeb.DevicesLive do
           </div>
 
           <div :if={@revoked_devices != []} id="revoked-devices" class="mt-6">
-            <h3 class="text-sm font-semibold text-[#94A3B8]">Revoked</h3>
-            <div class="mt-2 divide-y divide-[#334155] rounded-lg border border-[#334155] bg-[#1E293B]">
+            <h3 class="text-sm font-semibold text-app-muted">Revoked</h3>
+            <div class="mt-2 divide-y divide-border rounded-lg border border-app-border bg-app-surface">
               <.device_row
                 :for={device <- @revoked_devices}
                 device={device}
@@ -261,21 +261,21 @@ defmodule PlaysteadWeb.DevicesLive do
     <div
       id="server-certificate"
       data-transport-state="internal_ca"
-      class="mt-2 rounded-lg border border-[#334155] bg-[#1E293B] p-4"
+      class="mt-2 rounded-lg border border-app-border bg-app-surface p-4"
     >
-      <p class="text-sm font-semibold text-[#F1F5F9]">Server certificate</p>
+      <p class="text-sm font-semibold text-app-text">Server certificate</p>
       <p
         :if={match?({:ok, _}, @ca_fingerprint)}
         id="ca-fingerprint"
         data-role="fingerprint"
-        class="mt-1 break-all font-mono text-label text-[#94A3B8]"
+        class="mt-1 break-all font-mono text-label text-app-muted"
       >
         {elem(@ca_fingerprint, 1)}
       </p>
-      <p :if={match?({:ok, _}, @ca_fingerprint)} class="mt-1 text-sm text-[#94A3B8]">
+      <p :if={match?({:ok, _}, @ca_fingerprint)} class="mt-1 text-sm text-app-muted">
         This server uses a locally-trusted certificate. A Mac can pin this fingerprint at pairing time.
       </p>
-      <p :if={!match?({:ok, _}, @ca_fingerprint)} class="mt-1 text-sm text-[#94A3B8]">
+      <p :if={!match?({:ok, _}, @ca_fingerprint)} class="mt-1 text-sm text-app-muted">
         The server certificate fingerprint isn't available yet.
       </p>
     </div>
@@ -287,10 +287,10 @@ defmodule PlaysteadWeb.DevicesLive do
     <div
       id="server-certificate"
       data-transport-state="letsencrypt"
-      class="mt-2 rounded-lg border border-[#334155] bg-[#1E293B] p-4"
+      class="mt-2 rounded-lg border border-app-border bg-app-surface p-4"
     >
-      <p class="text-sm font-semibold text-[#F1F5F9]">Server certificate</p>
-      <p class="mt-1 text-sm text-[#94A3B8]">
+      <p class="text-sm font-semibold text-app-text">Server certificate</p>
+      <p class="mt-1 text-sm text-app-muted">
         This server has a publicly-trusted certificate. Pinning is unnecessary.
       </p>
     </div>
@@ -302,10 +302,10 @@ defmodule PlaysteadWeb.DevicesLive do
     <div
       id="server-certificate"
       data-transport-state="external_proxy"
-      class="mt-2 rounded-lg border border-[#334155] bg-[#1E293B] p-4"
+      class="mt-2 rounded-lg border border-app-border bg-app-surface p-4"
     >
-      <p class="text-sm font-semibold text-[#F1F5F9]">Server certificate</p>
-      <p class="mt-1 text-sm text-[#94A3B8]">
+      <p class="text-sm font-semibold text-app-text">Server certificate</p>
+      <p class="mt-1 text-sm text-app-muted">
         This server is reached through an external reverse proxy. Playstead does not manage that
         certificate, so there is nothing here to pin.
       </p>
@@ -318,10 +318,10 @@ defmodule PlaysteadWeb.DevicesLive do
     <div
       id="server-certificate"
       data-transport-state="plain_http"
-      class="mt-2 rounded-lg border border-[#334155] bg-[#1E293B] p-4"
+      class="mt-2 rounded-lg border border-app-border bg-app-surface p-4"
     >
-      <p class="text-sm font-semibold text-[#F1F5F9]">Server certificate</p>
-      <p class="mt-1 text-sm text-[#94A3B8]">
+      <p class="text-sm font-semibold text-app-text">Server certificate</p>
+      <p class="mt-1 text-sm text-app-muted">
         This server is running over plain HTTP right now. There is no certificate to pin.
       </p>
     </div>

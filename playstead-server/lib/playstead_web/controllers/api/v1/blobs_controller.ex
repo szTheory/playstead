@@ -1,9 +1,9 @@
 defmodule PlaysteadWeb.Api.V1.BlobsController do
   @moduledoc """
   `GET`/`HEAD /api/v1/blobs/:sha256` (D-10, D-19). Authorisation is by
-  whether the calling user has a `source_file` referencing that blob —
-  never by the hash alone, which would make this endpoint a cross-user
-  read oracle (D-13).
+  whether the calling user has a `source_file` or save revision referencing
+  that blob — never by the hash alone, which would make this endpoint a
+  cross-user read oracle (D-13).
 
   D-19 freezes the Range/If-Range/206/416/HEAD contract as published
   client protocol: a GET with no `Range` header returns `200` with
@@ -24,6 +24,7 @@ defmodule PlaysteadWeb.Api.V1.BlobsController do
 
   alias Playstead.Import.SourceFile
   alias Playstead.Repo
+  alias Playstead.Saves.Revision
 
   action_fallback PlaysteadWeb.Api.V1.FallbackController
 
@@ -66,9 +67,20 @@ defmodule PlaysteadWeb.Api.V1.BlobsController do
   end
 
   defp authorized?(user_id, sha256) do
+    source_file_authorized?(user_id, sha256) or save_revision_authorized?(user_id, sha256)
+  end
+
+  defp source_file_authorized?(user_id, sha256) do
     from(sf in SourceFile,
       join: b in assoc(sf, :blob),
       where: sf.user_id == ^user_id and b.sha256 == ^sha256
+    )
+    |> Repo.exists?()
+  end
+
+  defp save_revision_authorized?(user_id, sha256) do
+    from(revision in Revision,
+      where: revision.user_id == ^user_id and revision.blob_sha256 == ^sha256
     )
     |> Repo.exists?()
   end

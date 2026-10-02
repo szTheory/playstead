@@ -6,7 +6,7 @@ MAC_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 REPO_ROOT="$(cd "${MAC_ROOT}/.." && pwd)"
 PROJECT="${MAC_ROOT}/Playstead.xcodeproj"
 SCHEME="Playstead"
-BUILD_ROOT="${MAC_ROOT}/.build/ci"
+BUILD_ROOT="${PLAYSTEAD_CI_BUILD_ROOT:-${MAC_ROOT}/.build/ci}"
 DERIVED_DATA="${BUILD_ROOT}/DerivedData"
 RAW_ROOT="${BUILD_ROOT}/raw"
 EVIDENCE_ROOT="${BUILD_ROOT}/evidence"
@@ -18,6 +18,7 @@ COMPLETE_EVIDENCE="${FOUR_LAYER_EVIDENCE}/complete-verification-evidence.json"
 FAILURE_EVIDENCE="${BUILD_ROOT}/failure-evidence"
 SNAPSHOT_CANDIDATES="${BUILD_ROOT}/snapshot-candidates"
 LIVE_SERVER_RUNTIME_CONFIG="${FOUR_LAYER_RAW}/live-server-runtime.json"
+LIVE_SERVER_CA_DER="${FOUR_LAYER_RAW}/native-services/app/tls/ca.der"
 
 # EXIT traps run after their caller's local scope has unwound. Keep every
 # trap-owned value globally initialized so an early return/failure can never
@@ -28,6 +29,10 @@ LIVE_SERVER_XCTESTRUN=""
 LIVE_SERVER_XCTESTRUN_BACKUP=""
 LIVE_SERVER_XCTESTRUN_PATCHED=false
 LIVE_SERVER_RUNTIME_CONFIG_READY=false
+UI_NO_HID=false
+VIRTUAL_HID_ROOT="${BUILD_ROOT}/entitled-virtual-gamepad"
+VIRTUAL_HID_PRIVATE_ROOT="${VIRTUAL_HID_ROOT}/private"
+VIRTUAL_HID_SETTINGS="${VIRTUAL_HID_PRIVATE_ROOT}/signing.json"
 
 cleanup_live_server_runtime_config() {
   [ "${LIVE_SERVER_RUNTIME_CONFIG_READY:-false}" = "true" ] || return 0
@@ -122,22 +127,27 @@ PY
   LIVE_SERVER_XCTESTRUN_PATCHED=true
   python3 - "$target" \
     "$PLAYSTEAD_MAC_CI_ROOT" "$PLAYSTEAD_LIVE_SERVER_STAGE_ROOT" \
-    "$PLAYSTEAD_LIVE_SERVER_STAGE_FILE" "$MAC_CI_DATABASE_URL" "$MIX_ENV" "$PORT" <<'PY'
+    "$PLAYSTEAD_LIVE_SERVER_STAGE_FILE" "$MAC_CI_DATABASE_URL" "$MIX_ENV" "$PORT" "$LIVE_SERVER_CA_DER" "$PLAYSTEAD_TEST_LIVE_SERVER_CA_SHA256" "$LIVE_SERVER_RUNTIME_CONFIG" <<'PY'
 import os, pathlib, plistlib, sys
 
 path = pathlib.Path(sys.argv[1])
 keys = (
     "PLAYSTEAD_MAC_CI_ROOT", "PLAYSTEAD_LIVE_SERVER_STAGE_ROOT",
     "PLAYSTEAD_LIVE_SERVER_STAGE_FILE", "MAC_CI_DATABASE_URL", "MIX_ENV", "PORT",
+    "PLAYSTEAD_TEST_LIVE_SERVER_CA_DER",
+    "PLAYSTEAD_TEST_LIVE_SERVER_CA_SHA256",
+    "PLAYSTEAD_TEST_LIVE_SERVER_RUNTIME_CONFIG",
 )
 if len(sys.argv) != len(keys) + 2:
     raise SystemExit("live-server test environment argument count drifted")
 values = dict(zip(keys, sys.argv[2:]))
 if any(not value or "\n" in value or "\x00" in value or len(value) > 4096 for value in values.values()):
     raise SystemExit("live-server test environment contains an invalid value")
-for key in keys[:3]:
+for key in (*keys[:3], keys[-3], keys[-1]):
     if not pathlib.PurePath(values[key]).is_absolute():
         raise SystemExit(f"live-server test environment path is not absolute: {key}")
+if len(values[keys[-2]]) != 64 or any(c not in "0123456789abcdef" for c in values[keys[-2]].lower()):
+    raise SystemExit("live-server test environment CA digest is invalid")
 if values["MIX_ENV"] != "mac_ci" or values["PORT"] != "4010":
     raise SystemExit("live-server test environment identity drifted")
 
@@ -189,6 +199,12 @@ arm_keyboard_mode_cleanup() {
 
 capture_keyboard_mode() {
   KEYBOARD_MODE_PREVIOUS="$(defaults read NSGlobalDomain AppleKeyboardUIMode 2>/dev/null || true)"
+  # Full Keyboard Access is already enabled on some developer machines. In
+  # that case, avoid a needless write to the user's global preferences and
+  # leave the cleanup trap disarmed; there is nothing to restore.
+  if [ "$KEYBOARD_MODE_PREVIOUS" = "3" ]; then
+    return 0
+  fi
   KEYBOARD_MODE_CAPTURED=true
   defaults write NSGlobalDomain AppleKeyboardUIMode -int 3
 }
@@ -496,6 +512,7 @@ required_exact = {
     "live-server": [
         "PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch",
         "PlaysteadUITests.PairingCeremonyTests/testAHumanCanPairAFreshMacEntirelyFromInsideTheAppAgainstTheRealServer",
+        "PlaysteadUITests.RecoveryKnownPlayableTests/testRecoveryHarnessRefusesSyntheticFixtureWithoutAnIsolatedTarget",
     ],
 }
 for layer_name, identifiers_expected in required_exact.items():
@@ -600,6 +617,8 @@ verify_layer_result() (
 import json, pathlib, re, sys
 
 results_path, required_path, layer, output_path, mac_root = sys.argv[1:]
+sys.path.insert(0, str(pathlib.Path(mac_root) / "scripts" / "ci"))
+from layout_evidence import parse_layout_marker
 try:
     data = json.loads(pathlib.Path(results_path).read_text(encoding="utf-8"))
 except Exception as exc:
@@ -611,7 +630,14 @@ if not isinstance(data, dict) or not isinstance(data.get("testNodes"), list):
 def canonical(identifier):
     body = identifier
     if "/" not in body:
-        raise SystemExit(f"{layer}: malformed required test identifier: {identifier}")
+        # Xcode accepts both class-level selectors (Target.TestClass) and
+        # method selectors (Target.TestClass/testMethod). Keep class-level
+        # requirements distinct so a selected suite is verified as a set of
+        # executed cases, while method selectors remain exact.
+        if not re.fullmatch(r"(?:[A-Za-z_][A-Za-z0-9_]*\.)+[A-Za-z_][A-Za-z0-9_]*", body):
+            raise SystemExit(f"{layer}: malformed required test identifier: {identifier}")
+        suite = body.rsplit(".", 1)[-1]
+        return f"{suite}/*"
     suite, method = body.split("/", 1)
     suite = suite.rsplit(".", 1)[-1]
     method = method[:-2] if method.endswith("()") else method
@@ -631,16 +657,23 @@ def normalized_outcome(result):
     return "unknown"
 
 nodes = []
+runner_process_errors = []
 audit_issues = []
 durations = []
 failure_diagnostics = []
+layout_diagnostics = []
 failure_stages = set()
 audit_pattern = re.compile(r"PLAYSTEAD_A11Y_ISSUES\[([A-Za-z]+)\]=([a-z0-9.,@-]+)")
 ui_stage_pattern = re.compile(r"PLAYSTEAD_FAILURE_STAGE\[([a-z0-9-]+)\]")
+zero_network_stage_pattern = re.compile(r"PLAYSTEAD_ZERO_NETWORK_FAILURE_STAGE\[([^\]]*)\]")
 live_stage_pattern = re.compile(r"live-server-stage=([a-z0-9-]+) action=([a-z0-9-]+)")
 allowed_ui_stages = {
     "all-surface-library-layout", "all-surface-collection-reorder",
     "all-surface-quota-list", "all-surface-adapter-actions",
+}
+allowed_zero_network_stages = {
+    "stand-in-signing", "adapter-selection", "synthetic-cas", "catalogue-readiness",
+    "materialization-save-setup", "adapter-launch", "adapter-exit", "unclassified",
 }
 allowed_live_stages = {
     "validate-input", "resolve-server-root", "create-control-root",
@@ -654,6 +687,9 @@ assertion_pattern = re.compile(
 )
 failure_message_location_pattern = re.compile(
     r"^(?P<file>[A-Za-z_][A-Za-z0-9_]*\.swift):(?P<line>[1-9][0-9]*):"
+)
+runner_process_error_pattern = re.compile(
+    r"^PlaysteadUITests-Runner \([0-9]{1,8}\) encountered an error$"
 )
 
 source_roots = ["Playstead", "PlaysteadTests", "PlaysteadUITests"]
@@ -708,6 +744,12 @@ def bounded_failure_diagnostic(summary, test_identifier):
         "source_line": source_line,
     }
 
+def bounded_layout_diagnostics(summary):
+    parsed = []
+    for text in strings(summary):
+        parsed.extend(parse_layout_marker(text))
+    return parsed
+
 def failure_records(test_case):
     records = []
     summaries = test_case.get("failureSummaries", [])
@@ -745,7 +787,15 @@ def walk(value):
         if value.get("nodeType") == "Test Case":
             node_identifier = value.get("nodeIdentifier")
             result = value.get("result")
-            if not isinstance(node_identifier, str) or not isinstance(result, str):
+            if not isinstance(node_identifier, str):
+                raise SystemExit(f"{layer}: malformed Test Case node")
+            if runner_process_error_pattern.fullmatch(node_identifier):
+                # xcresulttool represents an XCTest runner crash as a pseudo
+                # Test Case whose identifier contains a process ID. Record a
+                # fixed category only; it is not an executed test identity.
+                runner_process_errors.append("runner-process-error")
+                return
+            if not isinstance(result, str):
                 raise SystemExit(f"{layer}: malformed Test Case node")
             test_identifier = canonical(node_identifier)
             nodes.append((test_identifier, result))
@@ -760,8 +810,20 @@ def walk(value):
                 durations.append((test_identifier, float(seconds)))
             for failure_record in failure_records(value):
                 diagnostic = bounded_failure_diagnostic(failure_record, test_identifier)
+                stage_matches = [
+                    match.group(1)
+                    for text in strings(failure_record)
+                    for match in zero_network_stage_pattern.finditer(text)
+                ]
+                if test_identifier == "ZeroNetworkPlayFlowTests/testWholePlayFlowRecordsZeroHTTPRequests()" and stage_matches:
+                    if len(stage_matches) != 1 or stage_matches[0] not in allowed_zero_network_stages:
+                        raise SystemExit(f"{layer}: zero-network Play flow stage is malformed")
+                    failure_stages.add(f"zero-network-play-flow-{stage_matches[0]}")
+                    if diagnostic is not None:
+                        diagnostic["failure_stage"] = stage_matches[0]
                 if diagnostic is not None:
                     failure_diagnostics.append(diagnostic)
+                layout_diagnostics.extend(bounded_layout_diagnostics(failure_record))
             for diagnostic in strings(value):
                 for match in ui_stage_pattern.finditer(diagnostic):
                     stage = match.group(1)
@@ -789,29 +851,46 @@ def walk(value):
 walk(data["testNodes"])
 
 required = [line for line in pathlib.Path(required_path).read_text(encoding="utf-8").splitlines() if line]
-if not nodes:
+if not nodes and not runner_process_errors:
     raise SystemExit(f"{layer}: result contains zero executed tests")
 
 records = []
 verification_errors = []
+if runner_process_errors:
+    verification_errors.append(
+        f"XCTest runner process error observed ({len(runner_process_errors)})"
+    )
 for identifier in required:
     expected = canonical(identifier)
-    matches = [result for node_identifier, result in nodes if node_identifier == expected]
-    result = matches[0] if len(matches) == 1 else "Missing"
-    outcome = normalized_outcome(result) if matches else "missing"
+    if expected.endswith("/*"):
+        suite = expected[:-2]
+        matches = [result for node_identifier, result in nodes if node_identifier.startswith(f"{suite}/")]
+    else:
+        matches = [result for node_identifier, result in nodes if node_identifier == expected]
+    result = matches[0] if matches else "Missing"
+    outcomes = [normalized_outcome(item) for item in matches]
+    outcome = "missing" if not matches else (
+        "failed" if "failed" in outcomes or "unknown" in outcomes else
+        "skipped" if "skipped" in outcomes else "passed"
+    )
     record = {
-        "identifier": identifier,
+        # Store the same canonical selector used for matching. Suite selectors
+        # become Suite/* so sanitized evidence can represent their semantics
+        # without exposing an unnormalized Xcode selector.
+        "identifier": expected,
         "discovered": bool(matches),
         "execution_count": len(matches),
         "skipped": outcome == "skipped",
         "outcome": outcome,
     }
     records.append(record)
-    if len(matches) != 1:
-        verification_errors.append(f"required test execution count must equal 1: {identifier} (got {len(matches)})")
+    class_selector = expected.endswith("/*")
+    if (not matches) if class_selector else (len(matches) != 1):
+        expectation = "at least one class test" if class_selector else "exactly 1 test"
+        verification_errors.append(f"required test execution count must include {expectation}: {identifier} (got {len(matches)})")
     if record["skipped"]:
         verification_errors.append(f"required test was skipped: {identifier}")
-    elif outcome != "passed" and len(matches) == 1:
+    elif outcome != "passed" and matches:
         verification_errors.append(f"required test did not pass: {identifier} ({result})")
 
 all_failed = sorted(
@@ -833,11 +912,16 @@ all_failure_diagnostics = sorted(
     ),
 )
 max_failure_diagnostics = 50
+all_layout_diagnostics = sorted(
+    {json.dumps(record, sort_keys=True, separators=(",", ":")) for record in layout_diagnostics}
+)
+max_layout_diagnostics = 50
 
 summary = {
     "schema_version": 1,
     "layer": layer,
     "executed_test_count": len(nodes),
+    "runner_process_error_count": len(runner_process_errors),
     "required_tests": records,
     "failed_test_count": len(all_failed),
     "failed_tests_truncated": len(all_failed) > max_failed_tests,
@@ -845,6 +929,9 @@ summary = {
     "failure_diagnostic_count": len(all_failure_diagnostics),
     "failure_diagnostics_truncated": len(all_failure_diagnostics) > max_failure_diagnostics,
     "failure_diagnostics": [dict(fields) for fields in all_failure_diagnostics[:max_failure_diagnostics]],
+    "layout_diagnostic_count": len(all_layout_diagnostics),
+    "layout_diagnostics_truncated": len(all_layout_diagnostics) > max_layout_diagnostics,
+    "layout_diagnostics": [json.loads(record) for record in all_layout_diagnostics[:max_layout_diagnostics]],
     "audit_issue_count": len(all_audit_issues),
     "audit_issues_truncated": len(all_audit_issues) > max_audit_issues,
     "audit_issues": [dict(fields) for fields in all_audit_issues[:max_audit_issues]],
@@ -865,6 +952,8 @@ if durations:
     print(f"{layer}: IN_TEST_SECONDS {in_test_total:.1f} across {len(durations)} timed test(s)")
     for identifier, seconds in sorted(durations, key=lambda row: (-row[1], row[0]))[:5]:
         print(f"{layer}: SLOWEST {seconds:8.2f}s {identifier}")
+if runner_process_errors:
+    print(f"{layer}: XCUITest runner process errors {len(runner_process_errors)}")
 for stage in sorted(failure_stages):
     print(f"{layer}: FAILURE_STAGE {stage}")
 if verification_errors:
@@ -906,7 +995,8 @@ if (not truncated and count != len(diagnostics)) or (truncated and (count <= 50 
 root = pathlib.Path(mac_root).resolve()
 safe = []
 for record in diagnostics:
-    if not isinstance(record, dict) or set(record) != {"test_identifier", "assertion", "source_file", "source_line"}:
+    base_keys = {"test_identifier", "assertion", "source_file", "source_line"}
+    if not isinstance(record, dict) or set(record) not in (base_keys, base_keys | {"failure_stage"}):
         raise SystemExit(1)
     test = record.get("test_identifier")
     assertion = record.get("assertion")
@@ -924,10 +1014,19 @@ for record in diagnostics:
         raise SystemExit(1)
     if type(source_line) is not int or not 1 <= source_line <= 1_000_000:
         raise SystemExit(1)
-    safe.append((test, assertion, source_file, source_line))
+    stage = record.get("failure_stage")
+    if "failure_stage" in record:
+        allowed_zero_network_stages = {
+            "stand-in-signing", "adapter-selection", "synthetic-cas", "catalogue-readiness",
+            "materialization-save-setup", "adapter-launch", "adapter-exit", "unclassified",
+        }
+        if test != "ZeroNetworkPlayFlowTests/testWholePlayFlowRecordsZeroHTTPRequests()" or stage not in allowed_zero_network_stages:
+            raise SystemExit(1)
+    safe.append((test, assertion, source_file, source_line, stage))
 
-for test, assertion, source_file, source_line in safe:
-    print(f"{layer}: FAILURE_DIAGNOSTIC {test} {assertion} {source_file}:{source_line}")
+for test, assertion, source_file, source_line, stage in safe:
+    suffix = f" failure_stage={stage}" if stage is not None else ""
+    print(f"{layer}: FAILURE_DIAGNOSTIC {test} {assertion} {source_file}:{source_line}{suffix}")
 if truncated:
     print(f"{layer}: FAILURE_DIAGNOSTICS_TRUNCATED shown={len(safe)} total={count}")
 PY
@@ -1098,6 +1197,55 @@ run_with_deadline() {
 }
 
 LAYER_STATUS=0
+CI_SIGNING_ARGS=()
+
+configure_ci_signing() {
+  local mode="${PLAYSTEAD_MAC_CI_SIGNING_MODE:-adhoc}"
+  local team="${PLAYSTEAD_TEAM_ID:-}"
+  local -a signing=(CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=)
+  case "$mode" in
+    adhoc)
+      ;;
+    development)
+      [[ "$team" =~ ^[A-Z0-9]{5,15}$ ]] || die "local Apple Development signing needs a configured team identifier"
+      python3 - "$team" <<'PY' || die "no matching local Apple Development identity is available"
+import re, subprocess, sys
+
+team = sys.argv[1]
+result = subprocess.run(
+    ["security", "find-identity", "-v", "-p", "codesigning"],
+    check=False, capture_output=True, text=True,
+)
+if result.returncode != 0:
+    raise SystemExit(1)
+identities = re.findall(r'"(Apple Development:[^\"]+)"', result.stdout)
+for identity in identities:
+    certificate = subprocess.run(
+        ["security", "find-certificate", "-c", identity, "-p"],
+        check=False, capture_output=True,
+    )
+    if certificate.returncode != 0:
+        continue
+    subject = subprocess.run(
+        ["openssl", "x509", "-inform", "pem", "-noout", "-subject", "-nameopt", "RFC2253"],
+        input=certificate.stdout, check=False, capture_output=True,
+    )
+    if re.search(rb"OU=" + re.escape(team.encode()) + rb"(?:,|$)", subject.stdout):
+        raise SystemExit(0)
+raise SystemExit(1)
+PY
+      # Manual identity signing uses the existing local certificate only. Keep
+      # profile specifier empty so this lane never creates or updates profiles
+      # in the Apple Developer account.
+      signing=(CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="Apple Development" DEVELOPMENT_TEAM="$team" PROVISIONING_PROFILE_SPECIFIER=)
+      ;;
+    *)
+      die "unsupported local signing mode"
+      ;;
+  esac
+  CI_SIGNING_ARGS=("${signing[@]}")
+}
+
 assert_local_app_launch_authorized() {
   if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
     return 0
@@ -1150,9 +1298,11 @@ run_test_layer() {
   local result_json="${FOUR_LAYER_RAW}/${slug}-tests.json"
   local result_summary="${FOUR_LAYER_EVIDENCE}/${slug}-tests.json"
   local log="${FOUR_LAYER_RAW}/${slug}.log"
-  local signing=(CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=)
+  configure_ci_signing
+  local signing=("${CI_SIGNING_ARGS[@]}")
   local layer_settings=()
   local test_selection=(-project "$PROJECT" -scheme "$SCHEME" -testPlan "$plan" -derivedDataPath "$DERIVED_DATA")
+  local required_arguments=()
   local test_settings=(
     "${signing[@]}"
     PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT="${FOUR_LAYER_EVIDENCE}/snapshot-triplet"
@@ -1173,7 +1323,38 @@ run_test_layer() {
       MAC_CI_DATABASE_URL="$MAC_CI_DATABASE_URL"
       MIX_ENV="$MIX_ENV"
       PORT="$PORT"
+      PLAYSTEAD_TEST_LIVE_SERVER_CA_DER="$PLAYSTEAD_TEST_LIVE_SERVER_CA_DER"
+      PLAYSTEAD_TEST_LIVE_SERVER_CA_SHA256="$PLAYSTEAD_TEST_LIVE_SERVER_CA_SHA256"
+      PLAYSTEAD_TEST_LIVE_SERVER_RUNTIME_CONFIG="$LIVE_SERVER_RUNTIME_CONFIG"
+      PLAYSTEAD_SAVE_RELIABILITY_EVIDENCE_PATH=""
     )
+  fi
+
+  if [ "$slug" = "ui" ] && [ "$UI_NO_HID" = true ]; then
+    local ordinary_selector
+    while IFS= read -r ordinary_selector; do
+      [ -n "$ordinary_selector" ] && test_selection+=("-only-testing:${ordinary_selector}")
+    done < <(ui_test_selection ordinary)
+  fi
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --required-test)
+        require_value "$1" "${2:-}"
+        if [ "$slug" = "ui" ] && [ "$UI_NO_HID" = true ] && \
+           [[ "$2" == *ControllerHardwareIntegrationTests* ]]; then
+          shift 2
+          continue
+        fi
+        required_arguments+=(--required-test "$2")
+        shift 2
+        ;;
+      *) die "unknown test-layer argument: $1" ;;
+    esac
+  done
+
+  if [ "${#required_arguments[@]}" -eq 0 ]; then
+    die "layer $slug requires at least one exact required-test identity"
   fi
 
   rm -rf "$result_bundle"
@@ -1192,7 +1373,7 @@ run_test_layer() {
   fi
 
   if [ "$parse_status" -eq 0 ]; then
-    verify_layer_result "$result_json" "$slug" "$result_summary" "$@" || verify_status=$?
+    verify_layer_result "$result_json" "$slug" "$result_summary" "${required_arguments[@]}" || verify_status=$?
   else
     verify_status=1
   fi
@@ -1248,40 +1429,83 @@ PY
 }
 
 run_four_layer_verification() {
+  local mode="${1:-full}"
+  case "$mode" in
+    full|ordinary) ;;
+    *) die "unknown four-layer verification mode: $mode" ;;
+  esac
+  UI_NO_HID=false
+  local signing=(CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=)
+  if [ "$mode" = "ordinary" ]; then
+    UI_NO_HID=true
+    signing+=(PLAYSTEAD_UI_TEST_ENTITLEMENTS=PlaysteadUITests/PlaysteadUITests.no-hid.entitlements)
+  fi
+
   # Fail before build, global-default mutation, or any app launch. Unit and
   # Rendering are inert-hosted, but this aggregate also owns UI/LiveServer.
   assert_local_app_launch_authorized
-  local signing=(CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=)
   local aggregate=0 build_status=0
+  local entitled_status=""
+  if [ "$mode" = "ordinary" ]; then
+    if resolve_virtual_hid_signing; then
+      entitled_status="pending/configured"
+    else
+      local preflight_status=$?
+      if [ "$preflight_status" -eq 1 ]; then
+        entitled_status="blocked/not-configured"
+      else
+        entitled_status="failed"
+        aggregate=1
+      fi
+    fi
+  fi
   arm_keyboard_mode_cleanup
   capture_keyboard_mode
 
   rm -rf "$FOUR_LAYER_ROOT" "$DERIVED_DATA"
-  mkdir -p "$FOUR_LAYER_RAW" "$FOUR_LAYER_EVIDENCE/snapshot-triplet" "$FOUR_LAYER_EVIDENCE/storage-candidate"
+  local SWIFTPM_DIAGNOSTICS_HOME="${BUILD_ROOT}/swiftpm-diagnostics-home"
+  local SWIFT_CLANG_MODULE_CACHE="${BUILD_ROOT}/swift-clang-module-cache"
+  mkdir -p "$FOUR_LAYER_RAW" "$FOUR_LAYER_EVIDENCE/snapshot-triplet" "$FOUR_LAYER_EVIDENCE/storage-candidate" \
+    "$SWIFTPM_DIAGNOSTICS_HOME" "$SWIFT_CLANG_MODULE_CACHE"
   write_fingerprint "$FOUR_LAYER_EVIDENCE/environment-fingerprint.json"
 
   run_with_deadline 1200 "${FOUR_LAYER_RAW}/build.log" \
-    xcodebuild build-for-testing -project "$PROJECT" -scheme "$SCHEME" \
+    env "CFFIXED_USER_HOME=${SWIFTPM_DIAGNOSTICS_HOME}" \
+      "CLANG_MODULE_CACHE_PATH=${SWIFT_CLANG_MODULE_CACHE}" \
+      xcodebuild build-for-testing -project "$PROJECT" -scheme "$SCHEME" \
       -destination 'platform=macOS' -derivedDataPath "$DERIVED_DATA" \
+      -clonedSourcePackagesDirPath "${BUILD_ROOT}/SourcePackages" \
+      -packageCachePath "${BUILD_ROOT}/PackageCache" \
       "${signing[@]}" PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT="${FOUR_LAYER_EVIDENCE}/snapshot-triplet" \
       PLAYSTEAD_STORAGE_SNAPSHOT_CANDIDATE_OUTPUT="${FOUR_LAYER_EVIDENCE}/storage-candidate/storage-surfaces.actual.png" \
       PLAYSTEAD_SNAPSHOT_RECORDING=0 || build_status=$?
   if [ "$build_status" -ne 0 ]; then
-    python3 - "$FOUR_LAYER_EVIDENCE/layers.json" "$build_status" <<'PY'
+    if [ "$mode" = "ordinary" ]; then
+      write_virtual_hid_status "$FOUR_LAYER_EVIDENCE" "$entitled_status"
+    fi
+    python3 - "$FOUR_LAYER_EVIDENCE/layers.json" "$build_status" "$mode" <<'PY'
 import json, pathlib, sys
-path, status = sys.argv[1:]
-pathlib.Path(path).write_text(json.dumps({
+path, status, mode = sys.argv[1:]
+data = {
     "schema_version": 1,
     "build_count": 1,
     "automatic_retries": 0,
     "aggregate_outcome": "failed",
     "build_exit_status": int(status),
     "layers": [],
-}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+}
+if mode == "ordinary":
+    data["lane"] = "ordinary_macos_no_hid"
+    data["full_regression_gate"] = "open"
+pathlib.Path(path).write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PY
     print_build_diagnostics "${FOUR_LAYER_RAW}/build.log" build || \
       printf '%s\n' 'build: bounded compiler diagnostics unavailable'
-    "${SCRIPT_DIR}/sanitize-evidence.sh" --input "$FOUR_LAYER_ROOT" --output "$FAILURE_EVIDENCE"
+    if [ "$mode" = "ordinary" ]; then
+      "${SCRIPT_DIR}/sanitize-evidence.sh" --input "$FOUR_LAYER_ROOT" --output "${BUILD_ROOT}/ordinary-failure-evidence"
+    else
+      "${SCRIPT_DIR}/sanitize-evidence.sh" --input "$FOUR_LAYER_ROOT" --output "$FAILURE_EVIDENCE"
+    fi
     return 1
   fi
 
@@ -1321,6 +1545,23 @@ PY
     --required-test PlaysteadTests.BiosTests/testRejectionMessageQuotesTheStoreReasonVerbatim \
     --required-test PlaysteadTests.BiosTests/testEveryRejectionIsDistinguishableAndNoneIsTheGenericFallback \
     --required-test PlaysteadTests.BiosTests/testNoShippedBiosCopyAnywhereOffersAnAcquisitionPath \
+    --required-test PlaysteadTests.BiosProductionReferenceTests/testProductionLiteralsMatchThePinFile \
+    --required-test PlaysteadTests.BiosProductionReferenceTests/testAppEnvironmentProductionCompositionUsesPinnedReferences \
+    --required-test PlaysteadTests.DeterministicProfileTests/testBiosProfilesKeepSyntheticReferenceAndNoReferenceCasesDistinct \
+    --required-test PlaysteadTests.ControllerHostTests/testInputEventsOnlyUpdateTheAssignedControllerAndKnownVocabulary \
+    --required-test PlaysteadTests.ControllerHostTests/testAssignedDisconnectClearsOnlyThatControllersLiveInputs \
+    --required-test PlaysteadTests.ControllerHostTests/testGameControllerActivationThresholdIsConsistentAtBoundary \
+    --required-test PlaysteadTests.ControllerNavigationTests/testSidebarUpDownAndRightLeftHandoffUseStableIndexes \
+    --required-test PlaysteadTests.ControllerNavigationTests/testRightEntersRecentlyPlayedAtItsFirstAvailableGame \
+    --required-test PlaysteadTests.ControllerNavigationTests/testCardGridMovementFollowsRowsAndColumnsWithoutWrapping \
+    --required-test PlaysteadTests.ControllerNavigationTests/testCardGridColumnCountTracksAvailableWidth \
+    --required-test PlaysteadTests.ControllerNavigationTests/testCollectionsNavigateSidebarListAndMembersAsDistinctLevels \
+    --required-test PlaysteadTests.ControllerNavigationTests/testFirstGameCanMoveUpToFilterChipsAndBackIntoResults \
+    --required-test PlaysteadTests.ControllerNavigationTests/testCrossAndCircleMapToConfirmAndBack \
+    --required-test PlaysteadTests.ControllerNavigationTests/testHeldDirectionalAndContextInputsDoNotRepeatUntilReleased \
+    --required-test PlaysteadTests.ControllerNavigationTests/testShouldersCycleCanonicalSidebarAndUnknownInputsAreIgnored \
+    --required-test PlaysteadTests.ControllerNavigationTests/testHiddenOrUnavailableContentNeverReceivesActivationOrContextAction \
+    --required-test PlaysteadTests.ControllerNavigationTests/testKeyboardDirectionsShareTheControllerTransitionReducer \
     --required-test PlaysteadTests.ReleaseHookAbsenceTests/testScannerRejectsSeededForbiddenHookToken \
     --required-test PlaysteadTests.ReleaseHookAbsenceTests/testNonTestingReleaseBinaryAndSymbolsContainNoBootstrapProfileOrEnvironmentKey
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
@@ -1348,7 +1589,7 @@ PY
     --required-test PlaysteadUITests.CurationInteractionTests/testSidebarExposesAllFiveCurationDestinations \
     --required-test PlaysteadUITests.CurationInteractionTests/testContinueShelfRendersHonestEmptyFixture \
     --required-test PlaysteadUITests.CurationInteractionTests/testFavoritesShelfRootExists \
-    --required-test PlaysteadUITests.CurationInteractionTests/testFavoritesShelfRendersExactSeededCard \
+    --required-test PlaysteadUITests.CurationInteractionTests/testFavoritesShelfRendersExactSeededRowAndStatus \
     --required-test PlaysteadUITests.CurationInteractionTests/testCollectionsShelfRootExists \
     --required-test PlaysteadUITests.CurationInteractionTests/testCollectionsShelfRendersExactSeededRoute \
     --required-test PlaysteadUITests.CurationInteractionTests/testQueueShelfRendersHonestEmptyFixture \
@@ -1368,7 +1609,7 @@ PY
     --required-test PlaysteadUITests.StorageInteractionTests/testDownloadsPauseResumeFlow \
     --required-test PlaysteadUITests.StorageInteractionTests/testQuotaEditAndFocusRestoration \
     --required-test PlaysteadUITests.StorageInteractionTests/testReclaimRouteSettlesToUniqueDownloadTrigger \
-    --required-test PlaysteadUITests.StorageInteractionTests/testReclaimRouteKeyboardFocusOwnsUniqueDownloadTrigger \
+    --required-test PlaysteadUITests.StorageInteractionTests/testReclaimRouteArrowSelectionTargetsUniqueDownloadTrigger \
     --required-test PlaysteadUITests.StorageInteractionTests/testReclaimRouteDirectActivationDispatchesQuotaEffect \
     --required-test PlaysteadUITests.StorageInteractionTests/testReclaimRouteActivationDispatchesQuotaEffect \
     --required-test PlaysteadUITests.StorageInteractionTests/testReclaimPromptPresentsProductionRoot \
@@ -1393,6 +1634,10 @@ PY
     --required-test PlaysteadUITests.StorageInteractionTests/testStorageInventoryProtectsPinnedCopy \
     --required-test PlaysteadUITests.BiosRejectionCopyTests/testRejectedDropRendersTheStoresExactReasonAsVisibleCopy \
     --required-test PlaysteadUITests.BiosRejectionCopyTests/testAnUnusableCandidatePathLeavesTheSurfaceUntouchedRatherThanShowingAGenericFailure \
+    --required-test PlaysteadUITests.BiosAcceptanceSeamTests/testFixedSyntheticReferenceAcceptsThroughPackagedAppAndPersistsExactly \
+    --required-test PlaysteadUITests.BiosAcceptanceSeamTests/testSameLengthWrongDigestIsRejectedWithoutManagedResidue \
+    --required-test PlaysteadUITests.BiosAcceptanceSeamTests/testOneByteShortCandidateIsRejectedWithoutManagedResidue \
+    --required-test PlaysteadUITests.BiosAcceptanceSeamTests/testOneByteLongCandidateIsRejectedWithoutManagedResidue \
     --required-test PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit \
 	--required-test PlaysteadUITests.ControllerHardwareIntegrationTests/testEntitledVirtualGamepadEnumeratesDetachesAndReconnectsWithoutRelaunch \
     --required-test PlaysteadUITests.LibraryEmptyStateTests/testListLayoutSearchWithNoMatchesShowsTheContractCopyNotThePairingPrompt \
@@ -1414,35 +1659,45 @@ PY
     --required-test PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch \
     --required-test PlaysteadUITests.SaveRestoreProofTests/testCapturedRevisionRestoresToByteIdenticalArtifactInLaunchDir \
     --required-test PlaysteadUITests.SaveEndToEndTests/testOneSaveRoundTripsCaptureUploadAndJournalReturn \
-    --required-test PlaysteadUITests.PairingCeremonyTests/testAHumanCanPairAFreshMacEntirelyFromInsideTheAppAgainstTheRealServer
+    --required-test PlaysteadUITests.PairingCeremonyTests/testAHumanCanPairAFreshMacEntirelyFromInsideTheAppAgainstTheRealServer \
+    --required-test PlaysteadUITests.RecoveryKnownPlayableTests/testRecoveryHarnessRefusesSyntheticFixtureWithoutAnIsolatedTarget
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
   restore_live_server_xctestrun
   cleanup_live_server_runtime_config
   cleanup_native_services
   trap restore_keyboard_mode EXIT
 
-  if [ "$aggregate" -eq 0 ]; then
+  if [ "$aggregate" -eq 0 ] && [ "$mode" = "full" ]; then
     write_complete_verification_evidence || aggregate=1
   fi
 
-  python3 - "$FOUR_LAYER_EVIDENCE/layers.json" "$aggregate" <<'PY'
+  python3 - "$FOUR_LAYER_EVIDENCE/layers.json" "$aggregate" "$mode" <<'PY'
 import json, pathlib, sys
-path, aggregate = sys.argv[1:]
+path, aggregate, mode = sys.argv[1:]
 root = pathlib.Path(path).parent
 layers = []
 for name in ("reachability", "unit", "rendering", "ui", "live-server"):
     candidate = root / f"{name}-tests.json"
     layers.append(json.loads(candidate.read_text()) if candidate.exists() else {"layer": name, "missing": True})
-pathlib.Path(path).write_text(json.dumps({
+data = {
     "schema_version": 1,
     "build_count": 1,
     "automatic_retries": 0,
     "aggregate_outcome": "passed" if aggregate == "0" else "failed",
     "layers": layers,
-}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+}
+if mode == "ordinary":
+    data["lane"] = "ordinary_macos_no_hid"
+    data["full_regression_gate"] = "open"
+pathlib.Path(path).write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PY
 
-  if [ "$aggregate" -ne 0 ]; then
+  if [ "$mode" = "ordinary" ]; then
+    write_virtual_hid_status "$FOUR_LAYER_EVIDENCE" "$entitled_status"
+    local ordinary_evidence="${BUILD_ROOT}/ordinary-evidence"
+    [ "$aggregate" -eq 0 ] || ordinary_evidence="${BUILD_ROOT}/ordinary-failure-evidence"
+    "${SCRIPT_DIR}/sanitize-evidence.sh" --input "$FOUR_LAYER_ROOT" --output "$ordinary_evidence" || aggregate=1
+  elif [ "$aggregate" -ne 0 ]; then
     "${SCRIPT_DIR}/sanitize-evidence.sh" --input "$FOUR_LAYER_ROOT" --output "$FAILURE_EVIDENCE" || aggregate=1
   else
     rm -rf "$FAILURE_EVIDENCE"
@@ -1499,25 +1754,19 @@ cleanup_native_services() {
   local cleanup_ok=true
   local server_root=""
   [ -z "$NATIVE_ROOT" ] || server_root="$NATIVE_ROOT/app"
-  # Untrust runs before the rest of teardown, and before $NATIVE_ROOT is
-  # removed below -- mac-ci-tls.sh reads the CA out of <server_root>/tls, so
-  # this must be the first thing cleanup does with that directory still
-  # present. Reached through the already-armed EXIT trap on every failure
-  # path, not only the happy one (T-04.5-08).
-  if [ -n "$server_root" ] && [ -d "$server_root/tls" ]; then
-    if ! "${SCRIPT_DIR}/mac-ci-tls.sh" untrust "$server_root"; then
-      printf 'cleanup_native_services: mac-ci-tls untrust failed -- a trusted root may remain in the System keychain\n' >&2
-      cleanup_ok=false
-    fi
-  fi
   if [ -n "$PHOENIX_PID" ] && kill -0 "$PHOENIX_PID" 2>/dev/null; then
     kill "$PHOENIX_PID" 2>/dev/null || cleanup_ok=false
     wait "$PHOENIX_PID" 2>/dev/null || true
   fi
-  if [ -n "$PG_CTL" ] && [ -n "$PGDATA" ] && [ -d "$PGDATA" ]; then
+  if [ -n "$PG_CTL" ] && [ -n "$PGDATA" ] && [ -d "$PGDATA" ] && \
+      [ -f "$PGDATA/postmaster.pid" ]; then
+    # A failed pg_ctl start can leave an initialized data directory without a
+    # server. Do not turn that expected state into a cleanup failure. If the
+    # run-owned PID file exists, however, require pg_ctl's waited shutdown to
+    # succeed before deleting any of the owned service root.
     "$PG_CTL" -D "$PGDATA" -m fast -w stop >/dev/null 2>&1 || cleanup_ok=false
   fi
-  if [ -n "$NATIVE_ROOT" ] && [ -d "$NATIVE_ROOT" ]; then
+  if [ "$cleanup_ok" = true ] && [ -n "$NATIVE_ROOT" ] && [ -d "$NATIVE_ROOT" ]; then
     rm -rf "$NATIVE_ROOT"
   fi
   if [ -f "$ADOPTION_EVIDENCE" ]; then
@@ -1543,8 +1792,13 @@ start_native_services() {
   pg_prefix="$(brew --prefix postgresql@17)"
   pg_bin="$pg_prefix/bin"
   PG_CTL="$pg_bin/pg_ctl"
-  pg_port=55432
+  # Avoid colliding with an unrelated local PostgreSQL service. Keep the
+  # selected loopback port run-scoped through createdb and the Phoenix URL.
+  pg_port="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')"
+  [[ "$pg_port" =~ ^[1-9][0-9]{0,4}$ ]] && (( pg_port <= 65535 )) || \
+    die "native PostgreSQL port selection failed"
   pg_user="$(id -un)"
+  mkdir -p "$FOUR_LAYER_RAW"
   NATIVE_ROOT="${FOUR_LAYER_RAW}/native-services"
   [ ! -e "$NATIVE_ROOT" ] || die "native service root already exists"
   mkdir -m 0700 "$NATIVE_ROOT"
@@ -1557,16 +1811,22 @@ start_native_services() {
     "$server_root/mac-client-control"
   chmod 0700 "$NATIVE_ROOT" "$server_root" "$server_root/mac-client-control"
 
-  # Provision and trust this run's own TLS material before Phoenix ever binds
-  # 4010 -- there must be no window in which the runner could serve plaintext.
-  # Each call gets its own die message so a hosted failure names which of the
-  # two steps died (issue vs. trust) rather than a shared, ambiguous line.
+  # Provision this run's own TLS material before Phoenix binds 4010. The app
+  # receives the CA only for the isolated LiveServer pairing test.
   "${SCRIPT_DIR}/mac-ci-tls.sh" issue "$server_root" || die "mac-ci-tls issue failed"
-  "${SCRIPT_DIR}/mac-ci-tls.sh" trust "$server_root" || die "mac-ci-tls trust failed"
+  export PLAYSTEAD_TEST_LIVE_SERVER_CA_SHA256="$(shasum -a 256 "$server_root/tls/ca.der" | awk '{print $1}')"
 
   "$pg_bin/initdb" -D "$PGDATA" --auth=trust --no-locale --encoding=UTF8 >/dev/null
-  "$PG_CTL" -D "$PGDATA" -l "$NATIVE_ROOT/postgres.log" \
-    -o "-h 127.0.0.1 -p $pg_port" -w start >/dev/null
+  if ! "$PG_CTL" -D "$PGDATA" -l "$NATIVE_ROOT/postgres.log" \
+      -o "-h 127.0.0.1 -p $pg_port" -w start >/dev/null; then
+    local startup_category
+    startup_category="$(python3 "${SCRIPT_DIR}/classify-postgres-startup.py" "$NATIVE_ROOT/postgres.log")" || startup_category="unknown"
+    case "$startup_category" in
+      shared_memory|port_binding|permission|resource_exhaustion|config_or_data|log_missing|unknown) ;;
+      *) startup_category="unknown" ;;
+    esac
+    die "native PostgreSQL startup failed category=${startup_category}"
+  fi
   "$pg_bin/createdb" -h 127.0.0.1 -p "$pg_port" playstead_mac_ci
 
   export MIX_ENV=mac_ci
@@ -1574,6 +1834,7 @@ start_native_services() {
   export PLAYSTEAD_MAC_CI_ROOT="$server_root"
   export PLAYSTEAD_LIVE_SERVER_STAGE_ROOT="$server_root"
   export PLAYSTEAD_LIVE_SERVER_STAGE_FILE="$server_root/live-server-failure-stage"
+  export PLAYSTEAD_TEST_LIVE_SERVER_CA_DER="$server_root/tls/ca.der"
   export MAC_CI_DATABASE_URL="ecto://${pg_user}@127.0.0.1:${pg_port}/playstead_mac_ci"
 
   # Dependency compilation and migrations can exceed the server readiness
@@ -1584,7 +1845,6 @@ start_native_services() {
     mix deps.get
     mix ecto.migrate
   ) >"$NATIVE_ROOT/bootstrap.log" 2>&1; then
-    tail -n 120 "$NATIVE_ROOT/bootstrap.log" >&2
     die "native Phoenix bootstrap failed"
   fi
 
@@ -1595,26 +1855,71 @@ start_native_services() {
   PHOENIX_PID=$!
 
   local ready=false
+  local last_probe_category=unknown
   for _ in $(seq 1 60); do
     # No plaintext fallback: this probe validates against the run's own CA, so
     # a TLS misconfiguration surfaces through the existing deadline/exited
     # exit paths below rather than a python try/except swallowing it forever.
-    if python3 -c 'import ssl, sys, urllib.request
-context = ssl.create_default_context(cafile=sys.argv[1])
-r = urllib.request.urlopen("https://127.0.0.1:4010/healthz", timeout=1, context=context)
-raise SystemExit(0 if r.status == 200 else 1)' "$server_root/tls/ca.pem" 2>/dev/null; then
+    local probe_status=0
+    if python3 - "$server_root/tls/ca.pem" 2>/dev/null <<'PY'
+import socket, ssl, sys, urllib.error, urllib.request
+
+try:
+    context = ssl.create_default_context(cafile=sys.argv[1])
+    response = urllib.request.urlopen("https://127.0.0.1:4010/healthz", timeout=1, context=context)
+    raise SystemExit(0 if response.status == 200 else 16)
+except ssl.SSLCertVerificationError as error:
+    detail = (getattr(error, "verify_message", "") or "").lower()
+    raise SystemExit(11 if "hostname" in detail or "ip address" in detail else 10)
+except ssl.SSLError as error:
+    detail = (getattr(error, "reason", "") or "").lower()
+    if "protocol" in detail or "version" in detail:
+        raise SystemExit(12)
+    if "cipher" in detail or "signature" in detail or "key share" in detail:
+        raise SystemExit(13)
+    if "handshake" in detail:
+        raise SystemExit(14)
+    raise SystemExit(16)
+except urllib.error.URLError as error:
+    reason = error.reason
+    if isinstance(reason, socket.gaierror):
+        raise SystemExit(11)
+    if isinstance(reason, (ConnectionRefusedError, TimeoutError, socket.timeout)):
+        raise SystemExit(15)
+    raise SystemExit(16)
+except (ConnectionRefusedError, TimeoutError, socket.timeout):
+    raise SystemExit(15)
+except Exception:
+    raise SystemExit(16)
+PY
+    then
       ready=true
       break
+    else
+      probe_status=$?
+      last_probe_category="$(python3 "${SCRIPT_DIR}/classify-phoenix-health-exit.py" "$probe_status")" || last_probe_category="unknown"
     fi
     if ! kill -0 "$PHOENIX_PID" 2>/dev/null; then
-      tail -n 120 "$NATIVE_ROOT/phoenix.log" >&2
-      die "native Phoenix exited before health"
+      local phoenix_category
+      phoenix_category="$(python3 "${SCRIPT_DIR}/classify-phoenix-startup.py" "$NATIVE_ROOT/phoenix.log" exited)" || phoenix_category="unknown"
+      case "$phoenix_category" in
+        listener|db_connection|endpoint_name|certificate_trust|protocol|cipher|handshake|runtime_exit|readiness_timeout|log_missing|unknown) ;;
+        *) phoenix_category="unknown" ;;
+      esac
+      case "$phoenix_category" in runtime_exit|readiness_timeout|unknown) phoenix_category="$last_probe_category" ;; esac
+      die "native Phoenix exited before health category=${phoenix_category}"
     fi
     sleep 1
   done
   if [ "$ready" != true ]; then
-    tail -n 120 "$NATIVE_ROOT/phoenix.log" >&2
-    die "native Phoenix health deadline exceeded"
+    local phoenix_category
+    phoenix_category="$(python3 "${SCRIPT_DIR}/classify-phoenix-startup.py" "$NATIVE_ROOT/phoenix.log" deadline)" || phoenix_category="unknown"
+    case "$phoenix_category" in
+      listener|db_connection|endpoint_name|certificate_trust|protocol|cipher|handshake|runtime_exit|readiness_timeout|log_missing|unknown) ;;
+      *) phoenix_category="unknown" ;;
+    esac
+    case "$phoenix_category" in readiness_timeout|unknown) phoenix_category="$last_probe_category" ;; esac
+    die "native Phoenix health deadline exceeded category=${phoenix_category}"
   fi
 }
 
@@ -1753,7 +2058,10 @@ run_contract_self_tests() {
   for test_script in "${SCRIPT_DIR}"/tests/*.sh; do
     [ -f "$test_script" ] || continue
     printf 'contract: %s\n' "$(basename "$test_script")"
-    "$test_script" || failed=1
+    if ! "$test_script"; then
+      printf 'contract failed: %s\n' "$(basename "$test_script")" >&2
+      failed=1
+    fi
   done
 
   # In-process validators whose meta-tests need no hosted evidence.
@@ -1762,20 +2070,32 @@ run_contract_self_tests() {
   # 17-fixture rejection meta-test can run, and that is what keeps it honest;
   # without it the validator is unexercised code that would rot unnoticed.
   printf 'contract: complete hosted-run validator fixtures\n'
-  run_complete_hosted_self_tests || failed=1
+  if ! run_complete_hosted_self_tests; then
+    printf 'contract failed: complete hosted-run validator fixtures\n' >&2
+    failed=1
+  fi
   printf 'contract: cross-layer UAT allowlist anchors\n'
-  verify_required_uat_allowlist || failed=1
+  if ! verify_required_uat_allowlist; then
+    printf 'contract failed: cross-layer UAT allowlist anchors\n' >&2
+    failed=1
+  fi
 
   # The validator's own unit tests. `unittest` is stdlib on purpose -- a gate
   # that needs an uninstalled third-party runner is a gate that does not run.
   printf 'contract: validator unit tests\n'
-  ( cd "${SCRIPT_DIR}/tests" && python3 -m unittest discover -s . -p 'test_*.py' -q ) || failed=1
+  if ! ( cd "${SCRIPT_DIR}/tests" && python3 -m unittest discover -s . -p 'test_*.py' -q ); then
+    printf 'contract failed: validator unit tests\n' >&2
+    failed=1
+  fi
 
   # The validator itself, against the real artifacts it exists to protect.
   printf 'contract: phase-3 UAT/roadmap evidence boundaries\n'
   python3 "${SCRIPT_DIR}/validate-phase-3-uat-evidence.py" \
     --uat "${REPO_ROOT}/.planning/phases/03-mac-offline-play-vertical-slice/03-UAT.md" \
-    --roadmap "${REPO_ROOT}/.planning/ROADMAP.md" || failed=1
+    --roadmap "${REPO_ROOT}/.planning/ROADMAP.md" || {
+      printf 'contract failed: phase-3 UAT/roadmap evidence boundaries\n' >&2
+      failed=1
+    }
 
   [ "$failed" -eq 0 ] || die "one or more static contract guards failed"
   printf 'all static contract guards passed\n'
@@ -1822,7 +2142,7 @@ base_manifest = {
         {"layer": "unit", "executed_test_count": 1, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadTests.PlaySessionTests/test_launchSucceedsIndependentlyOfPlaySessionRecording")]},
         {"layer": "rendering", "executed_test_count": 1, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadTests.LibraryContractSnapshotTests/testCardAndStatusVisualContract")]},
         {"layer": "ui", "executed_test_count": 2, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit"), required("PlaysteadUITests.ControllerHardwareIntegrationTests/testEntitledVirtualGamepadEnumeratesDetachesAndReconnectsWithoutRelaunch")]},
-        {"layer": "live-server", "executed_test_count": 2, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch"), required("PlaysteadUITests.PairingCeremonyTests/testAHumanCanPairAFreshMacEntirelyFromInsideTheAppAgainstTheRealServer")]},
+        {"layer": "live-server", "executed_test_count": 3, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch"), required("PlaysteadUITests.PairingCeremonyTests/testAHumanCanPairAFreshMacEntirelyFromInsideTheAppAgainstTheRealServer"), required("PlaysteadUITests.RecoveryKnownPlayableTests/testRecoveryHarnessRefusesSyntheticFixtureWithoutAnIsolatedTarget")]},
     ],
 }
 
@@ -1903,6 +2223,138 @@ verify_four_layer_topology() {
   "${SCRIPT_DIR}/tests/four-layer-topology-test.sh"
 }
 
+ui_test_selection() {
+  local mode="$1"
+  case "$mode" in
+    ordinary|entitled) ;;
+    *) die "unknown UI selection mode: $mode" ;;
+  esac
+  python3 - "$MAC_ROOT/TestPlans/UI.xctestplan" "$mode" <<'PY'
+import json, pathlib, sys
+
+plan_path, mode = sys.argv[1:]
+plan = json.loads(pathlib.Path(plan_path).read_text(encoding="utf-8"))
+virtual_class = "ControllerHardwareIntegrationTests"
+virtual_test = "ControllerHardwareIntegrationTests/testEntitledVirtualGamepadEnumeratesDetachesAndReconnectsWithoutRelaunch"
+selected = [
+    (target.get("target", {}).get("name"), test)
+    for target in plan.get("testTargets", [])
+    if isinstance(target, dict)
+    for test in target.get("selectedTests", [])
+    if isinstance(test, str)
+]
+if mode == "ordinary":
+    for target, test in selected:
+        if target != "PlaysteadUITests":
+            continue
+        if test.split("/", 1)[0] == virtual_class:
+            continue
+        print(f"{target}/{test.removesuffix('()')}")
+else:
+    if ("PlaysteadUITests", virtual_class) not in selected:
+        raise SystemExit("the entitled virtual-gamepad class is not registered in UI.xctestplan")
+    print(f"PlaysteadUITests/{virtual_test}")
+PY
+}
+
+resolve_virtual_hid_signing() {
+  mkdir -p "$VIRTUAL_HID_PRIVATE_ROOT"
+  chmod 700 "$VIRTUAL_HID_PRIVATE_ROOT"
+  local temporary="${VIRTUAL_HID_SETTINGS}.tmp"
+  local resolver_log="${VIRTUAL_HID_PRIVATE_ROOT}/preflight.log"
+  local status=0
+  python3 - "$HOME/Library/MobileDevice/Provisioning Profiles" \
+    "$MAC_ROOT/PlaysteadUITests/PlaysteadUITests.entitlements" \
+    "dev.playstead.mac.PlaysteadUITests" <<'PY' >"$temporary" 2>"$resolver_log" || status=$?
+import datetime, glob, json, pathlib, plistlib, subprocess, sys
+
+profile_root, entitlement_path, bundle_id = sys.argv[1:]
+try:
+    entitlement = plistlib.loads(pathlib.Path(entitlement_path).read_bytes())
+    required_entitlement = "com.apple.developer.hid.virtual.device"
+    if entitlement.get(required_entitlement) is not True:
+        raise SystemExit(2)
+    identity_result = subprocess.run(
+        ["security", "find-identity", "-v", "-p", "codesigning"],
+        check=False, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+    )
+    if identity_result.returncode != 0:
+        raise SystemExit(2)
+    identities = identity_result.stdout
+    matches = {}
+    for profile_path in sorted(glob.glob(str(pathlib.Path(profile_root) / "*.mobileprovision"))):
+        decoded = subprocess.run(
+            ["security", "cms", "-D", "-i", profile_path],
+            check=False, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        )
+        if decoded.returncode != 0:
+            continue
+        try:
+            profile = plistlib.loads(decoded.stdout)
+        except Exception:
+            continue
+        profile_entitlements = profile.get("Entitlements", {})
+        team_ids = profile.get("TeamIdentifier", [])
+        uuid = profile.get("UUID")
+        expires = profile.get("ExpirationDate")
+        app_identifier = profile_entitlements.get("application-identifier")
+        if isinstance(expires, datetime.datetime) and expires.tzinfo is None:
+            expires = expires.replace(tzinfo=datetime.timezone.utc)
+        if (not isinstance(team_ids, list) or len(team_ids) != 1 or
+                not isinstance(uuid, str) or not isinstance(expires, datetime.datetime) or
+                expires <= datetime.datetime.now(datetime.timezone.utc) or
+                profile_entitlements.get(required_entitlement) is not True):
+            continue
+        team = team_ids[0]
+        if not isinstance(team, str) or not any(
+            team in line and "Apple Development:" in line
+            for line in identities.splitlines()
+        ):
+            continue
+        if app_identifier not in {f"{team}.{bundle_id}", f"{team}.*"}:
+            continue
+        matches[(team, uuid)] = {"team": team, "profile_uuid": uuid}
+    if len(matches) != 1:
+        print(json.dumps({"status": "not-configured"}, sort_keys=True))
+        raise SystemExit(1)
+    print(json.dumps({"status": "configured", **next(iter(matches.values()))}, sort_keys=True))
+except SystemExit:
+    raise
+except Exception:
+    raise SystemExit(2)
+PY
+  if [ "$status" -ne 0 ] && [ "$status" -ne 1 ]; then
+    rm -f "$temporary"
+    return 2
+  fi
+  chmod 600 "$temporary"
+  mv -f "$temporary" "$VIRTUAL_HID_SETTINGS"
+  [ "$status" -eq 0 ]
+}
+
+write_virtual_hid_status() {
+  local evidence_root="$1"
+  local status="$2"
+  local output="${evidence_root}/entitled-gamepad.json"
+  case "$status" in
+    blocked/not-configured|pending/configured|passed|failed) ;;
+    *) die "invalid virtual-gamepad evidence status" ;;
+  esac
+  python3 - "$output" "$status" <<'PY'
+import json, pathlib, sys
+
+path, status = sys.argv[1:]
+data = {
+    "schema_version": 1,
+    "lane": "virtual_gamepad",
+    "test_identifier": "PlaysteadUITests.ControllerHardwareIntegrationTests/testEntitledVirtualGamepadEnumeratesDetachesAndReconnectsWithoutRelaunch",
+    "status": status,
+    "gate_passed": status == "passed",
+}
+pathlib.Path(path).write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
+}
+
 verify_topology() {
   "${SCRIPT_DIR}/tests/wave-0-topology-test.sh"
 }
@@ -1911,37 +2363,211 @@ run_selected_layer_tests() {
   local layer="$1"
   shift
   case "$layer" in
-    rendering|ui) ;;
-    *) die "targeted verification supports only rendering or ui" ;;
+    rendering|ui|live-server) ;;
+    *) die "targeted verification supports rendering, ui, or live-server" ;;
   esac
   [ "${1:-}" = "--only-testing" ] || die "--layers $layer requires --only-testing TEST"
   shift
   [ "$#" -gt 0 ] || die "--only-testing requires at least one test identifier"
 
-  local selected_root="${BUILD_ROOT}/selected-${layer}"
   local test_plan="Rendering"
   [ "$layer" != "ui" ] || test_plan="UI"
-  [ "$layer" != "ui" ] || assert_local_app_launch_authorized
+  [ "$layer" != "live-server" ] || test_plan="LiveServer"
+  [ "$layer" = "rendering" ] || assert_local_app_launch_authorized
   if [ "$layer" = "ui" ]; then
     arm_keyboard_mode_cleanup
     capture_keyboard_mode
   fi
-  local signing=(CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=)
   local only_testing=()
+  local required_tests=()
+  local requires_virtual_hid=false
   while [ "$#" -gt 0 ]; do
+    case "$1" in
+      *ControllerHardwareIntegrationTests*) requires_virtual_hid=true ;;
+      PlaysteadUITests) requires_virtual_hid=true ;;
+    esac
     only_testing+=("-only-testing:$1")
+    required_tests+=(--required-test "${1%%/*}.${1#*/}")
     shift
   done
+  configure_ci_signing
+  local signing=("${CI_SIGNING_ARGS[@]}")
+  if [ "$requires_virtual_hid" = true ] && [ "${PLAYSTEAD_MAC_CI_SIGNING_MODE:-adhoc}" = "development" ]; then
+    die "local Apple Development signing cannot run the virtual HID test selection"
+  fi
+  if [ "$layer" != "rendering" ] && [ "$requires_virtual_hid" = false ]; then
+    signing+=("PLAYSTEAD_UI_TEST_ENTITLEMENTS=PlaysteadUITests/PlaysteadUITests.no-hid.entitlements")
+  fi
 
-  mkdir -p "$selected_root"
-  xcodebuild test -project "$PROJECT" -scheme "$SCHEME" -testPlan "$test_plan" \
-    -destination 'platform=macOS' -derivedDataPath "$selected_root" \
-    "${signing[@]}" "${only_testing[@]}"
+  [[ "$BUILD_ROOT" = /* ]] || die "temporary build root must be an absolute path"
+  mkdir -p "$BUILD_ROOT"
+  local selected_root
+  selected_root="$(mktemp -d "${BUILD_ROOT}/selected-${layer}.XXXXXX")"
+  local selected_raw="${selected_root}/raw"
+  local selected_evidence="${selected_root}/evidence"
+  local selected_sanitized="${selected_root}/sanitized"
+  local result_bundle="${selected_raw}/${layer}.xcresult"
+  local result_json="${selected_raw}/${layer}-tests.json"
+  local result_log="${selected_raw}/${layer}.log"
+  local result_summary="${selected_evidence}/${layer}-tests.json"
+  local package_settings=(
+    -clonedSourcePackagesDirPath "${BUILD_ROOT}/SourcePackages"
+    -packageCachePath "${BUILD_ROOT}/PackageCache"
+    -disableAutomaticPackageResolution
+  )
+  mkdir -p "$selected_raw" "$selected_evidence"
+  chmod 0700 "$selected_root" "$selected_raw" "$selected_evidence"
+  local layer_settings=()
+  if [ "$layer" = "live-server" ]; then
+    trap 'cleanup_live_server_runtime_config; cleanup_native_services' EXIT
+    start_native_services
+    prepare_live_server_failure_stage
+    materialize_live_server_runtime_config
+    layer_settings=(
+      PLAYSTEAD_MAC_CI_ROOT="$PLAYSTEAD_MAC_CI_ROOT"
+      PLAYSTEAD_LIVE_SERVER_STAGE_ROOT="$PLAYSTEAD_LIVE_SERVER_STAGE_ROOT"
+      PLAYSTEAD_LIVE_SERVER_STAGE_FILE="$PLAYSTEAD_LIVE_SERVER_STAGE_FILE"
+      MAC_CI_DATABASE_URL="$MAC_CI_DATABASE_URL"
+      MIX_ENV="$MIX_ENV"
+      PORT="$PORT"
+      PLAYSTEAD_TEST_LIVE_SERVER_CA_DER="$PLAYSTEAD_TEST_LIVE_SERVER_CA_DER"
+      PLAYSTEAD_TEST_LIVE_SERVER_CA_SHA256="$PLAYSTEAD_TEST_LIVE_SERVER_CA_SHA256"
+      PLAYSTEAD_TEST_LIVE_SERVER_RUNTIME_CONFIG="$LIVE_SERVER_RUNTIME_CONFIG"
+      PLAYSTEAD_SAVE_RELIABILITY_EVIDENCE_PATH="${selected_evidence}/save-reliability.json"
+    )
+  fi
+  local xcode_status=0 parse_status=0 verify_status=0 sanitize_status=0
+  GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_TERMINAL_PROMPT=0 \
+  run_with_deadline 1200 "$result_log" \
+    xcodebuild test -project "$PROJECT" -scheme "$SCHEME" -testPlan "$test_plan" \
+      "${package_settings[@]}" -destination 'platform=macOS' -derivedDataPath "$DERIVED_DATA" \
+      -resultBundlePath "$result_bundle" "${signing[@]}" ${layer_settings[@]+"${layer_settings[@]}"} "${only_testing[@]}" || xcode_status=$?
+
+  if [ -d "$result_bundle" ]; then
+    xcrun xcresulttool get test-results tests --path "$result_bundle" --compact \
+      >"$result_json" 2>"${selected_raw}/xcresulttool.log" || parse_status=$?
+  else
+    parse_status=1
+    printf '%s\n' "$layer: result bundle is missing" >"${selected_raw}/xcresulttool.log"
+  fi
+
+  if [ "$parse_status" -eq 0 ]; then
+    verify_layer_result "$result_json" "$layer" "$result_summary" \
+      "${required_tests[@]}" 2>"${selected_raw}/verification.log" || verify_status=$?
+  else
+    verify_status=1
+  fi
+
+  "${SCRIPT_DIR}/sanitize-evidence.sh" --input "$selected_root" --output "$selected_sanitized" \
+    >"${selected_raw}/sanitizer.log" 2>&1 || sanitize_status=$?
+
+  if [ "$layer" = "live-server" ]; then
+    cleanup_live_server_runtime_config
+    cleanup_native_services
+    trap - EXIT
+  fi
+
+  if [ "$xcode_status" -ne 0 ] || [ "$parse_status" -ne 0 ] || \
+     [ "$verify_status" -ne 0 ] || [ "$sanitize_status" -ne 0 ]; then
+    printf '%s\n' "$layer: FAILED (xcode=$xcode_status parse=$parse_status verify=$verify_status sanitize=$sanitize_status)" >&2
+    if [ "$xcode_status" -ne 0 ]; then
+      local xcode_category
+      xcode_category="$(python3 "${SCRIPT_DIR}/classify-xcode-failure.py" "$result_log")" || xcode_category="unknown"
+      case "$xcode_category" in
+        compile|signing|package_resolution|test_plan_selection|simulator_runner|unknown|log_missing) ;;
+        *) xcode_category="unknown" ;;
+      esac
+      printf '%s: XCODE_FAILURE_CATEGORY %s\n' "$layer" "$xcode_category" >&2
+    fi
+    if [ -s "${selected_raw}/verification.log" ]; then
+      sed -n '1,80p' "${selected_raw}/verification.log" >&2 || true
+    fi
+    if [ -s "${selected_raw}/sanitizer.log" ]; then
+      sed -n '1,80p' "${selected_raw}/sanitizer.log" >&2 || true
+    fi
+    return 1
+  fi
+  printf '%s: PASSED; sanitized evidence retained under .build/ci/%s\n' "$layer" "${selected_sanitized#"$BUILD_ROOT"/}"
 
   if [ "$layer" = "ui" ]; then
     restore_keyboard_mode
     trap - EXIT
   fi
+}
+
+run_entitled_virtual_gamepad_verification() {
+  mkdir -p "$VIRTUAL_HID_ROOT"
+  local run_root
+  run_root="$(mktemp -d "${VIRTUAL_HID_ROOT}/run.XXXXXX")"
+  local raw_root="${run_root}/raw"
+  local evidence_root="${run_root}/evidence"
+  local sanitized_root="${VIRTUAL_HID_ROOT}/sanitized"
+  local signing_file="${VIRTUAL_HID_SETTINGS}"
+  local result_bundle="${raw_root}/virtual-gamepad.xcresult"
+  local result_json="${raw_root}/virtual-gamepad-tests.json"
+  local result_summary="${evidence_root}/ui-tests.json"
+  local log="${raw_root}/virtual-gamepad.log"
+  mkdir -p "$raw_root" "$evidence_root"
+
+  local preflight_status=0
+  if resolve_virtual_hid_signing; then
+    :
+  else
+    preflight_status=$?
+    if [ "$preflight_status" -ne 1 ]; then
+      die "virtual-gamepad signing preflight failed; details remain in ignored local evidence"
+    fi
+    write_virtual_hid_status "$evidence_root" "blocked/not-configured"
+    "${SCRIPT_DIR}/sanitize-evidence.sh" --input "$run_root" --output "$sanitized_root"
+    printf '%s\n' 'virtual gamepad: blocked/not-configured (no matching local profile and Apple Development identity)'
+    return 77
+  fi
+
+  assert_local_app_launch_authorized
+  local team profile_uuid
+  team="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["team"])' "$signing_file")"
+  profile_uuid="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["profile_uuid"])' "$signing_file")"
+  local selector
+  selector="$(ui_test_selection entitled)"
+  local xcode_status=0 parse_status=0 verify_status=0 sanitize_status=0
+  run_with_deadline 1800 "$log" \
+    xcodebuild test -project "$PROJECT" -scheme "$SCHEME" -testPlan UI \
+      -destination 'platform=macOS' -derivedDataPath "${run_root}/DerivedData" \
+      -resultBundlePath "$result_bundle" "-only-testing:${selector}" \
+      CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="Apple Development" \
+      DEVELOPMENT_TEAM="$team" PROVISIONING_PROFILE_SPECIFIER="$profile_uuid" \
+      PLAYSTEAD_UI_TEST_ENTITLEMENTS=PlaysteadUITests/PlaysteadUITests.entitlements || xcode_status=$?
+
+  if [ -d "$result_bundle" ]; then
+    xcrun xcresulttool get test-results tests --path "$result_bundle" --compact \
+      >"$result_json" 2>"${raw_root}/xcresulttool.log" || parse_status=$?
+  else
+    parse_status=1
+    printf '%s\n' 'virtual-gamepad: result bundle is missing' >"${raw_root}/xcresulttool.log"
+  fi
+  if [ "$parse_status" -eq 0 ]; then
+    verify_layer_result "$result_json" ui "$result_summary" \
+      --required-test PlaysteadUITests.ControllerHardwareIntegrationTests/testEntitledVirtualGamepadEnumeratesDetachesAndReconnectsWithoutRelaunch \
+      2>"${raw_root}/verification.log" || verify_status=$?
+  else
+    verify_status=1
+  fi
+  local status="passed"
+  if [ "$xcode_status" -ne 0 ] || [ "$parse_status" -ne 0 ] || [ "$verify_status" -ne 0 ]; then
+    status="failed"
+  fi
+  write_virtual_hid_status "$evidence_root" "$status"
+  "${SCRIPT_DIR}/sanitize-evidence.sh" --input "$run_root" --output "$sanitized_root" \
+    >"${raw_root}/sanitizer.log" 2>&1 || sanitize_status=$?
+  if [ "$sanitize_status" -ne 0 ]; then
+    printf '%s\n' 'virtual gamepad: evidence sanitization failed' >&2
+    return 1
+  fi
+  if [ "$status" != "passed" ]; then
+    printf '%s\n' "virtual gamepad: FAILED (xcode=$xcode_status parse=$parse_status verify=$verify_status)" >&2
+    return 1
+  fi
+  printf '%s\n' 'virtual gamepad: PASSED; sanitized evidence retained under .build/ci/entitled-virtual-gamepad/sanitized'
 }
 
 test_early_keyboard_cleanup() (
@@ -1957,9 +2583,11 @@ usage() {
 Usage:
   run-mac-verification.sh --run-wave-0-adoption
   run-mac-verification.sh --run-four-layer-verification
+  run-mac-verification.sh --run-unprivileged-verification
+  run-mac-verification.sh --run-entitled-virtual-gamepad-verification
   run-mac-verification.sh --self-test-contracts
   run-mac-verification.sh --run-snapshot-candidates
-  run-mac-verification.sh --layers {rendering|ui} --only-testing TEST [TEST ...]
+  run-mac-verification.sh --layers {rendering|ui|live-server} --only-testing TEST [TEST ...]
   run-mac-verification.sh --verify-layer-result FILE LAYER OUTPUT --required-test ID [...]
   run-mac-verification.sh --print-failure-diagnostics SUMMARY LAYER
   run-mac-verification.sh --print-build-diagnostics LOG LAYER
@@ -1993,6 +2621,8 @@ case "$1" in
     ;;
   --run-wave-0-adoption) shift; [ "$#" -eq 0 ] || die "unexpected adoption arguments"; run_wave_0_adoption ;;
   --run-four-layer-verification) shift; [ "$#" -eq 0 ] || die "unexpected four-layer arguments"; run_four_layer_verification ;;
+  --run-unprivileged-verification) shift; [ "$#" -eq 0 ] || die "unexpected unprivileged verification arguments"; run_four_layer_verification ordinary ;;
+  --run-entitled-virtual-gamepad-verification) shift; [ "$#" -eq 0 ] || die "unexpected virtual-gamepad arguments"; run_entitled_virtual_gamepad_verification ;;
   --run-snapshot-candidates) shift; [ "$#" -eq 0 ] || die "unexpected snapshot candidate arguments"; run_snapshot_candidates ;;
   --verify-layer-result)
     require_value "$1" "${2:-}"; require_value "$1" "${3:-}"; require_value "$1" "${4:-}"

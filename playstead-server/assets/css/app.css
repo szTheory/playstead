@@ -40,12 +40,9 @@
   font-display: block;
 }
 
-/* Color roles stay as arbitrary-value classes (`bg-[#0F172A]` …) in HEEx:
-   daisyUI (still used by the stock home page) defines its own
-   `--color-accent`/`--color-warning`… on :root, so role-named tokens would
-   collide. The nine hexes are enumerated and enforced by the browser
-   palette contract test instead. */
-@theme {
+/* Tailwind @theme roles for Playstead colors. Names stay app-prefixed so
+   daisyUI's generic theme names continue to belong to the plugin. */
+@theme static {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
 
@@ -65,6 +62,35 @@
   --text-code-display: 40px;
   --text-code-display--line-height: 1.2;
   --text-code-display--letter-spacing: 0.08em;
+
+  --color-app-canvas: #0f172a;
+  --color-app-surface: #1e293b;
+  --color-app-accent: #38bdf8;
+  --color-app-danger: #ef4444;
+  --color-app-success: #4ade80;
+  --color-app-warning: #fbbf24;
+  --color-app-text: #f1f5f9;
+  --color-app-muted: #94a3b8;
+  --color-app-border: #334155;
+
+  /* These roles match the Mac palette. Retention and standard UI colors
+     remain platform-specific semantic colors. */
+  --color-system-accent-gba: #6366f1;
+  --color-system-accent-gb: #65a30d;
+  --color-system-accent-gbc: #0d9488;
+  --color-system-accent-nes: #b91c1c;
+  --color-system-accent-snes: #a21caf;
+  --color-system-accent-md: #1d4ed8;
+  --color-system-accent-psx: #57534e;
+  --color-system-accent-unknown: #64748b;
+  --color-status-attention: #f59e0b;
+  --color-status-missing-dependency: #ea580c;
+  --color-status-downloading: #0ea5e9;
+  --color-status-queued: #9ca3af;
+  --color-status-verified: #16a34a;
+  --color-status-pinned: #15803d;
+  --color-status-server-only: #94a3b8;
+  --color-status-safe-to-evict: #78716c;
 }
 
 /* A Tailwind plugin that makes "hero-#{ICON}" classes available.
@@ -162,36 +188,6 @@
 
 /* This file is for your main application CSS */
 
-/* ---------------------------------------------------------------------
-   Phase 3 library/curation console (03-UI-SPEC.md). Two new, deliberately
-   disjoint color vocabularies: system identity and content status. They
-   never share a literal value with each other or with Phase 1's semantic
-   roles (D-13) — no state is ever conveyed by color alone (QUAL-01).
-   ------------------------------------------------------------------- */
-:root {
-  /* System Identity Palette — monogram tile background and, at reduced
-     opacity, the meta-line system chip. Never conveys state or health. */
-  --system-accent-gba: #6366f1;
-  --system-accent-gb: #65a30d;
-  --system-accent-gbc: #0d9488;
-  --system-accent-nes: #b91c1c;
-  --system-accent-snes: #a21caf;
-  --system-accent-md: #1d4ed8;
-  --system-accent-psx: #57534e;
-  --system-accent-unknown: #64748b;
-
-  /* Status Ladder Palette — the one status slot on a card, and the
-     storage view. Never conveys system identity. */
-  --status-attention: #f59e0b;
-  --status-missing-dependency: #ea580c;
-  --status-downloading: #0ea5e9;
-  --status-queued: #9ca3af;
-  --status-verified: #16a34a;
-  --status-pinned: #15803d;
-  --status-server-only: #94a3b8;
-  --status-safe-to-evict: #78716c;
-}
-
 /* Game card — three-zone anatomy, fixed landscape tile (D-12/D-13). Fixed
    size is deliberate: D-16 requires zero skeletons and stable row heights
    for a 500-item library, only possible if geometry never depends on
@@ -200,19 +196,19 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 8px;
+  gap: calc(var(--spacing) * 2);
   width: 280px;
   height: 158px;
-  padding: 16px;
-  border-radius: 0.5rem;
-  border: 1px solid #334155;
-  background-color: #1e293b;
+  padding: calc(var(--spacing) * 4);
+  border-radius: var(--radius-box);
+  border: 1px solid var(--color-app-border);
+  background-color: var(--color-app-surface);
   overflow: hidden;
 }
 
 .game-card:hover,
 .game-card:focus-visible {
-  border-color: #38bdf8;
+  border-color: var(--color-app-accent);
 }
 
 .game-card-title {
@@ -235,8 +231,8 @@
   justify-content: center;
   min-width: 2.5em;
   padding: 2px 6px;
-  border-radius: 0.25rem;
-  color: #f1f5f9;
+  border-radius: var(--radius-field);
+  color: var(--color-app-text);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }

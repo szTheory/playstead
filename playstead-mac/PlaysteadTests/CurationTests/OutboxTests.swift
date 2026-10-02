@@ -77,6 +77,46 @@ final class OutboxTests: XCTestCase {
         XCTAssertEqual(reopenedOutbox.listPending().first?.state, .pending)
     }
 
+    func test_favoriteSnapshotIDAndServerIDConvergeToOneLocalRow() throws {
+        try curationStore.upsertFavorite(
+            id: "favorite:asset-1",
+            assetSetID: "asset-1",
+            createdAt: "2026-01-01T00:00:00Z"
+        )
+
+        // A later journal upsert carries the server entity ID, not the
+        // synthetic ID used to bootstrap the snapshot row.
+        try curationStore.upsertFavorite(
+            id: "server-favorite-1",
+            assetSetID: "asset-1",
+            createdAt: "2026-01-01T00:00:00Z"
+        )
+
+        XCTAssertEqual(curationStore.fetchFavorites().count, 1)
+        XCTAssertEqual(curationStore.fetchFavorites().first?.id, "server-favorite-1")
+        XCTAssertEqual(curationStore.fetchFavorites().first?.assetSetID, "asset-1")
+    }
+
+    func test_favoritesMigrationCollapsesLegacyDuplicateRows() throws {
+        try localStore.connection.execute("DROP INDEX idx_curation_favorites_asset_set;")
+        try localStore.connection.execute(
+            "INSERT INTO curation_favorites (id, asset_set_id, created_at) VALUES ('legacy-a', 'asset-1', NULL);"
+        )
+        try localStore.connection.execute(
+            "INSERT INTO curation_favorites (id, asset_set_id, created_at) VALUES ('legacy-b', 'asset-1', NULL);"
+        )
+
+        try Migrations.run(on: localStore.connection)
+
+        XCTAssertEqual(curationStore.fetchFavorites().filter { $0.assetSetID == "asset-1" }.count, 1)
+        XCTAssertThrowsError(
+            try localStore.connection.execute(
+                "INSERT INTO curation_favorites (id, asset_set_id, created_at) VALUES ('legacy-c', 'asset-1', NULL);"
+            ),
+            "The migrated local store must reject a second row for the same game."
+        )
+    }
+
     // MARK: - When the server becomes reachable, the entry sends once,
     // receives success, and is marked done.
 

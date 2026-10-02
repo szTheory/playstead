@@ -21,6 +21,7 @@
       "parallelizable" : false,
       "selectedTests" : [
         "BiosRejectionCopyTests",
+        "BiosAcceptanceSeamTests",
         "ConflictResolutionInteractionTests",
 		"ControllerHardwareIntegrationTests",
         "CurationInteractionTests",

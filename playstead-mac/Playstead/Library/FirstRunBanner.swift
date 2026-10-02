@@ -23,6 +23,6 @@ struct FirstRunBanner: View {
         }
         .padding(DesignTokens.Spacing.md)
         .background(DesignTokens.border.opacity(0.3))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.standard))
     }
 }

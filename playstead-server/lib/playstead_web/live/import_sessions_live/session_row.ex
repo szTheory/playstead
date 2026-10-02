@@ -22,21 +22,21 @@ defmodule PlaysteadWeb.ImportSessionsLive.SessionRow do
     <div
       id={"session-#{@session.id}"}
       data-state={@session.state}
-      class="rounded-lg border border-[#334155] bg-[#1E293B] p-4"
+      class="rounded-lg border border-app-border bg-app-surface p-4"
     >
       <div class="flex items-center justify-between">
-        <p id={"session-#{@session.id}-state"} class="text-base font-semibold text-[#F1F5F9]">
+        <p id={"session-#{@session.id}-state"} class="text-base font-semibold text-app-text">
           {String.capitalize(@session.state)}
         </p>
-        <p id={"session-#{@session.id}-caption"} class="text-sm text-[#94A3B8]">
+        <p id={"session-#{@session.id}-caption"} class="text-sm text-app-muted">
           {@progress.files_completed} / {@progress.file_count} files
         </p>
       </div>
 
-      <div class="mt-2 h-2 w-full overflow-hidden rounded-full bg-[#334155]">
+      <div class="mt-2 h-2 w-full overflow-hidden rounded-full bg-app-border">
         <div
           id={"session-#{@session.id}-bar"}
-          class="h-2 rounded-full bg-[#94A3B8]"
+          class="h-2 rounded-full bg-app-muted"
           style={"width: #{bar_percent(@progress)}%"}
         >
         </div>
@@ -45,7 +45,7 @@ defmodule PlaysteadWeb.ImportSessionsLive.SessionRow do
       <p
         :if={@progress.eta_minutes}
         id={"session-#{@session.id}-eta"}
-        class="mt-1 text-sm text-[#94A3B8]"
+        class="mt-1 text-sm text-app-muted"
       >
         About {@progress.eta_minutes} {if @progress.eta_minutes == 1, do: "minute", else: "minutes"} left
       </p>
@@ -53,7 +53,7 @@ defmodule PlaysteadWeb.ImportSessionsLive.SessionRow do
       <p
         :for={{outcome, count} <- @session.counts_by_outcome || %{}}
         id={"session-#{@session.id}-outcome-#{outcome}"}
-        class="mt-1 text-sm text-[#94A3B8]"
+        class="mt-1 text-sm text-app-muted"
       >
         {count} {outcome}
       </p>
@@ -65,7 +65,7 @@ defmodule PlaysteadWeb.ImportSessionsLive.SessionRow do
           type="button"
           phx-click="start"
           phx-value-id={@session.id}
-          class="rounded-md border border-[#334155] px-3 py-2 text-sm font-semibold text-[#F1F5F9]"
+          class="rounded-md border border-app-border px-3 py-2 text-sm font-semibold text-app-text"
         >
           {if @session.state == "paused", do: "Resume", else: "Start"}
         </button>
@@ -76,7 +76,7 @@ defmodule PlaysteadWeb.ImportSessionsLive.SessionRow do
           type="button"
           phx-click="pause"
           phx-value-id={@session.id}
-          class="rounded-md border border-[#334155] px-3 py-2 text-sm font-semibold text-[#F1F5F9]"
+          class="rounded-md border border-app-border px-3 py-2 text-sm font-semibold text-app-text"
         >
           Pause
         </button>
@@ -87,7 +87,7 @@ defmodule PlaysteadWeb.ImportSessionsLive.SessionRow do
           type="button"
           phx-click="retry"
           phx-value-id={@session.id}
-          class="rounded-md border border-[#334155] px-3 py-2 text-sm font-semibold text-[#F1F5F9]"
+          class="rounded-md border border-app-border px-3 py-2 text-sm font-semibold text-app-text"
         >
           Retry failed
         </button>
@@ -99,7 +99,7 @@ defmodule PlaysteadWeb.ImportSessionsLive.SessionRow do
           phx-click="cancel"
           phx-value-id={@session.id}
           data-confirm={cancel_confirmation(@progress)}
-          class="rounded-md border border-[#334155] px-3 py-2 text-sm font-semibold text-[#F1F5F9]"
+          class="rounded-md border border-app-border px-3 py-2 text-sm font-semibold text-app-text"
         >
           Cancel
         </button>

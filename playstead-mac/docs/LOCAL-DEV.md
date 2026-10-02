@@ -348,12 +348,13 @@ Or just open `Playstead.xcodeproj` in Xcode and hit Run. (`Playstead` is
 Xcode's autocreated implicit scheme — there is no checked-in `.xcscheme`, so
 the scheme appears on first open.)
 
-**You do not need notarization.** Notarization and stapling are *distribution*
-concerns — they matter when someone else downloads your `.dmg` and Gatekeeper
-checks it. A build you compile and run on your own machine, signed with your
-local `Apple Development` identity (`CODE_SIGN_STYLE = Automatic`), runs
-without any of it. `docs/RELEASE.md` covers the signing/notarization path for
-when you actually ship; ignore it for now.
+**You do not need notarization or an Apple Developer profile for ordinary local
+builds and tests.** The project defaults to ad-hoc signing and the no-HID UI
+test entitlements, so Xcode can build and run the ordinary app and test targets
+without registering a team or provisioning profile. The virtual-gamepad test
+uses an Apple-approved entitlement and remains a separate, explicitly signed
+lane. Notarization and stapling are distribution concerns for someone else's
+downloaded `.dmg`; `docs/RELEASE.md` covers that path when you ship.
 
 ---
 

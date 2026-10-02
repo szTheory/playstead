@@ -1,11 +1,14 @@
 #if UI_TESTING
 import Foundation
 import CryptoKit
+import Security
 
 @MainActor
 final class UITestProfileSession {
     private let profileFixture: DeterministicProfileFixture?
     let environment: AppEnvironment
+    let recoveryDirectLaunch: UITestBootstrap.RecoveryDirectLaunch?
+    var isLiveServerSession: Bool { profileFixture == nil }
 
     /// Deterministic profile callers retain their original nonoptional API.
     /// The live-server mode has no deterministic fixture and must never ask
@@ -17,9 +20,14 @@ final class UITestProfileSession {
         return profileFixture
     }
 
-    init(fixture: DeterministicProfileFixture?, environment: AppEnvironment) {
+    init(
+        fixture: DeterministicProfileFixture?,
+        environment: AppEnvironment,
+        recoveryDirectLaunch: UITestBootstrap.RecoveryDirectLaunch? = nil
+    ) {
         self.profileFixture = fixture
         self.environment = environment
+        self.recoveryDirectLaunch = recoveryDirectLaunch
     }
 
     deinit {
@@ -46,6 +54,26 @@ enum UITestBootstrap {
     /// pre-existing credential (handoff or otherwise) is required or
     /// expected.
     static let unpairedKey = "PLAYSTEAD_UI_TEST_LIVE_SERVER_UNPAIRED"
+    /// Direct recovery proof uses the existing scoped live-server bootstrap,
+    /// but launches the signed app without an XCUITest runner. Both values
+    /// are required together and are accepted only inside the owned root.
+    static let recoveryDirectTargetKey = "PLAYSTEAD_RECOVERY_DIRECT_PAIRING_TARGET"
+    static let recoveryDirectReportKey = "PLAYSTEAD_RECOVERY_DIRECT_REPORT"
+    static let recoveryDirectTrustAnchorKey = "PLAYSTEAD_RECOVERY_DIRECT_TRUST_ANCHOR"
+    static let recoveryDirectInteractiveKey = "PLAYSTEAD_RECOVERY_DIRECT_INTERACTIVE"
+    static let liveServerLoginKeychainKey = "PLAYSTEAD_UI_TEST_LIVE_SERVER_LOGIN_KEYCHAIN"
+    static let liveServerTrustAnchorKey = "PLAYSTEAD_UI_TEST_LIVE_SERVER_CA_DER"
+    static let liveServerTrustAnchorDigestKey = "PLAYSTEAD_UI_TEST_LIVE_SERVER_CA_SHA256"
+    static let liveServerPairingTargetKey = "PLAYSTEAD_UI_TEST_LIVE_SERVER_PAIRING_TARGET"
+
+    struct RecoveryDirectLaunch {
+        let targetURL: URL
+        let reportURL: URL
+        let interactive: Bool
+        /// DER bytes are validated from a root-owned file and remain only in
+        /// process memory. This is not the durable post-pairing pin.
+        let trustAnchorData: Data
+    }
 
     static func isRequested(environment: [String: String] = ProcessInfo.processInfo.environment) -> Bool {
         environment[modeKey] == "1"
@@ -67,6 +95,8 @@ enum UITestBootstrap {
             uiTestingPaths: fixture.paths,
             localStore: fixture.localStore,
             reachability: Reachability(startOnline: false, monitorAutomatically: false),
+            biosReferences: profile.uiTestingBiosReferences,
+            requiresBiosForAcceptance: profile.requiresBIOSForUITesting,
             credential: profile.uiTestingCredential
         )
         appEnvironment.blockExternalIOForUITesting()
@@ -96,9 +126,38 @@ enum UITestBootstrap {
         environment: [String: String]
     ) throws -> UITestProfileSession {
         let root = try ownedURL(environment[liveRootKey], label: "live root")
-        let keychainURL = try containedURL(environment[keychainKey], root: root, label: "Keychain")
+        let recoveryDirectLaunch = try recoveryDirectLaunch(environment: environment, root: root)
+        // A fresh unpaired profile must create its scoped Keychain in this
+        // process.  A file Keychain created by a launcher is password-locked
+        // when the app opens it, which turns the real pairing write into an
+        // interactive password prompt.  Creating it here keeps the randomly
+        // generated password in memory for this process only and never
+        // touches the user's login Keychain or search list.
+        let usesLoginKeychain = environment[liveServerLoginKeychainKey] == "1"
+        let createdKeychain: SecKeychain? = if !usesLoginKeychain && (recoveryDirectLaunch != nil || environment[unpairedKey] == "1") {
+            try createScopedKeychainIfNeeded(at: environment[keychainKey], root: root)
+        } else {
+            nil
+        }
         let service = try validatedService(environment[keychainServiceKey])
-        let keychain = try KeychainStore.uiTestingStore(service: service, fileURL: keychainURL)
+        let allowsUnpaired = environment[unpairedKey] == "1"
+        let suppliedPairingTrustAnchor = try liveServerPairingTrustAnchor(
+            environment: environment, root: root, allowsUnpaired: allowsUnpaired
+        )
+        let keychain: KeychainStore = if usesLoginKeychain {
+            // The recovery profile remains filesystem-isolated, but this
+            // opt-in uses the normal macOS Keychain rather than a disposable
+            // file Keychain whose memory-only password cannot be supplied to
+            // an owner-facing prompt.
+            KeychainStore(service: service)
+        } else if let createdKeychain {
+            KeychainStore.uiTestingStore(service: service, keychain: createdKeychain)
+        } else {
+            try KeychainStore.uiTestingStore(
+                service: service,
+                fileURL: containedURL(environment[keychainKey], root: root, label: "Keychain")
+            )
+        }
 
         // The handoff is one-shot: consumed into the scoped Keychain and then
         // deleted. SwiftUI does not promise a single initializer call per
@@ -123,13 +182,23 @@ enum UITestBootstrap {
                 credentialWasConsumed = false
             }
         }
-        let allowsUnpaired = environment[unpairedKey] == "1"
         if !credentialWasConsumed, keychain.loadCredential() == nil, !allowsUnpaired {
             throw DeterministicProfileError.stateMismatch("scoped live credential is missing")
         }
 
         let paths = AppPaths(root: root)
         let localStore = try LocalStore(paths: paths)
+        if !allowsUnpaired, let suppliedPairingTrustAnchor {
+            // Snapshot and save proofs begin with an already-provisioned
+            // credential rather than running the pairing UI. Seed the exact
+            // run-owned anchor into that test profile's normal durable pin
+            // location, reproducing the post-pairing state the API client
+            // expects without touching System Keychain trust.
+            let capture = PinnedCertificateCapture(capturedCertificateData: suppliedPairingTrustAnchor)
+            guard capture.writeCapturedCertificate(to: paths.pinnedCertificate) else {
+                throw DeterministicProfileError.stateMismatch("live server profile pin could not be persisted")
+            }
+        }
         let appEnvironment = AppEnvironment(
             paths: paths,
             apiClient: APIClient(keychain: keychain, pinnedCertificateURL: paths.pinnedCertificate),
@@ -137,10 +206,149 @@ enum UITestBootstrap {
             // The pairing ceremony must write into the same scoped
             // Keychain `apiClient` reads its credential from -- never the
             // production default, which would be the real login Keychain.
-            pairingKeychain: keychain
+            pairingKeychain: keychain,
+            pairingTrustAnchorData: suppliedPairingTrustAnchor
         )
         maybeRunSaveEndToEnd(environment: environment, root: root, appEnvironment: appEnvironment)
-        return UITestProfileSession(fixture: nil, environment: appEnvironment)
+        return UITestProfileSession(
+            fixture: nil,
+            environment: appEnvironment,
+            recoveryDirectLaunch: recoveryDirectLaunch
+        )
+    }
+
+    /// The LiveServer ceremony may use only the CA issued beneath its exact
+    /// run-owned service root, and only for the fixed loopback HTTPS fixture.
+    /// Absence is allowed for other LiveServer tests; a partial or invalid
+    /// supplied capability is rejected before the pairing UI can issue a request.
+    private static func liveServerPairingTrustAnchor(
+        environment: [String: String], root: URL, allowsUnpaired: Bool
+    ) throws -> Data? {
+        let rawAnchor = environment[liveServerTrustAnchorKey]
+        let expectedDigestValue = environment[liveServerTrustAnchorDigestKey]
+        let target = environment[liveServerPairingTargetKey]
+        guard rawAnchor != nil || expectedDigestValue != nil || target != nil else {
+            if allowsUnpaired {
+                throw DeterministicProfileError.stateMismatch("live pairing trust anchor is missing")
+            }
+            return nil
+        }
+        guard let raw = rawAnchor,
+              let expectedDigest = expectedDigestValue?.lowercased(),
+              expectedDigest.count == 64,
+              expectedDigest.allSatisfy({ $0.isHexDigit }) else {
+            throw DeterministicProfileError.stateMismatch("live pairing trust anchor is missing")
+        }
+        guard environment[liveServerKey] == "1",
+              target == "https://127.0.0.1:4010",
+              environment[recoveryDirectTargetKey] == nil,
+              environment[recoveryDirectReportKey] == nil,
+              environment[recoveryDirectTrustAnchorKey] == nil else {
+            throw DeterministicProfileError.stateMismatch("live pairing trust anchor mode is invalid")
+        }
+        let url = try containedURL(raw, root: root, label: "live pairing trust anchor")
+        let values = try FileManager.default.attributesOfItem(atPath: url.path)
+        guard (values[.type] as? FileAttributeType) == .typeRegular,
+              let size = (values[.size] as? NSNumber)?.intValue,
+              size > 0, size <= 16_384 else {
+            throw DeterministicProfileError.stateMismatch("live pairing trust anchor file is invalid")
+        }
+        let bytes = try Data(contentsOf: url, options: [.mappedIfSafe])
+        guard bytes.count == size,
+              let certificate = PinnedCertificateCapture.certificateData(fromRecoveryFile: bytes),
+              let parsed = SecCertificateCreateWithData(nil, certificate as CFData),
+              Data(SHA256.hash(data: certificate)).map({ String(format: "%02x", $0) }).joined() == expectedDigest else {
+            throw DeterministicProfileError.stateMismatch("live pairing trust anchor is invalid")
+        }
+        if #available(macOS 15.0, *) {
+            guard let before = SecCertificateCopyNotValidBeforeDate(parsed) as Date?,
+                  let after = SecCertificateCopyNotValidAfterDate(parsed) as Date?,
+                  before <= Date(), after > Date() else {
+                throw DeterministicProfileError.stateMismatch("live pairing trust anchor is expired or not yet valid")
+            }
+        }
+        return certificate
+    }
+
+    /// Parses the direct-app recovery seam as a capability pair. A target
+    /// without a report could silently make a network request, and a report
+    /// without a target could be forged, so either partial configuration is
+    /// refused before the app constructs any product state beyond the already
+    /// isolated live-server session.
+    private static func recoveryDirectLaunch(
+        environment: [String: String], root: URL
+    ) throws -> RecoveryDirectLaunch? {
+        let rawTarget = environment[recoveryDirectTargetKey]
+        let rawReport = environment[recoveryDirectReportKey]
+        let rawTrustAnchor = environment[recoveryDirectTrustAnchorKey]
+        guard rawTarget != nil || rawReport != nil || rawTrustAnchor != nil else { return nil }
+        guard
+            let rawTarget,
+            let rawReport,
+            let rawTrustAnchor,
+            let targetURL = URL(string: rawTarget),
+            targetURL.scheme?.lowercased() == "https",
+            targetURL.host != nil,
+            targetURL.user == nil,
+            targetURL.password == nil
+        else {
+            throw DeterministicProfileError.stateMismatch("recovery direct launch configuration is invalid")
+        }
+        let trustAnchorURL = try containedURL(rawTrustAnchor, root: root, label: "recovery trust anchor")
+        let rawTrustAnchorData = try Data(contentsOf: trustAnchorURL, options: [.mappedIfSafe])
+        guard rawTrustAnchorData.count > 0, rawTrustAnchorData.count <= 16_384,
+              let trustAnchorData = PinnedCertificateCapture.certificateData(fromRecoveryFile: rawTrustAnchorData)
+        else {
+            throw DeterministicProfileError.stateMismatch("recovery direct launch trust anchor is invalid")
+        }
+        return RecoveryDirectLaunch(
+            targetURL: targetURL,
+            reportURL: try containedDestinationURL(rawReport, root: root),
+            interactive: environment[recoveryDirectInteractiveKey] == "1",
+            trustAnchorData: trustAnchorData
+        )
+    }
+
+    /// Creates only a fresh run-owned Keychain. `SecKeychainCreate` receives
+    /// an explicit destination and does not add it to the user's search list;
+    /// every subsequent query is scoped by `KeychainStore.uiTestingStore`.
+    /// The randomly generated password is memory-only and never logged or
+    /// persisted, so the creating process can write without a password prompt.
+    private static func createScopedKeychainIfNeeded(at raw: String?, root: URL) throws -> SecKeychain? {
+        guard let raw else {
+            throw DeterministicProfileError.stateMismatch("recovery direct launch is missing a Keychain")
+        }
+        // Both the direct-recovery driver and macOS may spell the same
+        // temporary directory differently (`/private/tmp` versus its resolved
+        // target). Compare canonical filesystem locations, not URL spelling;
+        // this still rejects a child that resolves outside the owned root.
+        let keychainURL = canonicalFileURL(raw)
+        guard keychainURL.path.hasPrefix(root.path + "/") else {
+            throw DeterministicProfileError.stateMismatch("recovery direct launch Keychain escaped its run root")
+        }
+        if FileManager.default.fileExists(atPath: keychainURL.path) { return nil }
+
+        var password = [UInt8](repeating: 0, count: 32)
+        guard SecRandomCopyBytes(kSecRandomDefault, password.count, &password) == errSecSuccess else {
+            throw DeterministicProfileError.stateMismatch("recovery direct launch Keychain password generation failed")
+        }
+        var created: SecKeychain?
+        let status = keychainURL.path.withCString { path in
+            password.withUnsafeBytes { bytes in
+                SecKeychainCreate(path, UInt32(password.count), bytes.baseAddress, false, nil, &created)
+            }
+        }
+        guard status == errSecSuccess, let created else {
+            throw DeterministicProfileError.stateMismatch("recovery direct launch Keychain creation failed")
+        }
+
+        let unlockStatus = password.withUnsafeBytes { bytes in
+            SecKeychainUnlock(created, UInt32(password.count), bytes.baseAddress, true)
+        }
+        guard unlockStatus == errSecSuccess else {
+            throw DeterministicProfileError.stateMismatch("recovery direct launch Keychain unlock failed")
+        }
+        return created
     }
 
     // MARK: - Plan 04-04 task 3: the save tracer's live end-to-end proof
@@ -160,6 +368,57 @@ enum UITestBootstrap {
     static let saveArtifactPathKey = "PLAYSTEAD_UI_TEST_SAVE_ARTIFACT_PATH"
     static let saveContentKeyKey = "PLAYSTEAD_UI_TEST_SAVE_CONTENT_KEY"
     static let saveResultPathKey = "PLAYSTEAD_UI_TEST_SAVE_RESULT_PATH"
+    private static let saveReliabilityEnabledKey = "PLAYSTEAD_UI_TEST_SAVE_RELIABILITY"
+    private static let saveTransientTokenKey = "PLAYSTEAD_UI_TEST_SAVE_TRANSIENT_TOKEN"
+    private static let saveTransientRevisionIDKey = "PLAYSTEAD_UI_TEST_SAVE_TRANSIENT_REVISION_ID"
+    private static let saveConflictTokenKey = "PLAYSTEAD_UI_TEST_SAVE_CONFLICT_TOKEN"
+    private static let saveControlRootKey = "PLAYSTEAD_UI_TEST_SAVE_CONTROL_ROOT"
+    private static let saveEndToEndClaimDirectory = ".save-e2e-execution-claim"
+
+    private struct SaveReliabilityControl {
+        let transientToken: String
+        let transientRevisionID: String
+        let conflictToken: String
+        let controlRoot: URL
+
+        init?(environment: [String: String]) {
+            guard environment[UITestBootstrap.saveReliabilityEnabledKey] == "1",
+                  let transientToken = environment[UITestBootstrap.saveTransientTokenKey],
+                  let transientRevisionID = environment[UITestBootstrap.saveTransientRevisionIDKey],
+                  let conflictToken = environment[UITestBootstrap.saveConflictTokenKey],
+                  let serverRoot = environment["PLAYSTEAD_MAC_CI_ROOT"],
+                  let controlRootRaw = environment[UITestBootstrap.saveControlRootKey],
+                  UUID(uuidString: transientToken) != nil,
+                  UUID(uuidString: transientRevisionID) != nil,
+                  UUID(uuidString: conflictToken) != nil else { return nil }
+
+            let expectedControlRoot = URL(fileURLWithPath: serverRoot, isDirectory: true)
+                .appendingPathComponent("mac-client-control", isDirectory: true)
+                .standardizedFileURL
+            let suppliedControlRoot = URL(fileURLWithPath: controlRootRaw, isDirectory: true)
+                .standardizedFileURL
+            guard expectedControlRoot == suppliedControlRoot,
+                  FileManager.default.fileExists(atPath: expectedControlRoot.path) else { return nil }
+
+            self.transientToken = transientToken.lowercased()
+            self.transientRevisionID = transientRevisionID.lowercased()
+            self.conflictToken = conflictToken.lowercased()
+            self.controlRoot = expectedControlRoot
+        }
+
+        func directory(for token: String) -> URL {
+            controlRoot.appendingPathComponent("save-e2e-\(token)", isDirectory: true)
+        }
+    }
+
+    private struct SaveConflictObservation: Sendable {
+        let status: Int
+        let code: String
+        let classification: SaveUploadFailureClassification
+        let cause: SaveUploadFailureCause
+        let correlationID: String?
+        let escalates: Bool
+    }
 
     private struct FixedArtifactSource: SaveArtifactSource {
         let data: Data
@@ -185,10 +444,29 @@ enum UITestBootstrap {
             let resultURL = try? containedDestinationURL(resultRaw, root: root)
         else { return }
 
+        // SwiftUI may reconstruct the root view and evaluate State's
+        // initial value more than once. A save proof has external effects
+        // (server requests and result files), so only one bootstrap may own
+        // it for a profile root, even if reconstruction crosses processes.
+        guard claimSaveEndToEndExecution(root: root, resultURL: resultURL) else { return }
+
+        let reliabilityControl: SaveReliabilityControl?
+        if environment[saveReliabilityEnabledKey] == "1" {
+            guard let control = SaveReliabilityControl(environment: environment) else {
+                try? Data("save-e2e: reliability control invalid".utf8)
+                    .write(to: saveEndToEndErrorURL(for: resultURL), options: .atomic)
+                return
+            }
+            reliabilityControl = control
+        } else {
+            reliabilityControl = nil
+        }
+
         Task {
             do {
                 try await runSaveEndToEnd(
-                    artifactURL: artifactURL, resultURL: resultURL, contentKey: contentKey, appEnvironment: appEnvironment
+                    artifactURL: artifactURL, resultURL: resultURL, contentKey: contentKey,
+                    appEnvironment: appEnvironment, reliabilityControl: reliabilityControl
                 )
             } catch {
                 // The absence of the result file IS a signal the polling
@@ -213,6 +491,27 @@ enum UITestBootstrap {
                 }
                 try? Data(reason.utf8).write(to: saveEndToEndErrorURL(for: resultURL), options: [.atomic])
             }
+        }
+    }
+
+    private static func claimSaveEndToEndExecution(root: URL, resultURL: URL) -> Bool {
+        let claim = root.appendingPathComponent(saveEndToEndClaimDirectory, isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(
+                at: claim,
+                withIntermediateDirectories: false,
+                attributes: [.posixPermissions: 0o700]
+            )
+            return true
+        } catch {
+            var isDirectory: ObjCBool = false
+            if FileManager.default.fileExists(atPath: claim.path, isDirectory: &isDirectory), isDirectory.boolValue {
+                // A sibling SwiftUI bootstrap already claimed this run.
+                return false
+            }
+            try? Data("save-e2e: execution claim unavailable".utf8)
+                .write(to: saveEndToEndErrorURL(for: resultURL), options: .atomic)
+            return false
         }
     }
 
@@ -253,7 +552,8 @@ enum UITestBootstrap {
     }
 
     private static func runSaveEndToEnd(
-        artifactURL: URL, resultURL: URL, contentKey: String, appEnvironment: AppEnvironment
+        artifactURL: URL, resultURL: URL, contentKey: String, appEnvironment: AppEnvironment,
+        reliabilityControl: SaveReliabilityControl?
     ) async throws {
         let bytes = try Data(contentsOf: artifactURL)
         let saveStore = await SaveStore(localStore: appEnvironment.localStore)
@@ -273,7 +573,7 @@ enum UITestBootstrap {
             contentKey: contentKey, saveKind: "battery", slot: "0", placeholderID: UUIDv7.generate()
         )
 
-        let revisionID = UUIDv7.generate()
+        let revisionID = reliabilityControl?.transientRevisionID ?? UUIDv7.generate()
         try saveStore.insertRevision(SaveRevisionRow(
             id: revisionID,
             saveLineID: line.id,
@@ -303,21 +603,17 @@ enum UITestBootstrap {
 
         // The APP'S OWN lane, never a second one built here.
         //
-        // This is the root cause of the SaveEndToEndTests flake, and it is a
-        // race, not a timeout and not a transient error. The running app
-        // drains save uploads on a reachability transition
-        // (PlaysteadApp.swift: `Task { await uploadLane.drainOnce() }` inside
-        // `reachability.onChange`), which in CI fires right after pairing --
-        // exactly when this harness is inserting its revision. `drainOnce`'s
-        // own doc comment says "the lane is an actor, so overlapping calls
-        // serialize rather than racing the same revision", and that is true;
-        // constructing a SECOND lane over the same store is what defeated it,
-        // because two actor instances serialize nothing. Whichever lane lost
-        // the race saw an empty pending set and reported `sent == 0`.
+        // The running app also drains save uploads on a reachability
+        // transition (PlaysteadApp.swift: `Task { await uploadLane.drainOnce() }`
+        // inside `reachability.onChange`), which in CI fires right after
+        // pairing -- exactly when this harness is inserting its revision.
+        // Actors are reentrant at `await`, so merely sharing an actor did not
+        // prevent both passes from sending this revision at once. The lane's
+        // per-revision in-flight gate now makes overlapping callers await the
+        // same upload outcome; the focused lane regression test pins it.
         //
-        // Run 34663361104 named it exactly: `upload-nothing-pending`, which
-        // is what the three-way split was added to distinguish. Sharing the
-        // one actor restores the serialization the comment already promised.
+        // The harness still uses the same lane as production, including its
+        // ordinary retry and idempotency behavior.
         let lane = appEnvironment.saveUploadLane
 
         // Drive the lane the way PRODUCTION does, not the way a single pass
@@ -340,8 +636,54 @@ enum UITestBootstrap {
         // `at:` advances past the lane's own backoff instead of sleeping, so
         // this costs no wall-clock: the backoff schedule has its own tests
         // and is not what this check is about.
+        var transientEvidence: [String: Any]?
         var drainResult = await lane.drainOnce()
-        var attempt = 1
+        if let reliabilityControl {
+            let marker = reliabilityControl.directory(for: reliabilityControl.transientToken)
+                .appendingPathComponent("transient-consumed")
+            let consumedToken = try? String(contentsOf: marker, encoding: .utf8)
+            guard consumedToken == reliabilityControl.transientToken else {
+                throw DeterministicProfileError.stateMismatch("save-e2e: transient server hook was not observed")
+            }
+
+            guard let failure = await lane.transientFailureEvidence() else {
+                throw DeterministicProfileError.stateMismatch("save-e2e: transient lane evidence missing")
+            }
+            guard failure.classification == .none else {
+                throw DeterministicProfileError.stateMismatch("save-e2e: transient classification was not none")
+            }
+            guard failure.cause == .http5xx else {
+                throw DeterministicProfileError.stateMismatch("save-e2e: transient cause was not http5xx")
+            }
+            guard let status = failure.status, status == 503 else {
+                throw DeterministicProfileError.stateMismatch("save-e2e: transient status was not 503")
+            }
+            guard let problemCode = failure.problemCode, problemCode == .serviceUnavailable else {
+                throw DeterministicProfileError.stateMismatch("save-e2e: transient problem code was not service unavailable")
+            }
+            guard OnlyCopyEscalationReason(classification: failure.classification) == nil else {
+                throw DeterministicProfileError.stateMismatch("save-e2e: transient response escalated")
+            }
+            guard let correlationID = failure.correlationID,
+                  UUID(uuidString: correlationID) != nil else {
+                throw DeterministicProfileError.stateMismatch("save-e2e: transient correlation identity missing")
+            }
+            transientEvidence = [
+                "http_status": status,
+                "problem_code": problemCode.rawValue,
+                "failure_classification": "none",
+                "failure_cause": "http5xx",
+                "escalates": false,
+                "correlation_id": correlationID
+            ]
+
+            // A reachability-triggered app drain may have consumed the 503
+            // before this harness's explicit call. The lane's failure cells
+            // above are authoritative; advance past its ordinary backoff
+            // once so this exact round trip still proves the production retry.
+            drainResult = await lane.drainOnce(at: Date().addingTimeInterval(3600))
+        }
+        var attempt = reliabilityControl == nil ? 1 : 2
         while drainResult.sent == 0,
               drainResult.stoppedForRetry,
               Self.isRetryable(drainResult.failureClassification),
@@ -361,7 +703,33 @@ enum UITestBootstrap {
             // Retryable, and still failing after every attempt. That is no
             // longer a blip -- it is a server that is genuinely not
             // accepting this upload.
-            throw DeterministicProfileError.stateMismatch("save-e2e: upload still retryable-failing after all attempts")
+            switch drainResult.saveUploadFailureCause {
+            case .none, .localState:
+                throw DeterministicProfileError.stateMismatch("save-e2e: upload exhausted local retries")
+            case .notPaired:
+                throw DeterministicProfileError.stateMismatch("save-e2e: upload exhausted retries without pairing")
+            case .transportConnectivity:
+                throw DeterministicProfileError.stateMismatch("save-e2e: upload exhausted connectivity retries")
+            case .transportTimeout:
+                throw DeterministicProfileError.stateMismatch("save-e2e: upload exhausted timeout retries")
+            case .transportTLS:
+                throw DeterministicProfileError.stateMismatch("save-e2e: upload exhausted TLS retries")
+            case .transportOther:
+                throw DeterministicProfileError.stateMismatch("save-e2e: upload exhausted other transport retries")
+            case .invalidResponse:
+                throw DeterministicProfileError.stateMismatch("save-e2e: upload exhausted invalid-response retries")
+            case .http408:
+                throw DeterministicProfileError.stateMismatch("save-e2e: upload exhausted HTTP 408 retries")
+            case .http429:
+                throw DeterministicProfileError.stateMismatch("save-e2e: upload exhausted HTTP 429 retries")
+            case .http5xx:
+                throw DeterministicProfileError.stateMismatch("save-e2e: upload exhausted HTTP 5xx retries")
+            case .http400, .http401, .http403, .http404, .http409, .http413, .http422,
+                 .idempotencyConflict, .serverNotFound:
+                throw DeterministicProfileError.stateMismatch("save-e2e: upload exhausted nonretryable HTTP status")
+            case .httpOther:
+                throw DeterministicProfileError.stateMismatch("save-e2e: upload exhausted other HTTP retries")
+            }
         }
 
         guard uploaded else {
@@ -403,7 +771,28 @@ enum UITestBootstrap {
                 case .capabilitySkew:
                     throw DeterministicProfileError.stateMismatch("save-e2e: upload refused, capability skew")
                 case .serverRefusal:
-                    throw DeterministicProfileError.stateMismatch("save-e2e: upload refused, server refusal")
+                    switch drainResult.saveUploadFailureCause {
+                    case .http400:
+                        throw DeterministicProfileError.stateMismatch("save-e2e: upload refused with HTTP 400")
+                    case .http401:
+                        throw DeterministicProfileError.stateMismatch("save-e2e: upload refused with HTTP 401")
+                    case .http403:
+                        throw DeterministicProfileError.stateMismatch("save-e2e: upload refused with HTTP 403")
+                    case .http404:
+                        throw DeterministicProfileError.stateMismatch("save-e2e: upload refused with HTTP 404")
+                    case .http409:
+                        throw DeterministicProfileError.stateMismatch("save-e2e: upload refused with HTTP 409")
+                    case .http413:
+                        throw DeterministicProfileError.stateMismatch("save-e2e: upload refused with HTTP 413")
+                    case .http422:
+                        throw DeterministicProfileError.stateMismatch("save-e2e: upload refused with HTTP 422")
+                    case .idempotencyConflict:
+                        throw DeterministicProfileError.stateMismatch("save-e2e: upload refused idempotency conflict")
+                    case .serverNotFound:
+                        throw DeterministicProfileError.stateMismatch("save-e2e: upload refused not found")
+                    default:
+                        throw DeterministicProfileError.stateMismatch("save-e2e: upload refused, server refusal")
+                    }
                 case .compatibilityRejection:
                     throw DeterministicProfileError.stateMismatch("save-e2e: upload refused, compatibility rejection")
                 }
@@ -423,7 +812,22 @@ enum UITestBootstrap {
             throw DeterministicProfileError.stateMismatch("save-e2e: revision not found after sync")
         }
 
-        let result: [String: Any] = [
+        var reliabilityEvidence: [String: Any]?
+        if let reliabilityControl {
+            guard let transientEvidence else {
+                throw DeterministicProfileError.stateMismatch("save-e2e: transient response evidence missing")
+            }
+            let conflictEvidence = try await runSaveConflictReliability(
+                bytes: bytes,
+                capture: capture,
+                saveStore: saveStore,
+                apiClient: try await requireAPIClient(appEnvironment),
+                control: reliabilityControl
+            )
+            reliabilityEvidence = ["transient": transientEvidence, "conflict": conflictEvidence]
+        }
+
+        var result: [String: Any] = [
             "revision_id": revisionID,
             "blob_sha256": roundTripped.blobSHA256,
             "size_bytes": roundTripped.sizeBytes,
@@ -439,8 +843,205 @@ enum UITestBootstrap {
             "adapter_id": roundTripped.adapterID ?? "",
             "adapter_version": roundTripped.adapterVersion ?? ""
         ]
+        if let reliabilityEvidence { result["reliability"] = reliabilityEvidence }
         let data = try JSONSerialization.data(withJSONObject: result)
         try data.write(to: resultURL, options: .atomic)
+    }
+
+    private static func requireAPIClient(_ appEnvironment: AppEnvironment) async throws -> APIClient {
+        guard let apiClient = await appEnvironment.apiClient else {
+            throw DeterministicProfileError.stateMismatch("save-e2e: no paired APIClient")
+        }
+        return apiClient
+    }
+
+    private static func runSaveConflictReliability(
+        bytes: Data,
+        capture: CapturedSave,
+        saveStore: SaveStore,
+        apiClient: APIClient,
+        control: SaveReliabilityControl
+    ) async throws -> [String: Any] {
+        let token = control.conflictToken
+        let directory = control.directory(for: token)
+        guard let owner = try? String(contentsOf: directory.appendingPathComponent("owner"), encoding: .utf8),
+              owner == token else {
+            throw DeterministicProfileError.stateMismatch("save-e2e: conflict control identity invalid")
+        }
+
+        let contentKey = String(repeating: "f", count: 64)
+        let line = try saveStore.resolveLine(
+            contentKey: contentKey, saveKind: "battery", slot: "1", placeholderID: UUIDv7.generate()
+        )
+        let revisionID = UUIDv7.generate()
+        try saveStore.insertRevision(SaveRevisionRow(
+            id: revisionID,
+            saveLineID: line.id,
+            parentRevisionID: nil,
+            blobSHA256: capture.sha256,
+            sizeBytes: capture.sizeBytes,
+            originDeviceID: nil,
+            deviceCapturedAt: nil,
+            recordedAt: nil,
+            captureMethod: "poll",
+            adapterID: "e2e-harness",
+            adapterVersion: "1.0",
+            saveFormat: "sram",
+            formatConfidence: "exact",
+            playSessionID: nil,
+            durability: SaveDurability.localOnly.rawValue,
+            localPath: capture.localPath
+        ))
+        guard let commandID = try saveStore.ensureUploadCommandID(
+            revisionID: revisionID, proposed: UUIDv7.generate()
+        ) else {
+            throw DeterministicProfileError.stateMismatch("save-e2e: conflict command missing")
+        }
+
+        let digestHeader = Self.saveReprDigestHeader(for: bytes)
+        _ = try await apiClient.send(
+            method: "PUT",
+            path: "/api/v1/saves/uploads/\(commandID)",
+            body: bytes,
+            headers: ["Repr-Digest": digestHeader, "Content-Length": String(bytes.count)],
+            contentType: "application/octet-stream"
+        )
+
+        let payload = try saveRevisionPayload(
+            revisionID: revisionID,
+            commandID: commandID,
+            contentKey: contentKey,
+            slot: "1"
+        )
+        let idempotencyKey = "save-revision-\(revisionID)"
+        let originalTask = Task { () throws -> Int in
+            try await apiClient.send(
+                method: "POST",
+                path: "/api/v1/saves/revisions",
+                body: payload,
+                headers: [
+                    "Idempotency-Key": idempotencyKey,
+                    "X-Playstead-Test-Hold": token
+                ]
+            ).status
+        }
+
+        do {
+            try await Self.waitForReliabilityMarker("hold-arrived", token: token, in: directory, timeout: 10)
+        } catch {
+            Self.writeReliabilityMarker("release", token: token, in: directory)
+            _ = await originalTask.result
+            throw DeterministicProfileError.stateMismatch("save-e2e: conflict hold was not reached")
+        }
+
+        let duplicateTask = Task { () -> SaveConflictObservation in
+            do {
+                let response = try await apiClient.send(
+                    method: "POST",
+                    path: "/api/v1/saves/revisions",
+                    body: payload,
+                    headers: [
+                        "Idempotency-Key": idempotencyKey,
+                        "X-Playstead-Test-Duplicate": token
+                    ]
+                )
+                return SaveConflictObservation(
+                    status: response.status, code: "unexpected_success", classification: .none,
+                    cause: .none, correlationID: nil, escalates: false
+                )
+            } catch let error as APIClientError {
+                let problem = SaveUploadProblemEvidence(error: error)
+                return SaveConflictObservation(
+                    status: problem?.status ?? 0,
+                    code: problem?.code.rawValue ?? "other",
+                    classification: SaveUploadLane.classify(error),
+                    cause: SaveUploadFailureCause.classify(error),
+                    correlationID: SaveUploadLane.diagnosticEvidence(for: error)?.correlationID,
+                    escalates: OnlyCopyEscalationReason(
+                        classification: SaveUploadLane.classify(error)
+                    ) != nil
+                )
+            } catch {
+                return SaveConflictObservation(
+                    status: 0, code: "other", classification: .none, cause: .localState,
+                    correlationID: nil, escalates: false
+                )
+            }
+        }
+
+        do {
+            try await Self.waitForReliabilityMarker("duplicate-ready", token: token, in: directory, timeout: 10)
+        } catch {
+            Self.writeReliabilityMarker("release", token: token, in: directory)
+            _ = await originalTask.result
+            _ = await duplicateTask.value
+            throw DeterministicProfileError.stateMismatch("save-e2e: duplicate did not reach idempotency preflight")
+        }
+
+        Self.writeReliabilityMarker("release", token: token, in: directory)
+        let originalStatus = try await originalTask.value
+        let duplicate = await duplicateTask.value
+        guard originalStatus == 201,
+              duplicate.status == 409,
+              duplicate.code == SaveUploadProblemCode.idempotencyKeyConflict.rawValue,
+              duplicate.classification == .serverRefusal,
+              duplicate.cause == .idempotencyConflict,
+              duplicate.escalates,
+              let correlationID = duplicate.correlationID,
+              UUID(uuidString: correlationID) != nil else {
+            throw DeterministicProfileError.stateMismatch("save-e2e: duplicate conflict was not preserved")
+        }
+
+        return [
+            "original_http_status": originalStatus,
+            "duplicate_http_status": duplicate.status,
+            "problem_code": duplicate.code,
+            "failure_classification": "serverRefusal",
+            "failure_cause": "idempotencyConflict",
+            "escalates": true,
+            "correlation_id": correlationID
+        ]
+    }
+
+    private static func saveRevisionPayload(
+        revisionID: String, commandID: String, contentKey: String, slot: String
+    ) throws -> Data {
+        try JSONSerialization.data(withJSONObject: [
+            "id": revisionID,
+            "command_id": commandID,
+            "content_key": contentKey,
+            "save_kind": "battery",
+            "slot": slot,
+            "capture_method": "poll",
+            "adapter_id": "e2e-harness",
+            "adapter_version": "1.0",
+            "save_format": "sram",
+            "format_confidence": "exact"
+        ])
+    }
+
+    private static func saveReprDigestHeader(for data: Data) -> String {
+        let raw = Data(SHA256.hash(data: data))
+        return "sha-256=:\(raw.base64EncodedString()):"
+    }
+
+    private static func waitForReliabilityMarker(
+        _ name: String, token: String, in directory: URL, timeout: TimeInterval
+    ) async throws {
+        let marker = directory.appendingPathComponent(name)
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if let value = try? String(contentsOf: marker, encoding: .utf8), value == token { return }
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+        throw DeterministicProfileError.stateMismatch("save-e2e: reliability marker timeout")
+    }
+
+    private static func writeReliabilityMarker(_ name: String, token: String, in directory: URL) {
+        let marker = directory.appendingPathComponent(name)
+        guard !FileManager.default.fileExists(atPath: marker.path) else { return }
+        try? Data(token.utf8).write(to: marker, options: .atomic)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: marker.path)
     }
 
     // MARK: - Plan 04-13 task 1: the named restore proof
@@ -584,6 +1185,21 @@ enum UITestBootstrap {
     // app's own `APIClient` session.
     static let zeroNetworkResultPathKey = "PLAYSTEAD_UI_TEST_ZERO_NETWORK_PLAY_FLOW_RESULT_PATH"
 
+    private enum ZeroNetworkPlayFlowStage: String {
+        case standInSigning = "stand-in-signing"
+        case adapterSelection = "adapter-selection"
+        case syntheticCAS = "synthetic-cas"
+        case catalogueReadiness = "catalogue-readiness"
+        case materializationSaveSetup = "materialization-save-setup"
+        case adapterLaunch = "adapter-launch"
+        case adapterExit = "adapter-exit"
+        case unclassified = "unclassified"
+    }
+
+    private struct ZeroNetworkPlayFlowFailure: Error {
+        let stage: ZeroNetworkPlayFlowStage
+    }
+
     private static func maybeRunZeroNetworkPlayFlowProof(
         environment: [String: String], root: URL, appEnvironment: AppEnvironment
     ) {
@@ -593,19 +1209,22 @@ enum UITestBootstrap {
         else { return }
 
         Task {
-            var requestCount = -1
-            var failureReason: String?
+            var failureStage: ZeroNetworkPlayFlowStage?
             RecordingURLProtocol.armRecording()
             do {
                 try await runZeroNetworkPlayFlow(root: root, appEnvironment: appEnvironment)
+            } catch let failure as ZeroNetworkPlayFlowFailure {
+                failureStage = failure.stage
             } catch {
-                failureReason = String(describing: error)
+                failureStage = .unclassified
             }
-            requestCount = RecordingURLProtocol.recordedRequestCount
+            let requestCount = RecordingURLProtocol.recordedRequestCount
             RecordingURLProtocol.disarmRecording()
 
-            var result: [String: Any] = ["recorded_request_count": requestCount]
-            if let failureReason { result["failure_reason"] = failureReason }
+            let result: [String: Any] = [
+                "recorded_request_count": requestCount,
+                "failure_stage": failureStage?.rawValue as Any? ?? NSNull()
+            ]
             if let data = try? JSONSerialization.data(withJSONObject: result) {
                 try? data.write(to: resultURL, options: .atomic)
             }
@@ -639,15 +1258,24 @@ enum UITestBootstrap {
     }
 
     private static func runZeroNetworkPlayFlow(root: URL, appEnvironment: AppEnvironment) async throws {
-        let pin = try AdapterPin.load()
+        let pin: AdapterPin
+        do {
+            pin = try AdapterPin.load()
+        } catch {
+            throw ZeroNetworkPlayFlowFailure(stage: .adapterSelection)
+        }
         let appURL = root.appendingPathComponent("ZeroNetworkStandIn.app", isDirectory: true)
-        try installStandInAdapterExecutable(in: appURL, at: pin.launch.executableRelativePath)
+        do {
+            try installStandInAdapterExecutable(in: appURL, at: pin.launch.executableRelativePath)
+        } catch {
+            throw ZeroNetworkPlayFlowFailure(stage: .standInSigning)
+        }
 
         guard await appEnvironment.selectExistingAdapter(appURL: appURL) else {
-            throw DeterministicProfileError.stateMismatch("zero-network-play-flow: stand-in adapter selection failed")
+            throw ZeroNetworkPlayFlowFailure(stage: .adapterSelection)
         }
         guard let host = await appEnvironment.adapterHost else {
-            throw DeterministicProfileError.stateMismatch("zero-network-play-flow: no adapter host")
+            throw ZeroNetworkPlayFlowFailure(stage: .adapterSelection)
         }
 
         // A synthetic playable entry with one verified, locally committed
@@ -657,16 +1285,24 @@ enum UITestBootstrap {
         let assetSetID = "zero-network-play-flow-asset"
         let romBytes = Data(repeating: 0xAB, count: 256)
         let romDigest = sha256Hex(of: romBytes)
-        let partial = try await appEnvironment.appPaths.partialURL(for: romDigest)
-        try await FileManager.default.createDirectory(at: appEnvironment.appPaths.partials, withIntermediateDirectories: true)
-        try romBytes.write(to: partial)
-        try await appEnvironment.casManager.commit(partialAt: partial, sha256: romDigest)
+        do {
+            let partial = try await appEnvironment.appPaths.partialURL(for: romDigest)
+            try await FileManager.default.createDirectory(at: appEnvironment.appPaths.partials, withIntermediateDirectories: true)
+            try romBytes.write(to: partial)
+            try await appEnvironment.casManager.commit(partialAt: partial, sha256: romDigest)
+        } catch {
+            throw ZeroNetworkPlayFlowFailure(stage: .syntheticCAS)
+        }
 
         let entry = CatalogueEntry(
             id: assetSetID, system: "gba", displayTitle: "Zero Network Play Flow", tags: [:],
             members: [AssetMember(ordinal: 0, role: "rom", required: true, sha256: romDigest, size: romBytes.count, name: "rom.gba")]
         )
-        try await appEnvironment.catalogueStore.upsert(entry)
+        do {
+            try await appEnvironment.catalogueStore.upsert(entry)
+        } catch {
+            throw ZeroNetworkPlayFlowFailure(stage: .catalogueReadiness)
+        }
 
         let members = entry.members.compactMap { member -> (sha256: String, declaredName: String)? in
             guard let sha256 = member.sha256, let name = member.name else { return nil }
@@ -675,15 +1311,24 @@ enum UITestBootstrap {
 
         let report = await appEnvironment.readinessReport(for: entry)
         guard report.isReady else {
-            throw DeterministicProfileError.stateMismatch("zero-network-play-flow: synthetic entry was not readiness-ready")
+            throw ZeroNetworkPlayFlowFailure(stage: .catalogueReadiness)
         }
 
-        let materialized = try await appEnvironment.launchMaterializer.materialize(assetSetID: entry.id, members: members)
-        guard let romURL = materialized.files.first else {
-            throw DeterministicProfileError.stateMismatch("zero-network-play-flow: materialize produced no launchable member")
+        let romURL: URL
+        let saveDir: URL
+        do {
+            let materialized = try await appEnvironment.launchMaterializer.materialize(assetSetID: entry.id, members: members)
+            guard let launchable = materialized.files.first else {
+                throw ZeroNetworkPlayFlowFailure(stage: .materializationSaveSetup)
+            }
+            romURL = launchable
+            saveDir = try await appEnvironment.saveDirectoryURL(forAssetSetID: entry.id)
+            try FileManager.default.createDirectory(at: saveDir, withIntermediateDirectories: true)
+        } catch let failure as ZeroNetworkPlayFlowFailure {
+            throw failure
+        } catch {
+            throw ZeroNetworkPlayFlowFailure(stage: .materializationSaveSetup)
         }
-        let saveDir = try await appEnvironment.saveDirectoryURL(forAssetSetID: entry.id)
-        try FileManager.default.createDirectory(at: saveDir, withIntermediateDirectories: true)
 
         // The two fire-and-forget calls the real `GameRowView.play()` makes
         // between readiness and spawn -- exercised here unchanged, so a
@@ -692,14 +1337,22 @@ enum UITestBootstrap {
         await appEnvironment.refreshCurationViewModels()
 
         let exited = SpawnExitSignal()
-        _ = try await host.launch(assetSetID: entry.id, romPath: romURL.path, saveDir: saveDir.path) { _ in
-            Task { @MainActor in
-                appEnvironment.playSessionRecorder.ended(sessionID)
-                appEnvironment.refreshCurationViewModels()
+        do {
+            _ = try await host.launch(assetSetID: entry.id, romPath: romURL.path, saveDir: saveDir.path) { _ in
+                Task { @MainActor in
+                    appEnvironment.playSessionRecorder.ended(sessionID)
+                    appEnvironment.refreshCurationViewModels()
+                }
+                exited.signal()
             }
-            exited.signal()
+        } catch {
+            throw ZeroNetworkPlayFlowFailure(stage: .adapterLaunch)
         }
-        try await exited.wait(timeoutSeconds: 20)
+        do {
+            try await exited.wait(timeoutSeconds: 20)
+        } catch {
+            throw ZeroNetworkPlayFlowFailure(stage: .adapterExit)
+        }
     }
 
     /// A tiny async-friendly exit latch — `AdapterHost.launch`'s `onExit`
@@ -748,7 +1401,7 @@ enum UITestBootstrap {
         guard let raw, raw.hasPrefix("/"), !raw.contains("\0") else {
             throw DeterministicProfileError.stateMismatch("live fixture path is invalid")
         }
-        let url = URL(fileURLWithPath: raw).standardizedFileURL
+        let url = canonicalFileURL(raw)
         let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
         guard (attributes[.ownerAccountID] as? NSNumber)?.uint32Value == getuid() else {
             throw DeterministicProfileError.stateMismatch("live fixture path ownership is invalid")
@@ -765,7 +1418,7 @@ enum UITestBootstrap {
         guard let raw, raw.hasPrefix("/"), !raw.contains("\0") else {
             throw DeterministicProfileError.stateMismatch("live fixture destination path is invalid")
         }
-        let url = URL(fileURLWithPath: raw).standardizedFileURL
+        let url = canonicalFileURL(raw)
         guard url.path.hasPrefix(root.path + "/") else {
             throw DeterministicProfileError.stateMismatch("live fixture destination path escaped its run root")
         }
@@ -778,6 +1431,33 @@ enum UITestBootstrap {
             throw DeterministicProfileError.stateMismatch("live fixture path escaped its run root")
         }
         return candidate
+    }
+
+    /// Resolves existing symlink components before a containment comparison.
+    /// `standardizedFileURL` alone preserves `/private/tmp`, while the root
+    /// may already have the `/private/var/tmp` spelling. Resolving first also
+    /// ensures that a symlink beneath an owned root cannot point outside it.
+    private static func canonicalFileURL(_ raw: String) -> URL {
+        let fileManager = FileManager.default
+        var existingAncestor = URL(fileURLWithPath: raw).standardizedFileURL
+        var unresolvedComponents: [String] = []
+
+        // `resolvingSymlinksInPath()` leaves a nonexistent leaf's ancestors
+        // untouched. Walk back to the nearest existing component, canonicalize
+        // that component, then rebuild the leaf. This is necessary for the
+        // fresh Keychain and report destinations created after validation.
+        while !fileManager.fileExists(atPath: existingAncestor.path) {
+            let component = existingAncestor.lastPathComponent
+            guard !component.isEmpty, existingAncestor.path != "/" else { break }
+            unresolvedComponents.append(component)
+            existingAncestor.deleteLastPathComponent()
+        }
+
+        return unresolvedComponents.reversed().reduce(
+            existingAncestor.resolvingSymlinksInPath().standardizedFileURL
+        ) { url, component in
+            url.appendingPathComponent(component)
+        }
     }
 
     private static func validatedService(_ raw: String?) throws -> String {

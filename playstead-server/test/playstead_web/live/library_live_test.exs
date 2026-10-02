@@ -311,10 +311,11 @@ defmodule PlaysteadWeb.LibraryLiveTest do
       css = File.read!("assets/css/app.css")
 
       system_accents =
-        Regex.scan(~r/--system-accent-[a-z]+:\s*(#[0-9a-fA-F]+);/, css) |> Enum.map(&List.last/1)
+        Regex.scan(~r/--color-system-accent-[a-z]+:\s*(#[0-9a-fA-F]+);/, css)
+        |> Enum.map(&List.last/1)
 
       statuses =
-        Regex.scan(~r/--status-[a-z-]+:\s*(#[0-9a-fA-F]+);/, css) |> Enum.map(&List.last/1)
+        Regex.scan(~r/--color-status-[a-z-]+:\s*(#[0-9a-fA-F]+);/, css) |> Enum.map(&List.last/1)
 
       assert length(system_accents) > 0
       assert length(statuses) > 0
@@ -327,7 +328,7 @@ defmodule PlaysteadWeb.LibraryLiveTest do
   end
 
   describe "Task 2: sidebar order, remaining shelves, and collections (03-05)" do
-    test "the sidebar's rendered entries appear in the canonical order Home, Continue, Favorites, Collections, Queue, Recent, systems, unidentified",
+    test "the sidebar's rendered entries appear in the canonical order Home, Recently Played, Favorites, Collections, Queue, Recent, systems, unidentified",
          %{conn: conn, user: user} do
       asset_set_fixture(user.id, %{system_id: "gba", display_title: "A GBA Game"})
       asset_set_fixture(user.id, %{system_id: "unknown", display_title: "Mystery"})

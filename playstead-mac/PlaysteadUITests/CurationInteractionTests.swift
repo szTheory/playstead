@@ -19,16 +19,16 @@ final class CurationInteractionTests: XCTestCase {
 
     func testSidebarExposesAllFiveCurationDestinations() throws {
         let harness = launchPersistentCurationHarness()
-        for label in ["Continue", "Favorites", "Collections", "Queue", "Recent"] {
-            XCTAssertTrue(harness.app.staticTexts[label].awaitExistence(timeout: 5), "sidebar entry missing: \(label)")
+        for label in ["Recently Played", "Favorites", "Collections", "Queue", "Recent"] {
+            XCTAssertTrue(sidebarEntry(label, in: harness).awaitExistence(timeout: 5), "sidebar entry missing: \(label)")
         }
     }
 
     func testContinueShelfRendersHonestEmptyFixture() throws {
         let harness = launchPersistentCurationHarness()
-        selectSidebar("Continue", in: harness)
+        selectSidebar("Recently Played", in: harness)
         XCTAssertTrue(harness.element("playstead.surface.shelf.continue").awaitExistence(timeout: 5))
-        XCTAssertTrue(harness.app.staticTexts["Play something, and pick up where you left off here."].awaitExistence(timeout: 5))
+        XCTAssertTrue(harness.app.staticTexts["Games you play will appear here."].awaitExistence(timeout: 5))
         assertSyntheticGamesVisible(0, in: harness)
     }
 
@@ -38,22 +38,21 @@ final class CurationInteractionTests: XCTestCase {
         XCTAssertTrue(harness.element("playstead.surface.shelf.favorites").awaitExistence(timeout: 5))
     }
 
-    func testFavoritesShelfRendersExactSeededCard() throws {
+    func testFavoritesShelfRendersExactSeededRowAndStatus() throws {
         let harness = launchPersistentCurationHarness()
         selectSidebar("Favorites", in: harness)
-        let cards = harness.app.descendants(matching: .any).matching(identifier: "library.card")
-        XCTAssertEqual(cards.count, 1)
-        // The shelf was constructed without its `statuses` closure, so its
-        // cards carried no status rung at all and this label ended after
-        // the system name (WINDOWS #72). It now composes the same three
-        // facts the grid's cards do -- title, system, status sentence --
-        // and the seeded fixture is uncached, so the sentence is the
-        // server-only one. Asserted as an exact whole, matching this
-        // suite's posture, rather than loosened to a prefix.
-        XCTAssertEqual(
-            cards.element(boundBy: 0).readableText,
-            "Synthetic Game 1, Unidentified, Synthetic Game 1 is on your server. Choose Download to play it offline."
+        let rows = harness.app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH %@ AND identifier ENDSWITH %@", "playstead.game.", ".summary")
         )
+        XCTAssertEqual(rows.count, 1)
+        let row = rows.element(boundBy: 0)
+        XCTAssertEqual(
+            row.readableText,
+            "Synthetic Game 1, Unidentified"
+        )
+        let status = harness.app.descendants(matching: .any)["library.status-label"]
+        XCTAssertTrue(status.awaitExistence(timeout: 5), "the favorite row lost its status label")
+        XCTAssertEqual(status.readableText, "Available to download")
     }
 
     func testCollectionsShelfRootExists() throws {
@@ -120,7 +119,7 @@ final class CurationInteractionTests: XCTestCase {
         let action = harness.element(moveID(memberID(2), direction: "up"), type: .button)
         XCTAssertTrue(action.awaitExistence(timeout: 5))
         XCTAssertTrue(action.isEnabled)
-        XCTAssertTrue(action.isHittable)
+        XCTAssertTrue(action.isHittable, layoutDiagnostic(kind: "moveUp", element: action, pane: harness.element("playstead.surface.collection-detail"), in: harness))
         action.clickWhenHittable()
         let order = [memberID(2), memberID(1), memberID(3)]
         assertEvidence(order: order, outboxCount: 1, in: harness)
@@ -247,28 +246,40 @@ final class CurationInteractionTests: XCTestCase {
     func testListLayoutOffersAWorkingSortControl() {
         let harness = launchPersistentCurationHarness()
 
-        harness.element("playstead.control.show-list", type: .button).clickWhenHittable()
+        let viewPicker = harness.element("playstead.library.view-mode")
+        XCTAssertTrue(viewPicker.awaitExistence(timeout: 5), "library view picker is missing")
+        let listSegment = viewPicker.descendants(matching: .any)["playstead.control.show-list"]
+        XCTAssertTrue(listSegment.awaitExistence(timeout: 5), "List layout segment is missing")
+        XCTAssertEqual(listSegment.readableText, "List")
+        listSegment.clickWhenHittable()
+        XCTAssertTrue(
+            harness.element("playstead.library.sort").awaitExistence(timeout: 5),
+            "selecting List did not render its production sort control"
+        )
 
-        let byTitle = harness.element("playstead.control.sort-title", type: .button)
-        let bySystem = harness.element("playstead.control.sort-system", type: .button)
-        XCTAssertTrue(byTitle.awaitExistence(timeout: 5), "the list layout offers no way to sort")
-        XCTAssertTrue(bySystem.exists)
-        XCTAssertEqual(byTitle.value as? String, "selected", "title is the default ordering")
-        XCTAssertEqual(bySystem.value as? String, "not selected")
+        let sortPicker = harness.element("playstead.library.sort")
+        XCTAssertTrue(sortPicker.awaitExistence(timeout: 5), "the list layout offers no way to sort")
+        XCTAssertEqual(sortPicker.value as? String, "Title", "title is the default ordering")
 
         // Pressing it must actually change the state the list body reads --
         // a control that renders and does nothing is the defect one level
         // up from having no control at all.
+        sortPicker.clickWhenHittable()
+        let bySystem = harness.app.menuItems["System"]
+        XCTAssertTrue(bySystem.awaitExistence(timeout: 5), "the System sort menu item is missing")
         bySystem.clickWhenHittable()
-        XCTAssertEqual(bySystem.value as? String, "selected")
-        XCTAssertEqual(byTitle.value as? String, "not selected")
+        XCTAssertEqual(sortPicker.value as? String, "System")
 
         // And the rows are ordered. The seeded fixture is three games whose
         // titles sort the same way their ids do, so this pins the ordering
         // that is observable here rather than claiming more than the
         // fixture can show; `LibrarySortTests` covers the orderings
         // themselves against inputs built for the purpose.
+        sortPicker.clickWhenHittable()
+        let byTitle = harness.app.menuItems["Title"]
+        XCTAssertTrue(byTitle.awaitExistence(timeout: 5), "the Title sort menu item is missing")
         byTitle.clickWhenHittable()
+        XCTAssertEqual(sortPicker.value as? String, "Title")
         let titles = (1...3).map { "Synthetic Game \($0)" }
         let rendered = harness.app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier BEGINSWITH %@ AND identifier ENDSWITH %@", "playstead.game.", ".summary"))
@@ -298,6 +309,7 @@ final class CurationInteractionTests: XCTestCase {
         let third = listCell(containing: rowID(3), in: harness)
         XCTAssertTrue(first.awaitExistence(timeout: 5))
         XCTAssertTrue(third.awaitExistence(timeout: 5))
+        XCTAssertTrue(third.isHittable, layoutDiagnostic(kind: "dragCell", element: third, pane: harness.element("playstead.curation.collection-member-list"), in: harness))
 
         // Last-to-first has one unambiguous destination boundary. Dropping the
         // first row on the last row's center can resolve on either side of it.
@@ -368,9 +380,26 @@ final class CurationInteractionTests: XCTestCase {
     }
 
     private func selectSidebar(_ label: String, in harness: UITestHarness) {
-        let entry = harness.app.staticTexts[label]
+        let entry = sidebarEntry(label, in: harness)
         XCTAssertTrue(entry.awaitExistence(timeout: 5), "sidebar entry missing: \(label)")
+        XCTAssertEqual(entry.readableText, label, "sidebar entry label changed: \(label)")
         entry.clickWhenHittable()
+    }
+
+    /// Resolve the production row by stable identity. macOS exposes List row
+    /// accessibility differently from iOS buttons, so labels are asserted
+    /// through `readableText` after the row has been found.
+    private func sidebarEntry(_ label: String, in harness: UITestHarness) -> XCUIElement {
+        let identifier: String
+        switch label {
+        case "Recently Played": identifier = "playstead.sidebar.continue"
+        case "Favorites": identifier = "playstead.sidebar.favorites"
+        case "Collections": identifier = "playstead.sidebar.collections"
+        case "Queue": identifier = "playstead.sidebar.queue"
+        case "Recent": identifier = "playstead.sidebar.recent"
+        default: identifier = "playstead.sidebar.unexpected"
+        }
+        return harness.element(identifier)
     }
 
     private func assertExactCollectionOrder(
@@ -389,10 +418,19 @@ final class CurationInteractionTests: XCTestCase {
         XCTAssertEqual(allRows.count, 3, file: file, line: line)
         let rows = expected.map { harness.element("playstead.curation.collection-member.\($0)") }
         for row in rows { XCTAssertTrue(row.awaitExistence(timeout: 5), file: file, line: line) }
+        let expectedIdentifiers = expected.map { "playstead.curation.collection-member.\($0)" }
+        let orderSettled = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in
+                rows.sorted { $0.frame.minY < $1.frame.minY }.map(\.identifier) == expectedIdentifiers
+            },
+            object: nil
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [orderSettled], timeout: 5), .completed, file: file, line: line)
         let visualOrder = rows.sorted { $0.frame.minY < $1.frame.minY }.map(\.identifier)
         XCTAssertEqual(
             visualOrder,
-            expected.map { "playstead.curation.collection-member.\($0)" },
+            expectedIdentifiers,
+            visibleOrderDiagnostics(rows, in: harness),
             file: file,
             line: line
         )
@@ -495,6 +533,27 @@ final class CurationInteractionTests: XCTestCase {
             .completed,
             "curation-keyboard-stage=\(stage)"
         )
+    }
+
+    /// Temporary failure-only geometry evidence. It intentionally reports
+    /// numeric frames and ordinal row tokens only; no accessibility labels,
+    /// identifiers, fixture names, or device details are included.
+    private func layoutDiagnostic(kind: String, element: XCUIElement, pane: XCUIElement, slot: Int? = nil, in harness: UITestHarness) -> String {
+        let window = harness.app.windows.element(boundBy: 0)
+        let slotToken = slot.map { " slot=\($0)" } ?? ""
+        return "PLAYSTEAD_LAYOUT_V1 kind=\(kind) hittable=\(element.isHittable) element=\(frameToken(element.frame)) pane=\(frameToken(pane.frame)) window=\(frameToken(window.frame))\(slotToken)"
+    }
+
+    private func visibleOrderDiagnostics(_ rows: [XCUIElement], in harness: UITestHarness) -> String {
+        let sorted = rows.enumerated().sorted { $0.element.frame.minY < $1.element.frame.minY }
+        let list = harness.element("playstead.curation.collection-member-list")
+        return sorted.enumerated().map { slot, row in
+            layoutDiagnostic(kind: "orderCell", element: row.element, pane: list, slot: slot + 1, in: harness)
+        }.joined(separator: ";")
+    }
+
+    private func frameToken(_ frame: CGRect) -> String {
+        "(\(Int(frame.minX)),\(Int(frame.minY)),\(Int(frame.width)),\(Int(frame.height)))"
     }
 
     private func assertEnabled(_ expected: Bool, element: XCUIElement) {

@@ -7,7 +7,7 @@ import SwiftUI
 /// the product working correctly and must never escalate. D-40's
 /// central rule: escalate on undecidability, never on duration or
 /// count.
-enum SaveUploadFailureClassification: Equatable {
+enum SaveUploadFailureClassification: Equatable, Sendable {
     /// Nothing is currently failing -- the line has no pending upload,
     /// or its pending upload is progressing normally. This is also how
     /// an old local-only version with a reachable server is expressed:
@@ -158,7 +158,7 @@ struct OnlyCopyEscalationPanel: View {
         .padding(DesignTokens.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.standard)
                 .strokeBorder(DesignTokens.border, lineWidth: 1)
         )
         .accessibilityElement(children: .contain)

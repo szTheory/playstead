@@ -473,4 +473,26 @@ actor AdapterHost {
     func terminateIfRunning() {
         process?.terminate()
     }
+
+#if UI_TESTING
+    /// Attests that a recovery UI test's child PID is the exact process this
+    /// host launched from its verified install inside the test profile.
+    /// The caller still uses the OS's normal application quit path; this
+    /// query never sends a signal or changes process state.
+    func recoveryUITestProcessIsBound(_ processIdentifier: Int32) -> Bool {
+        guard
+            let process,
+            process.isRunning,
+            process.processIdentifier == processIdentifier,
+            case .installed(_, let verified) = installState,
+            verified,
+            let executableURL = process.executableURL?.standardizedFileURL,
+            executableURL == resolvedExecutableURL.standardizedFileURL
+        else { return false }
+
+        let root = emulatorsRoot.standardizedFileURL.path
+        let executablePath = executableURL.path
+        return executablePath.hasPrefix(root.hasSuffix("/") ? root : root + "/")
+    }
+#endif
 }

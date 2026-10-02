@@ -56,10 +56,10 @@ defmodule PlaysteadWeb.SetupLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen flex items-center justify-center bg-[#0F172A] font-sans py-12">
+    <div class="min-h-screen flex items-center justify-center bg-app-canvas font-sans py-12">
       <Layouts.flash_group flash={@flash} />
-      <div class="w-full max-w-md rounded-lg bg-[#1E293B] p-8 shadow-xl">
-        <h1 class="text-display font-semibold text-[#F1F5F9]">Set up Playstead</h1>
+      <div class="w-full max-w-md rounded-lg bg-app-surface p-8 shadow-xl">
+        <h1 class="text-display font-semibold text-app-text">Set up Playstead</h1>
 
         <div :if={@step == 1} id="setup-step-1" class="mt-6">
           {render_step_1(assigns)}
@@ -82,8 +82,8 @@ defmodule PlaysteadWeb.SetupLive do
 
   defp render_step_1(assigns) do
     ~H"""
-    <p class="text-sm text-[#94A3B8]">
-      Find your setup token by running <span class="text-[#F1F5F9]">docker compose logs</span>
+    <p class="text-sm text-app-muted">
+      Find your setup token by running <span class="text-app-text">docker compose logs</span>
       and looking for the banner printed at boot. Paste it below.
     </p>
 
@@ -95,7 +95,7 @@ defmodule PlaysteadWeb.SetupLive do
       class="mt-4 space-y-3"
     >
       <div>
-        <label for="setup_token" class="block text-sm font-semibold text-[#F1F5F9]">
+        <label for="setup_token" class="block text-sm font-semibold text-app-text">
           Setup token
         </label>
         <input
@@ -107,13 +107,13 @@ defmodule PlaysteadWeb.SetupLive do
           spellcheck="false"
           required
           phx-mounted={JS.focus()}
-          class="mt-1 block w-full truncate rounded-md border border-[#334155] bg-[#0F172A] px-3 py-2 font-mono text-code text-[#F1F5F9] focus:border-[#38BDF8] focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
+          class="mt-1 block w-full truncate rounded-md border border-app-border bg-app-canvas px-3 py-2 font-mono text-code text-app-text focus:border-app-accent focus:outline-none focus:ring-2 focus:ring-app-accent"
         />
         <p
           :if={@token_error}
           id="setup_token_error"
           data-role="error"
-          class="mt-2 text-sm text-[#EF4444]"
+          class="mt-2 text-sm text-app-danger"
         >
           {@token_error}
         </p>
@@ -123,7 +123,7 @@ defmodule PlaysteadWeb.SetupLive do
         type="submit"
         id="setup_token_submit"
         phx-disable-with="Checking..."
-        class="w-full rounded-md bg-[#38BDF8] px-4 py-2 text-base font-semibold text-[#0F172A] hover:opacity-90 disabled:opacity-60"
+        class="w-full rounded-md bg-app-accent px-4 py-2 text-base font-semibold text-app-canvas hover:opacity-90 disabled:opacity-60"
       >
         Continue
       </button>
@@ -135,12 +135,12 @@ defmodule PlaysteadWeb.SetupLive do
 
   defp render_step_2(assigns) do
     ~H"""
-    <p class="text-sm text-[#94A3B8]">Create your owner account.</p>
+    <p class="text-sm text-app-muted">Create your owner account.</p>
     <p
       :if={@create_owner_error}
       id="owner_error"
       data-role="error"
-      class="mt-2 text-sm text-[#EF4444]"
+      class="mt-2 text-sm text-app-danger"
     >
       {@create_owner_error}
     </p>
@@ -153,7 +153,7 @@ defmodule PlaysteadWeb.SetupLive do
       class="mt-4 space-y-3"
     >
       <div>
-        <label for="owner_email" class="block text-sm font-semibold text-[#F1F5F9]">Email</label>
+        <label for="owner_email" class="block text-sm font-semibold text-app-text">Email</label>
         <input
           type="email"
           name="owner[email]"
@@ -163,19 +163,19 @@ defmodule PlaysteadWeb.SetupLive do
           spellcheck="false"
           required
           phx-mounted={JS.focus()}
-          class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0F172A] px-3 py-2 text-base text-[#F1F5F9] focus:border-[#38BDF8] focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
+          class="mt-1 block w-full rounded-md border border-app-border bg-app-canvas px-3 py-2 text-base text-app-text focus:border-app-accent focus:outline-none focus:ring-2 focus:ring-app-accent"
         />
         <p
           :for={msg <- @credentials_form[:email].errors || []}
           data-role="error"
-          class="mt-1 text-sm text-[#EF4444]"
+          class="mt-1 text-sm text-app-danger"
         >
           {translate_form_error(msg)}
         </p>
       </div>
 
       <div>
-        <label for="owner_password" class="block text-sm font-semibold text-[#F1F5F9]">
+        <label for="owner_password" class="block text-sm font-semibold text-app-text">
           Password
         </label>
         <input
@@ -185,20 +185,20 @@ defmodule PlaysteadWeb.SetupLive do
           autocomplete="new-password"
           spellcheck="false"
           required
-          class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0F172A] px-3 py-2 text-base text-[#F1F5F9] focus:border-[#38BDF8] focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
+          class="mt-1 block w-full rounded-md border border-app-border bg-app-canvas px-3 py-2 text-base text-app-text focus:border-app-accent focus:outline-none focus:ring-2 focus:ring-app-accent"
         />
-        <p class="mt-1 text-sm text-[#94A3B8]">At least 12 characters.</p>
+        <p class="mt-1 text-sm text-app-muted">At least 12 characters.</p>
         <p
           :for={msg <- @credentials_form[:password].errors || []}
           data-role="error"
-          class="mt-1 text-sm text-[#EF4444]"
+          class="mt-1 text-sm text-app-danger"
         >
           {translate_form_error(msg)}
         </p>
       </div>
 
       <div>
-        <label for="owner_password_confirmation" class="block text-sm font-semibold text-[#F1F5F9]">
+        <label for="owner_password_confirmation" class="block text-sm font-semibold text-app-text">
           Confirm password
         </label>
         <input
@@ -208,13 +208,13 @@ defmodule PlaysteadWeb.SetupLive do
           autocomplete="new-password"
           spellcheck="false"
           required
-          class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0F172A] px-3 py-2 text-base text-[#F1F5F9] focus:border-[#38BDF8] focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
+          class="mt-1 block w-full rounded-md border border-app-border bg-app-canvas px-3 py-2 text-base text-app-text focus:border-app-accent focus:outline-none focus:ring-2 focus:ring-app-accent"
         />
         <p
           :for={msg <- @credentials_form[:password_confirmation].errors || []}
           data-role="error"
           data-role="error"
-          class="mt-1 text-sm text-[#EF4444]"
+          class="mt-1 text-sm text-app-danger"
         >
           {translate_form_error(msg)}
         </p>
@@ -224,7 +224,7 @@ defmodule PlaysteadWeb.SetupLive do
         type="submit"
         id="owner_submit"
         phx-disable-with="Creating..."
-        class="w-full rounded-md bg-[#38BDF8] px-4 py-2 text-base font-semibold text-[#0F172A] hover:opacity-90 disabled:opacity-60"
+        class="w-full rounded-md bg-app-accent px-4 py-2 text-base font-semibold text-app-canvas hover:opacity-90 disabled:opacity-60"
       >
         Continue
       </button>
@@ -236,14 +236,14 @@ defmodule PlaysteadWeb.SetupLive do
 
   defp render_step_3(assigns) do
     ~H"""
-    <p class="text-sm text-[#94A3B8]">
+    <p class="text-sm text-app-muted">
       Save these recovery codes somewhere safe. Each one works once, and they
       are never shown again after this screen.
     </p>
 
     <div
       id="recovery-codes"
-      class="mt-4 grid grid-cols-2 gap-2 rounded-md border border-[#334155] bg-[#0F172A] p-4"
+      class="mt-4 grid grid-cols-2 gap-2 rounded-md border border-app-border bg-app-canvas p-4"
     >
       <.code_display
         :for={{code, index} <- Enum.with_index(@recovery_codes)}
@@ -259,7 +259,7 @@ defmodule PlaysteadWeb.SetupLive do
       id="continue_to_readiness"
       phx-click="continue_to_readiness"
       phx-mounted={JS.focus()}
-      class="mt-4 w-full rounded-md bg-[#38BDF8] px-4 py-2 text-base font-semibold text-[#0F172A] hover:opacity-90 phx-click-loading:opacity-60"
+      class="mt-4 w-full rounded-md bg-app-accent px-4 py-2 text-base font-semibold text-app-canvas hover:opacity-90 phx-click-loading:opacity-60"
     >
       Continue
     </button>
@@ -270,10 +270,10 @@ defmodule PlaysteadWeb.SetupLive do
 
   defp render_step_4(assigns) do
     ~H"""
-    <p class="text-sm text-[#94A3B8]">Here's how your server is doing.</p>
+    <p class="text-sm text-app-muted">Here's how your server is doing.</p>
 
     <ul id="readiness" class="mt-4 space-y-2">
-      <li :if={@readiness == :loading} id="readiness-loading" class="text-sm text-[#94A3B8]">
+      <li :if={@readiness == :loading} id="readiness-loading" class="text-sm text-app-muted">
         Checking…
       </li>
       <li
@@ -282,15 +282,15 @@ defmodule PlaysteadWeb.SetupLive do
         data-state={row.state}
         class={[
           "rounded-md border px-3 py-2 text-sm",
-          row.state == :ok && "border-[#4ADE80]/40 text-[#4ADE80]",
-          row.state == :warning && "border-[#FBBF24]/40 text-[#FBBF24]"
+          row.state == :ok && "border-app-success/40 text-app-success",
+          row.state == :warning && "border-app-warning/40 text-app-warning"
         ]}
       >
         <span class="font-semibold">{readiness_label(row.id)}</span> — {row.message}
       </li>
     </ul>
 
-    <p id="backup-nudge" class="mt-4 text-sm text-[#94A3B8]">
+    <p id="backup-nudge" class="mt-4 text-sm text-app-muted">
       Your library lives in this server's storage. Set up a backup destination soon — a copy
       on the same disk is not a backup.
     </p>
@@ -299,7 +299,7 @@ defmodule PlaysteadWeb.SetupLive do
       type="button"
       id="finish_setup"
       phx-click="finish_setup"
-      class="mt-4 w-full rounded-md bg-[#38BDF8] px-4 py-2 text-base font-semibold text-[#0F172A] hover:opacity-90 phx-click-loading:opacity-60"
+      class="mt-4 w-full rounded-md bg-app-accent px-4 py-2 text-base font-semibold text-app-canvas hover:opacity-90 phx-click-loading:opacity-60"
     >
       Finish setup
     </button>

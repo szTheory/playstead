@@ -15,7 +15,6 @@ enum AccessibilityIdentifiers {
         static let collectionDetail = "playstead.surface.collection-detail"
         static let playQueue = "playstead.surface.shelf.play-queue"
         static let recent = "playstead.surface.shelf.recent"
-        static let search = "playstead.surface.search"
         static let filter = "playstead.surface.filter"
         static let gameList = "playstead.surface.game-list"
         static let gameCard = "playstead.surface.game-card"
@@ -35,7 +34,7 @@ enum AccessibilityIdentifiers {
 
         static let all = [
             library, sidebar, continueShelf, favoritesShelf, collections,
-            collectionDetail, playQueue, recent, search, filter, gameList,
+            collectionDetail, playQueue, recent, filter, gameList,
             gameCard, downloads, quota, storage, reclaim, readiness, adapter,
             bios, controllerSettings, pairing
         ]
@@ -44,7 +43,6 @@ enum AccessibilityIdentifiers {
     enum Control {
         static let done = "playstead.control.done"
         static let cancel = "playstead.control.cancel"
-        static let search = "playstead.control.search"
         static let clearSearch = "playstead.control.clear-search"
         static let filter = "playstead.control.filter"
         static let moveUp = "playstead.control.move-up"
@@ -53,29 +51,28 @@ enum AccessibilityIdentifiers {
         static let queue = "playstead.control.queue"
         static let pin = "playstead.control.pin"
         static let download = "playstead.control.download"
-        static let openDownloads = "playstead.control.open-downloads"
         static let openStorage = "playstead.control.open-storage"
         static let openAdapter = "playstead.control.open-adapter"
         static let showCards = "playstead.control.show-cards"
         static let showList = "playstead.control.show-list"
         static let openReadiness = "playstead.control.open-readiness"
-        static let openBios = "playstead.control.open-bios"
         static let openControllerSettings = "playstead.control.open-controller-settings"
         static let installAdapter = "playstead.control.install-adapter"
         static let chooseAdapter = "playstead.control.choose-adapter"
         static let chooseBios = "playstead.control.choose-bios"
         static let openPairing = "playstead.control.open-pairing"
         static let pairingServerURL = "playstead.control.pairing-server-url"
+        static let chooseRecoveryCA = "playstead.control.choose-recovery-ca"
         static let requestPairing = "playstead.control.request-pairing"
         static let pairingDisplayCode = "playstead.control.pairing-display-code"
         static let pairingSuccess = "playstead.control.pairing-success"
 
         static let all = [
-            done, cancel, search, filter, moveUp, moveDown, favorite, queue,
-            pin, download, openDownloads, openStorage, openAdapter, showCards,
-            showList, openReadiness, openBios, openControllerSettings,
+            done, cancel, filter, moveUp, moveDown, favorite, queue,
+            pin, download, openStorage, openAdapter, showCards,
+            showList, openReadiness, openControllerSettings,
             installAdapter, chooseAdapter, chooseBios,
-            openPairing, pairingServerURL, requestPairing, pairingDisplayCode, pairingSuccess
+            openPairing, pairingServerURL, chooseRecoveryCA, requestPairing, pairingDisplayCode, pairingSuccess
         ]
     }
 
@@ -84,8 +81,9 @@ enum AccessibilityIdentifiers {
     /// `Surface`, which is the D-18 surface inventory and is walked as such.
     enum Readout {
         static let biosStatus = "playstead.readout.bios-status"
+        static let pairingCASelection = "playstead.readout.pairing-ca-selection"
 
-        static let all = [biosStatus]
+        static let all = [biosStatus, pairingCASelection]
     }
 
     /// Finite identities for synthetic rows used by deterministic UI fixtures.

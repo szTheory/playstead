@@ -34,8 +34,8 @@ defmodule PlaysteadWeb.LibraryLive.Shelves do
     ~H"""
     <section id={@id} class="library-shelf" aria-label={@heading}>
       <div class="library-shelf-heading flex items-baseline justify-between">
-        <h2 class="text-heading font-semibold text-[#F1F5F9]">{@heading}</h2>
-        <span class="text-label text-[#94A3B8]">{length(@items)}</span>
+        <h2 class="text-heading font-semibold text-app-text">{@heading}</h2>
+        <span class="text-label text-app-muted">{length(@items)}</span>
       </div>
       <div class="library-shelf-track" role="list" tabindex="0">
         <div :for={entry <- @items} role="listitem" class="library-shelf-item space-y-1">
@@ -52,7 +52,7 @@ defmodule PlaysteadWeb.LibraryLive.Shelves do
             id={"#{@id}-#{entry.asset_set.id}-dismiss"}
             phx-click={elem(@dismiss_fun.(entry.asset_set), 0)}
             phx-value-asset-set-id={entry.asset_set.id}
-            class="text-label text-[#94A3B8] hover:text-[#F1F5F9]"
+            class="text-label text-app-muted hover:text-app-text"
           >
             {elem(@dismiss_fun.(entry.asset_set), 1)}
           </button>
@@ -70,8 +70,8 @@ defmodule PlaysteadWeb.LibraryLive.Shelves do
 
   def shelf_empty_explainer(assigns) do
     ~H"""
-    <p id={@id} class="library-shelf-explainer text-label text-[#94A3B8]">
-      <span class="font-semibold text-[#F1F5F9]">{@heading}</span> — {@body}
+    <p id={@id} class="library-shelf-explainer text-label text-app-muted">
+      <span class="font-semibold text-app-text">{@heading}</span> — {@body}
     </p>
     """
   end

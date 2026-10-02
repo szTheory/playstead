@@ -19,6 +19,8 @@ struct LibraryShellView: View {
     @State private var presentedSurface: ShellSurface?
     @State private var searchText = ""
     @State private var libraryLayout: LibraryLayout = .cards
+    @State private var catalogueGridColumnCount = 1
+    @State private var selectedSettingsPane: SettingsPane = .storage
     /// The list layout's ordering. Lives here rather than in
     /// `LibraryViewModel` because it is presentation state, and it governs
     /// the rows `catalogueList` renders -- which is the whole of WINDOWS
@@ -30,28 +32,52 @@ struct LibraryShellView: View {
     @State private var selectedListEntryID: String?
     @State private var downloadCommand: LibraryDownloadCommand?
     @State private var downloadCommandSequence = 0
-    @State private var presentedReadinessEntry: CatalogueEntry?
-    @FocusState private var focusedShellControl: ShellSurface?
     @FocusState private var focusedSheetDismissal: Bool
     @FocusState private var libraryListHasFocus: Bool
+    @FocusState private var sidebarHasFocus: Bool
+    @FocusState private var searchFieldHasFocus: Bool
+    @FocusState private var collectionNameHasFocus: Bool
+    @State private var navigationDispatcher = ControllerNavigationDispatcher()
+    @State private var controllerFocusedAssetSetID: String?
+    @State private var controllerFocusedCollectionID: String?
+    @State private var controllerFocusedFilterID: String?
+    @State private var controllerCommandSequence = 0
+    @State private var controllerCommand: LibraryControllerCommand?
     /// Bumped by every storage action so the presented sheet re-reads the
     /// real stores. Pins, the queue and the quota policy live in SQLite,
     /// not in an observable view model, so nothing else would invalidate
     /// the sheet's body.
     @State private var storageRevision = 0
+    @State private var showsControllerTest = false
 
-    /// The app-wide surfaces reached from the labeled command bar rather than the
-    /// source list. The sidebar's section order is a frozen navigation
-    /// contract (D-14), so a surface that is about the app as a whole —
-    /// the adapter, the download queue, the cache — is a command-bar
-    /// affordance instead of a ninth source-list row.
+    /// Pairing is a focused task. Downloads, storage, and emulator setup
+    /// are persistent destinations rather than large modal sheets.
     enum ShellSurface: String, Identifiable, CaseIterable {
-        case adapter
-        case downloads
-        case storage
         case pairing
 
         var id: String { rawValue }
+    }
+
+    enum SettingsPane: String, CaseIterable, Identifiable {
+        case storage
+        case emulator
+        case controller
+
+        var id: String { rawValue }
+        var accessibilityIdentifier: String {
+            switch self {
+            case .storage: AccessibilityIdentifiers.Control.openStorage
+            case .emulator: AccessibilityIdentifiers.Control.openAdapter
+            case .controller: AccessibilityIdentifiers.Control.openControllerSettings
+            }
+        }
+        var title: String {
+            switch self {
+            case .storage: "Storage"
+            case .emulator: "Emulator"
+            case .controller: "Controller"
+            }
+        }
     }
 
     enum LibraryLayout: Hashable {
@@ -64,18 +90,12 @@ struct LibraryShellView: View {
     /// somewhere rather than opening a blank sheet.
     static func title(for surface: ShellSurface) -> String {
         switch surface {
-        case .adapter: return "Adapter"
-        case .downloads: return "Downloads"
-        case .storage: return "Storage"
         case .pairing: return "Pairing"
         }
     }
 
     static func surfaceIdentifier(for surface: ShellSurface) -> String {
         switch surface {
-        case .adapter: return AccessibilityIdentifiers.Surface.adapter
-        case .downloads: return AccessibilityIdentifiers.Surface.downloads
-        case .storage: return AccessibilityIdentifiers.Surface.storage
         case .pairing: return AccessibilityIdentifiers.Surface.pairing
         }
     }
@@ -89,6 +109,79 @@ struct LibraryShellView: View {
         Dictionary(library.catalogue.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
+    private var sidebarEntries: [SidebarEntry] {
+        SidebarView.entries(nonEmptySystemIDs: library.nonEmptySystemIDs, hasUnidentified: library.hasUnidentifiedEntries)
+    }
+
+    private var collectionIDs: [String] {
+        environment.collectionsViewModel.collections.map(\.id)
+    }
+
+    private var collectionMemberIDs: [String] {
+        guard let selectedCollectionID else { return [] }
+        return environment.collectionsViewModel.members(of: selectedCollectionID).map(\.assetSetID)
+    }
+
+    private var libraryFilterChips: [FilterChip] {
+        let systems = availableSystemFilters.map {
+            FilterChip(id: "system:\($0.id)", label: "System: \($0.label)")
+        }
+        let availability = AvailabilityVocabulary.values.compactMap { value -> FilterChip? in
+            guard let label = AvailabilityVocabulary.label(value) else { return nil }
+            return FilterChip(id: "availability:\(value)", label: "Availability: \(label)")
+        }
+        return [FilterChip(id: "system:all", label: "System: All systems")] + systems
+            + [FilterChip(id: "availability:all", label: "Availability: Any")] + availability
+    }
+
+    private var selectedLibraryFilterIDs: Set<String> {
+        [
+            "system:\(library.selectedSystemID ?? "all")",
+            "availability:\(library.selectedAvailability ?? "all")"
+        ]
+    }
+
+    private var navigationContext: LibraryNavigationContext {
+        if selection == .collections {
+            return LibraryNavigationContext(
+                sidebarCount: sidebarEntries.count,
+                contentCount: collectionMemberIDs.count,
+                contentColumnCount: 1,
+                filterCount: 0,
+                surface: .collections,
+                collectionCount: collectionIDs.count,
+                collectionMemberCount: collectionMemberIDs.count,
+                hasSelectedCollection: selectedCollectionID.map(collectionIDs.contains) ?? false
+            )
+        }
+        return LibraryNavigationContext(
+            sidebarCount: sidebarEntries.count,
+            contentCount: visibleContentEntryIDs.count,
+            contentColumnCount: selection == .home && libraryLayout == .cards ? catalogueGridColumnCount : 1,
+            filterCount: selection == .home ? libraryFilterChips.count : 0,
+            surface: .games,
+            collectionCount: 0,
+            collectionMemberCount: 0,
+            hasSelectedCollection: false
+        )
+    }
+
+    /// Stable IDs for the games users can act on in the selected destination.
+    /// Session-only records and settings have no game activation target.
+    private var visibleContentEntryIDs: [String] {
+        switch selection ?? .home {
+        case .home: library.filteredCatalogue.map(\.id)
+        case .recentlyPlayed: environment.continueViewModel.items.map(\.assetSetID)
+        case .favorites: environment.favoritesViewModel.favorites.map(\.assetSetID)
+        case .collections: collectionMemberIDs
+        case .queue: environment.queueViewModel.items.map(\.assetSetID)
+        case .recent: environment.recentViewModel.items.map(\.assetSetID)
+        case .downloads, .settings: []
+        case .system(let id): library.catalogue(forSystemID: id).map(\.id)
+        case .unidentified: library.unidentifiedCatalogue.map(\.id)
+        }
+    }
+
     var body: some View {
         NavigationSplitView {
             SidebarView(
@@ -96,17 +189,14 @@ struct LibraryShellView: View {
                 hasUnidentified: library.hasUnidentifiedEntries,
                 selection: $selection
             )
+            .focused($sidebarHasFocus)
             .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 320)
         } detail: {
-            VStack(alignment: .leading, spacing: 0) {
-                libraryCommandBar
-                Text(Self.title(for: selection ?? .home))
-                    .font(.psHeading)
-                    .foregroundStyle(DesignTokens.textPrimary)
-                    .padding(.horizontal, DesignTokens.Spacing.md)
-                detail
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            detail
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .navigationTitle(Self.title(for: selection ?? .home))
 #if UI_TESTING
+                .overlay {
                 // MC-02 test-only observability (see
                 // `AppEnvironment.uiTestConsoleExportAttempts`): renders
                 // the most recent export URL `openConsoleSavesExport`
@@ -118,11 +208,9 @@ struct LibraryShellView: View {
                     .accessibilityIdentifier("playstead.harness.console-export-attempt")
                     .accessibilityHidden(environment.uiTestConsoleExportAttempts.isEmpty)
                     .frame(width: 0, height: 0)
+                }
 #endif
-            }
         }
-        .background(DesignTokens.background.ignoresSafeArea())
-        .preferredColorScheme(.dark)
         .sheet(item: $presentedSurface) { surface in
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
                 surfaceContent(surface)
@@ -143,9 +231,8 @@ struct LibraryShellView: View {
                 .padding(.bottom, DesignTokens.Spacing.lg)
             }
             .environment(environment)
-            .frame(minWidth: 560, minHeight: 380)
+            .frame(minWidth: 560, minHeight: 260)
             .background(DesignTokens.background.ignoresSafeArea())
-            .preferredColorScheme(.dark)
             .accessibilityElement(children: .contain)
             .accessibilityLabel(Self.title(for: surface))
             .accessibilityIdentifier(Self.surfaceIdentifier(for: surface))
@@ -156,24 +243,6 @@ struct LibraryShellView: View {
             // window is not yet key when `onAppear` runs. Hop one runloop first.
             .onAppear { placeInitialSheetFocus() }
             .onExitCommand { presentedSurface = nil }
-        }
-        .onChange(of: presentedSurface) { previous, current in
-            guard current == nil, let previous else { return }
-            focusedShellControl = previous
-        }
-        .sheet(item: $presentedReadinessEntry) { entry in
-            ReadinessSheetView(
-                entry: entry,
-                report: environment.readinessReport(for: entry),
-                onRefresh: {},
-                onDownload: { presentedReadinessEntry = nil },
-                onPlay: { presentedReadinessEntry = nil },
-                onClose: { presentedReadinessEntry = nil },
-                saveHistorySessions: { environment.saveHistorySessions(forAssetSetID: entry.id) },
-                saveRollupSummary: { environment.saveRollupSummary(forAssetSetID: entry.id) }
-            )
-            .environment(environment)
-            .onExitCommand { presentedReadinessEntry = nil }
         }
         .task {
             // The window renders from the local mirror first (LIBR-01's
@@ -188,27 +257,64 @@ struct LibraryShellView: View {
         // paired must be able to re-pair against a new server, not only a
         // fresh install seeing the empty-state action button.
         .onReceive(NotificationCenter.default.publisher(for: .presentPairingSheetRequested)) { _ in
-            focusedShellControl = nil
             presentedSurface = .pairing
         }
-    }
-
-    /// A normal in-window command group avoids the unlabeled system Touch Bar
-    /// node produced by SwiftUI's macOS toolbar bridge while keeping the three
-    /// app-wide destinations visible and keyboard reachable. Focus is owned by
-    /// this composition root so dismissing a sheet can deterministically return
-    /// it to the exact command that opened the sheet.
-    private var libraryCommandBar: some View {
-        HStack(spacing: DesignTokens.Spacing.sm) {
-            shellCommandButton(.downloads, accessibilityLabel: "Download queue")
-            shellCommandButton(.storage, accessibilityLabel: "Storage and quota settings")
-            shellCommandButton(.adapter, accessibilityLabel: "Adapter setup")
-            Spacer()
+        .onChange(of: environment.controllerHost.liveInputs) { previous, current in
+            guard let controllerID = environment.controllerHost.assignedControllerID else { return }
+            for input in previous.subtracting(current).sorted() {
+                let effect = navigationDispatcher.receive(
+                    inputName: input, active: false,
+                    context: navigationContext
+                )
+                applyNavigationEffect(effect)
+            }
+            for input in current.subtracting(previous).sorted() {
+                let effect = navigationDispatcher.receive(
+                    inputName: input, active: true,
+                    context: navigationContext
+                )
+                applyNavigationEffect(effect, controllerID: controllerID)
+            }
         }
-        .padding(.horizontal, DesignTokens.Spacing.md)
-        .padding(.vertical, DesignTokens.Spacing.sm)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Library actions")
+        .onChange(of: selection) { _, selected in
+            guard let selected, let index = sidebarEntries.firstIndex(where: { $0.section == selected }) else { return }
+            navigationDispatcher.synchronizeSidebar(index: index)
+        }
+        .onChange(of: selectedListEntryID) { _, selectedID in
+            guard let selectedID, let index = visibleContentEntryIDs.firstIndex(of: selectedID) else { return }
+            navigationDispatcher.synchronizeContent(index: index)
+            controllerFocusedAssetSetID = selectedID
+        }
+        .onChange(of: selectedCollectionID) { _, selectedID in
+            guard selection == .collections,
+                  let selectedID,
+                  let index = collectionIDs.firstIndex(of: selectedID) else { return }
+            controllerFocusedCollectionID = selectedID
+            navigationDispatcher.synchronizeCollections(index: index)
+        }
+        .onMoveCommand { direction in
+            // Collection-name focus is available at the deployment floor.
+            // Search focus is explicit on macOS 15+; macOS 14 has no SwiftUI
+            // searchable focus binding, so only a non-empty query can be guarded.
+            if #available(macOS 15.0, *) {
+                guard !searchFieldHasFocus, !collectionNameHasFocus else { return }
+            } else {
+                guard !collectionNameHasFocus, searchText.isEmpty else { return }
+            }
+            let command: LibraryNavigationCommand
+            switch direction {
+            case .up: command = .up
+            case .down: command = .down
+            case .left: command = .left
+            case .right: command = .right
+            @unknown default: return
+            }
+            let effect = navigationDispatcher.move(
+                command,
+                context: navigationContext
+            )
+            applyNavigationEffect(effect)
+        }
     }
 
     /// The sheet's dismissal control owns focus the moment it appears, so a
@@ -217,38 +323,6 @@ struct LibraryShellView: View {
         Task { @MainActor in
             await Task.yield()
             focusedSheetDismissal = true
-        }
-    }
-
-    private func shellCommandButton(
-        _ surface: ShellSurface,
-        accessibilityLabel: String
-    ) -> some View {
-        Button(Self.title(for: surface)) {
-            focusedShellControl = surface
-            presentedSurface = surface
-        }
-        .focused($focusedShellControl, equals: surface)
-        .accessibilityLabel(accessibilityLabel)
-        .accessibilityIdentifier(controlIdentifier(for: surface))
-        .overlay {
-            RoundedRectangle(cornerRadius: PlaysteadFocusRing.cornerRadius)
-                .stroke(PlaysteadFocusRing.color, lineWidth: PlaysteadFocusRing.lineWidth)
-                .opacity(PlaysteadFocusRing.opacity(isFocused: focusedShellControl == surface))
-                .accessibilityHidden(true)
-                .allowsHitTesting(false)
-        }
-    }
-
-    private func controlIdentifier(for surface: ShellSurface) -> String {
-        switch surface {
-        case .adapter: return AccessibilityIdentifiers.Control.openAdapter
-        case .downloads: return AccessibilityIdentifiers.Control.openDownloads
-        case .storage: return AccessibilityIdentifiers.Control.openStorage
-        // `.pairing` has no command-bar button (it is reachable from the
-        // empty-state action and the app menu instead) — this case exists
-        // only for switch exhaustiveness.
-        case .pairing: return AccessibilityIdentifiers.Control.openPairing
         }
     }
 
@@ -263,63 +337,8 @@ struct LibraryShellView: View {
         let _ = storageRevision
 
         switch surface {
-        case .adapter:
-            AdapterSetupView()
-
         case .pairing:
             PairingView()
-
-        case .downloads:
-            // The queue path's counterpart to the row path's reclaim
-            // prompt: when the scheduler refuses an item on capacity,
-            // the reason has to be visible somewhere the user can act
-            // on it, or the item just silently stops.
-            if let blocked = environment.lastBlockedDownload {
-                Text(blocked.reason)
-                    .font(.psLabel)
-                    .foregroundStyle(DesignTokens.textMuted)
-                    .padding(.horizontal, DesignTokens.Spacing.lg)
-                    .accessibilityLabel("Download paused: \(blocked.reason)")
-                Button("Free up space…") { presentedSurface = .storage }
-                    .padding(.horizontal, DesignTokens.Spacing.lg)
-            }
-
-            DownloadsView(
-                rows: environment.downloadRows(),
-                onPause: { environment.pauseDownload(id: $0); storageRevision += 1 },
-                onResume: { environment.resumeDownload(id: $0); storageRevision += 1 },
-                onCancel: { environment.cancelDownload(id: $0); storageRevision += 1 },
-                onMoveUp: { environment.moveDownloadUp(id: $0); storageRevision += 1 },
-                onMoveDown: { environment.moveDownloadDown(id: $0); storageRevision += 1 }
-            )
-            .task { await environment.startDownloadQueue() }
-
-        case .storage:
-            let snapshot = environment.storageSnapshot()
-            ScrollView {
-                VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
-                    QuotaSettingsView(
-                        policy: snapshot.policy,
-                        usedBytes: snapshot.usedBytes,
-                        onSetQuota: { environment.setQuota(bytes: $0); storageRevision += 1 }
-                    )
-                    StorageView(
-                        totalUsedBytes: snapshot.usedBytes,
-                        quotaBytes: snapshot.policy.quotaBytes,
-                        floorBytes: snapshot.policy.floorBytes,
-                        candidates: snapshot.candidates,
-                        pinnedGames: snapshot.pinnedGames,
-                        unreferencedObjects: snapshot.unreferenced,
-                        quarantinedPartials: snapshot.quarantined,
-                        onReclaim: { environment.reclaim(gameIDs: $0); storageRevision += 1 },
-                        onRemoveQuarantined: { environment.removeQuarantinedPartial(atPath: $0); storageRevision += 1 },
-                        onlyOnThisMacCounts: snapshot.onlyOnThisMacCounts,
-                        onExportOnlyCopy: { ids in
-                            Task { await environment.openConsoleSavesExport(forAssetSetIDs: ids) }
-                        }
-                    )
-                }
-            }
         }
     }
 
@@ -328,14 +347,16 @@ struct LibraryShellView: View {
     /// falling through to a blank pane.
     static func title(for section: SidebarSection) -> String {
         switch section {
-        case .home: return "Library"
-        case .continuePlaying: return "Continue"
+        case .home: return "All Games"
+        case .recentlyPlayed: return "Recently Played"
         case .favorites: return "Favorites"
         case .collections: return "Collections"
         case .queue: return "Queue"
         case .recent: return "Recent"
+        case .downloads: return "Downloads"
         case .system(let id): return SystemRegistry.entry(for: id).displayName
         case .unidentified: return "Unidentified"
+        case .settings: return "Settings"
         }
     }
 
@@ -344,96 +365,194 @@ struct LibraryShellView: View {
         switch selection ?? .home {
         case .home:
             homeLibrary
-        case .continuePlaying:
-            ScrollView { ContinueShelfView(viewModel: environment.continueViewModel, catalogueByAssetSetID: catalogueByAssetSetID) }
+        case .recentlyPlayed:
+            ContinueShelfView(
+                viewModel: environment.continueViewModel,
+                catalogueByAssetSetID: catalogueByAssetSetID,
+                onBrowseLibrary: { selection = .home },
+                controllerFocusedAssetSetID: controllerFocusedAssetSetID,
+                controllerCommand: controllerCommand
+            )
         case .favorites:
-            ScrollView {
-                FavoritesShelfView(
-                    viewModel: environment.favoritesViewModel,
-                    catalogueByAssetSetID: catalogueByAssetSetID,
-                    // The shelf has always taken this closure and has
-                    // always been constructed without it, so its cards
-                    // defaulted to no status at all -- the quieter sibling
-                    // of the grid's hardcoded `.serverOnly` (WINDOWS #72).
-                    statuses: { assetSetID in
-                        guard let entry = catalogueByAssetSetID[assetSetID] else { return [] }
-                        return environment.libraryStatuses(for: entry)
-                    }
-                )
-            }
+            FavoritesShelfView(
+                viewModel: environment.favoritesViewModel,
+                catalogueByAssetSetID: catalogueByAssetSetID,
+                onBrowseLibrary: { selection = .home },
+                controllerFocusedAssetSetID: controllerFocusedAssetSetID,
+                controllerCommand: controllerCommand,
+                // Retained as the pure status projection used by the
+                // shelf's item contract; GameRowView derives the same
+                // live status and owns the actionable controls.
+                statuses: { assetSetID in
+                    guard let entry = catalogueByAssetSetID[assetSetID] else { return [] }
+                    return environment.libraryStatuses(for: entry)
+                }
+            )
         case .collections:
             collectionsDetail
         case .queue:
-            QueueShelfView(viewModel: environment.queueViewModel, catalogueByAssetSetID: catalogueByAssetSetID)
+            QueueShelfView(
+                viewModel: environment.queueViewModel,
+                catalogueByAssetSetID: catalogueByAssetSetID,
+                onBrowseLibrary: { selection = .home },
+                controllerFocusedAssetSetID: controllerFocusedAssetSetID,
+                controllerCommand: controllerCommand
+            )
         case .recent:
-            ScrollView { RecentShelfView(viewModel: environment.recentViewModel, catalogueByAssetSetID: catalogueByAssetSetID) }
+            RecentShelfView(
+                viewModel: environment.recentViewModel,
+                catalogueByAssetSetID: catalogueByAssetSetID,
+                onBrowseLibrary: { selection = .home },
+                controllerFocusedAssetSetID: controllerFocusedAssetSetID,
+                controllerCommand: controllerCommand
+            )
+        case .downloads:
+            downloadsDetail
         case .system(let id):
             catalogueList(library.catalogue(forSystemID: id))
         case .unidentified:
             catalogueList(library.unidentifiedCatalogue)
+        case .settings:
+            settingsDetail
         }
     }
 
+    private var downloadsDetail: some View {
+        // Queue rows are read from durable storage. Mutating one of them
+        // bumps this revision so the persistent Downloads destination
+        // reconstructs its projection after pause/resume/reorder actions.
+        let _ = storageRevision
+        return VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            if let blocked = environment.lastBlockedDownload {
+                Label(blocked.reason, systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, DesignTokens.Spacing.md)
+                Button("Open Storage Settings") { selection = .settings; selectedSettingsPane = .storage }
+                    .padding(.horizontal, DesignTokens.Spacing.md)
+            }
+
+            DownloadsView(
+                rows: environment.downloadRows(),
+                onPause: { environment.pauseDownload(id: $0); storageRevision += 1 },
+                onResume: { environment.resumeDownload(id: $0); storageRevision += 1 },
+                onCancel: { environment.cancelDownload(id: $0); storageRevision += 1 },
+                onMoveUp: { environment.moveDownloadUp(id: $0); storageRevision += 1 },
+                onMoveDown: { environment.moveDownloadDown(id: $0); storageRevision += 1 },
+                onBrowseLibrary: { selection = .home }
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .task { await environment.startDownloadQueue() }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Downloads")
+        .accessibilityIdentifier(AccessibilityIdentifiers.Surface.downloads)
+    }
+
+    private var settingsDetail: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+            Picker("Settings", selection: $selectedSettingsPane) {
+                ForEach(SettingsPane.allCases) { pane in
+                    Text(pane.title)
+                        .accessibilityIdentifier(pane.accessibilityIdentifier)
+                        .tag(pane)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(maxWidth: 360)
+            .padding(.horizontal, DesignTokens.Spacing.md)
+
+            ScrollView {
+                Group {
+                    switch selectedSettingsPane {
+                    case .storage:
+                        storageSettings
+                    case .emulator:
+                        AdapterSetupView()
+                    case .controller:
+                        controllerSettings
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, DesignTokens.Spacing.md)
+                .padding(.bottom, DesignTokens.Spacing.lg)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("playstead.settings")
+    }
+
+    private var controllerSettings: some View {
+        ControllerSettingsView(
+            connectedControllers: environment.controllerHost.connectedControllers,
+            assignedControllerID: environment.controllerHost.assignedControllerID,
+            mapping: environment.controllerMappingStore.mapping(
+                forControllerProductID: environment.controllerHost.assignedControllerID ?? ""
+            ),
+            showsMappingControls: false,
+            onAssign: { environment.controllerHost.assign(controllerID: $0) },
+            onOpenTestView: { showsControllerTest = true }
+        )
+        .sheet(isPresented: $showsControllerTest) {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+                HStack {
+                    Text("Controller test").font(.psHeading)
+                    Spacer()
+                    Button("Done") { showsControllerTest = false }
+                }
+                if let descriptor = environment.controllerHost.connectedControllers.first(where: {
+                    $0.id == environment.controllerHost.assignedControllerID
+                }) {
+                    ControllerTestView(
+                        controllerName: descriptor.name,
+                        availableInputs: descriptor.availableInputs,
+                        liveInputs: environment.controllerHost.liveInputs
+                    )
+                } else {
+                    Text("No active controller is connected.")
+                        .foregroundStyle(DesignTokens.textMuted)
+                }
+            }
+            .padding(DesignTokens.Spacing.lg)
+            .frame(minWidth: 440, minHeight: 300)
+            .background(DesignTokens.background.ignoresSafeArea())
+        }
+    }
+
+    private var storageSettings: some View {
+        let _ = storageRevision
+        let snapshot = environment.storageSnapshot()
+        return VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+            QuotaSettingsView(
+                policy: snapshot.policy,
+                usedBytes: snapshot.usedBytes,
+                onSetQuota: { environment.setQuota(bytes: $0); storageRevision += 1 }
+            )
+            StorageView(
+                totalUsedBytes: snapshot.usedBytes,
+                quotaBytes: snapshot.policy.quotaBytes,
+                floorBytes: snapshot.policy.floorBytes,
+                candidates: snapshot.candidates,
+                pinnedGames: snapshot.pinnedGames,
+                unreferencedObjects: snapshot.unreferenced,
+                quarantinedPartials: snapshot.quarantined,
+                onReclaim: { environment.reclaim(gameIDs: $0); storageRevision += 1 },
+                onRemoveQuarantined: { environment.removeQuarantinedPartial(atPath: $0); storageRevision += 1 },
+                onlyOnThisMacCounts: snapshot.onlyOnThisMacCounts,
+                onExportOnlyCopy: { ids in
+                    Task { await environment.openConsoleSavesExport(forAssetSetIDs: ids) }
+                }
+            )
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Storage settings")
+        .accessibilityIdentifier(AccessibilityIdentifiers.Surface.storage)
+    }
+
     private var homeLibrary: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-            Group {
-                SearchField(text: Binding(
-                    get: { searchText },
-                    set: { value in
-                        searchText = value
-                        library.searchTerm = value
-                    }
-                ))
-            }
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel("Library search")
-            .accessibilityIdentifier(AccessibilityIdentifiers.Surface.search)
-
-            Group {
-                FilterChipRow(
-                    chips: library.nonEmptySystemIDs.sorted().map {
-                        FilterChip(id: $0, label: SystemRegistry.entry(for: $0).displayName)
-                    },
-                    selectedID: library.selectedSystemID,
-                    onSelect: { library.selectedSystemID = $0 }
-                )
-            }
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel("Library filters")
-            .accessibilityIdentifier(AccessibilityIdentifiers.Surface.filter)
-
-            HStack {
-                Button("Cards") { libraryLayout = .cards }
-                    .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.showCards)
-                Button("List") { showLibraryList() }
-                    .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.showList)
-                if let entry = library.filteredCatalogue.first {
-                    Button("Check readiness") { presentedReadinessEntry = entry }
-                        .accessibilityLabel("Check launch readiness")
-                        .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.openReadiness)
-                }
-                if libraryLayout == .list {
-                    // Buttons rather than a Picker, matching the
-                    // Cards/List controls beside them: one identifier per
-                    // option, keyboard-reachable through the same
-                    // `playsteadFocusable` path, and drivable by a UI test
-                    // without a pop-up menu in the way.
-                    ForEach(LibrarySortOption.selectable, id: \.self) { option in
-                        Button("Sort: \(option.controlLabel)") { librarySort = option }
-                            .accessibilityValue(librarySort == option ? "selected" : "not selected")
-                            .playsteadFocusable(identifier: option.controlIdentifier)
-                    }
-                    Text(selectedListEntryTitle.map { "Selected: \($0)" } ?? "No game selected")
-                        .font(.psLabel)
-                        .foregroundStyle(.secondary)
-                        .accessibilityValue(selectedListEntryID ?? "none")
-                        .accessibilityIdentifier("playstead.library.list-selection")
-                    Button("Download selected") { requestSelectedDownload() }
-                        .disabled(selectedDownloadEntry == nil)
-                        .keyboardShortcut("d", modifiers: .command)
-                        .playsteadFocusable(identifier: "playstead.control.download-selected")
-                }
-            }
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+            libraryControls
 
             switch libraryLayout {
             case .cards:
@@ -450,10 +569,112 @@ struct LibraryShellView: View {
                 catalogueList(library.filteredCatalogue)
             }
         }
-        .padding(.horizontal, DesignTokens.Spacing.md)
+        .padding(.horizontal, DesignTokens.Spacing.lg)
+        .padding(.top, DesignTokens.Spacing.md)
+        .searchable(
+            text: Binding(
+                get: { searchText },
+                set: { value in
+                    searchText = value
+                    library.searchTerm = value
+                }
+            ),
+            placement: .toolbar,
+            prompt: "Search your library"
+        )
+        .modifier(SupportedSearchFieldFocus(focus: $searchFieldHasFocus))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Library")
         .accessibilityIdentifier(AccessibilityIdentifiers.Surface.library)
+    }
+
+    private var availableSystemFilters: [FilterChip] {
+        var result = SystemRegistry.all
+            .filter { library.nonEmptySystemIDs.contains($0.id) }
+            .map { FilterChip(id: $0.id, label: $0.displayName) }
+        if library.hasUnidentifiedEntries {
+            result.append(FilterChip(id: "unidentified", label: SystemRegistry.unknown.displayName))
+        }
+        return result
+    }
+
+    private func toggleLibraryFilter(_ id: String) {
+        if id == "system:all" {
+            library.selectedSystemID = nil
+        } else if id.hasPrefix("system:") {
+            let systemID = String(id.dropFirst("system:".count))
+            guard availableSystemFilters.contains(where: { $0.id == systemID }) else { return }
+            library.selectedSystemID = systemID
+        } else if id == "availability:all" {
+            library.selectedAvailability = nil
+        } else if id.hasPrefix("availability:") {
+            let availability = String(id.dropFirst("availability:".count))
+            guard AvailabilityVocabulary.values.contains(availability) else { return }
+            library.selectedAvailability = availability
+        }
+    }
+
+    private var libraryControls: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+            libraryLayoutPicker
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            FilterChipRow(
+                chips: libraryFilterChips,
+                selectedIDs: selectedLibraryFilterIDs,
+                controllerFocusedID: controllerFocusedFilterID,
+                onToggle: toggleLibraryFilter
+            )
+            .accessibilityIdentifier(AccessibilityIdentifiers.Surface.filter)
+
+            if libraryLayout == .list {
+                listOnlyControls
+            }
+        }
+        // Keep the view switch in the library content so searchable toolbar
+        // pressure and narrow windows cannot collapse its click target. Filter
+        // and list-only controls stay below it, so their state never moves it.
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var libraryLayoutPicker: some View {
+        Picker("Library view", selection: $libraryLayout) {
+            Image(systemName: "square.grid.2x2")
+                .accessibilityLabel("Cards")
+                .accessibilityIdentifier(AccessibilityIdentifiers.Control.showCards)
+                .tag(LibraryLayout.cards)
+            Image(systemName: "list.bullet")
+                .accessibilityLabel("List")
+                .accessibilityIdentifier(AccessibilityIdentifiers.Control.showList)
+                .tag(LibraryLayout.list)
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .frame(width: 104)
+        .help("Choose Cards or List view")
+        .accessibilityLabel("Library view")
+        .accessibilityIdentifier("playstead.library.view-mode")
+        .onChange(of: libraryLayout) { _, mode in
+            if mode == .list { showLibraryList() }
+        }
+    }
+
+    private var listOnlyControls: some View {
+        HStack(spacing: DesignTokens.Spacing.md) {
+            Picker("Sort by", selection: $librarySort) {
+                ForEach(LibrarySortOption.selectable, id: \.self) { option in
+                    Text(option.controlLabel).tag(option)
+                }
+            }
+            .pickerStyle(.menu)
+            .accessibilityIdentifier("playstead.library.sort")
+
+            Button("Download Selected") { requestSelectedDownload() }
+                .accessibilityLabel("Download selected game")
+                .disabled(selectedDownloadEntry == nil)
+                .keyboardShortcut("d", modifiers: .command)
+                .playsteadFocusable(identifier: "playstead.control.download-selected")
+        }
     }
 
     /// Collections list and, once one is picked, that collection's
@@ -463,16 +684,20 @@ struct LibraryShellView: View {
         HSplitView {
             CollectionsView(
                 viewModel: environment.collectionsViewModel,
-                selectedCollectionID: $selectedCollectionID
+                selectedCollectionID: $selectedCollectionID,
+                controllerFocusedCollectionID: controllerFocusedCollectionID,
+                collectionNameFocus: $collectionNameHasFocus
             )
-            .frame(minWidth: 260)
+            .frame(minWidth: 200, maxWidth: 260, maxHeight: .infinity, alignment: .topLeading)
 
             Group {
                 if let selectedCollectionID {
                     CollectionDetailView(
                         viewModel: environment.collectionsViewModel,
                         collectionID: selectedCollectionID,
-                        catalogueByAssetSetID: catalogueByAssetSetID
+                        catalogueByAssetSetID: catalogueByAssetSetID,
+                        controllerFocusedAssetSetID: controllerFocusedAssetSetID,
+                        controllerCommand: controllerCommand
                     )
                 } else {
                     Text("Select a collection to see what's in it.")
@@ -481,22 +706,42 @@ struct LibraryShellView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            .frame(minWidth: 320)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .padding(.horizontal, DesignTokens.Spacing.lg)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(.horizontal, DesignTokens.Spacing.md)
     }
 
     private func catalogueList(_ entries: [CatalogueEntry]) -> some View {
         let ordered = LibrarySortOption.sortedEntries(entries, by: librarySort)
         return List(selection: $selectedListEntryID) {
             ForEach(ordered) { entry in
-                GameRowView(entry: entry, downloadCommand: downloadCommand)
+                GameRowView(
+                    entry: entry,
+                    downloadCommand: downloadCommand,
+                    isSelected: selectedListEntryID == entry.id,
+                    isControllerFocused: controllerFocusedAssetSetID == entry.id,
+                    controllerCommand: controllerCommand
+                )
                     .tag(entry.id)
             }
         }
         .focused($libraryListHasFocus)
-        .onAppear { libraryListHasFocus = true }
+        .onAppear {
+            // A sidebar return can construct the List before the window has
+            // finished moving keyboard focus off the destination row. Place
+            // List focus on the next main-actor turn so the native row
+            // selection receives the next arrow key.
+            Task { @MainActor in
+                await Task.yield()
+                libraryListHasFocus = true
+            }
+        }
+        .listStyle(.inset)
         .accessibilityLabel("Game list")
+        .accessibilityValue(
+            ordered.first(where: { $0.id == selectedListEntryID })?.displayTitle ?? "No game selected"
+        )
         .accessibilityIdentifier(AccessibilityIdentifiers.Surface.gameList)
         .overlay {
             if entries.isEmpty { emptyListPane }
@@ -506,31 +751,54 @@ struct LibraryShellView: View {
     /// The grid layout's cards. Split out of `libraryBody` so the cards case
     /// can branch to `NoMatchesView` without nesting the whole builder.
     private var catalogueCards: some View {
-        ScrollView {
-            ShelfView(
-                heading: "All games",
-                items: library.filteredCatalogue.map {
-                    ShelfItem(
-                        id: $0.id,
-                        title: $0.displayTitle,
-                        systemID: $0.system,
-                        isUnidentified: LibraryViewModel.isUnidentified($0),
-                        // The real read-time derivation (D-21), including
-                        // MC-03's divergence rung. This was a hardcoded
-                        // `.serverOnly` for every entry, so every card
-                        // claimed "on your server, choose Download to play
-                        // it offline" over content already downloaded and
-                        // playable (WINDOWS #72/#73).
-                        statuses: environment.libraryStatuses(for: $0)
-                    )
-                },
-                layout: .grid,
-                emptyExplanation: "No games match the current search and filters."
+        GeometryReader { geometry in
+            let columnCount = Self.gridColumnCount(for: geometry.size.width)
+            let columns = Array(
+                repeating: GridItem(.fixed(DesignTokens.CardGeometry.width), spacing: DesignTokens.Spacing.lg, alignment: .leading),
+                count: columnCount
             )
+
+            ScrollView {
+                LazyVGrid(
+                    columns: columns,
+                    alignment: .leading,
+                    spacing: DesignTokens.Spacing.lg
+                ) {
+                    ForEach(library.filteredCatalogue) { entry in
+                        GameRowView(
+                            entry: entry,
+                            presentation: .card,
+                            isControllerFocused: controllerFocusedAssetSetID == entry.id,
+                            controllerCommand: controllerCommand
+                        )
+                    }
+                }
+                .padding(.vertical, DesignTokens.Spacing.md)
+            }
+            .onAppear { catalogueGridColumnCount = columnCount }
+            .onChange(of: columnCount) { _, value in catalogueGridColumnCount = value }
+            .overlay {
+                if library.filteredCatalogue.isEmpty {
+                    Text("No games match the current search and filters.")
+                        .font(.psBody)
+                        .foregroundStyle(DesignTokens.textMuted)
+                }
+            }
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Game cards")
         .accessibilityIdentifier(AccessibilityIdentifiers.Surface.gameCard)
+    }
+
+    static func gridColumnCount(
+        for availableWidth: CGFloat,
+        cardWidth: CGFloat = DesignTokens.CardGeometry.width,
+        spacing: CGFloat = DesignTokens.Spacing.lg
+    ) -> Int {
+        guard availableWidth.isFinite, availableWidth > 0,
+              cardWidth.isFinite, cardWidth > 0,
+              spacing.isFinite, spacing >= 0 else { return 1 }
+        return max(1, Int((availableWidth + spacing) / (cardWidth + spacing)))
     }
 
     /// What an empty list actually says. `LibraryViewModel.searchResultState`
@@ -564,16 +832,10 @@ struct LibraryShellView: View {
                 // The string above has named this action since Phase 3
                 // with nothing behind it to reach (WINDOWS #54) — this
                 // button is what makes it real.
-                if refreshError == nil {
-                    Button("Pair with Server…") { presentedSurface = .pairing }
-                        .accessibilityIdentifier(AccessibilityIdentifiers.Control.openPairing)
-                }
+                Button("Pair with Server…") { presentedSurface = .pairing }
+                    .accessibilityIdentifier(AccessibilityIdentifiers.Control.openPairing)
             }
         }
-    }
-
-    private var selectedListEntryTitle: String? {
-        library.filteredCatalogue.first { $0.id == selectedListEntryID }?.displayTitle
     }
 
     private var selectedDownloadEntry: CatalogueEntry? {
@@ -603,6 +865,106 @@ struct LibraryShellView: View {
             sequence: downloadCommandSequence,
             assetSetID: entry.id
         )
+    }
+
+    private func applyNavigationEffect(_ effect: LibraryNavigationEffect?, controllerID _: String? = nil) {
+        guard let effect else { return }
+        switch effect {
+        case .focusSidebar(let index):
+            guard sidebarEntries.indices.contains(index) else { return }
+            selection = sidebarEntries[index].section
+            controllerFocusedAssetSetID = nil
+            controllerFocusedCollectionID = nil
+            controllerFocusedFilterID = nil
+            sidebarHasFocus = true
+            libraryListHasFocus = false
+        case .focusFilter(let index):
+            guard libraryFilterChips.indices.contains(index) else { return }
+            controllerFocusedAssetSetID = nil
+            controllerFocusedCollectionID = nil
+            controllerFocusedFilterID = libraryFilterChips[index].id
+            sidebarHasFocus = false
+            libraryListHasFocus = false
+        case .focusCollection(let index):
+            guard collectionIDs.indices.contains(index) else { return }
+            let collectionID = collectionIDs[index]
+            controllerFocusedAssetSetID = nil
+            controllerFocusedFilterID = nil
+            controllerFocusedCollectionID = collectionID
+            selectedCollectionID = collectionID
+            sidebarHasFocus = false
+            libraryListHasFocus = false
+        case .focusContent(let index):
+            let targets = visibleContentEntryIDs
+            guard targets.indices.contains(index) else { return }
+            let assetSetID = targets[index]
+            controllerFocusedAssetSetID = assetSetID
+            controllerFocusedCollectionID = nil
+            controllerFocusedFilterID = nil
+            sidebarHasFocus = false
+            if selection == .home || isSystemSelection || selection == .unidentified {
+                selectedListEntryID = assetSetID
+                libraryListHasFocus = libraryLayout == .list
+            }
+        case .focusCollectionMember(let index):
+            guard collectionMemberIDs.indices.contains(index) else { return }
+            controllerFocusedAssetSetID = collectionMemberIDs[index]
+            controllerFocusedCollectionID = nil
+            controllerFocusedFilterID = nil
+            sidebarHasFocus = false
+            libraryListHasFocus = false
+        case .selectCollection(let index):
+            guard collectionIDs.indices.contains(index) else { return }
+            selectedCollectionID = collectionIDs[index]
+            controllerFocusedCollectionID = collectionIDs[index]
+        case .toggleFilter(let index):
+            guard libraryFilterChips.indices.contains(index) else { return }
+            let chip = libraryFilterChips[index]
+            controllerFocusedFilterID = chip.id
+            toggleLibraryFilter(chip.id)
+        case .activateContent(let index):
+            let targets = navigationDispatcher.region == .collectionMembers
+                ? collectionMemberIDs
+                : visibleContentEntryIDs
+            guard targets.indices.contains(index) else { return }
+            sendControllerCommand(for: targets[index], action: .activate)
+        case .openContextAction(let index):
+            let targets = navigationDispatcher.region == .collectionMembers
+                ? collectionMemberIDs
+                : visibleContentEntryIDs
+            guard targets.indices.contains(index) else { return }
+            sendControllerCommand(for: targets[index], action: .context)
+        }
+    }
+
+    private var isSystemSelection: Bool {
+        if case .system = selection { return true }
+        return false
+    }
+
+    private func sendControllerCommand(for assetSetID: String, action: LibraryControllerCommand.Action) {
+        controllerCommandSequence += 1
+        controllerCommand = LibraryControllerCommand(
+            sequence: controllerCommandSequence,
+            assetSetID: assetSetID,
+            action: action
+        )
+    }
+}
+
+/// SwiftUI exposed search-field focus binding in macOS 15. Keep the app's
+/// macOS 14 deployment target; on older systems the non-empty query guard
+/// still protects active search editing from arrow navigation.
+private struct SupportedSearchFieldFocus: ViewModifier {
+    let focus: FocusState<Bool>.Binding
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(macOS 15.0, *) {
+            content.searchFocused(focus)
+        } else {
+            content
+        }
     }
 }
 

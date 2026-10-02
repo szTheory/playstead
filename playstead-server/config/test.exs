@@ -46,8 +46,11 @@ config :playstead, :sql_sandbox, true
 config :wallaby,
   otp_app: :playstead,
   driver: Wallaby.Chrome,
-  screenshot_on_failure: true,
-  screenshot_dir: "tmp/wallaby_screenshots",
+  # Keep the screenshot by default. A failing or expired WebDriver session can
+  # make screenshot capture raise and mask the original feature exception, so
+  # allow focused diagnostics to disable that secondary capture.
+  screenshot_on_failure: System.get_env("PLAYSTEAD_WALLABY_SCREENSHOT_ON_FAILURE") != "false",
+  screenshot_dir: System.get_env("PLAYSTEAD_WALLABY_SCREENSHOT_DIR") || "tmp/wallaby_screenshots",
   max_wait_time: 5_000,
   # JS exceptions fail the test; routine console output (LiveView debug
   # diffs on localhost) is not echoed into the ExUnit log.

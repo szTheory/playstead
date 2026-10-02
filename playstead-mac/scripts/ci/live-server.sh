@@ -250,7 +250,11 @@ PY
 import pathlib, sqlite3, sys
 root, log_path = map(pathlib.Path, sys.argv[1:3])
 expected_snapshots = sys.argv[3]
+result_marker = root / "live-server-verify-result"
+result_marker.write_text("checking", encoding="ascii")
+result_marker.chmod(0o600)
 if not root.is_dir() or not log_path.is_file():
+    result_marker.write_text("verification-input-missing", encoding="ascii")
     raise SystemExit("live-server verification inputs are missing")
 
 lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
@@ -301,7 +305,8 @@ def titles_line(label, values):
     return f"  {label}=" + (rendered[:150] + " ...truncated" if len(rendered) > 150 else rendered)
 
 
-def fail(message):
+def fail(category, message):
+    result_marker.write_text(category, encoding="ascii")
     caller = (
         f"asserts-{expected_snapshots}-snapshots" if expected_snapshots
         else "snapshots-not-asserted-here"
@@ -327,19 +332,20 @@ def fail(message):
 
 
 if database_error is not None:
-    fail("could not read the client mirror database")
+    fail("mirror-database-unreadable", "could not read the client mirror database")
 if expected_snapshots and snapshot_success != int(expected_snapshots):
-    fail(f"expected exactly {expected_snapshots} successful snapshot request(s), got {snapshot_success}")
+    fail("snapshot-count-mismatch", f"expected exactly {expected_snapshots} successful snapshot request(s), got {snapshot_success}")
 if blob_requests != 0:
-    fail(f"expected zero blob requests, got {blob_requests}")
+    fail("blob-request-observed", f"expected zero blob requests, got {blob_requests}")
 if not cursor or not cursor[0]:
-    fail("stored snapshot cursor is empty")
+    fail("snapshot-cursor-empty", "stored snapshot cursor is empty")
 if titles != expected_titles:
-    fail("fresh mirror does not contain exactly both synthetic sentinels")
+    fail("sentinel-set-mismatch", "fresh mirror does not contain exactly both synthetic sentinels")
 for name in ("objects", "partials"):
     directory = root / name
     if not directory.is_dir() or any(directory.iterdir()):
-        fail(f"{name} must exist and remain empty")
+        fail("local-byte-residue", "the local byte store must exist and remain empty")
+result_marker.write_text("passed", encoding="ascii")
 print(
     "live-server: "
     + (f"{expected_snapshots} snapshot(s), " if expected_snapshots else "snapshots not asserted by this caller, ")
