@@ -230,12 +230,13 @@ if grep -F 'token=duplicate-sentinel' "$TMP_ROOT/recovery_duplicate_key.out" "$T
 fi
 [ ! -e "$TMP_ROOT/recovery-duplicate-key-output/recovery-e2e.json" ]
 
-recovery_failure_stages=(source-compose-startup source-readiness source-fixture-filesystem-create source-fixture-database-seed source-dump backup-publication target-restore target-cleanup result-validation unknown)
+recovery_failure_stages=(source-compose-startup source-readiness source-fixture-filesystem-create source-fixture-database-connect source-fixture-database-seed source-dump backup-publication target-restore target-cleanup result-validation unknown)
 for stage in "${recovery_failure_stages[@]}"; do
   root="$TMP_ROOT/recovery-failure-$stage"
   output="$TMP_ROOT/recovery-failure-$stage-output"
   make_failure "$root" "$stage"
   expect_pass "recovery_failure_$stage" "$SANITIZER" --input "$root" --output "$output"
+  [ -f "$output/recovery-failure.json" ] || { printf 'FAIL: sanitized failure receipt missing for %s\n' "$stage" >&2; exit 1; }
   python3 - "$output/recovery-failure.json" "$stage" <<'PY'
 import json, pathlib, sys
 path=pathlib.Path(sys.argv[1]); data=json.loads(path.read_text())
@@ -280,7 +281,7 @@ path=pathlib.Path(sys.argv[1]); path.write_text(json.dumps({"schema":"playstead.
 PY
 expect_recovery_failure_rejected recovery_failure_conflict "$failure_conflict" "$TMP_ROOT/recovery-failure-conflict-output"
 
-for invalid in schema lane outcome stage path-sentinel token-sentinel malformed; do
+for invalid in schema lane outcome stage arbitrary-stage path-sentinel token-sentinel malformed; do
   root="$TMP_ROOT/recovery-failure-invalid-$invalid"
   output="$TMP_ROOT/recovery-failure-invalid-$invalid-output"
   make_failure "$root" target-restore
@@ -303,6 +304,11 @@ PY
     stage) python3 - "$root/evidence/recovery-failure.json" <<'PY'
 import json,pathlib,sys
 path=pathlib.Path(sys.argv[1]); data=json.loads(path.read_text()); data["failure_stage"]="private-stage"; path.write_text(json.dumps(data))
+PY
+      ;;
+    arbitrary-stage) python3 - "$root/evidence/recovery-failure.json" <<'PY'
+import json,pathlib,sys
+path=pathlib.Path(sys.argv[1]); data=json.loads(path.read_text()); data["failure_stage"]="source-fixture-database-connect-unverified"; path.write_text(json.dumps(data))
 PY
       ;;
     path-sentinel) python3 - "$root/evidence/recovery-failure.json" <<'PY'
