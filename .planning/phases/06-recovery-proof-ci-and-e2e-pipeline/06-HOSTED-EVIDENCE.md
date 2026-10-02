@@ -45,6 +45,14 @@ Workflow [36971165164](https://github.com/szTheory/playstead/actions/runs/369711
 
 Only the named `linux-recovery-evidence` artifact was downloaded. It contained exactly one regular `recovery-failure.json` receipt with the unchanged four-field schema `schema`, `lane`, `outcome`, and `failure_stage`, no duplicate keys, and the fixed stage `source-fixture-database-connect`. This identifies the source PostgreSQL connection-probe operation boundary only; it does not prove a cause. The stage-matched Plan 06-25 scopes a bounded retry of the same read-only connection query, while explicitly treating initialization timing as a hypothesis. No raw logs, raw artifacts, fixture bytes, paths, or credentials were inspected or recorded. Synthetic wrapper/sanitizer contracts, shell syntax, Mac static-contract checks, and whitespace validation passed; no local Playstead app, Xcode/XCTest, Docker, real restore, or private fixture data was used.
 
+## Plan 06-25 source-code-head outcome
+
+Workflow [36983412255](https://github.com/szTheory/playstead/actions/runs/36983412255) completed successfully as a `pull_request` run on exact source SHA `a9c5adfe72a56c88ea567ad470757fdc44e006ef`. Docker cold-start job `110762899299`, server `mix precommit` job `110762899658`, Linux isolated recovery job `110762899730`, and ordinary Mac job `110765032780` all concluded `success`.
+
+The Linux job's sole named `linux-recovery-evidence` artifact validated as exactly one sanitized `recovery-e2e.json` receipt: `schema_version` 1, lane `linux_restore_fixture`, outcome `passed`, with stages `chain`, `preflight`, `database`, `cas`, `manifest`, and `api`. Sanitizer and upload steps passed. This records a successful recovery run after the bounded connection-probe change; it does not establish the cause of the earlier connection-stage failure or prove retries were needed. No raw logs, raw artifacts, fixture bytes, paths, or credentials were inspected or recorded.
+
+This is source-code-head evidence. It predates the evidence/summary documentation commit; a separate completed exact-current-PR-head run is required as the final merge gate. Final-gate metadata is not part of this tracked source record. PORT-04, QUAL-02, entitlement, continuation, and aggregate regression gates remain open.
+
 ## Hosted runs
 
 | Run | Reviewed SHA | Run ID / URL | Linux recovery | Mac ordinary | Docker | Entitled HID |
@@ -60,6 +68,7 @@ Only the named `linux-recovery-evidence` artifact was downloaded. It contained e
 | Plan 06-22 sanitized failure evidence | `56b64e88fb55b3224206f3ef213f45eed5711586` | [36952647897](https://github.com/szTheory/playstead/actions/runs/36952647897) | Failed (`110668722059`; sanitizer/upload passed; stage `source-fixture-create` remains ambiguous) | Passed (`110670579867`) | Passed (`110668721913`) | `blocked/not-configured`; no entitled pass |
 | Plan 06-23 database-seed diagnostic | `dbe3f3802ba1a88b877c6144492835b9a87ea338` | [36961936830](https://github.com/szTheory/playstead/actions/runs/36961936830) | Failed (`110697303338`; sanitizer/upload passed; stage `source-fixture-database-seed`, operation only) | Passed (`110698990104`) | Passed (`110697303449`) | `blocked/not-configured`; no entitled pass |
 | Plan 06-24 database-connect diagnostic | `a662c75227b9c54a3ba66af62591dfaa407912ed` | [36971165164](https://github.com/szTheory/playstead/actions/runs/36971165164) | Failed (`110727469818`; sanitizer/upload passed; stage `source-fixture-database-connect`, operation only) | Passed (`110729213046`) | Passed (`110727469629`) | `blocked/not-configured`; no entitled pass |
+| Plan 06-25 source-code-head result | `a9c5adfe72a56c88ea567ad470757fdc44e006ef` | [36983412255](https://github.com/szTheory/playstead/actions/runs/36983412255) | Passed (`110762899730`; sanitized `recovery-e2e.json`, all six stages) | Passed (`110765032780`) | Passed (`110762899299`) | No applicable entitlement job; no entitled pass |
 
 Server `mix precommit` also passed as job `110530300895` on the same SHA.
 
@@ -84,6 +93,6 @@ The local synthetic restore fixture identified the cleanup return mismatch while
 
 - Plan 06-09's hosted Linux and ordinary Mac deliverables are complete on the exact reviewed SHA above.
 - Keep the virtual-gamepad lane separately `blocked/not-configured` until an entitled runner/profile produces its own real result.
-- Plan 06-21 corrected the Mac static guard defect and passed the fresh exact-head ordinary Mac job. Plan 06-24 confirms the current Linux failure is within `source-fixture-database-connect`, as an operation boundary only; Plan 06-25 scopes a bounded retry of that same probe. Do not infer a root cause or treat the failed restore as a passing run.
+- Plan 06-21 corrected the Mac static guard defect and passed the fresh exact-head ordinary Mac job. Plan 06-24's source-code head failed at the `source-fixture-database-connect` operation boundary only; Plan 06-25's bounded retry source-code head passed the Linux recovery lane and its sanitized receipt. This does not establish the earlier failure's cause. The evidence/summary commit still requires a separate exact-current-PR-head CI gate.
 - Keep PR #6 draft and unmerged until all hosted CI checks pass on the exact head.
 - `PORT-04`, `QUAL-02`, and the full regression gate remain open for their broader restore/export, entitled-device, continuation, and release-quality evidence. Do not treat this hosted ordinary-lane pass as phase completion.
