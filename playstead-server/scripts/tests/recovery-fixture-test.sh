@@ -20,8 +20,21 @@ assert "case File.rm_rf(root) do\n        {:ok, _removed_paths} -> :ok\n        
 assert "_ = source(project, source_file" not in run and "case File.rm_rf(root) do" in run
 filesystem_marker = re.search(r'Process\.put\(:playstead_recovery_fixture_failure_stage, "([a-z-]+)"\)\s+File\.mkdir_p!\(root\)\s+File\.write!\(source_file, source_compose\(\)\)', run)
 assert filesystem_marker and filesystem_marker.group(1) == "source-fixture-filesystem-create", "filesystem fixture operations need their own failure marker"
-connect_marker = re.search(r'Process\.put\(:playstead_recovery_fixture_failure_stage, "([a-z-]+)"\)\s+:ok =\s+source\(project, source_file, \[\s+"exec",\s+"-T",\s+"db",\s+"psql",\s+"-U",\s+"restore_source",\s+"-d",\s+"restore_source",\s+"-v",\s+"ON_ERROR_STOP=1",\s+"-c",\s+"SELECT 1"\s*\]\)', run, re.S)
-assert connect_marker and connect_marker.group(1) == "source-fixture-database-connect", "database connectivity probe needs its own failure marker"
+connect_marker = re.search(r'Process\.put\(:playstead_recovery_fixture_failure_stage, "([a-z-]+)"\)\s+:ok =\s+await_source_database_connection\(project, source_file\)', run)
+assert connect_marker and connect_marker.group(1) == "source-fixture-database-connect", "bounded database connectivity probe needs its own failure marker"
+connect_helper_start = source.index("  defp await_source_database_connection(project, file)")
+connect_helper_end = source.index("  defp await_source(project, file, attempts)", connect_helper_start)
+connect_helper = source[connect_helper_start:connect_helper_end]
+assert "@source_database_connect_attempts 20" in source, "connection retry must have a fixed positive finite bound"
+assert "@source_database_connect_delay_ms 500" in source, "connection retry must have a fixed delay"
+assert "await_source_database_connection(project, file, @source_database_connect_attempts)" in connect_helper
+assert "defp await_source_database_connection(_project, _file, 0)" in connect_helper
+assert "attempts == 1" in connect_helper and "{:error, :source_database_connect_failed}" in connect_helper, "retry exhaustion must return a fixed error"
+assert "Process.sleep(@source_database_connect_delay_ms)" in connect_helper, "retry delay must be explicit"
+assert "await_source_database_connection(project, file, attempts - 1)" in connect_helper, "retry must make bounded progress toward termination"
+connect_command = re.search(r'source\(project, file, \[\s+"exec",\s+"-T",\s+"db",\s+"psql",\s+"-U",\s+"restore_source",\s+"-d",\s+"restore_source",\s+"-v",\s+"ON_ERROR_STOP=1",\s+"-c",\s+"SELECT 1"\s*\]\)', connect_helper, re.S)
+assert connect_command, "bounded retry must use the exact private read-only PostgreSQL query"
+assert "source_output(" not in connect_helper and "Mix.shell" not in connect_helper, "retry must not expose raw command output"
 database_marker = re.search(r'Process\.put\(:playstead_recovery_fixture_failure_stage, "(source-fixture-database-seed)"\)\s+:ok =\s+source\(project, source_file, \[.*?"CREATE TABLE restore_fixture', run, re.S)
 assert database_marker, "database seed marker must immediately own the existing fixture DDL and insert"
 assert "source-fixture-create" not in run, "retired shared failure marker must not remain in the producer"
