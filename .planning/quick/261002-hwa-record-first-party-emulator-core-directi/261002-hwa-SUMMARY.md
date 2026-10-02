@@ -51,13 +51,13 @@ status: complete
 - Wired the scanner into hosted CI, preserved the hosted-only runner posture, and added the two requested root CA ignore entries.
 - Reconciled Phase 06 to merged commit `ddd04ee06b93035711f3bdaeb8c40f86d99cdfed` and workflow [37021805359](https://github.com/szTheory/playstead/actions/runs/37021805359). Its latest attempt passed Linux recovery, server precommit, and ordinary Mac (Unit 759/759, Rendering 52/52, UI 122/122, LiveServer 6/6). The Docker job succeeded, but Docker build/smoke steps were path-filter skipped and are not claimed as executed passes.
 - Recorded two narrow mGBA 0.10.5/private AerevenAdvance continuation passes with a visible state oracle. The fixture remains private; its public distribution rights are not established. Virtual-HID remains `blocked/not-configured`, and aggregate/requirement review remains open.
-- Reconciled STATE.md to Phase 06. `gsd init execute-phase 06` reports 06-20 and 06-22 through 06-25 complete, with no incomplete or runnable plans. The next action is `$gsd-progress`; no phase plan was fabricated.
+- `gsd init execute-phase 06` reports 06-20 and 06-22 through 06-25 complete in this review snapshot. The subsequent project-wide `$gsd-progress` scan found six earlier Phase 03 plans without summaries in the committed snapshot, so STATE.md now routes back to Phase 03 before Phase 06. In the owner's dirty shared checkout, three Phase 03 plans remain without summaries after additional uncommitted work. No phase plan was fabricated or executed against that divergent tree.
 
 ## Task Commits
 
-1. **Task 1: Record owner emulator and fixture policy** — included in the planning documentation commit.
+1. **Task 1: Record owner emulator and fixture policy** — included in the planning documentation commits.
 2. **Task 2: Add tracked-text hygiene gate** — `32fba84` (`chore(261002-hwa): add tracked text hygiene gate`).
-3. **Task 3: Reconcile Phase 06 evidence and state** — included in the planning documentation commit.
+3. **Task 3: Reconcile Phase 06 evidence and state** — included in the planning documentation commits.
 
 ## Files Created/Modified
 
@@ -101,7 +101,7 @@ None. Documentation and path-scrub edits remain unstaged as directed by the orch
 
 ## Next Action
 
-Run `$gsd-progress` to route Phase 06's still-open entitlement and aggregate/requirement gates. Do not create a new phase plan unless that workflow identifies actionable planned work.
+The project-wide route is `$gsd-execute-phase 03`, which resumes the incomplete Phase 03 plans before returning to Phase 06. Run it in the authoritative working tree after preserving the existing uncommitted changes there; this review branch intentionally does not absorb or overwrite that work. Phase 06 still has no runnable plans in this clean snapshot and remains open for virtual-HID entitlement plus aggregate/requirement review.
 
 ---
 *Quick task: 261002-hwa*
