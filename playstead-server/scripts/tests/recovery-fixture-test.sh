@@ -44,10 +44,18 @@ case "${FAKE_MODE:-pass}" in
   fail) echo private-path-token; echo 'PLAYSTEAD_RECOVERY_FIXTURE_FAILURE_STAGE=target-restore'; exit 1 ;;
   missing-marker) echo private-path-token; exit 1 ;;
   duplicate-marker) echo 'PLAYSTEAD_RECOVERY_FIXTURE_FAILURE_STAGE=target-restore'; echo 'PLAYSTEAD_RECOVERY_FIXTURE_FAILURE_STAGE=source-dump'; exit 1 ;;
+  malformed-marker) echo 'PLAYSTEAD_RECOVERY_FIXTURE_FAILURE_STAGE=target-restore private-path-token'; exit 1 ;;
   unknown-marker) echo 'PLAYSTEAD_RECOVERY_FIXTURE_FAILURE_STAGE=private-path'; exit 1 ;;
   sentinels) echo 'private path /Users/private/game.gba token=must-not-print'; exit 1 ;;
 esac
-if [ "${FAKE_MODE:-pass}" = malformed ]; then echo 'PLAYSTEAD_RECOVERY_FIXTURE_JSON={"secret":"bad"}'; exit 0; fi
+case "${FAKE_MODE:-pass}" in
+  malformed) echo 'PLAYSTEAD_RECOVERY_FIXTURE_JSON={"secret":"bad"}'; exit 0 ;;
+  missing-success-marker) echo 'private fixture path /Users/owner/game.gba'; exit 0 ;;
+  duplicate-success-marker)
+    echo 'PLAYSTEAD_RECOVERY_FIXTURE_JSON={"schema_version":1,"run_id":"123e4567-e89b-42d3-a456-426614174000","lane":"linux_restore_fixture","stages":["chain","preflight","database","cas","manifest","api"],"outcome":"passed"}'
+    echo 'PLAYSTEAD_RECOVERY_FIXTURE_JSON={"schema_version":1,"run_id":"123e4567-e89b-42d3-a456-426614174000","lane":"linux_restore_fixture","stages":["chain","preflight","database","cas","manifest","api"],"outcome":"passed"}'
+    exit 0 ;;
+esac
 echo 'private fixture path /Users/owner/game.gba'
 echo 'PLAYSTEAD_RECOVERY_FIXTURE_JSON={"schema_version":1,"run_id":"123e4567-e89b-42d3-a456-426614174000","lane":"linux_restore_fixture","stages":["chain","preflight","database","cas","manifest","api"],"outcome":"passed"}'
 EOF
@@ -75,7 +83,16 @@ for mode in fail missing-marker duplicate-marker unknown-marker sentinels; do
   if grep -F 'PLAYSTEAD_RECOVERY_FIXTURE_JSON=' "$output" >/dev/null; then
     echo "pass receipt escaped after failed command ($mode)" >&2; exit 1
   fi
-  [ ! -e "$tmp/fail-$mode" ] || { echo "failure emitted evidence ($mode)" >&2; exit 1; }
+  python3 - "$tmp/fail-$mode/recovery-failure.json" "$expected" <<'PY'
+import json, pathlib, stat, sys
+path=pathlib.Path(sys.argv[1]); data=json.loads(path.read_text())
+assert set(data)=={"schema","lane","outcome","failure_stage"}
+assert data=={"schema":"playstead.recovery-failure.v1","lane":"linux_restore_fixture","outcome":"failed","failure_stage":sys.argv[2]}
+assert stat.S_IMODE(path.stat().st_mode)==0o600
+assert stat.S_IMODE(path.parent.stat().st_mode)==0o700
+assert not any(s in path.read_text() for s in ("private-path-token","private path","/Users/","game.gba","must-not-print","token="))
+PY
+  [ ! -e "$tmp/fail-$mode/recovery-e2e.json" ] || { echo "failure wrote the passing receipt ($mode)" >&2; exit 1; }
 done
 for stage in "${allowed_stages[@]}"; do
   output="$tmp/stage-$stage.out"
@@ -85,16 +102,29 @@ for stage in "${allowed_stages[@]}"; do
   grep -Fx "FAILED: isolated restore fixture stage=$stage" "$output" >/dev/null || {
     echo "allowed stage was not preserved by the wrapper parser ($stage)" >&2; exit 1;
   }
-  [ ! -e "$tmp/stage-$stage" ] || { echo "stage failure emitted evidence ($stage)" >&2; exit 1; }
+  python3 - "$tmp/stage-$stage/recovery-failure.json" "$stage" <<'PY'
+import json, pathlib, sys
+data=json.loads(pathlib.Path(sys.argv[1]).read_text())
+assert data=={"schema":"playstead.recovery-failure.v1","lane":"linux_restore_fixture","outcome":"failed","failure_stage":sys.argv[2]}
+PY
+  [ ! -e "$tmp/stage-$stage/recovery-e2e.json" ] || { echo "stage failure wrote the passing receipt ($stage)" >&2; exit 1; }
 done
-if TMPDIR="$tmp" FAKE_MODE=malformed PATH="$tmp/bin:$PATH" "$coordinator" --output "$tmp/malformed" >"$tmp/malformed.out" 2>&1; then
-  echo "malformed result must be refused" >&2; exit 1
-fi
-grep -Fx 'FAILED: isolated restore fixture stage=result-validation' "$tmp/malformed.out" >/dev/null
-[ ! -e "$tmp/malformed" ]
-if grep -F 'PLAYSTEAD_RECOVERY_FIXTURE_JSON=' "$tmp/malformed.out" >/dev/null; then
-  echo "malformed pass receipt escaped the private-output boundary" >&2; exit 1
-fi
+for mode in malformed missing-success-marker duplicate-success-marker; do
+  output="$tmp/result-validation-$mode.out"
+  if TMPDIR="$tmp" FAKE_MODE="$mode" PATH="$tmp/bin:$PATH" "$coordinator" --output "$tmp/result-validation-$mode" >"$output" 2>&1; then
+    echo "malformed/missing success result must be refused ($mode)" >&2; exit 1
+  fi
+  grep -Fx 'FAILED: isolated restore fixture stage=result-validation' "$output" >/dev/null
+  python3 - "$tmp/result-validation-$mode/recovery-failure.json" <<'PY'
+import json, pathlib, sys
+data=json.loads(pathlib.Path(sys.argv[1]).read_text())
+assert data=={"schema":"playstead.recovery-failure.v1","lane":"linux_restore_fixture","outcome":"failed","failure_stage":"result-validation"}
+PY
+  [ ! -e "$tmp/result-validation-$mode/recovery-e2e.json" ]
+  if grep -E 'PLAYSTEAD_RECOVERY_FIXTURE_JSON=|private-path-token|private path|/Users/|game\.gba|must-not-print|token=' "$output" >/dev/null; then
+    echo "malformed pass receipt escaped the private-output boundary ($mode)" >&2; exit 1
+  fi
+done
 if find "$tmp" -maxdepth 1 -type d -name 'playstead-recovery-fixture.*' | grep . >/dev/null; then
   echo "temporary private output survived cleanup" >&2; exit 1
 fi
