@@ -1,12 +1,32 @@
 # Phase 06 Hosted Evidence
 
+## Current merged-head evidence — PR #7 (2026-10-02)
+
+- Merged commit: `ddd04ee06b93035711f3bdaeb8c40f86d99cdfed`.
+- Workflow: [37021805359](https://github.com/szTheory/playstead/actions/runs/37021805359),
+  latest attempt green.
+- Linux recovery, server precommit, and ordinary Mac passed. Mac results:
+  Unit 759/759, Rendering 52/52, UI 122/122, and LiveServer 6/6.
+- The Docker job succeeded, but its Docker build and smoke steps were skipped
+  by the path filter. The skipped steps are not claimed as executed passes.
+- Two narrow mGBA 0.10.5 plus private AerevenAdvance continuation runs showed
+  the visible state oracle. This is fixture-specific evidence only; the fixture
+  remains private and its public distribution rights are not established.
+- The virtual-HID entitlement remains `blocked/not-configured`; aggregate and
+  requirement review remain incomplete. Phase 06 is still open.
+
+This current result supersedes the PR #6 pending/failing status below, which is
+retained as historical evidence. Provenance for the merged-head run and the
+narrow continuation outcome: owner-provided evidence recorded in quick task
+`261002-hwa` and `.planning/phases/06-recovery-proof-ci-and-e2e-pipeline/06-VERIFICATION.md`.
+
 ## Review target
 
 - Draft PR: https://github.com/szTheory/playstead/pull/6
 - Branch: `phase06/hosted-evidence-20261001`
 - Base: `feat/dev-standup-and-uat7-closure`
 - Historical passing repair commit: `631edf9665ace49c91a02bdebcbd49dbc0f0e6ba` (retained recovery cleanup return handling).
-- Current pushed security repair: `f978fa8268328e0c2106f1aa0b45315832ce440f`; it removes the public PR self-hosted runner path. This isolated checkout carries the security source change, but the current CI attempts below are failing and PR #6 remains draft and unmerged.
+- At the time of the PR #6 review, the pushed security repair was `f978fa8268328e0c2106f1aa0b45315832ce440f`; it removed the public PR self-hosted runner path. The CI attempts below are historical and are superseded by the merged PR #7 evidence above.
 - The source commit excludes `.planning/`, local CA/signing artifacts, local fixture/account notes, and raw test evidence. The evidence ledger is copied into this isolated review branch for the open draft PR.
 
 The ordinary hosted workflow is the source of truth for the Mac app layers. The local no-HID runner refused to launch the app because the automated GSD guard requires a human-set `PLAYSTEAD_HUMAN_APPROVED_LOCAL_APP_LAUNCH` opt-in; that setting was not injected by automation.
@@ -31,7 +51,7 @@ The exact-head Mac artifact `mac-ordinary-evidence` contained 11 files. Reachabi
 
 Workflow [36952647897](https://github.com/szTheory/playstead/actions/runs/36952647897) completed on exact PR head `56b64e88fb55b3224206f3ef213f45eed5711586`. Docker cold-start job `110668721913`, server `mix precommit` job `110668722036`, and ordinary Mac job `110670579867` succeeded. Linux isolated recovery job `110668722059` failed only at `Run isolated restore fixture`; its sanitizer and sanitized-artifact upload steps succeeded, so the restore remained red while its bounded evidence was preserved.
 
-Only the sanitized `linux-recovery-evidence/recovery-failure.json` artifact was inspected. It contained the exact four fields `schema`, `lane`, `outcome`, and `failure_stage`, with stage `source-fixture-create`. The wrapper assigned that marker before both filesystem source-fixture creation and PostgreSQL source-database seeding; the artifact therefore identifies neither operation nor root cause. The exact enum split is the scope of Plan 06-23. No raw logs, raw artifacts, fixture bytes, paths, or credentials were inspected or recorded. Synthetic wrapper and sanitizer contracts, shell syntax, whitespace checks, and the Mac static-contract self-test passed in this execution; no local app, Xcode/XCTest, Docker restore, or private fixture run was performed.
+Only the sanitized `linux-recovery-evidence/recovery-failure.json` artifact was inspected. It contained the exact four fields `schema`, `lane`, `outcome`, and `failure_stage`, with stage `source-fixture-create`. The wrapper assigned that marker before both filesystem source-fixture creation and PostgreSQL source-database seeding; the artifact therefore identifies neither operation nor root cause. The exact enum split is the scope of Plan 06-23. No raw logs, raw artifacts, fixture bytes, paths, or credentials were inspected or recorded. Synthetic wrapper and sanitizer contracts, shell syntax, whitespace checks, and the Mac static-contract self-test passed in this execution; no local app, Xcode/XCTest, Docker restore, or private fixture run was performed. These are historical results superseded by the merged PR #7 entry above.
 
 ## Plan 06-23 exact-head outcome
 
@@ -51,7 +71,7 @@ Workflow [36983412255](https://github.com/szTheory/playstead/actions/runs/369834
 
 The Linux job's sole named `linux-recovery-evidence` artifact validated as exactly one sanitized `recovery-e2e.json` receipt: `schema_version` 1, lane `linux_restore_fixture`, outcome `passed`, with stages `chain`, `preflight`, `database`, `cas`, `manifest`, and `api`. Sanitizer and upload steps passed. This records a successful recovery run after the bounded connection-probe change; it does not establish the cause of the earlier connection-stage failure or prove retries were needed. No raw logs, raw artifacts, fixture bytes, paths, or credentials were inspected or recorded.
 
-This is source-code-head evidence. It predates the evidence/summary documentation commit; a separate completed exact-current-PR-head run is required as the final merge gate. Final-gate metadata is not part of this tracked source record. PORT-04, QUAL-02, entitlement, continuation, and aggregate regression gates remain open.
+This was source-code-head evidence. At the time, it predated the evidence/summary documentation commit and a separate exact-current-PR-head run was still required as the final merge gate. Workflow 37021805359 on merged PR #7 has since supplied that current hosted result. PORT-04, QUAL-02, entitlement, and aggregate regression gates remain open.
 
 ## Hosted runs
 
@@ -89,10 +109,19 @@ The hosted Mac evidence for run `36904947936` is the sanitized artifact `mac-ord
 
 The local synthetic restore fixture identified the cleanup return mismatch while using a temporary Buildx config. Later local fixture attempts hit intermittent source-database startup failures under the workstation Docker environment, so those attempts are diagnostic only and are not counted as recovery evidence. The required current Linux result remains the hosted run above.
 
-## Remaining phase gates
+## Current phase gates
 
-- Plan 06-09's hosted Linux and ordinary Mac deliverables are complete on the exact reviewed SHA above.
-- Keep the virtual-gamepad lane separately `blocked/not-configured` until an entitled runner/profile produces its own real result.
-- Plan 06-21 corrected the Mac static guard defect and passed the fresh exact-head ordinary Mac job. Plan 06-24's source-code head failed at the `source-fixture-database-connect` operation boundary only; Plan 06-25's bounded retry source-code head passed the Linux recovery lane and its sanitized receipt. This does not establish the earlier failure's cause. The evidence/summary commit still requires a separate exact-current-PR-head CI gate.
-- Keep PR #6 draft and unmerged until all hosted CI checks pass on the exact head.
-- `PORT-04`, `QUAL-02`, and the full regression gate remain open for their broader restore/export, entitled-device, continuation, and release-quality evidence. Do not treat this hosted ordinary-lane pass as phase completion.
+- The latest merged PR #7 hosted result is green for Linux recovery, server
+  precommit, and ordinary Mac. Workflow 37021805359's Docker job succeeded;
+  Docker build/smoke steps were path-filter skipped and are not counted as
+  executed passes.
+- Keep virtual-HID separately `blocked/not-configured` until an entitled
+  runner/profile produces its own real result.
+- The two visible-state continuation passes use mGBA 0.10.5 and the private
+  AerevenAdvance fixture. They do not establish public fixture rights or broad
+  compatibility.
+- `PORT-04`, `QUAL-02`, the Phase 06 aggregate gate, and full requirement review
+  remain open. Do not treat the hosted lane passes as phase completion.
+- `gsd init execute-phase 06` reports no incomplete or runnable plans. Use
+  `$gsd-progress` to select the next GSD action; do not invent a new runnable
+  phase plan from this evidence reconciliation.

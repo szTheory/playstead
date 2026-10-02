@@ -1,13 +1,13 @@
 ---
 gsd_state_version: "1.0"
 milestone: v1.0
-current_phase: 03
-current_phase_name: Mac Offline Play Vertical Slice
+current_phase: 06
+current_phase_name: Recovery Proof CI and E2E Pipeline
 status: executing
-stopped_at: Forensic investigation complete; proceeding to Phase 03 security review
-last_updated: "2026-09-19T14:19:05.265Z"
-last_activity: 2026-09-11
-last_activity_desc: Phase 03 execution started
+stopped_at: Phase 06 has no runnable plans; use $gsd-progress to route open gates
+last_updated: "2026-10-02"
+last_activity: 2026-10-02
+last_activity_desc: Reconciled Phase 06 to merged PR #7 evidence and recorded emulator/fixture decisions
 state_head: 3b4f577269bfe7760f69b42c558da0e581dbb57a
 progress:
   total_phases: 7
@@ -24,14 +24,18 @@ milestone_name: milestone
 See: `.planning/PROJECT.md` (updated 2026-08-30)
 
 **Core value:** A locally available game and its progress remain effortless to play, safe, understandable, synchronized, and fully under the user's control.
-**Current focus:** Phase 03 — Mac Offline Play Vertical Slice
+**Current focus:** Phase 06 — Recovery Proof CI and E2E Pipeline; hosted evidence is current, but entitlement and aggregate/requirement review remain open.
 
 ## Current Position
 
-Phase: 03 (Mac Offline Play Vertical Slice) — EXECUTING (all 16 plans complete; awaiting independent re-verification)
-Plan: 16 of 16
-Status: Ready for re-verification
-Last activity: 2026-09-19 — Completed quick task 260919-eui: close Phase 03 notarization evidence sanitizer gap
+Phase: 06 (Recovery Proof CI and E2E Pipeline) — OPEN; hosted merge evidence is recorded, and virtual-HID entitlement plus aggregate/requirement review remain unresolved.
+Plans: 06-20 and 06-22 through 06-25 complete; no incomplete or runnable plans.
+Status: No implementation plan is ready. Run `$gsd-progress` to select the next GSD action; do not create a plan from this evidence-reconciliation result.
+Latest hosted evidence: merged PR #7 commit `ddd04ee06b93035711f3bdaeb8c40f86d99cdfed`, workflow `37021805359` (latest attempt green for Linux recovery, server precommit, and ordinary Mac). Docker job succeeded; Docker build/smoke steps were skipped by path filter. Virtual-HID is `blocked/not-configured`; aggregate and requirement review remain incomplete.
+Continuation evidence: two narrow mGBA 0.10.5 plus private AerevenAdvance runs showed a visible state oracle. The fixture remains private and public distribution rights are not established.
+Last activity: 2026-10-02 — Completed quick task 261002-hwa planning and hosted-evidence reconciliation.
+
+### Prior phase position notes (retained)
 
 **03-16-PLAN.md is COMPLETE.** Closed the two robustness findings the
 03-15 re-verification recorded alongside LIBR-02: `AvailabilityController
@@ -343,6 +347,7 @@ None yet.
 |---|-------------|------|--------|-----------|
 | 260826-tqx | Adopt Playstead as the project identity, update the planning corpus, establish workspace subproject folders, and rename the parent workspace | 2026-08-26 | 1fd0dbe | [260826-tqx-adopt-playstead-as-the-project-identity-](./quick/260826-tqx-adopt-playstead-as-the-project-identity-/) |
 | 260919-eui | Fix Phase 03 security blocker T-03-12-03 by routing notarization output through the evidence sanitizer and testing the fail-closed path | 2026-09-19 | 6c80db3 | [260919-eui-fix-phase-03-security-blocker-t-03-12-03](./quick/260919-eui-fix-phase-03-security-blocker-t-03-12-03/) |
+| 261002-hwa | Record emulator/core and fixture direction, add tracked-text hygiene CI, and reconcile Phase 06 to merged PR #7 evidence | 2026-10-02 | 32fba84 | [261002-hwa-record-first-party-emulator-core-directi](./quick/261002-hwa-record-first-party-emulator-core-directi/) |
 
 ## Deferred Items
 
