@@ -51,8 +51,10 @@ final class ZeroNetworkPlayFlowTests: XCTestCase {
         let resultData = try Data(contentsOf: resultURL)
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: resultData) as? [String: Any])
         let hasClosedSchema = Set(object.keys) == ["recorded_request_count", "failure_stage"]
-        XCTAssertTrue(hasClosedSchema, "zero-network Play flow result schema must remain closed")
-        guard hasClosedSchema else { return }
+        guard hasClosedSchema else {
+            XCTFail("zero-network Play flow result schema must remain closed")
+            return
+        }
         guard let countNumber = object["recorded_request_count"] as? NSNumber,
               CFGetTypeID(countNumber) != CFBooleanGetTypeID() else {
             XCTFail("zero-network Play flow request count has an invalid type")
