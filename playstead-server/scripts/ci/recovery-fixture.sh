@@ -99,13 +99,22 @@ if ! mix playstead.restore --compose-fixture >"$tmp/private-output" 2>&1; then
 fi
 if ! python3 - "$tmp/private-output" "$tmp/recovery-e2e.json" <<'PY'
 import json, pathlib, re, sys
+
+def reject_duplicate_json_keys(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON key")
+        result[key] = value
+    return result
+
 try:
     raw = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
     prefix = "PLAYSTEAD_RECOVERY_FIXTURE_JSON="
     records = [line[len(prefix):] for line in raw.splitlines() if line.startswith(prefix)]
     if len(records) != 1:
         raise ValueError
-    data = json.loads(records[0])
+    data = json.loads(records[0], object_pairs_hook=reject_duplicate_json_keys)
     keys = {"schema_version", "run_id", "lane", "stages", "outcome"}
     if not isinstance(data, dict) or set(data) != keys:
         raise ValueError

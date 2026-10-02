@@ -522,7 +522,7 @@ for item in allowed:
     destination.parent.mkdir(parents=True, exist_ok=True)
     if suffix == ".json":
         try:
-            if relative.as_posix() == "recovery-failure.json":
+            if relative.as_posix() in {"recovery-e2e.json", "recovery-failure.json"}:
                 data = json.loads(
                     item.read_text(encoding="utf-8"),
                     object_pairs_hook=reject_duplicate_json_keys,
@@ -530,8 +530,8 @@ for item in allowed:
             else:
                 data = json.loads(item.read_text(encoding="utf-8"))
         except Exception:
-            if relative.as_posix() == "recovery-failure.json":
-                raise SystemExit("invalid JSON recovery failure evidence") from None
+            if relative.as_posix() in {"recovery-e2e.json", "recovery-failure.json"}:
+                raise SystemExit("invalid JSON recovery evidence") from None
             raise SystemExit(f"invalid JSON evidence {relative}") from None
         if relative.name.endswith("-tests.json"):
             if isinstance(data, dict) and data.get("kind") == "static-sweep":

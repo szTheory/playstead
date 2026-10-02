@@ -220,6 +220,16 @@ p=pathlib.Path(sys.argv[1]); d=json.loads(p.read_text()); d["stages"].pop(); p.w
 PY
 expect_fail recovery_stage "$SANITIZER" --input "$recovery_stage" --output "$TMP_ROOT/recovery-stage-output"
 
+recovery_duplicate_key="$TMP_ROOT/recovery-duplicate-key"
+make_valid "$recovery_duplicate_key"
+printf '%s\n' '{"schema_version":1,"run_id":"123e4567-e89b-42d3-a456-426614174000","lane":"linux_restore_fixture","stages":["chain","preflight","database","cas","manifest","api"],"outcome":"token=duplicate-sentinel","outcome":"passed"}' >"$recovery_duplicate_key/evidence/recovery-e2e.json"
+expect_fail recovery_duplicate_key "$SANITIZER" --input "$recovery_duplicate_key" --output "$TMP_ROOT/recovery-duplicate-key-output"
+if grep -F 'token=duplicate-sentinel' "$TMP_ROOT/recovery_duplicate_key.out" "$TMP_ROOT/recovery_duplicate_key.err" "$TMP_ROOT/recovery-duplicate-key-output/recovery-e2e.json" 2>/dev/null; then
+  printf 'FAIL: duplicate-key sentinel reached sanitizer output\n' >&2
+  exit 1
+fi
+[ ! -e "$TMP_ROOT/recovery-duplicate-key-output/recovery-e2e.json" ]
+
 recovery_failure_stages=(source-compose-startup source-readiness source-fixture-create source-dump backup-publication target-restore target-cleanup result-validation unknown)
 for stage in "${recovery_failure_stages[@]}"; do
   root="$TMP_ROOT/recovery-failure-$stage"

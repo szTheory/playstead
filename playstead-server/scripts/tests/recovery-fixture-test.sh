@@ -55,6 +55,7 @@ case "${FAKE_MODE:-pass}" in
     echo 'PLAYSTEAD_RECOVERY_FIXTURE_JSON={"schema_version":1,"run_id":"123e4567-e89b-42d3-a456-426614174000","lane":"linux_restore_fixture","stages":["chain","preflight","database","cas","manifest","api"],"outcome":"passed"}'
     echo 'PLAYSTEAD_RECOVERY_FIXTURE_JSON={"schema_version":1,"run_id":"123e4567-e89b-42d3-a456-426614174000","lane":"linux_restore_fixture","stages":["chain","preflight","database","cas","manifest","api"],"outcome":"passed"}'
     exit 0 ;;
+  duplicate-success-key) echo 'PLAYSTEAD_RECOVERY_FIXTURE_JSON={"schema_version":1,"run_id":"123e4567-e89b-42d3-a456-426614174000","lane":"linux_restore_fixture","stages":["chain","preflight","database","cas","manifest","api"],"outcome":"failed","outcome":"passed"}'; exit 0 ;;
 esac
 echo 'private fixture path /Users/owner/game.gba'
 echo 'PLAYSTEAD_RECOVERY_FIXTURE_JSON={"schema_version":1,"run_id":"123e4567-e89b-42d3-a456-426614174000","lane":"linux_restore_fixture","stages":["chain","preflight","database","cas","manifest","api"],"outcome":"passed"}'
@@ -111,7 +112,7 @@ assert data=={"schema":"playstead.recovery-failure.v1","lane":"linux_restore_fix
 PY
   [ ! -e "$tmp/stage-$stage/recovery-e2e.json" ] || { echo "stage failure wrote the passing receipt ($stage)" >&2; exit 1; }
 done
-for mode in malformed missing-success-marker duplicate-success-marker; do
+for mode in malformed missing-success-marker duplicate-success-marker duplicate-success-key; do
   output="$tmp/result-validation-$mode.out"
   if TMPDIR="$tmp" FAKE_MODE="$mode" PATH="$tmp/bin:$PATH" "$coordinator" --output "$tmp/result-validation-$mode" >"$output" 2>&1; then
     echo "malformed/missing success result must be refused ($mode)" >&2; exit 1
