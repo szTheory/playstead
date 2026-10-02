@@ -160,10 +160,11 @@ def validate_recovery_evidence(data, relative):
             raise SystemExit(f"local continuation run identifier is malformed: {relative}")
         if data.get("stage") not in {"preflight", "qualification", "initial-save", "safe-exit", "fresh-launch", "continue", "oracle"}:
             raise SystemExit(f"local continuation stage is not allowlisted: {relative}")
-        if data.get("outcome") not in {"passed", "failed-stage", "blocked-capability"}:
+        if data.get("outcome") not in {"passed", "failed-stage", "blocked-capability", "qualified-only"}:
             raise SystemExit(f"local continuation outcome is not allowlisted: {relative}")
         allowed_outcomes = (
-            {"blocked-capability"} if data["stage"] in {"preflight", "qualification"}
+            {"blocked-capability"} if data["stage"] == "preflight"
+            else {"blocked-capability", "qualified-only"} if data["stage"] == "qualification"
             else {"passed", "failed-stage"} if data["stage"] == "oracle"
             else {"failed-stage"}
         )

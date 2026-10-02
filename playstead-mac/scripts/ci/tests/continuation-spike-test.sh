@@ -27,6 +27,23 @@ assert d["schema"]=="playstead.continuation-local.v1" and d["stage"]=="preflight
 PY
 ! grep -Eq 'private-contract-sentinel|private-receipt-sentinel|private-adapter-sentinel|CONTINUATION_FIXTURE|fixture_id' "$TMP_ROOT/result.json" "$TMP_ROOT/error.log"
 
+# The explicit flag reaches the parent protocol and remains blocked at the
+# same preflight when its required isolation selector is absent. Extra args
+# are rejected by the shell wrapper without creating a receipt.
+if env -u PLAYSTEAD_CONTINUATION_ISOLATION_MECHANISM "$SPIKE" --qualify-only \
+  >"$TMP_ROOT/qualify-only.json" 2>"$TMP_ROOT/qualify-only.err"; then
+  printf '%s\n' 'FAIL: qualify-only passed without its isolation preflight' >&2; exit 1
+fi
+python3 - "$TMP_ROOT/qualify-only.json" <<'PY'
+import json,pathlib,sys
+d=json.loads(pathlib.Path(sys.argv[1]).read_text())
+assert d["stage"]=="preflight" and d["outcome"]=="blocked-capability"
+PY
+if "$SPIKE" --qualify-only extra >"$TMP_ROOT/extra-args.out" 2>"$TMP_ROOT/extra-args.err"; then
+  printf '%s\n' 'FAIL: continuation accepted extra arguments' >&2; exit 1
+fi
+test ! -s "$TMP_ROOT/extra-args.out"
+
 # Selector substitution is rejected by the parent runner before adapter lookup.
 for selector in arbitrary-command 'macos-seatbelt-v1;id' linux-bwrap-v1; do
   if PLAYSTEAD_CONTINUATION_ISOLATION_MECHANISM="$selector" \
@@ -77,6 +94,18 @@ import json,pathlib,sys
 d=json.loads(pathlib.Path(sys.argv[1]).read_text())
 assert d["stage"]=="oracle" and d["outcome"]=="passed" and set(d)=={"schema","run_id","stage","outcome"}
 PY
+
+printf '%s\n' '{"schema":"playstead.continuation-local.v1","run_id":"123e4567-e89b-42d3-a456-426614174000","stage":"qualification","outcome":"qualified-only"}' >"$TMP_ROOT/evidence/continuation.json"
+"$SANITIZER" --input "$TMP_ROOT" --output "$TMP_ROOT/sanitized" >/dev/null
+python3 - "$TMP_ROOT/sanitized/continuation.json" <<'PY'
+import json,pathlib,sys
+d=json.loads(pathlib.Path(sys.argv[1]).read_text())
+assert d["stage"]=="qualification" and d["outcome"]=="qualified-only" and set(d)=={"schema","run_id","stage","outcome"}
+PY
+printf '%s\n' '{"schema":"playstead.continuation-local.v1","run_id":"123e4567-e89b-42d3-a456-426614174000","stage":"qualification","outcome":"passed"}' >"$TMP_ROOT/evidence/continuation.json"
+if "$SANITIZER" --input "$TMP_ROOT" --output "$TMP_ROOT/sanitized" >/dev/null 2>&1; then
+  printf '%s\n' 'FAIL: generic qualification pass was accepted' >&2; exit 1
+fi
 
 python3 "$SCRIPT_DIR/continuation-process-double-test.py"
 

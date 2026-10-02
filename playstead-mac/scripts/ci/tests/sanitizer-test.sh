@@ -672,16 +672,16 @@ python3 - "$continuation_matrix" <<'PY'
 import json,pathlib,sys,uuid
 root=pathlib.Path(sys.argv[1])
 for stage in ("preflight","qualification","initial-save","safe-exit","fresh-launch","continue","oracle"):
-    for outcome in ("passed","failed-stage","blocked-capability"):
+    for outcome in ("passed","failed-stage","blocked-capability","qualified-only"):
         evidence=root/(stage+"-"+outcome)/"evidence"
         evidence.mkdir(parents=True)
         (evidence/"continuation.json").write_text(json.dumps({"schema":"playstead.continuation-local.v1","run_id":str(uuid.uuid4()),"stage":stage,"outcome":outcome}))
 PY
 for stage in preflight qualification initial-save safe-exit fresh-launch continue oracle; do
-  for outcome in passed failed-stage blocked-capability; do
+  for outcome in passed failed-stage blocked-capability qualified-only; do
     name="continuation-$stage-$outcome"
     case "$stage/$outcome" in
-      preflight/blocked-capability|qualification/blocked-capability|initial-save/failed-stage|safe-exit/failed-stage|fresh-launch/failed-stage|continue/failed-stage|oracle/failed-stage|oracle/passed)
+      preflight/blocked-capability|qualification/blocked-capability|qualification/qualified-only|initial-save/failed-stage|safe-exit/failed-stage|fresh-launch/failed-stage|continue/failed-stage|oracle/failed-stage|oracle/passed)
         expect_pass "$name" "$SANITIZER" --input "$continuation_matrix/$stage-$outcome" --output "$TMP_ROOT/$name-output" ;;
       *) expect_fail "$name" "$SANITIZER" --input "$continuation_matrix/$stage-$outcome" --output "$TMP_ROOT/$name-output" ;;
     esac
