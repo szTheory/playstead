@@ -43,6 +43,12 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
+      # Reject workstation-specific home paths from every tracked text file
+      # before any project toolchain or application command runs.
+      - name: Tracked text path hygiene
+        working-directory: .
+        run: bash scripts/check-tracked-text-hygiene.sh
+
       # The recovery integration test invokes pg_dump from the runner. Keep
       # its client major aligned with the PostgreSQL 17 service above; the
       # Ubuntu image's default pg_dump is 16 and refuses to dump a 17 server.

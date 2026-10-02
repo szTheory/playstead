@@ -193,7 +193,7 @@ Confirmed no local write exists for this kind, so the delete does not orphan any
 With the delete made unconditional on `state = 'pending'` alone (kind predicate removed), re-running `test_secondFavoriteIntent_isNotSupersededBecauseOnlyReportsAreNewestWins`:
 
 ```
-/Users/jon/projects/playstead/playstead-mac/PlaysteadTests/CurationTests/OutboxTests.swift:456:
+<local-home>/projects/playstead/playstead-mac/PlaysteadTests/CurationTests/OutboxTests.swift:456:
 error: -[PlaysteadTests.OutboxTests test_secondFavoriteIntent_isNotSupersededBecauseOnlyReportsAreNewestWins] :
 XCTAssertEqual failed: ("1") is not equal to ("2") - superseding is scoped to the one kind for which newest-wins is true
 

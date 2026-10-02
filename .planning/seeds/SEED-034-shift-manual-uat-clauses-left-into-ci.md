@@ -78,6 +78,14 @@ The homebrew-ROM licensing decision for a self-hosted Mac runner is still the
 owner's and still unmade; note that items 1-4 above need no ROM at all, so they
 are not blocked on it.
 
+**Owner decision update (2026-10-02):** prefer a tiny Playstead-authored,
+deterministic homebrew fixture checked into Git with source, explicit license,
+and provenance, if it satisfies the needed oracle. Do not select or distribute
+a third-party fixture without verifying rights for every included component.
+This supersedes the earlier undecided fixture direction; see
+[SEED-035](SEED-035-first-party-core-host-and-pair-pinning.md). No fixture is
+being added by this decision record.
+
 ## Status after the fix pass, 2026-09-13
 
 Four of the six items above have been fixed and gated on branch
@@ -122,3 +130,14 @@ the fixture for item 3 was performing the exact write production was missing.
 A wiring suite whose helpers simulate the production side-effect they exist to
 prove cannot fail. When adding a post-condition gate, check what the fixture
 does *before* trusting the suite's greenness.
+
+## Plan 06-20 disposition — 2026-10-02
+
+Plan 06-20's Libretro harness is a **test-only, throwaway harness**. Do not
+reuse it or grow it into a product host. Preserve its acceptance lessons for
+future planning, but build a future host through an intentionally designed
+adapter boundary and a separate least-privilege process if that work is
+authorized. This disposition records the owner's decision in quick task
+`261002-hwa` and `.planning/quick/261002-hwa-record-first-party-emulator-core-directi/261002-hwa-PLAN.md`;
+the prior harness remains documented by
+`.planning/phases/06-recovery-proof-ci-and-e2e-pipeline/06-20-SUMMARY.md`.

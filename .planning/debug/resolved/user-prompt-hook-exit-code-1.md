@@ -140,9 +140,9 @@ verification:
     result: pass
     evidence: "The normal prompt 'replying here' submitted without a UserPromptSubmit hook failure."
 files_changed:
-  - /Users/jon/.codex/hooks/lib/hook-exit.js
-  - /Users/jon/.codex/hooks/lib/cli-exit.js
-  - /Users/jon/.codex/hooks/lib/exit-code-registry.js
+  - <local-home>/.codex/hooks/lib/hook-exit.js
+  - <local-home>/.codex/hooks/lib/cli-exit.js
+  - <local-home>/.codex/hooks/lib/exit-code-registry.js
 
 ## Prevention
 

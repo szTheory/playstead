@@ -48,8 +48,8 @@ This quick task does not rewrite historical evidence or security conclusions. Af
 </objective>
 
 <execution_context>
-@/Users/jon/.codex/gsd-core/workflows/execute-plan.md
-@/Users/jon/.codex/gsd-core/templates/summary.md
+@<local-home>/.codex/gsd-core/workflows/execute-plan.md
+@<local-home>/.codex/gsd-core/templates/summary.md
 </execution_context>
 
 <context>

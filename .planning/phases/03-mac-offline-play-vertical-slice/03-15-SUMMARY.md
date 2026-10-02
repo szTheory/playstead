@@ -172,7 +172,7 @@ In-queue state set: `waiting`, `active`, `paused` (i.e. `state != .cancelled`), 
 With `hasEngaged` removed (`let missingDependency = !requiredSHAs.isEmpty && hasOrphanedRequiredMember`), re-running `test_untouchedGame_reportsMissingDependencyFalseSoServerOnlyStaysReachable`:
 
 ```
-/Users/jon/projects/playstead/playstead-mac/PlaysteadTests/CacheTests/AvailabilityReporterTests.swift:344:
+<local-home>/projects/playstead/playstead-mac/PlaysteadTests/CacheTests/AvailabilityReporterTests.swift:344:
 error: -[PlaysteadTests.AvailabilityReporterTests test_untouchedGame_reportsMissingDependencyFalseSoServerOnlyStaysReachable] :
 XCTAssertFalse failed - an untouched game is on the server, not broken -- server_only must stay reachable
 ```
@@ -185,7 +185,7 @@ XCTAssertFalse failed - an untouched game is on the server, not broken -- server
 
 **Swift side:**
 ```
-/Users/jon/projects/playstead/playstead-mac/PlaysteadTests/CacheTests/AvailabilityReporterTests.swift:458:
+<local-home>/projects/playstead/playstead-mac/PlaysteadTests/CacheTests/AvailabilityReporterTests.swift:458:
 error: -[PlaysteadTests.AvailabilityReporterTests test_buildEntriesOutputEncodesByteIdenticallyToSharedReportFixture] :
 XCTAssertEqual failed: ("AvailabilityReportEntry(assetSetID: "missing-dependency-asset-set", downloading: false,
 verified: false, pinned: false, missingDependency: true, downloadPercent: 0)") is not equal to

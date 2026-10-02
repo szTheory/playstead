@@ -66,6 +66,30 @@ A locally available game and its progress remain effortless to play, safe, under
 
 These exclusions scope early milestones. The broader ecosystem ambition remains recorded below and can be promoted when foundations are proven.
 
+### Emulator and Fixture Direction — Owner Decision (2026-10-02)
+
+Playstead does not build emulator cores or a new emulation ABI. The owner builds
+cores in separate repositories, each producing a C library, a headless runner,
+and a thin Libretro adapter; a core does not get its own standalone player.
+RetroArch is the interim host. A future shared host is provisionally part of
+the Playstead product/repository umbrella, exposed through the adapter boundary
+and launched as a separate least-privilege process. Revisit a repository split
+only if independent users or lifecycle needs justify it. This decision does
+not authorize host, renderer, or audio implementation now.
+
+For checked-in test fixtures, prefer a tiny deterministic Playstead-authored
+homebrew game with source, generated ROM, explicit license, and provenance when
+it can meet the test oracle. A third-party fixture is eligible only after
+explicit public-repository and CI distribution rights are verified for the
+ROM, source code, assets, audio/data, and attribution. AerevenAdvance stays
+private unless its rights are independently established. These are test-fixture
+rules, not permission to distribute user content. See [SEED-035](seeds/SEED-035-first-party-core-host-and-pair-pinning.md)
+for the future host/core pin contract and its deferred scope.
+
+**Provenance:** owner-approved direction recorded 2026-10-02 in quick task
+`261002-hwa`; source decision and scope are in
+`.planning/quick/261002-hwa-record-first-party-emulator-core-directi/261002-hwa-PLAN.md`.
+
 ## Context
 
 ### Motivation
