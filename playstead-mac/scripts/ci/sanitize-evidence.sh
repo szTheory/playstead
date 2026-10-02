@@ -223,7 +223,8 @@ def validate_recovery_failure_evidence(data, relative):
     if data.get("lane") != "linux_restore_fixture" or data.get("outcome") != "failed":
         raise SystemExit(f"recovery failure identity is malformed: {relative}")
     allowed_stages = {
-        "source-compose-startup", "source-readiness", "source-fixture-create",
+        "source-compose-startup", "source-readiness", "source-fixture-filesystem-create",
+        "source-fixture-database-seed",
         "source-dump", "backup-publication", "target-restore", "target-cleanup",
         "result-validation", "unknown",
     }
