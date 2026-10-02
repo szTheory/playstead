@@ -24,11 +24,12 @@ gaps:
 # Phase 06 Verification
 
 **Verdict: gaps found.** Historical Linux recovery and ordinary Mac jobs passed on
-`631edf9665ace49c91a02bdebcbd49dbc0f0e6ba` in workflow 36910091796. On current
-exact PR head `dbe3f3802ba1a88b877c6144492835b9a87ea338`, workflow 36961936830
-passed Docker cold-start, server `mix precommit`, and ordinary Mac. Linux recovery
-failed but published the sanitized operation stage `source-fixture-database-seed`;
-the cause within that database-seed operation is not established. PR #6 stays
+`631edf9665ace49c91a02bdebcbd49dbc0f0e6ba` in workflow 36910091796. The exact source-code head for Plan 06-24 was
+`a662c75227b9c54a3ba66af62591dfaa407912ed`, workflow
+36971165164, passed Docker cold-start, server `mix precommit`, and ordinary Mac.
+Linux recovery failed but published the sanitized operation stage
+`source-fixture-database-connect`; the cause within that operation is not
+established. PR #6 stays
 draft and unmerged until all required hosted checks pass on its exact head. The
 Phase 06 aggregate and PORT-04/QUAL-02 remain open; entitlement is
 blocked/not-configured, deterministic continuation remains unqualified, and full
@@ -38,8 +39,8 @@ requirement review is incomplete.
 
 | Boundary | Implementation / observed evidence | Result |
 |---|---|---|
-| SC1: independent Linux restore lane | Dedicated bounded CI job; historical hosted receipt passed all six stages (`chain`, `preflight`, `database`, `cas`, `manifest`, `api`); failure publication preserves a fixed stage token | Historical pass on SHA `631edf9`; exact PR head `dbe3f38` remains red at the `source-fixture-database-seed` operation boundary; cause not established; open |
-| SC2: native pairing, convergence, cache/preflight and save transport | Hosted ordinary Mac reachability, Unit, Rendering, UI and LiveServer selections passed; actual same-host clean-client recovery also passed | Current ordinary Mac job passed on `dbe3f38`; entitlement remains a separate open lane |
+| SC1: independent Linux restore lane | Dedicated bounded CI job; historical hosted receipt passed all six stages (`chain`, `preflight`, `database`, `cas`, `manifest`, `api`); failure publication preserves a fixed stage token | Historical pass on SHA `631edf9`; Plan 06-24 source-code head `a662c75` remains red at the `source-fixture-database-connect` operation boundary; cause not established; open |
+| SC2: native pairing, convergence, cache/preflight and save transport | Hosted ordinary Mac reachability, Unit, Rendering, UI and LiveServer selections passed; actual same-host clean-client recovery also passed | Plan 06-24 ordinary Mac job passed on `a662c75`; entitlement remains a separate open lane |
 | SC3: fixture-specific continuation spike | Strict protocol, independently checked network denial, actual local qualification refusal, lifecycle/oracle negative corpus | Gate verified; actual continuation capability blocked |
 | PORT-04 | Existing legal fixture, production restored target, exact download/save materialization, graceful emulator exit and app relaunch exercised; historical hosted restore receipt exists | Partial; no in-game resumed-state oracle pass, current hosted Linux failure, and full requirement closure remains open |
 | QUAL-02 | Sanitizer, CI wiring, focused suites, historical hosted pass, and current hosted evidence present | Partial; Linux CI, entitlement, continuation, and remaining release-quality gate review are open |
@@ -53,6 +54,8 @@ summary completion lists do not establish whole-requirement closure.
 - Plan 06-22 workflow [36952647897](https://github.com/szTheory/playstead/actions/runs/36952647897) completed on `56b64e88fb55b3224206f3ef213f45eed5711586`: Docker job `110668721913`, server precommit job `110668722036`, and ordinary Mac job `110670579867` passed. Linux job `110668722059` failed only at `Run isolated restore fixture`; sanitization and upload succeeded. The only inspected artifact was the sanitized four-field `recovery-failure.json` with stage `source-fixture-create`. That marker does not distinguish filesystem source-fixture creation from PostgreSQL source-database seeding or identify a root cause. Plan 06-23 splits these operation markers.
 
 - Plan 06-23 workflow [36961936830](https://github.com/szTheory/playstead/actions/runs/36961936830) completed on exact PR head `dbe3f3802ba1a88b877c6144492835b9a87ea338`. Docker job `110697303449`, server precommit job `110697303490`, and ordinary Mac job `110698990104` passed. Linux job `110697303338` failed only at `Run isolated restore fixture`; sanitizer and upload passed. The sole inspected artifact was `recovery-failure.json`, validated as exactly one regular file with no duplicate keys and exactly the unchanged four fields. Sanitized stage `source-fixture-database-seed` identifies only the source PostgreSQL fixture-seed boundary; no cause is inferred. Plan 06-24 narrows diagnostics within that operation. All full-phase and requirement gates remain open.
+
+- Plan 06-24 workflow [36971165164](https://github.com/szTheory/playstead/actions/runs/36971165164) completed on exact code SHA `a662c75227b9c54a3ba66af62591dfaa407912ed`. Docker cold-start job `110727469629`, server precommit job `110727469826`, and ordinary Mac job `110729213046` passed. Linux isolated recovery job `110727469818` failed only at `Run isolated restore fixture`; sanitizer and upload passed. The only inspected artifact was one sanitized `recovery-failure.json` with exactly `schema`, `lane`, `outcome`, and `failure_stage`, no duplicate keys, and stage `source-fixture-database-connect`. That names the source PostgreSQL connection probe only; it establishes no cause. Plan 06-25 scopes a bounded retry of the same read-only query. The run remains red; PORT-04, QUAL-02, entitlement, continuation, and aggregate regression remain open.
 
 - Plan 06-21 first hosted run [36931486120](https://github.com/szTheory/playstead/actions/runs/36931486120) was on SHA `3f2316d0a99ca0aff09da789dd1ea690d4bae8ab`: server `mix precommit` and Docker passed, Linux restore failed with sanitizer/upload skipped, and Mac failed at `Verify static contract guards` before app/native layers. Local static reproduction found a bare closed-schema early return; commit `cf978f4` corrected it. `fail-open-test-guard-test.sh` and `run-mac-verification.sh --self-test-contracts` passed locally after that correction; Linux source was unchanged and its synthetic tests had passed before the Mac-only fix.
 - Fresh exact-head workflow [36947656348](https://github.com/szTheory/playstead/actions/runs/36947656348) on `cf978f4d3ece48197bf209b31cc451b73f84759e`: Docker job `110653291243`, server `mix precommit` job `110653291608`, and ordinary Mac job `110655090300` passed; Linux isolated recovery job `110653291551` failed at `Run isolated restore fixture`, with sanitizer and upload skipped. No Linux sanitized artifact exists, so its internal stage is not attributed and raw job output was not inspected.
@@ -155,7 +158,7 @@ isolated branch and draft PR #6 contain the reviewable source change set.
 
 1. Plan 06-09 is complete; do not rerun it unless its hosted jobs or exact-SHA
    evidence become stale.
-2. Execute Plan 06-24's scoped diagnostics for `source-fixture-database-seed`;
+2. Execute Plan 06-25's scoped diagnostics for `source-fixture-database-connect`;
    the current hosted Linux result is still red and does not establish a cause.
 3. Keep the entitled virtual-HID lane separate until a matching profile and
    runner configuration produce a real pass.
