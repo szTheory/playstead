@@ -201,8 +201,8 @@ None further. The `apple-developer-program` `user_setup` block from this plan's 
 
 ## Self-Check: PASSED
 
-- `[ -f /Users/jon/projects/playstead/.planning/phases/03-mac-offline-play-vertical-slice/03-NOTARIZATION-EVIDENCE.md ]` → FOUND
-- `[ -x /Users/jon/projects/playstead/playstead-mac/scripts/verify-notarized-release.sh ]` → FOUND
+- `[ -f <local-home>/projects/playstead/.planning/phases/03-mac-offline-play-vertical-slice/03-NOTARIZATION-EVIDENCE.md ]` → FOUND
+- `[ -x <local-home>/projects/playstead/playstead-mac/scripts/verify-notarized-release.sh ]` → FOUND
 - `git log --oneline --all | grep 8489257` → FOUND
 - `git log --oneline --all | grep c469602` → FOUND
 - `grep -c 'PLAY-05.*Complete' .planning/REQUIREMENTS.md` → 1 (checked)

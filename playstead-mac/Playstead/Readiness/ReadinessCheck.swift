@@ -15,6 +15,18 @@ enum ReadinessCheckKind: String, CaseIterable, Equatable, Hashable {
     /// never produce `.blocked`; it only ever routes to the save
     /// history sheet.
     case saveState
+
+    var displayName: String {
+        switch self {
+        case .gameAssets: "Game files"
+        case .cacheVerification: "Local copy"
+        case .emulator: "Emulator"
+        case .bios: "BIOS"
+        case .controllerAndInput: "Controls"
+        case .saveDirectory: "Save folder"
+        case .saveState: "Saved progress"
+        }
+    }
 }
 
 enum ReadinessOutcome: Equatable {
@@ -25,6 +37,11 @@ enum ReadinessOutcome: Equatable {
     var isBlocking: Bool {
         if case .blocked = self { return true }
         return false
+    }
+
+    var isIssue: Bool {
+        if case .ready = self { return false }
+        return true
     }
 }
 
@@ -61,4 +78,10 @@ struct ReadinessReport: Equatable {
     var blockedCount: Int {
         checks.filter(\.outcome.isBlocking).count
     }
+
+    var issueChecks: [ReadinessCheck] {
+        checks.filter { $0.outcome.isIssue }
+    }
+
+    var hasIssues: Bool { !issueChecks.isEmpty }
 }

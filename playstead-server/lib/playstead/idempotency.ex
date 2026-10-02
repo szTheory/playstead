@@ -62,16 +62,28 @@ defmodule Playstead.Idempotency do
       nil ->
         {:ok, :fresh}
 
-      %Receipt{state: "in_flight"} ->
-        {:error, :in_flight}
+      %Receipt{expires_at: expires_at} = receipt when not is_nil(expires_at) ->
+        if DateTime.compare(expires_at, DateTime.utc_now()) == :lt do
+          Repo.delete(receipt)
+          {:ok, :fresh}
+        else
+          classify_receipt(receipt, fingerprint)
+        end
 
-      %Receipt{state: "complete", request_fingerprint: ^fingerprint} = receipt ->
-        {:ok, :replay, receipt}
-
-      %Receipt{state: "complete"} ->
-        {:error, :mismatch}
+      receipt ->
+        classify_receipt(receipt, fingerprint)
     end
   end
+
+  defp classify_receipt(%Receipt{state: "in_flight"}, _fingerprint), do: {:error, :in_flight}
+
+  defp classify_receipt(
+         %Receipt{state: "complete", request_fingerprint: fingerprint} = receipt,
+         fingerprint
+       ),
+       do: {:ok, :replay, receipt}
+
+  defp classify_receipt(%Receipt{state: "complete"}, _fingerprint), do: {:error, :mismatch}
 
   @doc """
   The single entry point every mutating handler goes through. Builds
@@ -88,7 +100,7 @@ defmodule Playstead.Idempotency do
   @spec execute(binary(), String.t(), String.t(), (-> {:ok, pos_integer(), term()}
                                                       | {:error, term()})) ::
           {:ok, pos_integer(), term()} | {:error, :conflict} | {:error, term()}
-  def execute(device_id, idempotency_key, fingerprint, effect_fun)
+  def execute(device_id, idempotency_key, fingerprint, effect_fun, opts \\ [])
       when is_function(effect_fun, 0) do
     Ecto.Multi.new()
     |> Ecto.Multi.insert(:receipt, fn _changes ->
@@ -96,7 +108,8 @@ defmodule Playstead.Idempotency do
         device_id: device_id,
         idempotency_key: idempotency_key,
         request_fingerprint: fingerprint,
-        expires_at: expires_at()
+        expires_at:
+          expires_at(Keyword.get(opts, :expires_in_seconds, @retention_days * 24 * 60 * 60))
       })
     end)
     |> Ecto.Multi.run(:effect, fn _repo, _changes ->
@@ -140,9 +153,9 @@ defmodule Playstead.Idempotency do
     {:ok, count}
   end
 
-  defp expires_at do
+  defp expires_at(seconds) when is_integer(seconds) and seconds > 0 do
     DateTime.utc_now()
     |> DateTime.truncate(:second)
-    |> DateTime.add(@retention_days * 24 * 60 * 60, :second)
+    |> DateTime.add(seconds, :second)
   end
 end

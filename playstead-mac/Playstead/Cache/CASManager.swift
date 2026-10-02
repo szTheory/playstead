@@ -23,10 +23,16 @@ final class CASManager {
     let paths: AppPaths
     private let verifyIndexURL: URL
     private let queue = DispatchQueue(label: "dev.playstead.mac.cas")
+    /// The `cache_objects` mirror of what this type puts on disk, kept in
+    /// step here because committing an object and recording it are the
+    /// same event -- see `CacheObjectStore` and WINDOWS #75. `nil` only in
+    /// tests that are about the filesystem layout and have no database.
+    private let objectLedger: CacheObjectStore?
 
-    init(paths: AppPaths) {
+    init(paths: AppPaths, objectLedger: CacheObjectStore? = nil) {
         self.paths = paths
         self.verifyIndexURL = paths.objects.appendingPathComponent("verify-index.json")
+        self.objectLedger = objectLedger
     }
 
     /// Throws `PathSafetyError.invalidDigest` for a digest that is not a
@@ -82,7 +88,8 @@ final class CASManager {
             }
         }
 
-        try recordVerify(for: sha256, at: dest)
+        let record = try recordVerify(for: sha256, at: dest)
+        objectLedger?.record(record)
     }
 
     /// Moves a failed partial aside without deleting it — evidence for
@@ -123,9 +130,11 @@ final class CASManager {
             index.removeValue(forKey: sha256)
             saveIndexUnlocked(index)
         }
+        objectLedger?.forget(sha256: sha256)
     }
 
-    private func recordVerify(for sha256: String, at objectURL: URL) throws {
+    @discardableResult
+    private func recordVerify(for sha256: String, at objectURL: URL) throws -> VerifyRecord {
         let attrs = try FileManager.default.attributesOfItem(atPath: objectURL.path)
         let size = (attrs[.size] as? Int) ?? 0
         let mtime = (attrs[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
@@ -137,6 +146,7 @@ final class CASManager {
             index[sha256] = record
             saveIndexUnlocked(index)
         }
+        return record
     }
 
     private func loadIndex() -> [String: VerifyRecord] {

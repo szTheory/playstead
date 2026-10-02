@@ -117,20 +117,74 @@ final class RelaunchTests: XCTestCase {
     // MARK: - Orphan prevention: a registered process is terminated on application termination
 
     func testRegisteredAdapterProcessIsTerminatedWhenApplicationTerminationHandlerRuns() throws {
+        // The sweep terminates every process registered in the registry
+        // it fires on, so this test drives its own registry on its own
+        // notification center. Posting to `NotificationCenter.default`
+        // against `AdapterProcessRegistry.shared` — which is what this
+        // test used to do — reaches any child process a concurrently
+        // running test has registered (WINDOWS #86).
+        let center = NotificationCenter()
+        let registry = AdapterProcessRegistry.isolatedForTesting(center: center)
+
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sleep")
         process.arguments = ["30"]
         try process.run()
         XCTAssertTrue(process.isRunning)
 
-        AdapterProcessRegistry.shared.register(process)
+        registry.register(process)
 
         let terminatedExpectation = expectation(description: "process terminates")
         process.terminationHandler = { _ in terminatedExpectation.fulfill() }
 
-        NotificationCenter.default.post(name: NSApplication.willTerminateNotification, object: nil)
+        center.post(name: NSApplication.willTerminateNotification, object: nil)
 
         wait(for: [terminatedExpectation], timeout: 5)
         XCTAssertFalse(process.isRunning, "a registered process must be terminated when the application termination handler runs")
+    }
+
+    /// The isolation itself, asserted directly rather than inferred from
+    /// the flakiness going away.
+    ///
+    /// Two registries, two centers, one child process each. Sweeping the
+    /// first must kill only the first's process and leave the second's
+    /// running. Before `AdapterProcessRegistry` took an injectable
+    /// notification center, every registry that had ever registered a
+    /// process observed `NotificationCenter.default`, so a single post
+    /// swept all of them — which is how one test's termination sweep
+    /// reached another test's child (WINDOWS #86).
+    func testTerminationSweepReachesOnlyItsOwnRegistrysProcesses() throws {
+        let sweptCenter = NotificationCenter()
+        let sweptRegistry = AdapterProcessRegistry.isolatedForTesting(center: sweptCenter)
+        let bystanderRegistry = AdapterProcessRegistry.isolatedForTesting()
+
+        func startSleeper() throws -> Process {
+            let proc = Process()
+            proc.executableURL = URL(fileURLWithPath: "/bin/sleep")
+            proc.arguments = ["30"]
+            try proc.run()
+            return proc
+        }
+
+        let swept = try startSleeper()
+        let bystander = try startSleeper()
+        defer {
+            for proc in [swept, bystander] where proc.isRunning { proc.terminate() }
+        }
+
+        sweptRegistry.register(swept)
+        bystanderRegistry.register(bystander)
+
+        let sweptExited = expectation(description: "the swept registry's process terminates")
+        swept.terminationHandler = { _ in sweptExited.fulfill() }
+
+        sweptCenter.post(name: NSApplication.willTerminateNotification, object: nil)
+        wait(for: [sweptExited], timeout: 5)
+
+        XCTAssertFalse(swept.isRunning, "the swept registry's own process must be terminated")
+        XCTAssertTrue(
+            bystander.isRunning,
+            "a process registered in a different registry must survive another registry's termination sweep"
+        )
     }
 }

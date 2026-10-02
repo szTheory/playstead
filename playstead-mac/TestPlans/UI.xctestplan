@@ -21,10 +21,13 @@
       "parallelizable" : false,
       "selectedTests" : [
         "BiosRejectionCopyTests",
+        "BiosAcceptanceSeamTests",
         "ConflictResolutionInteractionTests",
+		"ControllerHardwareIntegrationTests",
         "CurationInteractionTests",
         "HostedRunnerCanaryTests/testFullKeyboardAccessCanaryFocusesAndActivatesTwoControls()",
         "HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice()",
+        "LibraryEmptyStateTests",
         "OnlyCopyInterruptionTests",
         "SaveFrontDoorJourneyTests",
         "StorageInteractionTests",

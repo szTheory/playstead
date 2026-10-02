@@ -137,4 +137,121 @@ final class MaterializationTests: XCTestCase {
         }
         XCTAssertEqual(blockers.first?.reason, "corrupted")
     }
+
+    // MARK: - Emulator-authored files survive re-materialization (WINDOWS #78)
+
+    /// The regression gate for WINDOWS #78. mGBA writes save states,
+    /// screenshots and cheat files next to the ROM, i.e. inside the
+    /// launch directory; the materializer used to delete that whole
+    /// directory on every launch, so every Play silently destroyed the
+    /// player's save states.
+    ///
+    /// The sentinel is deliberately a name the members list never
+    /// mentions — that is exactly the class of file the old code could
+    /// not distinguish from its own leftovers.
+    func testMaterializeTwiceLeavesAnEmulatorAuthoredFileUntouched() throws {
+        let (digest, _) = try seedCommittedObject()
+        let materializer = LaunchMaterializer(paths: paths, cas: cas)
+        let members = [(sha256: digest, declaredName: "game.gba")]
+
+        let first = try materializer.materialize(assetSetID: "asset-set-78", members: members)
+        let saveState = first.directory.appendingPathComponent("game.ss1")
+        let stateBytes = Data("MGBA-SAVE-STATE".utf8)
+        try stateBytes.write(to: saveState)
+
+        let second = try materializer.materialize(assetSetID: "asset-set-78", members: members)
+
+        XCTAssertEqual(second.directory, first.directory)
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: saveState.path),
+            "re-materializing must not delete an emulator-authored file"
+        )
+        XCTAssertEqual(try Data(contentsOf: saveState), stateBytes, "the save state's bytes must be untouched")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: second.files[0].path))
+    }
+
+    /// The other half of the same contract: the materializer still owns
+    /// cache-derived files, so a member that is no longer part of the
+    /// asset set does not linger. Without this, "stop deleting things"
+    /// would have been satisfied by deleting nothing at all.
+    func testMaterializeRemovesAMemberFileThatIsNoLongerPartOfTheAssetSet() throws {
+        let (digestA, _) = try seedCommittedObject(bytes: 4096)
+        let (digestB, _) = try seedCommittedObject(bytes: 2048)
+        let materializer = LaunchMaterializer(paths: paths, cas: cas)
+
+        let first = try materializer.materialize(
+            assetSetID: "asset-set-78b",
+            members: [(sha256: digestA, declaredName: "disc1.gba"), (sha256: digestB, declaredName: "patch.ips")]
+        )
+        let dropped = first.directory.appendingPathComponent("patch.ips")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dropped.path))
+
+        _ = try materializer.materialize(
+            assetSetID: "asset-set-78b",
+            members: [(sha256: digestA, declaredName: "disc1.gba")]
+        )
+
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: dropped.path),
+            "a file this materializer wrote, and no longer owns, must be removed"
+        )
+    }
+
+    /// A member whose bytes changed must be replaced, not skipped —
+    /// `copyItem` refuses an existing destination, so the old copy is
+    /// removed explicitly first.
+    func testMaterializeReplacesAMemberFileWhoseContentChanged() throws {
+        let (digestA, _) = try seedCommittedObject(bytes: 4096)
+        let (digestB, _) = try seedCommittedObject(bytes: 2048)
+        let materializer = LaunchMaterializer(paths: paths, cas: cas)
+
+        _ = try materializer.materialize(assetSetID: "asset-set-78c", members: [(sha256: digestA, declaredName: "game.gba")])
+        let result = try materializer.materialize(assetSetID: "asset-set-78c", members: [(sha256: digestB, declaredName: "game.gba")])
+
+        XCTAssertEqual(try Data(contentsOf: result.files[0]).count, 2048)
+    }
+
+    /// A member declaring the manifest's own name is refused: a server
+    /// that could overwrite the manifest could name arbitrary files in
+    /// the directory for deletion on the next materialization.
+    func testMaterializeRejectsAMemberNamedLikeTheManifest() throws {
+        let (digest, _) = try seedCommittedObject()
+        let materializer = LaunchMaterializer(paths: paths, cas: cas)
+
+        XCTAssertThrowsError(
+            try materializer.materialize(
+                assetSetID: "asset-set-78d",
+                members: [(sha256: digest, declaredName: LaunchMaterializer.manifestFilename)]
+            )
+        ) { error in
+            guard case MaterializationError.reservedMemberName = error else {
+                return XCTFail("expected reservedMemberName, got \(error)")
+            }
+        }
+    }
+
+    /// Validation happens before any mutation, so a refused member
+    /// leaves a previously materialized directory exactly as it was
+    /// rather than half-rebuilt.
+    func testARefusedMemberLeavesTheExistingLaunchDirectoryIntact() throws {
+        let (digest, _) = try seedCommittedObject()
+        let materializer = LaunchMaterializer(paths: paths, cas: cas)
+
+        let first = try materializer.materialize(assetSetID: "asset-set-78e", members: [(sha256: digest, declaredName: "game.gba")])
+        let saveState = first.directory.appendingPathComponent("game.ss1")
+        try Data("MGBA-SAVE-STATE".utf8).write(to: saveState)
+
+        XCTAssertThrowsError(
+            try materializer.materialize(
+                assetSetID: "asset-set-78e",
+                members: [
+                    (sha256: digest, declaredName: "game.gba"),
+                    (sha256: String(repeating: "0", count: 64), declaredName: "missing.gba"),
+                ]
+            )
+        )
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: first.files[0].path), "the ROM must still be there")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: saveState.path), "the save state must still be there")
+    }
 }

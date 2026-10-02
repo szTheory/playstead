@@ -19,14 +19,14 @@ defmodule PlaysteadWeb.Problem do
   path, filename, hash, token, or credential. `extras` is merged into
   the body, e.g. a structured `remedy` object.
 
-  The `correlation_id` is fresh, random, `:crypto.strong_rand_bytes/1`
-  based — never derived from the request path, params, filenames, or
-  any credential — and is set on both the body and the
+  The `correlation_id` is minted once at the API boundary and reused here.
+  It is a random opaque UUID — never derived from the request path, params,
+  filenames, or any credential — and is set on both the body and the
   `x-correlation-id` response header.
   """
   @spec send_problem(Plug.Conn.t(), pos_integer(), atom(), String.t(), map()) :: Plug.Conn.t()
   def send_problem(conn, status, code, detail, extras \\ %{}) do
-    correlation_id = generate_correlation_id()
+    correlation_id = Map.get(conn.assigns, :correlation_id, generate_correlation_id())
 
     body =
       %{
@@ -38,6 +38,7 @@ defmodule PlaysteadWeb.Problem do
         correlation_id: correlation_id
       }
       |> Map.merge(extras)
+      |> Map.put(:correlation_id, correlation_id)
 
     conn
     |> put_resp_content_type("application/problem+json")
@@ -45,9 +46,9 @@ defmodule PlaysteadWeb.Problem do
     |> send_resp(status, Jason.encode!(body))
   end
 
-  @doc "A fresh, random correlation ID. Never derived from request contents."
+  @doc "A fresh, random opaque UUID. Never derived from request contents."
   @spec generate_correlation_id() :: String.t()
   def generate_correlation_id do
-    :crypto.strong_rand_bytes(16) |> Base.url_encode64(padding: false)
+    Ecto.UUID.generate()
   end
 end

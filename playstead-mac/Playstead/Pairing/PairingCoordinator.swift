@@ -1,4 +1,33 @@
 import Foundation
+import OSLog
+
+/// One privacy-safe terminal summary per pairing attempt. It intentionally
+/// has no fields for codes, request IDs, credentials, certificates, URLs,
+/// paths, filenames, identities, or library/save data.
+struct PairingOutcomeRecord: Equatable {
+    let correlationID: String
+    let stage: String
+    let outcome: String
+    let reasonCode: String
+    let retryable: Bool
+    let durationMilliseconds: Int
+}
+
+protocol PairingOutcomeRecording: AnyObject {
+    func record(_ outcome: PairingOutcomeRecord)
+}
+
+/// A single unified-log decision record is the durable local diagnostic
+/// seam. It is deliberately neither analytics nor verbose activity logging.
+final class OSLogPairingOutcomeRecorder: PairingOutcomeRecording {
+    private let logger = Logger(subsystem: "dev.playstead.mac", category: "pairing-outcome")
+
+    func record(_ outcome: PairingOutcomeRecord) {
+        logger.notice(
+            "pairing_outcome correlation_id=\(outcome.correlationID, privacy: .public) stage=\(outcome.stage, privacy: .public) outcome=\(outcome.outcome, privacy: .public) reason_code=\(outcome.reasonCode, privacy: .public) retryable=\(outcome.retryable, privacy: .public) duration_ms=\(outcome.durationMilliseconds, privacy: .public)"
+        )
+    }
+}
 
 /// The pairing ceremony's own state machine, exactly as `SaveSessionCoordinator`
 /// was extracted from `play()`: a plain type a test constructs directly, with
@@ -24,6 +53,11 @@ enum PairingState: Equatable {
 @Observable
 final class PairingCoordinator {
     private(set) var state: PairingState = .idle
+    /// Privacy-reduced local evidence for the terminal or retryable server
+    /// Problem that affected this ceremony. This is intentionally separate
+    /// from state and credentials, so it cannot influence authorization,
+    /// device-code lifecycle, certificate pinning, or retry identity.
+    private(set) var lastFailureDiagnosticEvidence: EligibleDiagnosticEvidence?
 
     private let client: PairingClient
     private let keychain: KeychainStore
@@ -41,6 +75,12 @@ final class PairingCoordinator {
     /// The cap the poll interval backs off to at most (D-07/D-12's
     /// `slow_down`): doubles on every 429, never grows without bound.
     private let maxPollInterval: TimeInterval
+    private let outcomeRecorder: PairingOutcomeRecording
+    /// The application owns what happens after a credential is durable.  The
+    /// ceremony only reports its terminal success; production injects the
+    /// first sync so a newly paired library does not remain empty until the
+    /// next relaunch or manual refresh.
+    private let afterPairing: () async -> Void
 
     private var pollTask: Task<Void, Never>?
     private var deviceCode: String?
@@ -58,6 +98,8 @@ final class PairingCoordinator {
     /// resumes, and abandons the result if they differ (VERIFICATION
     /// gap 2 / CR-01).
     private var generation = 0
+    private var attemptCorrelationID: String?
+    private var attemptStartedAt: Date?
 
     init(
         client: PairingClient,
@@ -70,7 +112,9 @@ final class PairingCoordinator {
         deviceCodeGenerator: @escaping () -> String = { PairingClient.generateDeviceCode() },
         now: @escaping () -> Date = Date.init,
         sleep: @escaping (TimeInterval) async -> Void = PairingCoordinator.defaultSleep,
-        maxPollInterval: TimeInterval = 60
+        maxPollInterval: TimeInterval = 60,
+        outcomeRecorder: PairingOutcomeRecording = OSLogPairingOutcomeRecorder(),
+        afterPairing: @escaping () async -> Void = {}
     ) {
         self.client = client
         self.keychain = keychain
@@ -83,6 +127,8 @@ final class PairingCoordinator {
         self.now = now
         self.sleep = sleep
         self.maxPollInterval = maxPollInterval
+        self.outcomeRecorder = outcomeRecorder
+        self.afterPairing = afterPairing
     }
 
     /// Starts a fresh ceremony against `baseURLString`. A no-op while a
@@ -97,12 +143,14 @@ final class PairingCoordinator {
             break
         }
 
+        beginAttempt()
+
         guard
             let url = URL(string: baseURLString.trimmingCharacters(in: .whitespacesAndNewlines)),
             let scheme = url.scheme, !scheme.isEmpty,
             let host = url.host, !host.isEmpty
         else {
-            state = .failed(.invalidResponse)
+            fail(.invalidResponse, stage: "validation")
             return
         }
 
@@ -113,11 +161,12 @@ final class PairingCoordinator {
         // challenge `PinnedCertificateCapture` depends on
         // (VERIFICATION gap 1 / CR-02).
         guard url.scheme?.lowercased() == "https" else {
-            state = .failed(.insecureServerAddress)
+            fail(.insecureServerAddress, stage: "validation")
             return
         }
 
         baseURL = url
+        lastFailureDiagnosticEvidence = nil
         state = .requesting
         let code = deviceCodeGenerator()
         deviceCode = code
@@ -136,10 +185,11 @@ final class PairingCoordinator {
             startPolling(interval: handle.pollInterval)
         } catch let error as PairingError {
             guard myGeneration == generation else { return }
-            state = .failed(error)
+            await recordFailureDiagnosticEvidence()
+            fail(error, stage: "request")
         } catch {
             guard myGeneration == generation else { return }
-            state = .failed(.transport(error.localizedDescription))
+            fail(.transport(error.localizedDescription), stage: "request")
         }
     }
 
@@ -157,6 +207,7 @@ final class PairingCoordinator {
         deviceCode = nil
         requestID = nil
         baseURL = nil
+        finishAttempt(stage: "cancel", outcome: "cancelled", reasonCode: "user_cancelled", retryable: true)
     }
 
     private func startPolling(interval: TimeInterval) {
@@ -176,7 +227,7 @@ final class PairingCoordinator {
 
             guard case .awaitingApproval(_, let expiresAt) = state else { return }
             if now() >= expiresAt {
-                state = .failed(.expired)
+                fail(.expired, stage: "poll")
                 return
             }
             guard let baseURL, let requestID else { return }
@@ -195,11 +246,12 @@ final class PairingCoordinator {
                     await redeem()
                     return
                 case .denied:
-                    state = .failed(.denied)
+                    fail(.denied, stage: "poll")
                     return
                 }
             } catch PairingError.slowDown {
                 guard myGeneration == generation else { return }
+                await recordFailureDiagnosticEvidence()
                 // D-07/D-12: never retry immediately on a rate-limit
                 // refusal — double the interval for the next attempt,
                 // capped, so the ceremony backs off rather than tripping
@@ -208,11 +260,12 @@ final class PairingCoordinator {
                 continue
             } catch let error as PairingError {
                 guard myGeneration == generation else { return }
-                state = .failed(error)
+                await recordFailureDiagnosticEvidence()
+                fail(error, stage: "poll")
                 return
             } catch {
                 guard myGeneration == generation else { return }
-                state = .failed(.transport(error.localizedDescription))
+                fail(.transport(error.localizedDescription), stage: "poll")
                 return
             }
         }
@@ -220,7 +273,7 @@ final class PairingCoordinator {
 
     private func redeem() async {
         guard let baseURL, let requestID, let deviceCode else {
-            state = .failed(.invalidResponse)
+            fail(.invalidResponse, stage: "redeem")
             return
         }
         let myGeneration = generation
@@ -254,24 +307,92 @@ final class PairingCoordinator {
                 if let certificateCapture, let pinnedCertificateURL {
                     guard certificateCapture.writeCapturedCertificate(to: pinnedCertificateURL) else {
                         keychain.deleteCredential()
-                        state = .failed(.certificatePinFailed)
+                        fail(.certificatePinFailed, stage: "redeem")
                         return
                     }
                 }
                 state = .paired(deviceID: redeemed.deviceID)
+                finishAttempt(stage: "redeem", outcome: "succeeded", reasonCode: "paired", retryable: false)
+                // Do not make pairing success wait on a potentially slow
+                // snapshot. The credential is already durable, and this
+                // continuation gives a fresh library its first sync without
+                // requiring a relaunch or a user-discovered refresh action.
+                Task { [afterPairing] in
+                    await afterPairing()
+                }
             case .failure:
-                state = .failed(.keychainWriteFailed)
+                fail(.keychainWriteFailed, stage: "redeem")
             }
         } catch let error as PairingError {
             guard myGeneration == generation else { return }
-            state = .failed(error)
+            await recordFailureDiagnosticEvidence()
+            fail(error, stage: "redeem")
         } catch {
             guard myGeneration == generation else { return }
-            state = .failed(.transport(error.localizedDescription))
+            fail(.transport(error.localizedDescription), stage: "redeem")
+        }
+    }
+
+    private func beginAttempt() {
+        attemptCorrelationID = UUID().uuidString.lowercased()
+        attemptStartedAt = now()
+    }
+
+    private func fail(_ error: PairingError, stage: String) {
+        state = .failed(error)
+        finishAttempt(
+            stage: stage,
+            outcome: "failed",
+            reasonCode: Self.outcomeReasonCode(for: error),
+            retryable: Self.isRetryable(error)
+        )
+    }
+
+    private func finishAttempt(stage: String, outcome: String, reasonCode: String, retryable: Bool) {
+        guard let correlationID = attemptCorrelationID, let startedAt = attemptStartedAt else { return }
+        attemptCorrelationID = nil
+        attemptStartedAt = nil
+        outcomeRecorder.record(PairingOutcomeRecord(
+            correlationID: correlationID,
+            stage: stage,
+            outcome: outcome,
+            reasonCode: reasonCode,
+            retryable: retryable,
+            durationMilliseconds: max(0, Int(now().timeIntervalSince(startedAt) * 1_000))
+        ))
+    }
+
+    private static func outcomeReasonCode(for error: PairingError) -> String {
+        switch error {
+        case .expired: return "pairing_request_expired"
+        case .alreadyRedeemed: return "pairing_request_already_redeemed"
+        case .notApproved: return "pairing_request_not_approved"
+        case .slowDown: return "slow_down"
+        case .notFound: return "pairing_request_not_found"
+        case .denied: return "pairing_request_denied"
+        case .invalidResponse: return "invalid_response"
+        case .keychainWriteFailed: return "keychain_write_failed"
+        case .transport: return "transport_failed"
+        case .insecureServerAddress: return "insecure_server_address"
+        case .certificatePinFailed: return "certificate_pin_failed"
+        case .certificateTrustFailed: return "certificate_trust_rejected"
+        }
+    }
+
+    private static func isRetryable(_ error: PairingError) -> Bool {
+        switch error {
+        case .alreadyRedeemed, .denied:
+            return false
+        default:
+            return true
         }
     }
 
     // MARK: - Defaults
+
+    private func recordFailureDiagnosticEvidence() async {
+        lastFailureDiagnosticEvidence = await client.lastFailureDiagnosticEvidence
+    }
 
     nonisolated static func defaultDeviceName() -> String {
         // WR-01: the UI-test device-name override is a confused-deputy vector

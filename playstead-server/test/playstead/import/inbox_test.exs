@@ -51,6 +51,71 @@ defmodule Playstead.Import.InboxTest do
     assert "escape" in links
   end
 
+  test "dot-files the OS writes into the inbox are skipped, not reported as unknown content",
+       %{root: root} do
+    # Every one of these is real: Finder writes .DS_Store the moment the folder
+    # is opened, a volume picks up .Spotlight-V100/.fseventsd, and copying from
+    # another disk leaves ._ AppleDouble files. Reported, each becomes a phantom
+    # :unknown demanding a decision at /attention -- and .DS_Store comes back as
+    # soon as the folder is opened again, so excluding it never settles it.
+    File.write!(Path.join(root, "game.gba"), "abc")
+    File.write!(Path.join(root, ".DS_Store"), "finder")
+    File.write!(Path.join(root, "._game.gba"), "appledouble")
+    File.write!(Path.join(root, ".gitkeep"), "")
+
+    {:ok, %{files: files}} = Inbox.scan(root)
+    paths = Enum.map(files, & &1.relative_path) |> Enum.sort()
+
+    assert paths == ["game.gba"]
+  end
+
+  test "a dot-directory is skipped rather than walked, so trashed files are not imported", %{
+    root: root
+  } do
+    File.mkdir_p!(Path.join(root, ".Trashes"))
+    File.write!(Path.join(root, ".Trashes/deleted.gba"), "in the trash")
+    File.mkdir_p!(Path.join(root, ".Spotlight-V100"))
+    File.write!(Path.join(root, ".Spotlight-V100/index.bin"), "index")
+    File.write!(Path.join(root, "keeper.gba"), "real")
+
+    {:ok, %{files: files}} = Inbox.scan(root)
+    paths = Enum.map(files, & &1.relative_path) |> Enum.sort()
+
+    assert paths == ["keeper.gba"]
+    refute Enum.any?(files, &String.contains?(&1.relative_path, "deleted"))
+  end
+
+  test "a dot-named symlink is skipped entirely rather than reported as a link", %{root: root} do
+    # Skipping happens by name before lstat, so a dot-named link does not even
+    # reach the `links` list. Asserted so the by-name ordering is not quietly
+    # changed to a post-stat filter, which would reintroduce it as a link report.
+    outside =
+      Path.join(
+        System.tmp_dir!(),
+        "playstead-inbox-dotlink-#{System.unique_integer([:positive])}"
+      )
+
+    File.mkdir_p!(outside)
+    on_exit(fn -> File.rm_rf!(outside) end)
+    :ok = File.ln_s(outside, Path.join(root, ".hidden_escape"))
+
+    {:ok, %{files: files, links: links}} = Inbox.scan(root)
+
+    assert files == []
+    assert links == []
+  end
+
+  test "a non-dot file whose name merely contains a dot is still reported", %{root: root} do
+    # Guards the rule against becoming "reject anything with a dot in it".
+    File.write!(Path.join(root, "Pokemon - Version Vert Feuille (France).gba"), "rom")
+    File.write!(Path.join(root, "save.dat.bak"), "bak")
+
+    {:ok, %{files: files}} = Inbox.scan(root)
+    paths = Enum.map(files, & &1.relative_path) |> Enum.sort()
+
+    assert paths == ["Pokemon - Version Vert Feuille (France).gba", "save.dat.bak"]
+  end
+
   test "a non-regular filesystem entry is skipped", %{root: root} do
     fifo_path = Path.join(root, "a_fifo")
     {_output, 0} = System.cmd("mkfifo", [fifo_path])

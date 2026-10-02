@@ -42,7 +42,8 @@ defmodule PlaysteadWeb.SetupLiveEnvTest do
       lv |> element("button", "Continue") |> render_click()
       html = render(lv)
 
-      assert html =~ "border-[#FBBF24]"
+      assert html =~ "border-app-warning/40"
+      assert html =~ "text-app-warning"
       refute button_disabled?(html)
 
       # The control is present and clickable — clicking it navigates away,

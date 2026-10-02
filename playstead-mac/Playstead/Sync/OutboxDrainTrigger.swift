@@ -8,12 +8,13 @@ import Foundation
 /// than capturing the `@MainActor` `AppEnvironment`, and so a test can
 /// assert that the worker is genuinely running in the assembled app —
 /// `drainCount` is the observable proof, and `awaitPending()` lets a test
-/// await the pass a trigger actually started instead of polling.
+/// await every pass currently in flight instead of polling.
 final class OutboxDrainTrigger: @unchecked Sendable {
     private let worker: OutboxWorker
     private let lock = NSLock()
     private var _drainCount = 0
-    private var _lastTask: Task<OutboxDrainResult, Never>?
+    private var _activePasses = 0
+    private var _waiters: [CheckedContinuation<Void, Never>] = []
 
     init(worker: OutboxWorker) {
         self.worker = worker
@@ -27,23 +28,44 @@ final class OutboxDrainTrigger: @unchecked Sendable {
     }
 
     /// Starts one drain pass. The worker is an actor, so overlapping
-    /// calls serialize rather than racing the same entry.
+    /// calls are safe; waiters are tracked so a test does not return while
+    /// an earlier pass is still awaiting its transport request.
     @discardableResult
     func fire() -> Task<OutboxDrainResult, Never> {
         let worker = self.worker
-        let task = Task { await worker.drainOnce() }
         lock.lock()
         _drainCount += 1
-        _lastTask = task
+        _activePasses += 1
         lock.unlock()
+
+        let task = Task { [self, worker] in
+            defer { finishPass() }
+            return await worker.drainOnce()
+        }
         return task
     }
 
-    /// Awaits the most recently started pass, if any.
+    /// Awaits all drain passes that are active now, including overlapping
+    /// passes whose worker calls may finish in a different order.
     func awaitPending() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            lock.lock()
+            guard _activePasses > 0 else {
+                lock.unlock()
+                continuation.resume()
+                return
+            }
+            _waiters.append(continuation)
+            lock.unlock()
+        }
+    }
+
+    private func finishPass() {
         lock.lock()
-        let task = _lastTask
+        _activePasses -= 1
+        let waiters = _activePasses == 0 ? _waiters : []
+        if _activePasses == 0 { _waiters.removeAll() }
         lock.unlock()
-        _ = await task?.value
+        waiters.forEach { $0.resume() }
     }
 }

@@ -43,6 +43,14 @@ final class LiveServerSnapshotTests: XCTestCase {
         let first = try sentinel(at: runRoot.appendingPathComponent("control/first-sentinel.json"))
         let handoff = runRoot.appendingPathComponent("credential-handoff.json")
         XCTAssertEqual(try permissions(of: handoff), 0o600)
+        guard let fixtureEnvironment,
+              let caPath = fixtureEnvironment["PLAYSTEAD_TEST_LIVE_SERVER_CA_DER"],
+              let caDigest = fixtureEnvironment["PLAYSTEAD_TEST_LIVE_SERVER_CA_SHA256"] else {
+            return XCTFail("live fixture CA configuration is missing")
+        }
+        let trustAnchor = try LiveServerTestTrustAnchor(
+            sourcePath: caPath, expectedSHA256: caDigest, runRoot: runRoot
+        )
 
         let launched = XCUIApplication()
         app = launched
@@ -53,12 +61,15 @@ final class LiveServerSnapshotTests: XCTestCase {
         launched.launchEnvironment["PLAYSTEAD_UI_TEST_CREDENTIAL_HANDOFF"] = handoff.path
         launched.launchEnvironment["PLAYSTEAD_UI_TEST_KEYCHAIN"] = keychainURL.path
         launched.launchEnvironment["PLAYSTEAD_UI_TEST_KEYCHAIN_SERVICE"] = "dev.playstead.mac.live.\(UUID().uuidString.lowercased())"
+        trustAnchor.install(on: launched)
         launched.launch()
 
         XCTAssertTrue(launched.descendants(matching: .any)["playstead.surface.library"].awaitExistence(timeout: 20))
         XCTAssertFalse(FileManager.default.fileExists(atPath: handoff.path))
-        XCTAssertTrue(launched.buttons["playstead.control.show-list"].awaitExistence(timeout: 10))
-        launched.buttons["playstead.control.show-list"].clickWhenHittable()
+        // The default Cards layout is the ordinary first-render surface. Do
+        // not change it through a title-bar control here: the contract is
+        // mirror convergence before bytes download, while the separate UI
+        // accessibility layer owns view-picker interaction coverage.
         let row = launched.descendants(matching: .any)["playstead.game.\(first.assetSetID).summary"]
         XCTAssertTrue(row.awaitExistence(timeout: 10))
         XCTAssertTrue(row.readableText.contains(first.title))
@@ -78,11 +89,12 @@ final class LiveServerSnapshotTests: XCTestCase {
             )
         }
         launched.launchEnvironment.removeValue(forKey: "PLAYSTEAD_UI_TEST_CREDENTIAL_HANDOFF")
+        launched.launchEnvironment.removeValue(forKey: "PLAYSTEAD_UI_TEST_LIVE_SERVER_CA_DER")
+        launched.launchEnvironment.removeValue(forKey: "PLAYSTEAD_UI_TEST_LIVE_SERVER_CA_SHA256")
+        launched.launchEnvironment.removeValue(forKey: "PLAYSTEAD_UI_TEST_LIVE_SERVER_PAIRING_TARGET")
         launched.launch()
 
         XCTAssertTrue(launched.descendants(matching: .any)["playstead.surface.library"].awaitExistence(timeout: 20))
-        XCTAssertTrue(launched.buttons["playstead.control.show-list"].awaitExistence(timeout: 10))
-        launched.buttons["playstead.control.show-list"].clickWhenHittable()
         for sentinel in [first, second] {
             let refreshedRow = launched.descendants(matching: .any)["playstead.game.\(sentinel.assetSetID).summary"]
             XCTAssertTrue(refreshedRow.awaitExistence(timeout: 10))
@@ -152,8 +164,9 @@ final class LiveServerSnapshotTests: XCTestCase {
             return false
         }
         let rootURL = URL(fileURLWithPath: stageRoot, isDirectory: true).standardizedFileURL
-        guard stageURL.deletingLastPathComponent() == rootURL else {
-            XCTAssertEqual(stageURL.deletingLastPathComponent(), rootURL, "live-server-preflight=stage-parent")
+        let stageParent = stageURL.deletingLastPathComponent()
+        guard resolved(stageParent.path) == resolved(rootURL.path) else {
+            XCTAssertEqual(resolved(stageParent.path), resolved(rootURL.path), "live-server-preflight=stage-parent")
             return false
         }
         // The runner exports both roots from the same native server root, so a
@@ -238,9 +251,24 @@ final class LiveServerSnapshotTests: XCTestCase {
     }
 
     private func runtimeConfigurationURL() -> URL {
-        fixtureScriptURL()
+        if let path = ProcessInfo.processInfo.environment["PLAYSTEAD_TEST_LIVE_SERVER_RUNTIME_CONFIG"],
+           !path.isEmpty {
+            return URL(fileURLWithPath: path)
+        }
+        return fixtureScriptURL()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent(".build/ci/four-layer/raw/live-server-runtime.json")
+    }
+
+    private func runtimeConfigurationMatchesRun(_ url: URL, configured: [String: String]) -> Bool {
+        guard let serverRoot = configured["PLAYSTEAD_MAC_CI_ROOT"],
+              let stageRoot = configured["PLAYSTEAD_LIVE_SERVER_STAGE_ROOT"],
+              resolved(serverRoot) == resolved(stageRoot) else { return false }
+        let canonicalURL = url.resolvingSymlinksInPath().standardizedFileURL
+        let expectedURL = resolved(serverRoot)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("live-server-runtime.json")
+        return canonicalURL == expectedURL
     }
 
     private func resolvedFixtureEnvironment() -> [String: String]? {
@@ -249,6 +277,7 @@ final class LiveServerSnapshotTests: XCTestCase {
             "PLAYSTEAD_LIVE_SERVER_STAGE_FILE", "MAC_CI_DATABASE_URL", "MIX_ENV", "PORT"
         ])
         let inherited = ProcessInfo.processInfo.environment
+        let explicitRuntimeConfig = inherited["PLAYSTEAD_TEST_LIVE_SERVER_RUNTIME_CONFIG"] ?? ""
 
         // The runner writes this file with the environment that actually
         // provisioned the native services -- PATH included -- so it is
@@ -265,10 +294,13 @@ final class LiveServerSnapshotTests: XCTestCase {
             Set(configured.keys) == required.union(["PATH"]),
             required.allSatisfy({ !(configured[$0] ?? "").isEmpty }),
             configured["MIX_ENV"] == "mac_ci",
-            configured["PORT"] == "4010"
+            configured["PORT"] == "4010",
+            runtimeConfigurationMatchesRun(url, configured: configured)
         {
             return inherited.merging(configured) { _, configuredValue in configuredValue }
         }
+
+        if !explicitRuntimeConfig.isEmpty { return nil }
 
         // Without a config, fall back to a fully inherited environment, and
         // only when it is self-consistent. The runner derives both roots from

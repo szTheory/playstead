@@ -18,6 +18,13 @@ enum DeterministicProfile: String, CaseIterable {
     case pausedActiveQueue = "paused-active-queue"
     case quotaBlockReclaim = "quota-block-reclaim"
     case storage = "storage"
+    /// Plan 03-20: one cached synthetic-system game whose BIOS requirement
+    /// and single compiled reference exercise the production acceptance
+    /// route without using a proprietary system or BIOS fixture.
+    case biosAcceptance = "bios-acceptance"
+    /// Keeps the existing no-reference rejection journey on the same real
+    /// readiness route without making a test-only reference available.
+    case biosNoReference = "bios-no-reference"
     /// 04-18 Journey 1 (SAVE-03): one game, its ROM cached, an empty
     /// local save directory, and one `uploaded` restorable revision
     /// committed for its content key -- a normal launch through the
@@ -32,6 +39,31 @@ enum DeterministicProfile: String, CaseIterable {
     /// undisposed heads on the same save line -- a genuine fork the
     /// card's badge and the readiness Save row must both report.
     case saveDiverged = "save-diverged"
+
+    static let syntheticBIOSSystem = "playstead-test-bios-lab"
+    static let syntheticBIOSCandidateBytes = Data([0x50, 0x4C, 0x41, 0x59, 0x53, 0x54, 0x45, 0x41, 0x44])
+
+    var uiTestingBiosReferences: [BiosStore.Reference] {
+        switch self {
+        case .biosAcceptance:
+            let digest = SHA256.hash(data: Self.syntheticBIOSCandidateBytes)
+                .map { String(format: "%02x", $0) }
+                .joined()
+            return [BiosStore.Reference(
+                system: Self.syntheticBIOSSystem,
+                expectedByteLength: Self.syntheticBIOSCandidateBytes.count,
+                knownSHA256Digests: [digest]
+            )]
+        case .biosNoReference:
+            return []
+        default:
+            return BiosReferences.production
+        }
+    }
+
+    var requiresBIOSForUITesting: Bool {
+        self == .biosAcceptance || self == .biosNoReference
+    }
 
     /// A real, offline, synthetic pairing credential this profile's
     /// world requires -- `nil` for every profile that has no reason to
@@ -185,6 +217,18 @@ final class DeterministicProfileFixture {
                 pinned: [Self.storageAssetID],
                 cached: 1
             )
+        case .biosAcceptance:
+            return expectation(
+                catalogue: 1,
+                pinned: [Self.storageAssetID],
+                cached: 1
+            )
+        case .biosNoReference:
+            return expectation(
+                catalogue: 1,
+                pinned: [Self.storageAssetID],
+                cached: 1
+            )
         case .saveRestorable:
             return expectation(catalogue: 1, cached: 1)
         case .saveOnlyCopy:
@@ -273,13 +317,16 @@ final class DeterministicProfileFixture {
         }
     }
 
-    /// A persisted profile intentionally differs from its seed after a
-    /// reorder. Reopen validation therefore pins the invariant inventory
-    /// and content identities while allowing only order/outbox state to
-    /// carry across the process boundary.
+    /// SwiftUI may construct a session-backed root more than once during one
+    /// test launch. Reopen validation pins exact state for immutable profiles;
+    /// the curation profile separately allows its intended reorder to persist.
     func assertPersistentSessionState() throws {
+        if profile == .biosAcceptance {
+            try assertExactState()
+            return
+        }
         guard profile == .populatedCurationReorder else {
-            throw DeterministicProfileError.stateMismatch("only the curation profile supports relaunch")
+            throw DeterministicProfileError.stateMismatch("this UI-test profile does not support a persistent session")
         }
         let members = curationStore.fetchCollectionMembers()
         let digests = catalogueStore.fetchAll().flatMap(\.members).compactMap(\.sha256).sorted()
@@ -340,6 +387,16 @@ final class DeterministicProfileFixture {
             try quotaManager.setQuota(bytes: 16)
         case .storage:
             let entry = Self.entry(id: Self.storageAssetID, title: "Synthetic Offline Fixture", seed: 73)
+            try catalogueStore.upsert(entry)
+            try seedCachedObject(for: entry, bytes: 32, seed: 73)
+            try pinStore.pin(assetSetID: entry.id)
+        case .biosAcceptance, .biosNoReference:
+            let entry = Self.entry(
+                id: Self.storageAssetID,
+                title: "Synthetic BIOS Acceptance Fixture",
+                seed: 73,
+                system: DeterministicProfile.syntheticBIOSSystem
+            )
             try catalogueStore.upsert(entry)
             try seedCachedObject(for: entry, bytes: 32, seed: 73)
             try pinStore.pin(assetSetID: entry.id)
@@ -602,12 +659,17 @@ final class DeterministicProfileFixture {
         ) }
     }
 
-    private static func entry(id: String, title: String, seed: UInt8) -> CatalogueEntry {
+    private static func entry(
+        id: String,
+        title: String,
+        seed: UInt8,
+        system: String = "synthetic-system"
+    ) -> CatalogueEntry {
         let data = Data(repeating: seed, count: 32)
         let digest = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
         return CatalogueEntry(
             id: id,
-            system: "synthetic-system",
+            system: system,
             displayTitle: title,
             tags: ["fixture": "deterministic"],
             members: [

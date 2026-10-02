@@ -89,12 +89,12 @@ final class SaveFrontDoorJourneyTests: XCTestCase {
     /// defect) -- it performs a real, observable export.
     func testReclaimingAnOnlyCopyGameInStoragePresentsTheInterruptiveModalAndExportIsReal() {
         launch(.saveOnlyCopy)
-        openSurface(control: "playstead.control.open-storage", root: "playstead.surface.storage")
+        openStorageSettings()
 
         harness.require(["playstead.storage.candidate.0", "playstead.storage.candidate.0.toggle"])
         harness.focusContainedAction(
             "playstead.storage.candidate.0.toggle",
-            rootIdentifier: "playstead.surface.storage"
+            rootIdentifier: "playstead.storage.inventory"
         )
         harness.element("playstead.storage.candidate.0.toggle", type: .button)
             .typeKey(.space, modifierFlags: [])
@@ -165,20 +165,17 @@ final class SaveFrontDoorJourneyTests: XCTestCase {
     func testDivergedLineShowsTheCardBadgeAndReviewVersionsOpensComparison() {
         launch(.saveDiverged)
 
-        let card = harness.element("library.card")
-        XCTAssertTrue(card.awaitExistence(timeout: 5), "the seeded diverged game's card never rendered")
-        // GameCardView deliberately collapses to a single accessibility element
-        // (`children: .ignore`) and composes the status ladder's sentence into
-        // its own label, so `library.status-slot` cannot be addressed inside the
-        // card -- by design, and better for a screen reader than three separate
-        // stops. D-38's rank-1 union is therefore proven by the card's composed
-        // accessible name, which ends in the divergence rung's sentence.
+        let badge = harness.element("library.status-slot")
+        XCTAssertTrue(badge.awaitExistence(timeout: 5), "the seeded diverged game's card badge never rendered")
+        // The production cards use GameRowView and keep the QUAL-01 status
+        // node available independently of the decorative card container.
         XCTAssertTrue(
-            card.readableText.hasSuffix("needs your attention."),
-            "the card does not carry the D-38 divergence rung: \(card.readableText)"
+            badge.readableText.hasSuffix("needs your attention."),
+            "the card does not carry the D-38 divergence rung: \(badge.readableText)"
         )
 
-        openSurface(control: "playstead.control.open-readiness", root: "playstead.surface.readiness")
+        showList()
+        openReadiness()
 
         let remedy = harness.element("playstead.readiness.row.saveState.remedy", type: .button)
         XCTAssertTrue(
@@ -207,7 +204,8 @@ final class SaveFrontDoorJourneyTests: XCTestCase {
     /// placeholder MC-04 fixed.
     func testReadinessSaveRowReportsRealStateForAGameWithSavedProgress() {
         launch(.saveRestorable)
-        openSurface(control: "playstead.control.open-readiness", root: "playstead.surface.readiness")
+        showList()
+        openReadiness()
 
         assertDismissalOwnsFocus("playstead.control.done", "when the readiness sheet opens")
 
@@ -263,13 +261,32 @@ final class SaveFrontDoorJourneyTests: XCTestCase {
     }
 
     private func showList() {
-        harness.element("playstead.control.show-list", type: .button).clickWhenHittable()
+        let picker = harness.element("playstead.library.view-mode")
+        XCTAssertTrue(picker.awaitExistence(timeout: 5), "the production library view picker is missing")
+        let listSegment = picker.descendants(matching: .any)["playstead.control.show-list"]
+        XCTAssertTrue(listSegment.awaitExistence(timeout: 5), "the production List segment is missing")
+        listSegment.clickWhenHittable()
         XCTAssertTrue(harness.element("playstead.surface.game-list").awaitExistence(timeout: 5))
     }
 
-    private func openSurface(control: String, root: String) {
-        harness.element(control, type: .button).clickWhenHittable()
-        XCTAssertTrue(harness.element(root).awaitExistence(timeout: 5), "navigation dead-ended before reaching \(root)")
+    private func openReadiness() {
+        let readiness = harness.element("playstead.control.open-readiness", type: .button)
+        XCTAssertTrue(readiness.awaitExistence(timeout: 5), "the production game row has no readiness action")
+        readiness.clickWhenHittable()
+        XCTAssertTrue(
+            harness.element("playstead.surface.readiness").awaitExistence(timeout: 5),
+            "the game row readiness action did not open its production sheet"
+        )
+    }
+
+    private func openStorageSettings() {
+        let settings = harness.element("playstead.sidebar.settings")
+        XCTAssertTrue(settings.awaitExistence(timeout: 5), "the production Settings destination is missing")
+        settings.clickWhenHittable()
+        XCTAssertTrue(
+            harness.element("playstead.storage.inventory").awaitExistence(timeout: 5),
+            "Settings did not render the production Storage inventory"
+        )
     }
 
     private func uniqueButton(labeled label: String) -> XCUIElement {

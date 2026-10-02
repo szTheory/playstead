@@ -250,7 +250,11 @@ PY
 import pathlib, sqlite3, sys
 root, log_path = map(pathlib.Path, sys.argv[1:3])
 expected_snapshots = sys.argv[3]
+result_marker = root / "live-server-verify-result"
+result_marker.write_text("checking", encoding="ascii")
+result_marker.chmod(0o600)
 if not root.is_dir() or not log_path.is_file():
+    result_marker.write_text("verification-input-missing", encoding="ascii")
     raise SystemExit("live-server verification inputs are missing")
 
 lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
@@ -269,25 +273,79 @@ for line in lines:
     elif pending_snapshot and any(method in line for method in ("GET /", "POST /", "PUT /", "PATCH /", "DELETE /")):
         pending_snapshot = False
 
-if expected_snapshots and snapshot_success != int(expected_snapshots):
-    raise SystemExit(
-        f"expected exactly {expected_snapshots} successful snapshot request(s), got {snapshot_success}"
-    )
-if blob_requests != 0:
-    raise SystemExit(f"expected zero blob requests, got {blob_requests}")
-
+# Every observed fact is gathered BEFORE the first check, and every failure
+# carries all of them. This layer reproduces only on hosted CI, so this
+# output is the whole record: WINDOWS #71's two red runs could not say
+# whether the mirror was MISSING a sentinel or carrying an EXTRA row --
+# opposite causes -- because the message named neither the titles nor which
+# of the stage's two callers produced it.
+#
+# One fact per line, deliberately. run-mac-verification.sh's diagnostic
+# printer keeps the last 40 lines but truncates each to 200 characters, so a
+# single wide line loses its tail exactly where the difference sits. It also
+# rewrites absolute paths to <path> and any 32-plus character run to
+# <token>, which is why the caller is identified by its snapshot expectation
+# rather than by the run root (a UUID that would be scrubbed to <token>).
 database = root / "playstead.sqlite3"
-with sqlite3.connect(database) as connection:
-    cursor = connection.execute("SELECT cursor FROM sync_cursor WHERE id = 1").fetchone()
-    titles = {row[0] for row in connection.execute("SELECT display_title FROM catalogue_entries")}
+cursor = None
+titles = None
+database_error = None
+try:
+    with sqlite3.connect(database) as connection:
+        cursor = connection.execute("SELECT cursor FROM sync_cursor WHERE id = 1").fetchone()
+        titles = {row[0] for row in connection.execute("SELECT display_title FROM catalogue_entries")}
+except sqlite3.Error as error:
+    database_error = f"{type(error).__name__}: {error}"
+
+expected_titles = {"Playstead CI Sentinel One", "Playstead CI Sentinel Two"}
+
+
+def titles_line(label, values):
+    rendered = ", ".join(sorted(values))
+    return f"  {label}=" + (rendered[:150] + " ...truncated" if len(rendered) > 150 else rendered)
+
+
+def fail(category, message):
+    result_marker.write_text(category, encoding="ascii")
+    caller = (
+        f"asserts-{expected_snapshots}-snapshots" if expected_snapshots
+        else "snapshots-not-asserted-here"
+    )
+    observed = [
+        f"  caller={caller}",
+        f"  snapshots_observed={snapshot_success}",
+        f"  blob_requests={blob_requests}",
+        f"  cursor={'present' if cursor and cursor[0] else 'empty'}",
+    ]
+    if database_error is not None:
+        observed.append(f"  sqlite_error={database_error[:150]}")
+    elif titles is None:
+        observed.append("  titles=unread")
+    else:
+        observed.append(titles_line("titles", titles))
+        observed.append(titles_line("missing", expected_titles - titles))
+        observed.append(titles_line("unexpected", titles - expected_titles))
+    print(f"live-server verify-evidence FAILED: {message}", file=sys.stderr)
+    for line in observed:
+        print(line, file=sys.stderr)
+    raise SystemExit(message)
+
+
+if database_error is not None:
+    fail("mirror-database-unreadable", "could not read the client mirror database")
+if expected_snapshots and snapshot_success != int(expected_snapshots):
+    fail("snapshot-count-mismatch", f"expected exactly {expected_snapshots} successful snapshot request(s), got {snapshot_success}")
+if blob_requests != 0:
+    fail("blob-request-observed", f"expected zero blob requests, got {blob_requests}")
 if not cursor or not cursor[0]:
-    raise SystemExit("stored snapshot cursor is empty")
-if titles != {"Playstead CI Sentinel One", "Playstead CI Sentinel Two"}:
-    raise SystemExit("fresh mirror does not contain exactly both synthetic sentinels")
+    fail("snapshot-cursor-empty", "stored snapshot cursor is empty")
+if titles != expected_titles:
+    fail("sentinel-set-mismatch", "fresh mirror does not contain exactly both synthetic sentinels")
 for name in ("objects", "partials"):
     directory = root / name
     if not directory.is_dir() or any(directory.iterdir()):
-        raise SystemExit(f"{name} must exist and remain empty")
+        fail("local-byte-residue", "the local byte store must exist and remain empty")
+result_marker.write_text("passed", encoding="ascii")
 print(
     "live-server: "
     + (f"{expected_snapshots} snapshot(s), " if expected_snapshots else "snapshots not asserted by this caller, ")

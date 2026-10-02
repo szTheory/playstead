@@ -25,24 +25,46 @@ struct LibraryDownloadCommand: Equatable {
     let assetSetID: String
 }
 
-/// A functional (not yet visually designed) row for one catalogue entry:
-/// title, system, and exactly one status-appropriate action. The visual
-/// identity, shelves, sidebar, and status vocabulary are plan 03-06's
-/// work against the UI spec (D-12 through D-17) — this row exists so
-/// the tracer can prove the read-download-play path end to end.
+struct LibraryControllerCommand: Equatable {
+    enum Action: Equatable { case activate, context }
+    let sequence: Int
+    let assetSetID: String
+    let action: Action
+}
+
+/// A readiness-aware catalogue entry shared by compact list rows and
+/// actionable library cards. Both presentations use the same status and
+/// launch/download pipeline so layout does not change game behavior.
 struct GameRowView: View {
+    enum Presentation: Equatable {
+        case list
+        case collection
+        case card
+    }
+
     let entry: CatalogueEntry
-    var downloadCommand: LibraryDownloadCommand?
+    var downloadCommand: LibraryDownloadCommand? = nil
+    var presentation: Presentation = .list
+    var isSelected = false
+    var isControllerFocused = false
+    var controllerCommand: LibraryControllerCommand? = nil
 
     @Environment(AppEnvironment.self) private var environment
     @State private var status: GameRowStatus = .needsDownload
+    @State private var currentReadinessReport: ReadinessReport?
     @State private var lastExit: AdapterExit?
     @State private var showsReadinessSheet = false
+    @State private var showsControllerContext = false
+#if UI_TESTING
+    @State private var recoveryEmulatorProcessID: Int32?
+    @State private var recoveryEmulatorProcessState = "idle"
+#endif
     /// The blocked capacity verdict that stopped the last download
     /// attempt, and the prompt it opens. `nil` whenever nothing is
     /// blocked — the row never remembers a stale refusal.
     @State private var quotaBlock: QuotaVerdict?
     @State private var showsReclaimPrompt = false
+    @State private var queueMutationFailed = false
     /// The most recent launch's `SaveLaunchNotice`, when the save plan
     /// carried one (WINDOWS #37). Surfaced inline in the detail view's
     /// Save section once that surface exists — never as a modal, a
@@ -83,48 +105,67 @@ struct GameRowView: View {
         "playstead.game.\(assetSetID).download"
     }
 
+    static func playActionIdentifier(assetSetID: String) -> String {
+        "playstead.game.\(assetSetID).play"
+    }
+
+    static func retryActionIdentifier(assetSetID: String) -> String {
+        "playstead.game.\(assetSetID).retry"
+    }
+
+    /// The list row's status text label (QUAL-01). A stable identifier
+    /// rather than a raw-string query, so the guarantee stays auditable if
+    /// the copy ever changes.
+    static let statusLabelIdentifier = "library.status-label"
+
     static func summaryIdentifier(assetSetID: String) -> String {
         "playstead.game.\(assetSetID).summary"
     }
 
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(entry.displayTitle)
-                    .font(.headline)
-                Text(entry.system)
-                    .font(.caption)
-                    .foregroundStyle(.primary)
-                if case .error(let message) = status {
-                    Text(message)
-                        .font(.caption2)
-                        .foregroundStyle(.red)
-                }
-                if let blockingReport, let first = blockingReport.checks.first(where: { $0.outcome.isBlocking }) {
-                    Text(Self.blockingSummary(first))
-                        .font(.caption2)
-                        .foregroundStyle(.primary)
-                }
-                if let lastExit {
-                    Text("Last exit: \(String(describing: lastExit))")
-                        .font(.caption2)
-                        .foregroundStyle(.primary)
-                }
+        Group {
+            switch presentation {
+            case .list:
+                listContent
+                    .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+                    .padding(.vertical, DesignTokens.Spacing.xs)
+            case .collection:
+                collectionContent
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, DesignTokens.Spacing.xs)
+            case .card:
+                cardContent
+                    .padding(DesignTokens.Spacing.lg)
+                    .frame(width: DesignTokens.CardGeometry.width, height: DesignTokens.CardGeometry.height, alignment: .topLeading)
+                    .background {
+                        RoundedRectangle(cornerRadius: DesignTokens.CardGeometry.cornerRadius)
+                            .fill(DesignTokens.surface)
+                            .overlay {
+                                RoundedRectangle(cornerRadius: DesignTokens.CardGeometry.cornerRadius)
+                                    .strokeBorder(
+                                        isControllerFocused ? Color.accentColor : DesignTokens.border.opacity(0.55),
+                                        lineWidth: isControllerFocused ? 3 : 1
+                                    )
+                            }
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: DesignTokens.CardGeometry.cornerRadius))
             }
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel(rowSummaryAccessibilityLabel)
-            .accessibilityIdentifier(Self.summaryIdentifier(assetSetID: entry.id))
-            Spacer()
-            curationButtons
-            actionButton
         }
-        .padding(.vertical, 4)
+        .fixedSize(horizontal: false, vertical: true)
         .task {
             refreshStatus()
         }
         .onChange(of: downloadCommand) { _, command in
             guard command?.assetSetID == entry.id else { return }
             Task { await download() }
+        }
+        .onChange(of: controllerCommand) { _, command in
+            guard command?.assetSetID == entry.id else { return }
+            switch command?.action {
+            case .activate: Task { await activatePrimaryAction() }
+            case .context: showsControllerContext = true
+            case nil: break
+            }
         }
         .sheet(isPresented: $showsReadinessSheet) {
             ReadinessSheetView(
@@ -134,10 +175,6 @@ struct GameRowView: View {
                 onDownload: {
                     showsReadinessSheet = false
                     Task { await download() }
-                },
-                onPlay: {
-                    showsReadinessSheet = false
-                    Task { await play() }
                 },
                 onClose: {
                     showsReadinessSheet = false
@@ -151,15 +188,309 @@ struct GameRowView: View {
         .sheet(isPresented: $showsReclaimPrompt) {
             reclaimPrompt
         }
+        .alert("Couldn’t update the queue", isPresented: $queueMutationFailed) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Try again in a moment. Your queue has not changed.")
+        }
+        .popover(isPresented: $showsControllerContext) {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                Text(entry.displayTitle).font(.psLabelEmphasized)
+                keepOnMacButton
+            }
+            .padding(DesignTokens.Spacing.md)
+        }
+    }
+
+    private var listContent: some View {
+        ViewThatFits(in: .horizontal) {
+            horizontalListContent
+            compactListContent
+        }
+        .background {
+            if isControllerFocused {
+                RoundedRectangle(cornerRadius: DesignTokens.Radius.compact)
+                    .fill(Color.accentColor.opacity(0.16))
+            }
+        }
+    }
+
+    /// The regular-width row gives the title a real minimum before status
+    /// and controls take their natural widths. `ViewThatFits` switches to
+    /// the stacked variant when the split view can no longer honor that
+    /// minimum, instead of squeezing the title into a narrow column.
+    private var horizontalListContent: some View {
+        HStack(spacing: DesignTokens.Spacing.md) {
+            titleColumn
+                .frame(minWidth: 190, maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
+
+#if UI_TESTING
+            if UITestBootstrap.isRequested() {
+                recoveryProcessStatus
+            }
+#endif
+
+            statusPair
+                .fixedSize(horizontal: true, vertical: false)
+
+            listActions
+        }
+    }
+
+    private var compactListContent: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+            titleColumn
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(spacing: DesignTokens.Spacing.md) {
+                statusPair
+                    .fixedSize(horizontal: true, vertical: false)
+
+#if UI_TESTING
+                if UITestBootstrap.isRequested() {
+                    recoveryProcessStatus
+                }
+#endif
+
+                Spacer(minLength: 0)
+                listActions
+            }
+        }
+    }
+
+    private var titleColumn: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(entry.displayTitle)
+                .font(.headline)
+                .lineLimit(1)
+                .foregroundStyle(rowPrimaryForeground)
+            Text(systemDisplayName)
+                .font(.caption)
+                .foregroundStyle(rowSecondaryForeground)
+            if case .error(let message) = status {
+                HStack(spacing: 8) {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .textSelection(.enabled)
+                    Button("Copy error") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(message, forType: .string)
+                    }
+                    .controlSize(.small)
+                }
+            }
+            if let blockingReport, let first = blockingReport.checks.first(where: { $0.outcome.isBlocking }) {
+                Text(Self.blockingSummary(first))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            if let lastExit {
+                Text("Last exit: \(String(describing: lastExit))")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("playstead.game.\(entry.id).last-exit")
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(rowSummaryAccessibilityLabel)
+        .accessibilityIdentifier(Self.summaryIdentifier(assetSetID: entry.id))
+    }
+
+    private var listActions: some View {
+        HStack(spacing: DesignTokens.Spacing.sm) {
+            actionButton
+                .buttonStyle(.borderless)
+                .foregroundStyle(rowPrimaryForeground)
+            favoriteButton
+            queueButton
+            curationMenu
+        }
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+#if UI_TESTING
+    private var recoveryProcessStatus: some View {
+        Group {
+            Text("Emulator process")
+                .accessibilityIdentifier("playstead.test.recovery-emulator-process-id.\(entry.id)")
+                .accessibilityValue(recoveryEmulatorProcessState == "owned_running"
+                    ? String(recoveryEmulatorProcessID ?? 0)
+                    : recoveryEmulatorProcessState)
+            Text(recoveryExitCategory)
+                .accessibilityIdentifier("playstead.test.recovery-emulator-exit-category.\(entry.id)")
+                .accessibilityValue(recoveryExitCategory)
+        }
+    }
+#endif
+
+    /// Collection details share a narrower split-view pane than the main
+    /// library. Stack identity and status above the same production actions
+    /// so the reorder controls remain inside that pane at the default window
+    /// size.
+    private var collectionContent: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.displayTitle)
+                    .font(.headline)
+                    .lineLimit(1)
+                    .foregroundStyle(rowPrimaryForeground)
+                Text(systemDisplayName)
+                    .font(.caption)
+                    .foregroundStyle(rowSecondaryForeground)
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(rowSummaryAccessibilityLabel)
+            .accessibilityIdentifier(Self.summaryIdentifier(assetSetID: entry.id))
+
+            statusPair
+
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+                HStack(spacing: DesignTokens.Spacing.sm) {
+                    actionButton
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(rowPrimaryForeground)
+                        .frame(width: 116, alignment: .leading)
+                    favoriteButton
+                }
+                HStack(spacing: DesignTokens.Spacing.sm) {
+                    queueButton
+                    curationMenu
+                }
+            }
+        }
+        .background {
+            if isControllerFocused {
+                RoundedRectangle(cornerRadius: DesignTokens.Radius.compact)
+                    .fill(Color.accentColor.opacity(0.16))
+            }
+        }
+    }
+
+    private var rowPrimaryForeground: Color {
+        Color(nsColor: isSelected ? .alternateSelectedControlTextColor : .labelColor)
+    }
+
+#if UI_TESTING
+    private var recoveryExitCategory: String {
+        switch lastExit {
+        case .clean: "clean"
+        case .crashed: "crashed"
+        case .killed: "killed"
+        case .unknown: "unknown"
+        case nil: "not_exited"
+        }
+    }
+#endif
+
+    private var rowSecondaryForeground: Color {
+        isSelected
+            ? Color(nsColor: .alternateSelectedControlTextColor).opacity(0.78)
+            : DesignTokens.textMuted
+    }
+
+    @MainActor
+    private func activatePrimaryAction() async {
+        switch status {
+        case .needsDownload, .error:
+            await download()
+        case .downloading:
+            break
+        case .ready:
+            await play()
+        case .blocked:
+            showsReadinessSheet = true
+        }
+    }
+
+    private var cardContent: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                Text(entry.displayTitle)
+                    .font(.psHeading)
+                    .lineLimit(2)
+                    .truncationMode(.tail)
+
+                HStack(spacing: DesignTokens.Spacing.sm) {
+                    SystemMonogramView(systemID: entry.system)
+                    Text(systemDisplayName)
+                        .font(.psLabel)
+                        .foregroundStyle(DesignTokens.textMuted)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(rowSummaryAccessibilityLabel)
+            .accessibilityIdentifier(Self.summaryIdentifier(assetSetID: entry.id))
+
+            statusPair
+
+            Spacer(minLength: 0)
+
+            HStack(spacing: DesignTokens.Spacing.sm) {
+                actionButton
+                favoriteButton
+                queueButton
+                curationMenu
+            }
+        }
+    }
+
+    private var systemDisplayName: String {
+        LibraryViewModel.isUnidentified(entry)
+            ? "Unknown system"
+            : SystemRegistry.entry(for: entry.system).displayName
     }
 
     private var rowSummaryAccessibilityLabel: String {
-        var parts = [entry.displayTitle, SystemRegistry.entry(for: entry.system).displayName]
+        var parts = [entry.displayTitle, systemDisplayName]
         if let blockingReport,
            let first = blockingReport.checks.first(where: { $0.outcome.isBlocking }) {
             parts.append(Self.blockingSummary(first))
         }
         return parts.joined(separator: ", ")
+    }
+
+    /// The real read-time availability ladder for this row (D-21), via the
+    /// one derivation both library layouts share.
+    ///
+    /// `pinRevision` is read here for the same reason `isPinned` reads it:
+    /// pins live in SQLite, so nothing else invalidates this row when one
+    /// is toggled. Cache membership has the same shape of limitation --
+    /// this re-derives whenever the row's body re-evaluates, which a
+    /// completed download does through `refreshStatus()`, not on a timer.
+    private var statuses: [LibraryStatus] {
+        _ = pinRevision
+        return environment.libraryStatuses(for: entry)
+    }
+
+    /// QUAL-01 (03-UI-SPEC.md): a list row pairs the status glyph with its
+    /// own text label, never colour or glyph alone.
+    ///
+    /// Cards and rows share one explicit glyph-plus-label status. The row
+    /// label stays in a stable column and remains visible in either the
+    /// selected or unselected state.
+    @ViewBuilder
+    private var statusPair: some View {
+        let current = statuses
+        if let status = LibraryStatus.highestPriority(among: current) {
+            // Deliberately NOT accessibility-hidden. The glyph beside it
+            // carries the full-sentence name, so hiding this would be
+            // tempting -- but a hidden element is invisible to XCUITest
+            // too, which would make QUAL-01 unauditable at the front
+            // door, and a short text label next to an icon is content, not
+            // decoration.
+            HStack(spacing: DesignTokens.Spacing.xs) {
+                StatusSlotView(statuses: current, title: entry.displayTitle)
+                Text(status.listViewLabel)
+                    .font(.psLabel)
+                    .foregroundStyle(rowSecondaryForeground)
+                    .lineLimit(1)
+                    .accessibilityIdentifier(Self.statusLabelIdentifier)
+            }
+        }
     }
 
     /// The blocked-capacity surface. Every button here does real work
@@ -207,34 +538,73 @@ struct GameRowView: View {
         return text
     }
 
-    /// Favorite and Queue, the two curation mutations reachable from any
-    /// library row. Both go through `AppEnvironment`'s shared view models,
-    /// so the intent lands in the one shared `Outbox` and the drain
-    /// trigger fires — the row is where the curation slice actually
-    /// becomes reachable from the shipped app.
-    @ViewBuilder
-    private var curationButtons: some View {
-        let isFavorited = environment.favoritesViewModel.isFavorited(assetSetID: entry.id)
-        let isQueued = environment.queueViewModel.isQueued(assetSetID: entry.id)
+    private var isFavorited: Bool {
+        environment.favoritesViewModel.isFavorited(assetSetID: entry.id)
+    }
 
-        Button(isFavorited ? "Unfavorite" : "Favorite") {
+    private var isQueued: Bool {
+        environment.queueViewModel.isQueued(assetSetID: entry.id)
+    }
+
+    /// Favorite and Queue are frequent actions, so keep both visible in
+    /// list and card layouts. The star is compact; Queue remains labeled
+    /// so its selected state is clear without relying on color alone.
+    private var favoriteButton: some View {
+        Button {
             environment.toggleFavorite(assetSetID: entry.id)
+        } label: {
+            Image(systemName: isFavorited ? "star.fill" : "star")
+                .frame(minWidth: DesignTokens.InteractiveTarget.minimum,
+                       minHeight: DesignTokens.InteractiveTarget.minimum)
+                .contentShape(Rectangle())
         }
+        .buttonStyle(.borderless)
+        .foregroundStyle(isFavorited && !isSelected ? Color.accentColor : rowPrimaryForeground)
+        .help(isFavorited ? "Remove from Favorites" : "Add to Favorites")
         .accessibilityLabel(Self.favoriteActionLabel(title: entry.displayTitle, isFavorited: isFavorited))
+        .accessibilityAddTraits(isFavorited ? .isSelected : [])
+    }
 
-        Button(isQueued ? "Remove from Queue" : "Add to Queue") {
-            environment.toggleQueued(assetSetID: entry.id)
+    private var queueButton: some View {
+        Button {
+            guard environment.toggleQueued(assetSetID: entry.id) else {
+                queueMutationFailed = true
+                return
+            }
+        } label: {
+            Label(isQueued ? "In Queue" : "Add to Queue",
+                  systemImage: isQueued ? "checkmark" : "text.badge.plus")
+                .lineLimit(1)
+                .fixedSize()
         }
+        .buttonStyle(.borderless)
+        .help(isQueued ? "Remove from Queue" : "Add to Queue")
         .accessibilityLabel(Self.queueActionLabel(title: entry.displayTitle, isQueued: isQueued))
+        .accessibilityAddTraits(isQueued ? .isSelected : [])
+    }
 
+    private var keepOnMacButton: some View {
         // Pinning is the only way a game becomes protected from reclaim
         // and prioritised by the download scheduler — `PinStore` had no
         // reachable caller at all before this button existed.
-        Button(isPinned ? "Unpin" : "Pin") {
+        Button(isPinned ? "Stop keeping on this Mac" : "Keep on this Mac") {
             environment.togglePin(assetSetID: entry.id)
             pinRevision += 1
         }
         .accessibilityLabel(Self.pinActionLabel(title: entry.displayTitle, isPinned: isPinned))
+    }
+
+    private var curationMenu: some View {
+        Menu {
+            keepOnMacButton
+        } label: {
+            Image(systemName: "ellipsis")
+                .frame(minWidth: DesignTokens.InteractiveTarget.minimum,
+                       minHeight: DesignTokens.InteractiveTarget.minimum)
+        }
+        .menuStyle(.borderlessButton)
+        .foregroundStyle(rowPrimaryForeground)
+        .accessibilityLabel("More actions for \(entry.displayTitle)")
     }
 
     /// Accessible names are the action verb plus its subject
@@ -249,7 +619,9 @@ struct GameRowView: View {
     }
 
     static func pinActionLabel(title: String, isPinned: Bool) -> String {
-        isPinned ? "Unpin \(title), allowing it to be reclaimed" : "Pin \(title) to keep it on this Mac"
+        isPinned
+            ? "Stop keeping \(title) on this Mac; it can be removed automatically"
+            : "Keep \(title) on this Mac so it isn't removed automatically"
     }
 
     @ViewBuilder
@@ -269,15 +641,38 @@ struct GameRowView: View {
         case .downloading:
             ProgressView().controlSize(.small)
         case .ready:
-            Button("Play") { Task { await play() } }
+            HStack(spacing: DesignTokens.Spacing.xs) {
+                Button {
+                    showsReadinessSheet = true
+                } label: {
+                    Image(systemName: hasReadinessWarning ? "exclamationmark.triangle.fill" : "checkmark.circle")
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(hasReadinessWarning ? StatusToken.attention : rowSecondaryForeground)
+                .help("Review game readiness")
+                .accessibilityLabel("Review readiness for \(entry.displayTitle)")
+                .accessibilityIdentifier(AccessibilityIdentifiers.Control.openReadiness)
+                Button {
+                    Task { await play() }
+                } label: {
+                    Label("Play", systemImage: "play.fill")
+                }
+                .accessibilityIdentifier(Self.playActionIdentifier(assetSetID: entry.id))
+            }
         case .blocked:
             // D-17: the row offers the action that is actually available.
             // With something other than the files blocking, that action
             // is seeing the blocker and its remedy — never a disabled
             // Play, and never a Play that fails with a raw error.
-            Button("What's needed") { showsReadinessSheet = true }
+            Button {
+                showsReadinessSheet = true
+            } label: {
+                Label("What's needed", systemImage: "exclamationmark.triangle.fill")
+            }
+            .accessibilityIdentifier(AccessibilityIdentifiers.Control.openReadiness)
         case .error:
             Button("Retry") { Task { await download() } }
+                .accessibilityIdentifier(Self.retryActionIdentifier(assetSetID: entry.id))
         }
     }
 
@@ -287,7 +682,13 @@ struct GameRowView: View {
     /// condition routes to the report and its remedy.
     private func refreshStatus() {
         guard !requiredMembers.isEmpty else { return }
-        status = Self.status(for: environment.readinessReport(for: entry))
+        let report = environment.readinessReport(for: entry)
+        currentReadinessReport = report
+        status = Self.status(for: report)
+    }
+
+    private var hasReadinessWarning: Bool {
+        currentReadinessReport?.issueChecks.contains(where: { !$0.outcome.isBlocking }) == true
     }
 
     /// The row's action, derived from a readiness report — pure, so the
@@ -405,7 +806,7 @@ struct GameRowView: View {
             // `onExit` is `@Sendable`, and a mutable local cannot cross
             // into it -- the wiring is snapshotted into a `let` first.
             let capturedSession = saveCapture
-            try await adapterHost.launch(
+            let process = try await adapterHost.launch(
                 assetSetID: entry.id, romPath: romURL.path, saveDir: saveDir.path, biosPath: biosPath,
                 executeSavePlan: saveLaunch.executeSavePlan
             ) { exit in
@@ -416,10 +817,20 @@ struct GameRowView: View {
                     // finished play session into a visible failure.
                     await capturedSession?.end()
                     lastExit = exit
+#if UI_TESTING
+                    recoveryEmulatorProcessID = nil
+                    recoveryEmulatorProcessState = "exited"
+#endif
                     environment.playSessionRecorder.ended(sessionID)
                     environment.refreshCurationViewModels()
                 }
             }
+#if UI_TESTING
+            recoveryEmulatorProcessID = process.processIdentifier
+            recoveryEmulatorProcessState = await adapterHost.recoveryUITestProcessIsBound(process.processIdentifier)
+                ? "owned_running"
+                : "unbound"
+#endif
         } catch {
             // The emulator never spawned (or never started), so no
             // `onExit` will ever fire -- close the capture session here

@@ -14,7 +14,6 @@ defmodule Playstead.Readiness do
   # Evaluated at compile time and embedded as a literal atom — `Mix` is
   # not available at runtime inside a compiled release (same technique
   # as `Playstead.Application`'s boot-time gates).
-  @env Mix.env()
 
   @type state :: :ok | :warning | :error
   @type row_id :: :database | :volumes | :https | :inbox | :exports | :blob_volume_atomicity
@@ -443,7 +442,29 @@ defmodule Playstead.Readiness do
           message: "Automatic HTTPS via Let's Encrypt for #{env["PLAYSTEAD_DOMAIN"]}."
         }
 
-      _internal_ca_or_plain_http when @env == :prod ->
+      # Matched on the transport state itself, NOT on Mix.env(). An earlier
+      # version guarded the first of two catch-all clauses with
+      # `when @env == :prod`, which got both directions wrong because `@env` is
+      # fixed at compile time while the transport is a runtime fact:
+      #
+      #   * In a prod build the guarded catch-all also swallowed `:plain_http`,
+      #     so a deployment serving plain HTTP with no CA on disk was told
+      #     "HTTPS via Caddy's internal certificate authority" and marked :ok.
+      #     A false assurance on the one row whose whole job is to say whether
+      #     traffic is encrypted -- and the documented topology that reaches it
+      #     is real (`PLAYSTEAD_PROXY=false` with the app port published
+      #     directly, no Caddy in front).
+      #   * Outside prod the second catch-all swallowed `:internal_ca`, so a
+      #     genuine internal-CA transport was reported as plain HTTP.
+      #
+      # It also made the second clause unreachable in a prod compile, which
+      # warns -- but ONLY in a prod compile. The `--warnings-as-errors` gate runs
+      # against dev/test, so nothing ever failed on it; the warning surfaced for
+      # the first time in a `docker compose build` months later.
+      #
+      # TlsTrust.transport_state/1 already distinguishes these four states, so
+      # there is nothing to infer: match them.
+      :internal_ca ->
         %{
           id: :https,
           state: :ok,
@@ -452,7 +473,7 @@ defmodule Playstead.Readiness do
               "with no PLAYSTEAD_DOMAIN configured)."
         }
 
-      _internal_ca_or_plain_http ->
+      :plain_http ->
         %{
           id: :https,
           state: :warning,

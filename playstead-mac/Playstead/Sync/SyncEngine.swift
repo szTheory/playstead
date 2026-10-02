@@ -71,7 +71,11 @@ actor SyncEngine {
 
     private(set) var state: SyncState = .neverSynced
 
-    init(apiClient: APIClient, localStore: LocalStore) {
+    init(
+        apiClient: APIClient,
+        localStore: LocalStore,
+        onSaveBytesPrefetch: @escaping (String, Int) -> Void = { _, _ in }
+    ) {
         self.apiClient = apiClient
         self.localStore = localStore
         self.changesClient = ChangesClient(apiClient: apiClient)
@@ -83,7 +87,10 @@ actor SyncEngine {
             catalogueStore: catalogueStore,
             curationStore: curationStore,
             saveStore: saveStore,
-            saveBytesPrefetcher: CacheObjectsSaveBytesPrefetcher(localStore: localStore)
+            saveBytesPrefetcher: CacheObjectsSaveBytesPrefetcher(
+                localStore: localStore,
+                onPrefetchNeeded: onSaveBytesPrefetch
+            )
         )
     }
 
@@ -103,7 +110,24 @@ actor SyncEngine {
             }
             state = .synced(at: Date())
         } catch SyncError.cursorExpired {
-            await handleCursorExpired()
+            await handleUnusableCursor()
+        } catch SyncError.cursorInvalid {
+            // A cursor this server will not accept, for the same reason an
+            // expired one is not accepted: it cannot be resumed from. The
+            // server's own wording for this code is "malformed, tampered
+            // with, or FOREIGN" (Playstead.Sync.changes_after/2), and the
+            // realistic cause is neither malice nor corruption -- it is
+            // this Mac holding a cursor another server issued, or one the
+            // same server signed before its SECRET_KEY_BASE was
+            // regenerated.
+            //
+            // Without this arm, `cursorInvalid` fell into the generic catch
+            // below: the client reported "offline since <date>" while the
+            // server was up and answering, left the stored cursor
+            // byte-identical, and re-sent the same rejected cursor on every
+            // later pass -- with no path out, since nothing in the UI
+            // reaches `forceFullResync()` (WINDOWS #80).
+            await handleUnusableCursor()
         } catch {
             state = fallbackOfflineState()
         }
@@ -127,7 +151,13 @@ actor SyncEngine {
         }
     }
 
-    private func handleCursorExpired() async {
+    /// The shared remedy for a cursor that cannot be resumed from,
+    /// whichever way the server said so: re-bootstrap from the snapshot,
+    /// which replaces the whole catalogue/curation mirror and stores a
+    /// cursor this server actually issued. Safe for a foreign cursor
+    /// specifically because a cursor is opaque and positionally
+    /// meaningless to this client -- there is nothing to salvage from one.
+    private func handleUnusableCursor() async {
         do {
             try await bootstrapFromSnapshot()
             state = .synced(at: Date())

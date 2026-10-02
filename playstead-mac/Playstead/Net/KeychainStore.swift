@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 import Security
 
 /// The paired-device credential the Phase 1 pairing ceremony writes into
@@ -54,6 +55,7 @@ enum KeychainError: Error, Equatable {
 /// always the newest pairing and always names one specific item — never
 /// whichever one an unordered single-match query happened to hand back.
 struct KeychainStore {
+    private static let logger = Logger(subsystem: "dev.playstead.mac", category: "credential-store")
     private let service: String
     private let keychain: SecKeychain?
 
@@ -76,7 +78,15 @@ struct KeychainStore {
         guard status == errSecSuccess, let opened else {
             throw KeychainError.osFailure(status)
         }
-        return KeychainStore(service: service, keychain: opened)
+        return uiTestingStore(service: service, keychain: opened)
+    }
+
+    /// Keeps a freshly-created file Keychain's already-unlocked handle in
+    /// the process that created it. Reopening the file without its deliberately
+    /// memory-only password can trigger an owner-facing password prompt before
+    /// pairing has a chance to store the credential.
+    static func uiTestingStore(service: String, keychain: SecKeychain) -> KeychainStore {
+        KeychainStore(service: service, keychain: keychain)
     }
 #endif
 
@@ -246,7 +256,7 @@ struct KeychainStore {
             return pruneAccounts(otherThan: credential.deviceID)
         }
         guard updateStatus == errSecItemNotFound else {
-            return .failure(.osFailure(updateStatus))
+            return failure(for: updateStatus)
         }
 
         let addQuery = addQuery([
@@ -260,9 +270,17 @@ struct KeychainStore {
 
         let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
         guard addStatus == errSecSuccess else {
-            return .failure(.osFailure(addStatus))
+            return failure(for: addStatus)
         }
         return pruneAccounts(otherThan: credential.deviceID)
+    }
+
+    /// Status-only operational evidence: it distinguishes a local Security
+    /// rejection from a protocol failure without recording a credential,
+    /// server, account, filename, or Keychain service.
+    private func failure(for status: OSStatus) -> Result<Void, KeychainError> {
+        Self.logger.error("credential_store outcome=failed security_status=\(Int32(status), privacy: .public)")
+        return .failure(.osFailure(status))
     }
 
     /// Removes the scoped credential set. This is used by the hosted

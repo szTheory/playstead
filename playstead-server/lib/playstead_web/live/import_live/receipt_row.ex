@@ -42,26 +42,26 @@ defmodule PlaysteadWeb.ImportLive.ReceiptRow do
     <div
       id={"receipt-#{@receipt.id}"}
       data-outcome={@receipt.outcome}
-      class="rounded-lg border border-[#334155] bg-[#1E293B] p-4"
+      class="rounded-lg border border-app-border bg-app-surface p-4"
     >
-      <p id={"receipt-#{@receipt.id}-label"} class="text-base font-semibold text-[#F1F5F9]">
+      <p id={"receipt-#{@receipt.id}-label"} class="text-base font-semibold text-app-text">
         {elem(@copy, 0)}
       </p>
-      <p id={"receipt-#{@receipt.id}-explanation"} class="mt-1 text-sm text-[#94A3B8]">
+      <p id={"receipt-#{@receipt.id}-explanation"} class="mt-1 text-sm text-app-muted">
         {elem(@copy, 1)}
         <span :if={@receipt.reason}>{@receipt.reason}</span>
       </p>
       <p
         :if={@receipt.source_file}
         id={"receipt-#{@receipt.id}-filename"}
-        class="mt-2 text-sm text-[#94A3B8]"
+        class="mt-2 text-sm text-app-muted"
       >
         {@receipt.source_file.original_name}
       </p>
       <.icon
         :if={@receipt.outcome == "unrecognized"}
         name="hero-question-mark-circle"
-        class="mt-2 size-4 text-[#94A3B8]"
+        class="mt-2 size-4 text-app-muted"
       />
     </div>
     """

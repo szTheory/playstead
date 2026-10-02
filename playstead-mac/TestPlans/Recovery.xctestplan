@@ -1,0 +1,31 @@
+{
+  "configurations": [
+    {
+      "id": "D5110F06-3431-466E-A90B-CE4803BCCC02",
+      "name": "Recovery",
+      "options": {}
+    }
+  ],
+  "defaultOptions": {
+    "codeCoverage": false,
+    "targetForVariableExpansion": {
+      "containerPath": "container:Playstead.xcodeproj",
+      "identifier": "44DC10C2CEB44A12A91241F2",
+      "name": "Playstead"
+    }
+  },
+  "testTargets": [
+    {
+      "parallelizable": false,
+      "selectedTests": [
+        "RecoveryKnownPlayableTests/testPreparedRecoveryTargetLaunchesTheCleanMacAppAndRequestsPairing()"
+      ],
+      "target": {
+        "containerPath": "container:Playstead.xcodeproj",
+        "identifier": "1E0000000000000000000001",
+        "name": "PlaysteadUITests"
+      }
+    }
+  ],
+  "version": 1
+}

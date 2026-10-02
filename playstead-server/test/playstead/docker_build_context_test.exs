@@ -94,10 +94,19 @@ defmodule Playstead.DockerBuildContextTest do
   defp staged_sources do
     lines = dockerfile_lines()
 
+    # Prefix match, not equality: the compile step carries flags
+    # (`--warnings-as-errors`), and an exact-string matcher broke the moment one
+    # was added -- failing with "could not find the `RUN mix compile` line" about
+    # a Dockerfile that plainly has one. The guard is about WHERE the compile step
+    # sits relative to the COPY instructions, so it must locate that step by what
+    # it is, not by the flags it happens to carry today.
     compile_line_index =
-      Enum.find_index(lines, &(String.trim(&1) == "RUN mix compile"))
+      Enum.find_index(lines, fn line ->
+        trimmed = String.trim(line)
+        trimmed == "RUN mix compile" or String.starts_with?(trimmed, "RUN mix compile ")
+      end)
 
-    refute_nil!(compile_line_index, "could not find the `RUN mix compile` line in the Dockerfile")
+    refute_nil!(compile_line_index, "could not find a `RUN mix compile` line in the Dockerfile")
 
     lines
     |> Enum.take(compile_line_index)

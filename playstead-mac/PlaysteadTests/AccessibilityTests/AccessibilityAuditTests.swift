@@ -76,23 +76,21 @@ enum AccessibilityAudit {
 
 final class AccessibilityAuditTests: XCTestCase {
 
-    // MARK: Library — GameCardView across every status
+    // MARK: Library row status vocabulary
 
-    func testGameCardAccessibleNameContainsTitleSystemAndStatusSentence() {
-        let card = GameCardView(title: "Metroid Fusion", systemID: "gba", isUnidentified: false, statuses: [.verified])
-        XCTAssertTrue(card.accessibleLabel.contains("Metroid Fusion"))
-        XCTAssertTrue(card.accessibleLabel.contains("Game Boy Advance"))
-        XCTAssertTrue(card.accessibleLabel.contains(LibraryStatus.verified.accessibleName(title: "Metroid Fusion")))
-    }
-
-    func testGameCardSurfaceAcrossEveryStatusHasNoUnlabeledInteractiveElementAndTabOrderMatchesDeclaredOrder() {
+    func testEveryActionableRowStatusHasAFullAccessibleNameAndDistinctIdentifier() {
         let allStatuses: [LibraryStatus] = [.needsAttention, .missingDependency, .downloading(percent: 40), .queued, .pinned, .verified, .serverOnly]
-        let elements = allStatuses.map { status -> AccessibilityElement in
-            let card = GameCardView(title: "Game", systemID: "gba", isUnidentified: false, statuses: [status])
-            return AccessibilityElement(id: status.glyphIdentifier, label: card.accessibleLabel, isInteractive: false, distinctIdentifier: status.glyphIdentifier)
+        let elements = allStatuses.map { status in
+            AccessibilityElement(
+                id: status.glyphIdentifier,
+                label: status.accessibleName(title: "Metroid Fusion"),
+                isInteractive: false,
+                distinctIdentifier: status.glyphIdentifier
+            )
         }
-        let surface = AccessibilitySurface(name: "GameCardView", elements: elements, tabOrder: elements.map(\.id))
+        let surface = AccessibilitySurface(name: "GameRowView status", elements: elements, tabOrder: elements.map(\.id))
         XCTAssertEqual(AccessibilityAudit.audit(surface), [])
+        XCTAssertTrue(elements.allSatisfy { $0.label.contains("Metroid Fusion") && $0.label.hasSuffix(".") })
     }
 
     // MARK: StatusSlotView — every status exposes a shape/glyph distinct from every other
@@ -126,7 +124,7 @@ final class AccessibilityAuditTests: XCTestCase {
         XCTAssertTrue(preference.reduceMotionEnabled)
     }
 
-    // MARK: Sidebar — declared order is the frozen navigation order (also the focus order)
+    // MARK: Sidebar — declared order is the grouped navigation order (also the focus order)
 
     func testSidebarTabOrderMatchesDeclaredVisualOrder() {
         let entries = SidebarView.entries(nonEmptySystemIDs: ["gba", "nes"], hasUnidentified: true)
@@ -179,6 +177,15 @@ final class AccessibilityAuditTests: XCTestCase {
             XCTAssertNotNil(check.remedy)
             XCTAssertFalse(check.remedy!.title.isEmpty)
         }
+
+        let report = ReadinessReport(checks: checks)
+        XCTAssertEqual(report.issueChecks.map(\.kind), [.emulator, .bios])
+        XCTAssertTrue(report.hasIssues)
+        XCTAssertFalse(ReadinessReport(checks: [checks[0]]).hasIssues, "healthy checks do not open issue details")
+        XCTAssertEqual(GameRowView.favoriteActionLabel(title: "Metroid", isFavorited: false), "Add Metroid to Favorites")
+        XCTAssertEqual(GameRowView.favoriteActionLabel(title: "Metroid", isFavorited: true), "Remove Metroid from Favorites")
+        XCTAssertEqual(GameRowView.queueActionLabel(title: "Metroid", isQueued: false), "Add Metroid to Queue")
+        XCTAssertEqual(GameRowView.queueActionLabel(title: "Metroid", isQueued: true), "Remove Metroid from Queue")
     }
 
     // MARK: Controller settings — assignment and remap controls are labeled
@@ -262,17 +269,6 @@ final class AccessibilityAuditTests: XCTestCase {
         // exists, with no NSOpenPanel required in a headless test run.
         _ = view.chooseFile()
         XCTAssertTrue(chooseFileCalled)
-    }
-
-    // MARK: List view — a row's accessible name matches the card composition rule
-
-    func testGameListRowAccessibleNameContainsTitleSystemAndStatusSentence() {
-        let row = GameListRow(id: "1", title: "Kirby", systemID: "gba", statuses: [.pinned], addedAt: Date())
-        let statusSentence = LibraryStatus.pinned.accessibleName(title: "Kirby")
-        let label = "\(row.title), \(SystemRegistry.entry(for: row.systemID).displayName), \(statusSentence)"
-        XCTAssertTrue(label.contains("Kirby"))
-        XCTAssertTrue(label.contains("Game Boy Advance"))
-        XCTAssertTrue(label.contains(statusSentence))
     }
 
     // MARK: docs/ACCESSIBILITY.md — states the controller text-entry limitation

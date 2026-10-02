@@ -18,35 +18,39 @@ final class SurfaceAccessibilityTests: XCTestCase {
         harness.require([
             "playstead.surface.library",
             "playstead.surface.sidebar",
-            "playstead.surface.search",
             "playstead.surface.filter",
-            "playstead.surface.game-card",
-            "library.search.field"
+            "playstead.surface.game-card"
         ])
+        validateNativeSearchField()
     }
 
-    func testLibraryFocusSequenceWrapsAndActivatesList() {
+    func testLibraryListRadioControlOpensAndArrowKeysSelectRows() {
         launchLibrary(profile: .populatedCurationReorder)
-        let exactFocusOrder = [
-            "playstead.control.show-cards",
-            "playstead.control.show-list",
-            "playstead.control.open-readiness"
-        ]
-        harness.traverseExactFocusSequence(exactFocusOrder, activate: exactFocusOrder[1])
+        harness.element("playstead.control.show-list", type: .radioButton).clickWhenHittable()
         harness.require(["playstead.surface.game-list"])
+        let list = harness.element("playstead.surface.game-list")
+        let initialSelection = list.value as? String
+        XCTAssertFalse(initialSelection?.isEmpty ?? true, "the production list should expose its selected title")
+        waitForKeyboardFocus(list, stage: "library-list-arrow-focus")
+        list.typeKey(.downArrow, modifierFlags: [])
+        let changed = NSPredicate { _, _ in list.value as? String != initialSelection }
+        let selectedAnotherRow = XCTNSPredicateExpectation(predicate: changed, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [selectedAnotherRow], timeout: 5), .completed)
     }
 
-    func testDownloadsSheetOpensAndDismisses() {
+    func testDownloadsSidebarRouteOpensAndReturnsToLibrary() {
         launchLibrary(profile: .populatedCurationReorder)
-        harness.element("playstead.control.open-downloads", type: .button).clickWhenHittable()
+        selectSidebar("Downloads")
         XCTAssertTrue(harness.element("playstead.surface.downloads").awaitExistence(timeout: 5))
-        harness.element("playstead.control.done", type: .button).clickWhenHittable()
+        selectSidebar("All Games")
         XCTAssertFalse(harness.element("playstead.surface.downloads").waitForExistence(timeout: 2))
+        XCTAssertTrue(harness.element("playstead.surface.library").awaitExistence(timeout: 5))
     }
 
     func testLibrarySemanticTargetsHaveRolesLabelsAndFrames() {
         launchLibrary(profile: .populatedCurationReorder)
         harness.validateSemanticTargets(libraryTargets)
+        validateNativeSearchField()
         XCTAssertFalse(harness.sanitizedTrace().isEmpty)
     }
 
@@ -69,26 +73,27 @@ final class SurfaceAccessibilityTests: XCTestCase {
     func testContextualOpenersActionAccessibilityAudit() throws { try auditContextualOpeners(.action) }
     func testContextualOpenersParentChildAccessibilityAudit() throws { try auditContextualOpeners(.parentChild) }
 
-    func testAdapterSheetContainsKeyboardFocus() {
-        _ = launchAdapterSheet()
+    func testAdapterSettingsContainsKeyboardFocus() {
+        _ = launchAdapterSettings()
         harness.assertSheetFocusContained(rootIdentifier: "playstead.surface.adapter")
     }
 
-    func testAdapterSheetDismissesWithEscape() {
-        _ = launchAdapterSheet()
-        harness.app.typeKey(.escape, modifierFlags: [])
+    func testAdapterSettingsRouteReturnsToStoragePane() {
+        _ = launchAdapterSettings()
+        harness.element("playstead.control.open-storage", type: .radioButton).clickWhenHittable()
         XCTAssertFalse(harness.element("playstead.surface.adapter").waitForExistence(timeout: 2))
+        XCTAssertTrue(harness.element("playstead.surface.storage").awaitExistence(timeout: 5))
     }
 
-    func testAdapterSheetRestoresOpenerFocusAfterEscape() {
-        let opener = launchAdapterSheet()
-        harness.app.typeKey(.escape, modifierFlags: [])
+    func testAdapterSettingsRouteReturnsToLibrary() {
+        _ = launchAdapterSettings()
+        selectSidebar("All Games")
         XCTAssertFalse(harness.element("playstead.surface.adapter").waitForExistence(timeout: 2))
-        XCTAssertTrue(opener.value(forKey: "hasKeyboardFocus") as? Bool == true)
+        XCTAssertTrue(harness.element("playstead.surface.library").awaitExistence(timeout: 5))
     }
 
     func testAdapterControlsHaveRolesLabelsAndFrames() {
-        _ = launchAdapterSheet()
+        _ = launchAdapterSettings()
         harness.validateSemanticTargets(adapterTargets)
     }
 
@@ -101,6 +106,12 @@ final class SurfaceAccessibilityTests: XCTestCase {
 
     func testReadinessRoutesReachBIOSAndControllerSettings() {
         launchReadinessRoutes()
+        harness.require(["playstead.surface.bios"])
+        harness.element("playstead.control.done", type: .button).clickWhenHittable()
+        XCTAssertFalse(harness.element("playstead.surface.readiness").waitForExistence(timeout: 2))
+        selectSidebar("Settings")
+        harness.element("playstead.control.open-controller-settings", type: .radioButton).clickWhenHittable()
+        harness.require(["playstead.surface.controller-settings"])
     }
 
     func testReadinessSheetContainsKeyboardFocus() {
@@ -148,36 +159,28 @@ final class SurfaceAccessibilityTests: XCTestCase {
             "playstead.surface.shelf.continue", "playstead.surface.shelf.favorites",
             "playstead.surface.collections", "playstead.surface.collection-detail",
             "playstead.surface.shelf.play-queue", "playstead.surface.shelf.recent",
-            "playstead.surface.search", "playstead.surface.filter",
+            "playstead.surface.filter",
             "playstead.surface.game-list", "playstead.surface.game-card",
             "playstead.surface.downloads", "playstead.quota.root",
             "playstead.surface.storage", "playstead.surface.reclaim",
             "playstead.surface.readiness", "playstead.surface.adapter",
             "playstead.surface.bios", "playstead.surface.controller-settings"
         ])
-        XCTAssertEqual(expectedSurfaces.count, 20, "D-18 surface inventory must stay nonempty and unique")
+        XCTAssertEqual(expectedSurfaces.count, 19, "D-18 surface inventory must stay nonempty and unique")
 
         launchLibrary(profile: .populatedCurationReorder)
         recordRequired([
             "playstead.surface.library", "playstead.surface.sidebar",
-            "playstead.surface.search", "playstead.surface.filter",
+            "playstead.surface.filter",
             "playstead.surface.game-card"
         ], in: &visited)
         harness.validateSemanticTargets(libraryTargets)
-        harness.traverseExactFocusSequence(
-            [
-                "playstead.control.show-cards",
-                "playstead.control.show-list",
-                "playstead.control.open-readiness"
-            ],
-            activate: "playstead.control.show-list",
-            failureStage: "all-surface-library-layout"
-        )
+        harness.element("playstead.control.show-list", type: .radioButton).clickWhenHittable()
         recordRequired(["playstead.surface.game-list"], in: &visited)
         try auditEveryCategory(root: "playstead.surface.library")
 
         for (label, root) in [
-            ("Continue", "playstead.surface.shelf.continue"),
+            ("Recently Played", "playstead.surface.shelf.continue"),
             ("Favorites", "playstead.surface.shelf.favorites"),
             ("Queue", "playstead.surface.shelf.play-queue"),
             ("Recent", "playstead.surface.shelf.recent")
@@ -250,9 +253,9 @@ final class SurfaceAccessibilityTests: XCTestCase {
         )
         try auditEveryCategory(root: "playstead.surface.collection-detail")
 
+        harness.app.terminate()
         launchLibrary(profile: .pausedActiveQueue)
-        let downloadsOpener = harness.element("playstead.control.open-downloads", type: .button)
-        downloadsOpener.clickWhenHittable()
+        selectSidebar("Downloads")
         recordRequired(["playstead.surface.downloads"], in: &visited)
         let downloadControls = (0...2).flatMap { slot in
             [
@@ -264,11 +267,13 @@ final class SurfaceAccessibilityTests: XCTestCase {
         }
         harness.validateSemanticTargets(downloadControls.map { .init($0, type: .button) })
         try auditEveryCategory(root: "playstead.surface.downloads")
-        dismissSheet(root: "playstead.surface.downloads", opener: downloadsOpener)
+        selectSidebar("All Games")
+        XCTAssertFalse(harness.element("playstead.surface.downloads").waitForExistence(timeout: 2))
 
+        harness.app.terminate()
         launchLibrary(profile: .quotaBlockReclaim)
-        let storageOpener = harness.element("playstead.control.open-storage", type: .button)
-        storageOpener.clickWhenHittable()
+        selectSidebar("Settings")
+        harness.element("playstead.control.open-storage", type: .radioButton).clickWhenHittable()
         recordRequired(["playstead.quota.root", "playstead.surface.storage"], in: &visited)
         harness.validateSemanticTargets([
             .init("playstead.quota.decrease", type: .button),
@@ -277,17 +282,10 @@ final class SurfaceAccessibilityTests: XCTestCase {
             .init("playstead.storage.reclaim", type: .button)
         ])
         try auditEveryCategory(root: "playstead.surface.storage")
-        dismissSheet(root: "playstead.surface.storage", opener: storageOpener)
+        selectSidebar("All Games")
+        XCTAssertFalse(harness.element("playstead.surface.storage").waitForExistence(timeout: 2))
 
-        harness.traverseExactFocusSequence(
-            [
-                "playstead.control.show-cards",
-                "playstead.control.show-list",
-                "playstead.control.open-readiness"
-            ],
-            activate: "playstead.control.show-list",
-            failureStage: "all-surface-quota-list"
-        )
+        harness.element("playstead.control.show-list", type: .radioButton).clickWhenHittable()
         selectQuotaDownloadByKeyboard()
         harness.app.typeKey("d", modifierFlags: [.command])
         recordRequired(["playstead.surface.reclaim"], in: &visited)
@@ -299,9 +297,10 @@ final class SurfaceAccessibilityTests: XCTestCase {
         ])
         try auditEveryCategory(root: "playstead.surface.reclaim")
 
+        harness.app.terminate()
         launchLibrary(profile: .storage)
-        let adapterOpener = harness.element("playstead.control.open-adapter", type: .button)
-        adapterOpener.clickWhenHittable()
+        selectSidebar("Settings")
+        harness.element("playstead.control.open-adapter", type: .radioButton).clickWhenHittable()
         recordRequired(["playstead.surface.adapter"], in: &visited)
         harness.validateSemanticTargets(adapterTargets)
         harness.traverseExactFocusSequence(
@@ -311,16 +310,21 @@ final class SurfaceAccessibilityTests: XCTestCase {
             rootIdentifier: "playstead.surface.adapter"
         )
         try auditEveryCategory(root: "playstead.surface.adapter")
-        dismissSheet(root: "playstead.surface.adapter", opener: adapterOpener)
+        selectSidebar("All Games")
+        XCTAssertFalse(harness.element("playstead.surface.adapter").waitForExistence(timeout: 2))
 
+        harness.app.terminate()
         launchReadinessRoutes()
-        recordRequired([
-            "playstead.surface.readiness", "playstead.surface.bios",
-            "playstead.surface.controller-settings"
-        ], in: &visited)
+        recordRequired(["playstead.surface.readiness", "playstead.surface.bios"], in: &visited)
         harness.validateSemanticTargets(readinessTargets)
         try auditEveryCategory(root: "playstead.surface.readiness")
         harness.assertSheetFocusContained(rootIdentifier: "playstead.surface.readiness")
+        harness.element("playstead.control.done", type: .button).clickWhenHittable()
+        XCTAssertFalse(harness.element("playstead.surface.readiness").waitForExistence(timeout: 2))
+        selectSidebar("Settings")
+        harness.element("playstead.control.open-controller-settings", type: .radioButton).clickWhenHittable()
+        recordRequired(["playstead.surface.controller-settings"], in: &visited)
+        try auditEveryCategory(root: "playstead.surface.controller-settings")
 
         XCTAssertEqual(visited, expectedSurfaces, "D-18 routes drifted from the independent inventory")
         XCTAssertFalse(harness.sanitizedTrace().isEmpty, "live-tree evidence must be non-vacuous")
@@ -328,18 +332,27 @@ final class SurfaceAccessibilityTests: XCTestCase {
 
     private var libraryTargets: [UITestHarness.AuditTarget] {
         [
-            .init("playstead.control.open-downloads", type: .button),
-            .init("playstead.control.open-storage", type: .button),
-            .init("playstead.control.open-adapter", type: .button),
-            .init("playstead.control.show-cards", type: .button),
-            .init("playstead.control.show-list", type: .button),
-            .init("library.search.field", type: .textField)
+            .init("playstead.control.show-cards", type: .radioButton),
+            .init("playstead.control.show-list", type: .radioButton)
         ]
+    }
+
+    private func validateNativeSearchField() {
+        let field = harness.app.searchFields.firstMatch
+        XCTAssertTrue(field.awaitExistence(timeout: 5), "the native searchable field should be exposed")
+        XCTAssertEqual(field.elementType, .searchField)
+        let accessibleName = field.placeholderValue ?? ""
+        XCTAssertFalse(accessibleName.isEmpty, "the native search field needs an accessible label or prompt")
+        let frame = field.frame
+        let components = [frame.origin.x, frame.origin.y, frame.width, frame.height]
+        XCTAssertTrue(
+            frame.width > 0 && frame.height > 0 && components.allSatisfy(\.isFinite),
+            "native search field has no usable frame"
+        )
     }
 
     private var contextualOpenerTargets: [UITestHarness.AuditTarget] {
         [
-            .init("playstead.control.open-adapter", type: .button),
             .init("playstead.control.open-readiness", type: .button)
         ]
     }
@@ -353,8 +366,7 @@ final class SurfaceAccessibilityTests: XCTestCase {
 
     private var readinessTargets: [UITestHarness.AuditTarget] {
         [
-            .init("playstead.control.open-bios", type: .button),
-            .init("playstead.control.open-controller-settings", type: .button),
+            .init("playstead.readiness.row.bios.remedy", type: .button),
             .init("playstead.control.choose-bios", type: .button)
         ]
     }
@@ -370,7 +382,7 @@ final class SurfaceAccessibilityTests: XCTestCase {
     }
 
     private func auditAdapter(_ category: UITestHarness.AuditCategory) throws {
-        _ = launchAdapterSheet()
+        _ = launchAdapterSettings()
         try harness.audit(category, rootIdentifier: "playstead.surface.adapter")
     }
 
@@ -385,22 +397,30 @@ final class SurfaceAccessibilityTests: XCTestCase {
     }
 
     @discardableResult
-    private func launchAdapterSheet() -> XCUIElement {
+    private func launchAdapterSettings() -> XCUIElement {
         launchLibrary(profile: .storage)
-        let opener = harness.element("playstead.control.open-adapter", type: .button)
-        opener.clickWhenHittable()
+        selectSidebar("Settings")
+        let adapterPane = harness.element("playstead.control.open-adapter", type: .radioButton)
+        adapterPane.clickWhenHittable()
         harness.require(["playstead.surface.adapter"])
-        return opener
+        return adapterPane
     }
 
     private func launchReadinessRoutes() {
-        launchLibrary(profile: .storage)
+        launchLibrary(profile: .biosAcceptance)
         harness.element("playstead.control.open-readiness", type: .button).clickWhenHittable()
         harness.require(["playstead.surface.readiness"])
-        harness.element("playstead.control.open-bios", type: .button).clickWhenHittable()
+        let biosRemedy = harness.element("playstead.readiness.row.bios.remedy", type: .button)
+        XCTAssertTrue(biosRemedy.awaitExistence(timeout: 5))
+        let readinessContent = harness.element("playstead.readiness.content")
+        // The fixture intentionally has several blockers before BIOS in the
+        // production readiness order. Reach the real remedy through the
+        // focused sheet's scroll view before activating it.
+        for _ in 0..<6 where !biosRemedy.isHittable {
+            readinessContent.swipeUp()
+        }
+        biosRemedy.clickWhenHittable()
         harness.require(["playstead.surface.bios"])
-        harness.element("playstead.control.open-controller-settings", type: .button).clickWhenHittable()
-        harness.require(["playstead.surface.controller-settings"])
     }
 
     private func recordRequired(_ identifiers: [String], in visited: inout Set<String>) {
@@ -411,28 +431,34 @@ final class SurfaceAccessibilityTests: XCTestCase {
     }
 
     private func selectSidebar(_ label: String) {
-        let destination = harness.app.staticTexts[label]
+        let identifiers = [
+            "All Games": "playstead.sidebar.home",
+            "Recently Played": "playstead.sidebar.continue",
+            "Favorites": "playstead.sidebar.favorites",
+            "Collections": "playstead.sidebar.collections",
+            "Queue": "playstead.sidebar.queue",
+            "Recent": "playstead.sidebar.recent",
+            "Downloads": "playstead.sidebar.downloads",
+            "Settings": "playstead.sidebar.settings"
+        ]
+        guard let identifier = identifiers[label] else {
+            return XCTFail("sidebar destination is not part of the test-owned inventory: \(label)")
+        }
+        let destination = harness.element(identifier, type: .staticText)
         XCTAssertTrue(destination.awaitExistence(timeout: 5), "sidebar destination missing: \(label)")
         destination.clickWhenHittable()
     }
 
-    private func dismissSheet(root: String, opener: XCUIElement) {
-        harness.focusContainedAction("playstead.control.done", rootIdentifier: root)
-        harness.element("playstead.control.done", type: .button).typeKey(.space, modifierFlags: [])
-        XCTAssertFalse(harness.element(root).waitForExistence(timeout: 2))
-        XCTAssertTrue(opener.value(forKey: "hasKeyboardFocus") as? Bool == true)
-    }
-
     private func selectQuotaDownloadByKeyboard() {
-        let assetID = "00000000-0000-7000-8000-000000000042"
-        let list = harness.element("playstead.surface.game-list")
-        XCTAssertTrue(list.awaitExistence(timeout: 5))
-        let selection = harness.element("playstead.library.list-selection")
-        XCTAssertTrue(selection.awaitExistence(timeout: 5))
-        for _ in 0..<2 where selection.value as? String != assetID {
-            list.typeKey(.downArrow, modifierFlags: [])
-        }
-        XCTAssertEqual(selection.value as? String, assetID)
+        let gameList = "playstead.surface.game-list"
+        let initialList = harness.element(gameList)
+        XCTAssertTrue(initialList.awaitExistence(timeout: 5))
+        XCTAssertEqual(initialList.value as? String, "Synthetic Quota Download")
+        waitForKeyboardFocus(initialList, stage: "quota-list-keyboard-focus")
+        initialList.typeKey(.downArrow, modifierFlags: [])
+        waitForLibraryListValue(gameList, equals: "Synthetic Reclaim Candidate", stage: "quota-list-down-arrow-selection")
+        harness.element(gameList).typeKey(.upArrow, modifierFlags: [])
+        waitForLibraryListValue(gameList, equals: "Synthetic Quota Download", stage: "quota-list-up-arrow-selection")
         let command = harness.element("playstead.control.download-selected", type: .button)
         XCTAssertTrue(command.awaitExistence(timeout: 5))
         XCTAssertTrue(command.isEnabled)
@@ -455,6 +481,20 @@ final class SurfaceAccessibilityTests: XCTestCase {
         let expectation = XCTNSPredicateExpectation(predicate: settled, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed, stage)
         XCTAssertEqual(element.value as? String, expected, stage)
+    }
+
+    private func waitForLibraryListValue(_ identifier: String, equals expected: String, stage: String) {
+        let settled = NSPredicate { [weak self] _, _ in
+            guard let self else { return false }
+            let current = self.harness.element(identifier)
+            guard current.exists else { return false }
+            return current.value as? String == expected
+        }
+        let expectation = XCTNSPredicateExpectation(predicate: settled, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed, stage)
+        let current = harness.element(identifier)
+        XCTAssertTrue(current.awaitExistence(timeout: 5), stage)
+        XCTAssertEqual(current.value as? String, expected, stage)
     }
 
     private func curationEvidence(order: [String], outboxCount: Int) -> String {

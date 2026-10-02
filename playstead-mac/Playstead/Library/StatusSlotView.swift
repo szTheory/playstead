@@ -39,23 +39,23 @@ enum LibraryStatus: Equatable {
         case .missingDependency: return "wrench.and.screwdriver.fill"
         case .downloading: return "progress.ring"
         case .queued: return "clock"
-        case .pinned: return "mappin.circle.fill"
+        case .pinned: return "pin.fill"
         case .verified: return "checkmark.circle.fill"
         case .serverOnly: return "icloud"
         }
     }
 
     /// The list-view text label, shown alongside the glyph in
-    /// `GameListView` (never color/glyph alone).
+    /// the list layout's row (never color/glyph alone).
     var listViewLabel: String {
         switch self {
         case .needsAttention: return "Needs attention"
         case .missingDependency: return "Missing dependency"
         case .downloading(let percent): return "Downloading — \(percent)%"
         case .queued: return "Queued"
-        case .pinned: return "Pinned"
+        case .pinned: return "Kept on this Mac"
         case .verified: return "Ready offline"
-        case .serverOnly: return "On server"
+        case .serverOnly: return "Available to download"
         }
     }
 
@@ -67,9 +67,9 @@ enum LibraryStatus: Equatable {
         case .missingDependency: return "\(title) is missing something it needs to play."
         case .downloading(let percent): return "\(title) is downloading, \(percent) percent complete."
         case .queued: return "\(title) is queued to download."
-        case .pinned: return "\(title) is pinned and ready to play offline."
+        case .pinned: return "\(title) is kept on this Mac and protected from automatic removal."
         case .verified: return "\(title) is downloaded and ready to play offline."
-        case .serverOnly: return "\(title) is on your server. Choose Download to play it offline."
+        case .serverOnly: return "\(title) is available to download."
         }
     }
 
@@ -78,6 +78,30 @@ enum LibraryStatus: Equatable {
     /// `rank`) entry wins; `nil` when `statuses` is empty.
     static func highestPriority(among statuses: [LibraryStatus]) -> LibraryStatus? {
         statuses.min(by: { $0.rank < $1.rank })
+    }
+}
+
+extension LibraryStatus {
+    /// Maps the shared availability read model onto the status vocabulary
+    /// presented by the actionable library row (D-21).
+    static func forCard(availability: AvailabilityState, activeMemberProgressPercent: Int?) -> LibraryStatus {
+        switch availability {
+        case .serverOnly:
+            return .serverOnly
+        case .queued:
+            return .queued
+        case .partial:
+            if let activeMemberProgressPercent {
+                return .downloading(percent: activeMemberProgressPercent)
+            }
+            return .queued
+        case .verifiedLocal:
+            return .verified
+        case .pinnedOffline:
+            return .pinned
+        case .safeToEvict:
+            return .serverOnly
+        }
     }
 }
 
@@ -96,13 +120,14 @@ struct StatusSlotView: View {
     var body: some View {
         if let selected = selectedStatus {
             statusIndicator(selected)
-                .frame(minWidth: DesignTokens.InteractiveTarget.minimum, minHeight: DesignTokens.InteractiveTarget.minimum)
+                .frame(width: 24, height: 24)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(selected.accessibleName(title: title))
                 .accessibilityIdentifier("library.status-slot")
+                .help(selected.accessibleName(title: title))
         } else {
             Color.clear
-                .frame(minWidth: DesignTokens.InteractiveTarget.minimum, minHeight: DesignTokens.InteractiveTarget.minimum)
+                .frame(width: 24, height: 24)
                 .accessibilityHidden(true)
         }
     }

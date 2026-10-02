@@ -43,6 +43,35 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
+      # Reject workstation-specific home paths from every tracked text file
+      # before any project toolchain or application command runs.
+      - name: Tracked text path hygiene
+        working-directory: .
+        run: bash scripts/check-tracked-text-hygiene.sh
+
+      # The recovery integration test invokes pg_dump from the runner. Keep
+      # its client major aligned with the PostgreSQL 17 service above; the
+      # Ubuntu image's default pg_dump is 16 and refuses to dump a 17 server.
+      - name: Install PostgreSQL 17 client
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error \
+            -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          sudo tee /etc/apt/sources.list.d/pgdg.sources >/dev/null <<'EOF'
+          Types: deb
+          URIs: https://apt.postgresql.org/pub/repos/apt
+          Suites: noble-pgdg
+          Architectures: amd64
+          Components: main
+          Signed-By: /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+          EOF
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+          export PATH="/usr/lib/postgresql/17/bin:$PATH"
+          pg_dump --version | grep -F "17."
+
       # Cheap, dependency-free guard (no toolchain needed): every phase
       # UAT file's Summary footer must agree with its own body, or this
       # fails closed before any real work starts (plan 03-14). Runs from
@@ -93,11 +122,13 @@ jobs:
           git status --porcelain
           test -z "$(git status --porcelain)"
 
-  # Four-layer macOS verification. This job is deliberately unfiltered: a
+  # Ordinary four-layer macOS verification. This job is deliberately unfiltered: a
   # push or pull request may change a server/client contract without touching
-  # the Mac directory, so path filtering would make the evidence vacuous.
+  # the Mac directory, so path filtering would make the evidence vacuous. The
+  # virtual-gamepad entitlement test remains blocked until a trusted lane is
+  # provisioned; the ordinary job still publishes its explicit status.
   mac-verification:
-    name: macOS 26 unit + rendering + UI + live server
+    name: macOS ordinary unit + rendering + UI + live server
     runs-on: macos-26
     timeout-minutes: 60
     needs: [test, compose-smoke]
@@ -122,27 +153,103 @@ jobs:
         working-directory: playstead-mac
         run: scripts/ci/run-mac-verification.sh --self-test-contracts
 
-      - name: Run one build and four serial test layers
+      - name: Run no-HID ordinary native layers
         working-directory: playstead-mac
-        run: scripts/ci/run-mac-verification.sh --run-four-layer-verification
+        run: scripts/ci/run-mac-verification.sh --run-unprivileged-verification
 
-      - name: Upload complete six-job verification evidence
+      - name: Upload sanitized ordinary Mac evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
-          name: complete-verification-evidence
-          path: playstead-mac/.build/ci/four-layer/evidence/complete-verification-evidence.json
+          name: mac-ordinary-evidence
+          path: playstead-mac/.build/ci/ordinary-evidence
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 7
 
-      - name: Upload sanitized Mac failure evidence
+      - name: Upload sanitized ordinary Mac failure evidence
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
-          name: mac-verification-failure
-          path: playstead-mac/.build/ci/failure-evidence
+          name: mac-ordinary-failure-evidence
+          path: playstead-mac/.build/ci/ordinary-failure-evidence
           # A wrapper/setup failure can precede bundle creation. Preserve the
           # original failing step instead of replacing it with an artifact error.
           if-no-files-found: warn
+          retention-days: 7
+
+  # Entitled virtual-gamepad verification remains blocked/not-configured. This
+  # public pull-request workflow uses fresh GitHub-hosted runners only. Any
+  # future entitled lane must run from a trusted protected event without
+  # checking out or executing untrusted pull-request code, and needs a matching
+  # Apple Development profile before it can report a pass.
+
+  # Independent Linux recovery claim. This job owns its throwaway Compose
+  # target; no endpoint, handoff, volume, CA, or raw output crosses to macOS.
+  recovery-fixture:
+    name: Linux isolated recovery fixture
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+
+      - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124  # v1.24.1
+        with:
+          version-file: playstead-server/.tool-versions
+          version-type: strict
+
+      - name: Resolve server dependencies
+        working-directory: playstead-server
+        run: mix deps.get
+
+      - name: Compile recovery task and dependencies
+        working-directory: playstead-server
+        run: mix compile --warnings-as-errors
+
+      - name: Verify privacy and lifecycle contracts
+        run: |
+          bash playstead-server/scripts/tests/recovery-fixture-test.sh
+          bash playstead-server/scripts/tests/recovery-retained-target-test.sh
+          bash playstead-mac/scripts/ci/tests/sanitizer-test.sh
+          bash playstead-server/scripts/ci/recovery-fixture.sh --self-test
+
+      - id: restore
+        name: Run isolated restore fixture
+        run: |
+          mkdir -p "$RUNNER_TEMP/recovery-input"
+          chmod 700 "$RUNNER_TEMP/recovery-input"
+          timeout 20m bash playstead-server/scripts/ci/recovery-fixture.sh --output "$RUNNER_TEMP/recovery-input/evidence"
+
+      - id: sanitize
+        name: Sanitize recovery evidence
+        if: ${{ always() && (steps.restore.outcome == 'success' || steps.restore.outcome == 'failure') }}
+        env:
+          RESTORE_OUTCOME: ${{ steps.restore.outcome }}
+        run: |
+          bash playstead-mac/scripts/ci/sanitize-evidence.sh --input "$RUNNER_TEMP/recovery-input" --output "$RUNNER_TEMP/recovery-sanitized"
+          case "$RESTORE_OUTCOME" in
+            success)
+              test -s "$RUNNER_TEMP/recovery-sanitized/recovery-e2e.json"
+              test ! -e "$RUNNER_TEMP/recovery-sanitized/recovery-failure.json"
+              ;;
+            failure)
+              test -s "$RUNNER_TEMP/recovery-sanitized/recovery-failure.json"
+              test ! -e "$RUNNER_TEMP/recovery-sanitized/recovery-e2e.json"
+              ;;
+            *)
+              echo "restore step did not reach a success or failure conclusion" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Upload sanitized Linux recovery evidence
+        if: ${{ always() && steps.sanitize.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: linux-recovery-evidence
+          path: ${{ runner.temp }}/recovery-sanitized/recovery-*.json
+          if-no-files-found: error
           retention-days: 7
 
   # Cold-start deployment proof (docker build + compose up from destroyed

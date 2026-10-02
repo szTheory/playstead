@@ -56,7 +56,7 @@ non_required_failure = {
     "children": [
         {
             "nodeType": "Failure Message",
-            "name": "SurfaceAccessibilityTests.swift:137: XCTAssertTrue failed: private runtime values are deliberately discarded - PLAYSTEAD_A11Y_ISSUES[parentChild]=playstead.surface.library@role-3,unidentified@role-64",
+            "name": "SurfaceAccessibilityTests.swift:137: XCTAssertTrue failed: private runtime values are deliberately discarded - PLAYSTEAD_A11Y_ISSUES[parentChild]=playstead.surface.library@role-3,unidentified@role-64 - PLAYSTEAD_LAYOUT_V1 kind=moveUp hittable=false element=(12,34,56,78) pane=(1,2,300,400) window=(0,0,1200,900) host=private-machine",
             "result": "Failed",
         }
     ],
@@ -81,6 +81,7 @@ expect_pass valid verify_fixture "$valid"
 python3 - "$TMP_ROOT/summary.json" <<'PY'
 import json, pathlib, sys
 summary = json.loads(pathlib.Path(sys.argv[1]).read_text())
+assert summary["required_tests"][0]["identifier"] == "KeychainScopingTests/testScopedMatchQueryRestrictsSearchWithoutSelectingAnAddDestination()"
 assert summary["failed_test_count"] == 1
 assert summary["failed_tests_truncated"] is False
 assert summary["failed_tests"] == [{"identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "outcome": "failed"}]
@@ -98,6 +99,9 @@ assert summary["audit_issues"] == [
     {"test_identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "category": "parentChild", "element_identifier": "playstead.surface.library", "element_role": "role-3"},
     {"test_identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "category": "parentChild", "element_identifier": "unidentified", "element_role": "role-64"},
 ]
+assert summary["layout_diagnostic_count"] == 1
+assert summary["layout_diagnostics_truncated"] is False
+assert summary["layout_diagnostics"] == [{"kind":"moveUp","hittable":False,"element":[12,34,56,78],"pane":[1,2,300,400],"window":[0,0,1200,900]}]
 # Per-test timings. Asserted by value, not merely by presence: a profiling
 # field that silently reads 0 is worse than none, because the next person
 # optimises against it. The fixture's two cases are 1.5s and 4.25s.
@@ -107,7 +111,76 @@ assert summary["slowest_tests"] == [
     {"identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "seconds": 4.25},
     {"identifier": "KeychainScopingTests/testScopedMatchQueryRestrictsSearchWithoutSelectingAnAddDestination()", "seconds": 1.5},
 ]
-assert set(summary) == {"schema_version", "layer", "executed_test_count", "required_tests", "failed_test_count", "failed_tests_truncated", "failed_tests", "failure_diagnostic_count", "failure_diagnostics_truncated", "failure_diagnostics", "audit_issue_count", "audit_issues_truncated", "audit_issues", "in_test_seconds_total", "timed_test_count", "slowest_tests"}
+assert set(summary) == {"schema_version", "layer", "executed_test_count", "runner_process_error_count", "required_tests", "failed_test_count", "failed_tests_truncated", "failed_tests", "failure_diagnostic_count", "failure_diagnostics_truncated", "failure_diagnostics", "layout_diagnostic_count", "layout_diagnostics_truncated", "layout_diagnostics", "audit_issue_count", "audit_issues_truncated", "audit_issues", "in_test_seconds_total", "timed_test_count", "slowest_tests"}
+PY
+PASS_COUNT=$((PASS_COUNT + 1))
+
+# Xcode's class selector has no slash, while result nodes always identify an
+# individual method. A class-level requirement means at least one case from
+# that class was selected and every reported case passed; method selectors
+# below retain the exact-one contract.
+class_selector="$TMP_ROOT/class-selector.json"
+python3 - "$class_selector" <<'PY'
+import json, sys
+cases = [
+    {"nodeType":"Test Case", "nodeIdentifier":f"CurationInteractionTests/testCase{index}()", "result":"Passed"}
+    for index in range(2)
+]
+cases.append({"nodeType":"Test Case", "nodeIdentifier":"OtherTests/testUnselected()", "result":"Passed"})
+json.dump({"testNodes":[{"nodeType":"Test Plan", "children":cases}]}, open(sys.argv[1], "w"))
+PY
+expect_pass class_selector "$VERIFIER" --verify-layer-result "$class_selector" ui "$TMP_ROOT/class-summary.json" \
+  --required-test PlaysteadUITests.CurationInteractionTests
+python3 - "$TMP_ROOT/class-summary.json" <<'PY'
+import json, pathlib, sys
+record = json.loads(pathlib.Path(sys.argv[1]).read_text())["required_tests"][0]
+assert record["identifier"] == "CurationInteractionTests/*"
+assert record["discovered"] is True and record["execution_count"] == 2
+assert record["skipped"] is False and record["outcome"] == "passed"
+PY
+PASS_COUNT=$((PASS_COUNT + 1))
+
+class_failure="$TMP_ROOT/class-failure.json"
+python3 - "$class_failure" <<'PY'
+import json, sys
+cases = [
+    {"nodeType":"Test Case", "nodeIdentifier":"CurationInteractionTests/testPass()", "result":"Passed"},
+    {"nodeType":"Test Case", "nodeIdentifier":"CurationInteractionTests/testFail()", "result":"Failed"},
+]
+json.dump({"testNodes":[{"nodeType":"Test Plan", "children":cases}]}, open(sys.argv[1], "w"))
+PY
+expect_fail class_failure "$VERIFIER" --verify-layer-result "$class_failure" ui "$TMP_ROOT/class-failure-summary.json" \
+  --required-test PlaysteadUITests.CurationInteractionTests
+expect_fail malformed_class "$VERIFIER" --verify-layer-result "$class_selector" ui "$TMP_ROOT/malformed-summary.json" \
+  --required-test CurationInteractionTests
+PASS_COUNT=$((PASS_COUNT + 2))
+
+runner_process_error="$TMP_ROOT/runner-process-error.json"
+python3 - "$runner_process_error" <<'PY'
+import json, sys
+required = {
+    "nodeType": "Test Case",
+    "nodeIdentifier": "KeychainScopingTests/testScopedMatchQueryRestrictsSearchWithoutSelectingAnAddDestination()",
+    "name": "testScopedMatchQueryRestrictsSearchWithoutSelectingAnAddDestination()",
+    "result": "Passed",
+}
+runner = {
+    "nodeType": "Test Case",
+    "nodeIdentifier": "PlaysteadUITests-Runner (16205) encountered an error",
+    "name": "PlaysteadUITests-Runner (16205) encountered an error",
+    "result": "Failed",
+}
+json.dump({"testNodes": [{"nodeType": "Test Plan", "children": [required, runner]}]}, open(sys.argv[1], "w"))
+PY
+expect_fail runner_process_error "$VERIFIER" --verify-layer-result "$runner_process_error" ui "$TMP_ROOT/runner-process-summary.json" \
+  --required-test PlaysteadUITests.HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice
+python3 - "$TMP_ROOT/runner-process-summary.json" <<'PY'
+import json, pathlib, sys
+summary=json.loads(pathlib.Path(sys.argv[1]).read_text())
+assert summary["executed_test_count"] == 1
+assert summary["runner_process_error_count"] == 1
+assert summary["failed_test_count"] == 0
+assert summary["required_tests"][0]["outcome"] == "missing"
 PY
 PASS_COUNT=$((PASS_COUNT + 1))
 

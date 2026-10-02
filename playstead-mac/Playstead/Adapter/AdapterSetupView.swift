@@ -35,6 +35,13 @@ struct AdapterSetupView: View {
                 }
 
                 statusLine
+#if UI_TESTING
+                if UITestBootstrap.isRequested() {
+                    Text(recoveryInstallStatus)
+                        .accessibilityIdentifier("playstead.readout.recovery-adapter-install-status")
+                        .accessibilityValue(recoveryInstallStatus)
+                }
+#endif
 
                 HStack(spacing: DesignTokens.Spacing.sm) {
                     Button(Self.installActionTitle(for: environment.adapterInstallState)) {
@@ -58,6 +65,7 @@ struct AdapterSetupView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Adapter setup")
+        .accessibilityIdentifier(AccessibilityIdentifiers.Surface.adapter)
     }
 
     @ViewBuilder
@@ -76,6 +84,22 @@ struct AdapterSetupView: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(text)
     }
+
+#if UI_TESTING
+    /// A fixed projection of production state for the recovery lane. Paths
+    /// and installer error descriptions stay out of the test's public receipt.
+    private var recoveryInstallStatus: String {
+        switch environment.adapterSetupPhase {
+        case .installing: return "installing"
+        case .failed: return "failed"
+        case .idle:
+            switch environment.adapterInstallState {
+            case .notInstalled: return "not_installed"
+            case .installed(_, let verified): return verified ? "verified" : "unverified"
+            }
+        }
+    }
+#endif
 
     // MARK: - Pure presentation (asserted directly by tests)
 

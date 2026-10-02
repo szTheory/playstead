@@ -57,11 +57,36 @@ defmodule Playstead.ReadinessTest do
     assert Playstead.TlsTrust.transport_state(env) == :external_proxy
   end
 
-  test "outside :prod, no domain and no proxy is the plain-HTTP warning" do
+  # These two assert the https row against the TRANSPORT, in whatever Mix.env()
+  # the suite happens to run under. That independence is the point: the row used
+  # to be decided by a `when @env == :prod` guard, so in a prod build a
+  # plain-HTTP deployment was reported as :ok "HTTPS via Caddy's internal
+  # certificate authority" -- and no test could catch it, because the suite only
+  # ever compiles as :test. Neither test may be made env-conditional again.
+  test "no CA root on disk is the plain-HTTP warning, and never claims HTTPS" do
     assert %{state: :warning, message: message} =
              https_row(env(%{"PLAYSTEAD_CADDY_CA_PATH" => "/nonexistent/root.crt"}))
 
     assert message =~ "plain HTTP"
+    refute message =~ "certificate authority"
+    refute message =~ "HTTPS via"
+  end
+
+  test "an internal CA root on disk reports :ok and names the internal CA" do
+    ca_path =
+      Path.join(System.tmp_dir!(), "playstead-readiness-ca-#{System.unique_integer([:positive])}")
+
+    File.write!(ca_path, "not a real certificate, only its presence is read")
+    on_exit(fn -> File.rm_rf!(ca_path) end)
+
+    assert Playstead.TlsTrust.transport_state(env(%{"PLAYSTEAD_CADDY_CA_PATH" => ca_path})) ==
+             :internal_ca
+
+    assert %{state: :ok, message: message} =
+             https_row(env(%{"PLAYSTEAD_CADDY_CA_PATH" => ca_path}))
+
+    assert message =~ "internal certificate authority"
+    refute message =~ "plain HTTP"
   end
 
   test "the volumes row warns when the blob path is not writable" do
@@ -78,9 +103,17 @@ defmodule Playstead.ReadinessTest do
     refute File.exists?(Path.join(System.tmp_dir!(), ".playstead-readiness-probe"))
   end
 
-  test "an on-disk internal CA root does not change the readiness row outside :prod" do
+  # Was: "an on-disk internal CA root does not change the readiness row outside
+  # :prod", asserting %{state: :warning}. That test pinned the defect in place as
+  # intended behavior -- the row was decided by a compile-time `@env == :prod`
+  # guard, so outside prod a genuine internal-CA transport was reported as plain
+  # HTTP, and in prod plain HTTP was reported as HTTPS. The row now follows
+  # TlsTrust.transport_state/1 in every environment, so a real CA root on disk
+  # reads :ok here exactly as it does in a release.
+  test "an on-disk internal CA root reports :ok in every environment" do
     path = write_fixture_cert!("readiness_test")
-    assert %{state: :warning} = https_row(env(%{"PLAYSTEAD_CADDY_CA_PATH" => path}))
+    assert %{state: :ok, message: message} = https_row(env(%{"PLAYSTEAD_CADDY_CA_PATH" => path}))
+    assert message =~ "internal certificate authority"
   end
 
   # --- inbox (D-01) -------------------------------------------------------

@@ -66,3 +66,55 @@ It also blocks 04.5-04's must-have that "the rest of the live-server layer
 still passes over https … SaveEndToEndTests … green against the same TLS
 endpoint" — that criterion cannot be met by 04.5 because the test is not green
 on any transport.
+
+---
+
+## Update 2026-09-12 — the premise above is now stale, the mechanism is not
+
+`SaveEndToEndTests` no longer "fails every run". It is green in three
+consecutive hosted runs — 34676636969 (6.36s), 34707257044 (6.20s) and
+34714449202 on main — and it is now a `--required-test`, so the fail-open
+described in "Why CI is green anyway" is closed: the layer result does depend
+on it.
+
+What changed in between, and what it does and does not explain:
+
+1. **The second writer was found.** This note's hypothesis — "a previous
+   test's app instance whose upload lane is still draining against the same
+   shared Phoenix" — was close. The actual second writer was in-process: the
+   harness constructed its OWN `SaveUploadLane` over the same store while the
+   app drained its own lane on the reachability transition at pairing.
+   `drainOnce`'s doc promises actors serialize overlapping calls, and they do
+   — but two actor INSTANCES serialize nothing. Fixed by sharing the app's
+   lane (351fe70). That directly removes the two-concurrent-POST condition
+   this note describes, which is the best available explanation for the 409s.
+
+2. **The one-shot `sent == 1` requirement was removed** (this note predicted
+   it exactly). The harness now retries the retryable classifications and
+   asserts the OUTCOME — the revision reaching `.uploaded` — rather than one
+   lane object's counter.
+
+3. **UNRESOLVED, and recorded here rather than assumed away.** Run
+   34670123715 failed at `save-e2e-harness=upload-server-refused`. That was
+   fixed by treating `.offlineQueue`/`.slowUpload` as retryable (09612a9),
+   on the stated inference that an unreachable server at pairing time was the
+   classification involved. THIS NOTE DOCUMENTS AN ALTERNATIVE THAT FIX WOULD
+   NOT COVER: a duplicate-revision 409 classifies as
+   `.compatibilityRejection`, one of D-40's unfixable reasons, for which
+   `isRetryable` is false and the harness still reports "server refused". So
+   the green runs may not be attributable to that change. The change remains
+   correct on its own terms — `SaveUploadFailureClassification`'s own doc says
+   `.offlineQueue` and `.slowUpload` are the product working correctly and
+   must never escalate — but which classification actually fired in
+   34670123715 was never captured, and the harness's fixed-literal reason
+   channel deliberately cannot carry it.
+
+**To close this todo properly:** make the harness record WHICH classification
+it refused on, in a form that survives CI's evidence pipeline (file:line is
+kept, assertion messages are discarded — so it needs its own assertion site
+per classification, the way `recordSaveHarnessFailure` already splits its
+seven reasons). Until then, three green runs are three green runs, not a
+proof that the 409 path is gone.
+
+Related: WINDOWS #67 (closed — the lane race), #71 (open — an unproven
+live-server failure in the same layer).

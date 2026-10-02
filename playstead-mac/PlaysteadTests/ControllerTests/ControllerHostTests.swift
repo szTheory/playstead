@@ -1,4 +1,5 @@
 import XCTest
+import GameController
 @testable import Playstead
 
 /// A fully injectable `ControllerInputSource` — lets every test drive
@@ -8,13 +9,16 @@ final class FakeControllerInputSource: ControllerInputSource {
     var currentControllers: [ControllerDescriptor] = []
     private var onConnect: ((ControllerDescriptor) -> Void)?
     private var onDisconnect: ((ControllerDescriptor) -> Void)?
+    private var onInput: ((ControllerInputEvent) -> Void)?
 
     func startObserving(
         onConnect: @escaping (ControllerDescriptor) -> Void,
-        onDisconnect: @escaping (ControllerDescriptor) -> Void
+        onDisconnect: @escaping (ControllerDescriptor) -> Void,
+        onInput: @escaping (ControllerInputEvent) -> Void
     ) {
         self.onConnect = onConnect
         self.onDisconnect = onDisconnect
+        self.onInput = onInput
     }
 
     func simulateConnect(_ descriptor: ControllerDescriptor) {
@@ -25,6 +29,10 @@ final class FakeControllerInputSource: ControllerInputSource {
     func simulateDisconnect(_ descriptor: ControllerDescriptor) {
         currentControllers.removeAll { $0.id == descriptor.id }
         onDisconnect?(descriptor)
+    }
+
+    func simulateInput(controllerID: String, name: String, active: Bool) {
+        onInput?(ControllerInputEvent(controllerID: controllerID, inputName: name, isActive: active))
     }
 }
 
@@ -81,6 +89,43 @@ final class ControllerHostTests: XCTestCase {
 
         host.reportInput("dpadUp", active: true)
         XCTAssertTrue(host.liveInputs.contains("dpadUp"))
+    }
+
+    func testInputEventsOnlyUpdateTheAssignedControllerAndKnownVocabulary() {
+        let source = FakeControllerInputSource()
+        let host = ControllerHost(source: source)
+        source.simulateConnect(Self.controllerA)
+        source.simulateConnect(Self.controllerB)
+        host.assign(controllerID: Self.controllerB.id)
+
+        source.simulateInput(controllerID: Self.controllerA.id, name: "buttonA", active: true)
+        XCTAssertFalse(host.liveInputs.contains("buttonA"))
+
+        source.simulateInput(controllerID: Self.controllerB.id, name: "buttonA", active: true)
+        XCTAssertTrue(host.liveInputs.contains("buttonA"))
+
+        source.simulateInput(controllerID: Self.controllerB.id, name: "unknown", active: true)
+        XCTAssertEqual(host.liveInputs, ["buttonA"])
+    }
+
+    func testAssignedDisconnectClearsOnlyThatControllersLiveInputs() {
+        let source = FakeControllerInputSource()
+        let host = ControllerHost(source: source)
+        source.simulateConnect(Self.controllerA)
+        source.simulateConnect(Self.controllerB)
+        host.assign(controllerID: Self.controllerB.id)
+        source.simulateInput(controllerID: Self.controllerB.id, name: "buttonA", active: true)
+        XCTAssertTrue(host.liveInputs.contains("buttonA"))
+
+        source.simulateDisconnect(Self.controllerB)
+        XCTAssertTrue(host.liveInputs.isEmpty)
+        XCTAssertEqual(host.assignedControllerID, Self.controllerA.id)
+    }
+
+    func testGameControllerActivationThresholdIsConsistentAtBoundary() {
+        XCTAssertFalse(GCControllerInputSource.isActive(value: 0.49))
+        XCTAssertTrue(GCControllerInputSource.isActive(value: 0.5))
+        XCTAssertTrue(GCControllerInputSource.isActive(value: 1.0))
     }
 
     // MARK: - Behavior: a mapping assigns each adapter input and persists across a restart
@@ -240,7 +285,7 @@ final class ControllerHostTests: XCTestCase {
 
     func testAdapterHostInjectsMappedControllerValuesIntoLaunchArguments() async throws {
         let pin = try JSONDecoder().decode(AdapterPin.self, from: Data(Self.pinJSON.utf8))
-        let host = AdapterHost(pin: pin, emulatorsRoot: paths.emulators)
+        let host = AdapterHost(pin: pin, emulatorsRoot: paths.emulators, processRegistry: .isolatedForTesting())
 
         var mapping = ControllerMapping.defaultMapping(controllerProductID: Self.controllerA.id)
         mapping = mapping.remapping(adapterInput: "A", to: "buttonB")
@@ -255,7 +300,7 @@ final class ControllerHostTests: XCTestCase {
 
     func testAdapterHostLaunchArgumentsUnchangedWithNoActiveMapping() async throws {
         let pin = try JSONDecoder().decode(AdapterPin.self, from: Data(Self.pinJSON.utf8))
-        let host = AdapterHost(pin: pin, emulatorsRoot: paths.emulators)
+        let host = AdapterHost(pin: pin, emulatorsRoot: paths.emulators, processRegistry: .isolatedForTesting())
 
         let args = await host.renderedLaunchArguments(romPath: "/tmp/game.gba", saveDir: "/tmp/saves")
 

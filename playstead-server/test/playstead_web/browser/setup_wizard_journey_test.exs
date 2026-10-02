@@ -17,11 +17,20 @@ defmodule PlaysteadWeb.Browser.SetupWizardJourneyTest do
           %{
             session: session
           } do
+    try do
+      run_setup_wizard_journey(session)
+    after
+      mark_reliability_journey_complete()
+    end
+  end
+
+  defp run_setup_wizard_journey(session) do
     token = BrowserScreens.minted_token()
 
     session =
       session
       |> visit_live("/setup")
+      |> await_reliability_probes()
       |> assert_has(css("#setup-step-1"))
       |> fill_in(css("#setup_token"), with: token)
       |> click(css("#setup_token_submit"))
@@ -94,5 +103,102 @@ defmodule PlaysteadWeb.Browser.SetupWizardJourneyTest do
       css("#recovery_error", text: "That recovery code didn't match, or was already used.")
     )
     |> assert_gone(css("#nav-account"))
+  end
+
+  defp await_reliability_probes(session) do
+    case System.get_env("PLAYSTEAD_RELIABILITY_ROOT") do
+      nil ->
+        session
+
+      root ->
+        owner = System.fetch_env!("PLAYSTEAD_RELIABILITY_OWNER")
+        prefix = "/private/tmp/playstead-setup-wizard-reliability."
+
+        unless String.starts_with?(Path.expand(root), prefix) do
+          flunk("reliability run root is outside private temporary storage")
+        end
+
+        verify_reliability_root!(root, owner)
+        journey_marker = Path.join(root, "journey-started")
+        write_reliability_marker!(journey_marker, owner)
+
+        wait_until(
+          session,
+          fn _ -> valid_reliability_marker?(Path.join(root, "probes-ready"), root, owner) end,
+          "the four bounded read-only health probes",
+          800
+        )
+    end
+  end
+
+  defp verify_reliability_root!(root, owner) do
+    with {:ok, %{type: :directory, mode: root_mode}} <- File.lstat(root),
+         {:ok, %{type: :regular, mode: owner_mode}} <- File.lstat(Path.join(root, ".owner")),
+         true <- Bitwise.band(root_mode, 0o077) == 0,
+         true <- Bitwise.band(owner_mode, 0o077) == 0,
+         {:ok, ^owner} <- File.read(Path.join(root, ".owner")) do
+      :ok
+    else
+      _ -> flunk("reliability run root ownership check failed")
+    end
+  end
+
+  defp write_reliability_marker!(path, owner) do
+    temporary = path <> ".tmp"
+    {:ok, file} = File.open(temporary, [:write, :exclusive])
+    :ok = IO.binwrite(file, owner)
+    :ok = File.close(file)
+    :ok = File.chmod(temporary, 0o600)
+    :ok = File.rename(temporary, path)
+  end
+
+  defp mark_reliability_journey_complete do
+    case System.get_env("PLAYSTEAD_RELIABILITY_ROOT") do
+      nil ->
+        :ok
+
+      root ->
+        owner = System.fetch_env!("PLAYSTEAD_RELIABILITY_OWNER")
+        verify_reliability_root!(root, owner)
+        journey_marker = Path.join(root, "journey-started")
+
+        if valid_reliability_marker?(journey_marker, root, owner) do
+          write_reliability_marker!(Path.join(root, "journey-complete"), owner)
+          await_reliability_marker!(Path.join(root, "probes-stopped"), root, owner)
+        end
+    end
+  end
+
+  defp await_reliability_marker!(path, root, owner) do
+    deadline = System.monotonic_time(:millisecond) + 30_000
+    await_reliability_marker(path, root, owner, deadline)
+  end
+
+  defp await_reliability_marker(path, root, owner, deadline) do
+    cond do
+      valid_reliability_marker?(path, root, owner) ->
+        :ok
+
+      System.monotonic_time(:millisecond) >= deadline ->
+        flunk("timed out waiting for reliability probes to stop")
+
+      true ->
+        # This short, bounded file handshake keeps the test server alive until
+        # the runner has reaped its probes. It does not synchronize UI state.
+        :timer.sleep(10)
+        await_reliability_marker(path, root, owner, deadline)
+    end
+  end
+
+  defp valid_reliability_marker?(path, root, owner) do
+    verify_reliability_root!(root, owner)
+
+    case File.lstat(path) do
+      {:ok, %{type: :regular, mode: mode}} ->
+        Bitwise.band(mode, 0o077) == 0 and File.read!(path) == owner
+
+      _ ->
+        false
+    end
   end
 end

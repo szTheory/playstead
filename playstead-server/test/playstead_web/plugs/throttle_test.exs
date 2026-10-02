@@ -7,9 +7,25 @@ defmodule PlaysteadWeb.Plugs.ThrottleTest do
     # Each test uses a unique IP and account key so Hammer's shared ETS
     # counters never bleed state across tests (async: true).
     unique = System.unique_integer([:positive])
-    ip = {10, 0, div(unique, 65536) |> rem(256), rem(unique, 256)}
     email = "throttle-#{unique}@example.com"
-    %{ip: ip, email: email}
+    %{ip: unique_ip(unique), email: email}
+  end
+
+  # The IP this file hands each test, derived injectively from `unique`.
+  #
+  # This used to drop bits 8..15 outright -- `{10, 0, div(unique, 65536) |>
+  # rem(256), rem(unique, 256)}` -- so any two uniques 256 apart produced the
+  # SAME IP, and 2000 draws under 36-way concurrency collapsed onto 72
+  # distinct addresses. The setup comment above has always claimed counters
+  # "never bleed state across tests"; they bled constantly, and the per-IP
+  # bucket lives for a minute while the suite runs for three.
+  #
+  # Caught by running the full suite under concurrent xcodebuild load: a
+  # colliding pair left the second test's bucket already at its limit, so its
+  # FIRST request was halted and `refute conn.halted` failed inside the
+  # arrange loop rather than at the assertion the test is about.
+  defp unique_ip(unique) do
+    {10, div(unique, 65_536) |> rem(256), div(unique, 256) |> rem(256), rem(unique, 256)}
   end
 
   defp hit(ip, email, action, opts) do
@@ -54,11 +70,11 @@ defmodule PlaysteadWeb.Plugs.ThrottleTest do
       opts = [per_ip_limit: 1000, per_account_limit: 5]
 
       for i <- 1..5 do
-        conn = hit({10, 1, div(i, 256), rem(i, 256)}, email, :login, opts)
+        conn = hit({192, 168, div(i, 256), rem(i, 256)}, email, :login, opts)
         refute conn.halted
       end
 
-      conn = hit({10, 1, 99, 99}, email, :login, opts)
+      conn = hit({192, 168, 99, 99}, email, :login, opts)
 
       assert conn.halted
       assert conn.status == 429
@@ -72,6 +88,22 @@ defmodule PlaysteadWeb.Plugs.ThrottleTest do
       # affected by :login's exhausted per-IP bucket.
       conn = hit(ip, email <> "-b", :recovery, opts)
       refute conn.halted
+    end
+
+    test "every test really does get its own IP" do
+      # Not a style point: the per-IP bucket outlives any single test, so two
+      # tests sharing an address share a limit. Drawn the way the suite draws
+      # them -- concurrently -- because the old formula's collisions only
+      # showed up once the scheduler spread the unique integers out.
+      draws =
+        1..2_000
+        |> Task.async_stream(fn _ -> System.unique_integer([:positive]) end, max_concurrency: 36)
+        |> Enum.map(fn {:ok, value} -> unique_ip(value) end)
+
+      assert length(Enum.uniq(draws)) == length(draws)
+
+      # And the specific collision that produced the captured failure.
+      refute unique_ip(1_000_000) == unique_ip(1_000_256)
     end
   end
 end

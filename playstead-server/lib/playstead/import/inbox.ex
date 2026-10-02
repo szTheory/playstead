@@ -14,6 +14,35 @@ defmodule Playstead.Import.Inbox do
   reported, not walked; a socket, device, or other non-regular entry is
   silently skipped. The scan never opens anything under the inbox for
   writing, renames anything, or removes anything.
+
+  ## Dot-entries are skipped
+
+  Entries whose name begins with `.` are skipped entirely -- files and
+  directories alike, before `lstat` is even reached, so a dot-named
+  symlink is not reported either.
+
+  This is the one deliberate narrowing of "report every regular file",
+  and it exists because the alternative is worse than a missing file: it
+  is a permanent phantom. The inbox is a folder a self-hoster opens in a
+  file manager, and on macOS merely looking at it makes Finder write
+  `.DS_Store` beside the ROMs; a volume picks up `.Trashes`,
+  `.Spotlight-V100` and `.fseventsd`; copying from another disk leaves
+  `._`-prefixed AppleDouble files. Reported, each becomes an `:unknown`
+  entry demanding a decision at `/attention` that the operator never
+  made and cannot act on meaningfully -- and `.DS_Store` returns the
+  moment the folder is opened again, so excluding it does not settle it.
+
+  Nothing an operator deliberately stages for import is hidden: dot-files
+  are invisible in the very file manager they would have used to put them
+  there. Skipping them costs no real content and removes an entire class
+  of false attention. It also lets the repository keep the dev inbox
+  directory alive in git with a tracked `.gitkeep` that the scan will
+  never see -- the project must not ship content into a folder it has
+  told the operator is theirs.
+
+  Dot-directories are skipped rather than walked, so a ROM buried inside
+  `.Trashes` is not imported. That is the intended reading: a file in the
+  trash is not staged for import.
   """
 
   @type entry :: %{relative_path: String.t(), size_bytes: non_neg_integer(), mtime: DateTime.t()}
@@ -44,6 +73,7 @@ defmodule Playstead.Import.Inbox do
       {:ok, names} ->
         names
         |> Enum.sort()
+        |> Enum.reject(&dot_entry?/1)
         |> Enum.reduce({[], []}, fn name, {files_acc, links_acc} ->
           path = Path.join(dir, name)
 
@@ -70,6 +100,10 @@ defmodule Playstead.Import.Inbox do
         {[], []}
     end
   end
+
+  # Rejected by NAME, before any stat call, so this covers a dot-named
+  # regular file, directory and symlink uniformly. See the moduledoc.
+  defp dot_entry?(name), do: String.starts_with?(name, ".")
 
   defp to_entry(root, path, %File.Stat{size: size, mtime: mtime}) do
     %{

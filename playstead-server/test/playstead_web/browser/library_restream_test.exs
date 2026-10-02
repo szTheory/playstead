@@ -85,6 +85,32 @@ defmodule PlaysteadWeb.Browser.LibraryRestreamTest do
     )
   end
 
+  # `await_count` reads the DOM directly, so it can return in the gap between
+  # two requestAnimationFrame callbacks. That is fine on an idle machine,
+  # where rAF fires every ~16ms, and wrong under load: Chrome throttles rAF
+  # hard when starved, so the sampler can record no frame at all at the
+  # settled count. The endpoint assertion then fails as
+  # `Enum.min(counts) == 50 / left: 500, right: 50` -- every sample stuck at
+  # the pre-toggle count. That is a starved sampler, not the blink this
+  # feature exists to catch, and it is what made this test look flaky
+  # (WINDOWS #81; message captured 2026-09-14 under deliberate contention).
+  #
+  # So wait for the SAMPLER to have seen the settled count, not just the DOM.
+  # This weakens nothing. `Enum.min(counts) == @ready_offline_size` still
+  # fails on a partial refill that paints fewer rows, and `Enum.min > 0` and
+  # the busy check are untouched -- they only become harder to satisfy
+  # vacuously, because the sampler is now guaranteed to span the transition
+  # rather than lucky to.
+  defp await_sampled_count(session, expected) do
+    wait_until(
+      session,
+      fn s ->
+        js(s, "return (window.__psSamples || []).some(s => s.n === arguments[0]);", [expected])
+      end,
+      "the requestAnimationFrame sampler to record a frame at #{expected} rows"
+    )
+  end
+
   setup do
     user = owner_fixture()
     scope = Scope.for_user(user)
@@ -122,6 +148,7 @@ defmodule PlaysteadWeb.Browser.LibraryRestreamTest do
       session
       |> click(css("#filter-chip-availability-ready_offline"))
       |> await_count(@ready_offline_size)
+      |> await_sampled_count(@ready_offline_size)
 
     samples = read_samples(session)
 
@@ -161,6 +188,7 @@ defmodule PlaysteadWeb.Browser.LibraryRestreamTest do
       session
       |> click(css("#filter-chip-availability-ready_offline"))
       |> await_count(@library_size)
+      |> await_sampled_count(@library_size)
 
     samples = read_samples(session)
 

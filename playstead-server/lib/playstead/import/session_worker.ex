@@ -42,6 +42,7 @@ defmodule Playstead.Import.SessionWorker do
   alias Playstead.Blobs.Blob
   alias Playstead.Import
   alias Playstead.Import.{OrphanSweeper, Progress, Session, SourceFile}
+  alias Playstead.Operations
   alias Playstead.Repo
 
   @chunk_size 1_048_576
@@ -49,8 +50,13 @@ defmodule Playstead.Import.SessionWorker do
 
   @doc "Enqueues the durable per-session job. `mode` is `\"run\"` or `\"full_verify\"`."
   @spec enqueue(String.t(), String.t()) :: {:ok, Oban.Job.t()} | {:error, term()}
-  def enqueue(session_id, mode \\ "run") do
-    %{session_id: session_id, mode: mode}
+  def enqueue(session_id, mode \\ "run", correlation_id \\ nil) do
+    args = %{session_id: session_id, mode: mode}
+
+    args =
+      if is_binary(correlation_id), do: Map.put(args, :correlation_id, correlation_id), else: args
+
+    args
     |> new()
     |> Oban.insert()
   end
@@ -58,6 +64,7 @@ defmodule Playstead.Import.SessionWorker do
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"session_id" => session_id} = args}) do
     mode = Map.get(args, "mode", "run")
+    correlation_id = Map.get(args, "correlation_id")
     session = Session |> Repo.get!(session_id) |> ensure_running()
 
     case session.requested_control do
@@ -70,7 +77,7 @@ defmodule Playstead.Import.SessionWorker do
         :ok
 
       "run" ->
-        run_one_batch(session, mode)
+        run_one_batch(session, mode, correlation_id)
     end
   end
 
@@ -89,14 +96,14 @@ defmodule Playstead.Import.SessionWorker do
     end
   end
 
-  defp run_one_batch(session, mode) do
+  defp run_one_batch(session, mode, correlation_id) do
     case next_pending(session.id) do
       [] ->
         complete(session)
         :ok
 
       batch ->
-        case process_batch(session, batch, mode) do
+        case process_batch(session, batch, mode, correlation_id) do
           :ok ->
             Repo.get!(Session, session.id) |> Progress.checkpoint()
             continue_or_stop(session, mode)
@@ -137,21 +144,21 @@ defmodule Playstead.Import.SessionWorker do
   # at a time in this process rather than fanned out across OS
   # processes — the bound is on how many files one job claims per
   # cooperative-control check, not on scheduler-level parallelism.
-  defp process_batch(session, batch, mode) do
+  defp process_batch(session, batch, mode, correlation_id) do
     Enum.reduce_while(batch, :ok, fn source_file, :ok ->
-      case process_row(session, source_file, mode) do
+      case process_row(session, source_file, mode, correlation_id) do
         :ok -> {:cont, :ok}
         {:disk_full, source_file} -> {:halt, {:disk_full, source_file}}
       end
     end)
   end
 
-  defp process_row(session, source_file, mode) do
+  defp process_row(session, source_file, mode, correlation_id) do
     source_file = source_file |> SourceFile.increment_attempt_changeset() |> Repo.update!()
 
     case reconcile_match(session.user_id, source_file, mode) do
       %SourceFile{} = prior -> reuse_prior_content(session, source_file, prior)
-      nil -> hash_and_commit(session, source_file)
+      nil -> hash_and_commit(session, source_file, correlation_id)
     end
   end
 
@@ -198,20 +205,21 @@ defmodule Playstead.Import.SessionWorker do
     }
   end
 
-  defp hash_and_commit(session, source_file) do
+  defp hash_and_commit(session, source_file, correlation_id) do
     path = source_path(source_file)
 
     case File.stat(path) do
       {:error, _reason} ->
+        record_transfer_failure(correlation_id, "transfer_source_unavailable")
         Import.record_failed_file(session.user_id, source_file, "io_error")
         :ok
 
       {:ok, %File.Stat{size: size}} ->
-        commit_stream(session, source_file, size, path)
+        commit_stream(session, source_file, size, path, correlation_id)
     end
   end
 
-  defp commit_stream(session, source_file, size, path) do
+  defp commit_stream(session, source_file, size, path, correlation_id) do
     case Blobs.put_stream(File.stream!(path, [], @chunk_size), size) do
       {:ok, status, meta} ->
         {:ok, receipt} = Import.complete_staged_file(session.user_id, source_file, {status, meta})
@@ -222,10 +230,16 @@ defmodule Playstead.Import.SessionWorker do
         {:disk_full, source_file}
 
       {:error, _reason} ->
+        record_transfer_failure(correlation_id, "transfer_storage_failed")
         Import.record_failed_file(session.user_id, source_file, "io_error")
         :ok
     end
   end
+
+  defp record_transfer_failure(correlation_id, code) when is_binary(correlation_id),
+    do: Operations.record_failure(correlation_id, "transfer", code)
+
+  defp record_transfer_failure(_, _), do: :ok
 
   defp source_path(%SourceFile{origin: "inbox", relative_path: relative_path}) do
     Path.join(Application.get_env(:playstead, :inbox_path), relative_path)

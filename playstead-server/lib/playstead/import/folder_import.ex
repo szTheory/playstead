@@ -353,7 +353,7 @@ defmodule Playstead.Import.FolderImport do
         })
       )
 
-    {:ok, _entry} = ChangeJournal.append(user_id, :catalogue, asset_set_id, %{})
+    {:ok, _entry} = append_catalogue_change(user_id, asset_set_id)
 
     Repo.insert!(
       Receipt.create_changeset(%Receipt{}, %{
@@ -366,6 +366,20 @@ defmodule Playstead.Import.FolderImport do
         sha256: meta.sha256,
         size_bytes: meta.size_bytes
       })
+    )
+  end
+
+  # Folder re-import uses the same incremental catalogue contract as direct
+  # upload. An empty map is only a notification marker and cannot be applied
+  # by a resumed native client.
+  defp append_catalogue_change(user_id, asset_set_id) do
+    asset_set = Repo.get!(AssetSet, asset_set_id) |> Repo.preload(asset_members: :blob)
+
+    ChangeJournal.append(
+      user_id,
+      :catalogue,
+      asset_set.id,
+      Playstead.Catalogue.Payload.build(asset_set)
     )
   end
 end

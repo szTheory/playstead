@@ -54,13 +54,6 @@ final class StatusLadderTests: XCTestCase {
         XCTAssertEqual(StatusToken.safeToEvict, StatusToken.safeToEvict, "safeToEvict is a color token only, never a ladder case")
     }
 
-    func testEntryWithEmptyDisplayTitleStillProducesSelectableRowWithNonEmptyAccessibleLabel() {
-        let card = GameCardView(title: "", systemID: "unknown", isUnidentified: true, statuses: [.serverOnly])
-        XCTAssertFalse(card.accessibleLabel.isEmpty)
-        XCTAssertTrue(card.accessibleLabel.hasPrefix("Untitled"))
-        XCTAssertTrue(card.accessibleLabel.contains("Unidentified"))
-    }
-
     func test500EntrySnapshotUsesFixedCardGeometryForAStableRowHeight() {
         let items = (0..<500).map { i in
             ShelfItem(id: "\(i)", title: "Game \(i)", systemID: "gba", isUnidentified: false, statuses: [.serverOnly])
@@ -69,24 +62,24 @@ final class StatusLadderTests: XCTestCase {
         // Row height/width are compile-time constants, not derived from
         // content — the fixed geometry itself is what makes a lazy
         // container safe with no loading placeholder for 500 items (D-16).
-        XCTAssertEqual(DesignTokens.CardGeometry.height, 158)
+        XCTAssertEqual(DesignTokens.CardGeometry.height, 224)
         XCTAssertEqual(DesignTokens.CardGeometry.width, 280)
     }
 
-    func testSidebarOrderMatchesTheFrozenEightStepNavigationOrder() {
+    func testSidebarOrderMatchesTheCurrentGroupedNavigationOrder() {
         let entries = SidebarView.entries(nonEmptySystemIDs: ["gba", "snes"], hasUnidentified: true)
         let labels = entries.map(\.label)
 
-        XCTAssertEqual(labels[0], "Home")
-        XCTAssertEqual(labels[1], "Continue")
+        XCTAssertEqual(labels[0], "All Games")
+        XCTAssertEqual(labels[1], "Recently Played")
         XCTAssertEqual(labels[2], "Favorites")
         XCTAssertEqual(labels[3], "Collections")
         XCTAssertEqual(labels[4], "Queue")
         XCTAssertEqual(labels[5], "Recent")
-        // Systems follow in frozen registry order (gba, gb, gbc, nes,
-        // snes, md, psx), filtered to non-empty — gb/gbc/nes/md/psx are
-        // absent here, so gba then snes, never alphabetically re-sorted.
-        XCTAssertEqual(Array(labels[6...]), ["Game Boy Advance", "Super Nintendo", "Unidentified"])
+        // Systems remain easy to reach; Manage destinations follow them.
+        XCTAssertEqual(Array(labels[6...]), [
+            "Game Boy Advance", "Super Nintendo", "Unidentified", "Downloads", "Settings"
+        ])
     }
 
     func testUnidentifiedSectionIsHiddenEntirelyWhenNoneExist() {

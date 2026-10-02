@@ -1,21 +1,16 @@
 import SwiftUI
 
-/// The surface a blocked Play lands on: the real `ReadinessReport` for
-/// one title, and — inline, at the moment it becomes relevant — the
-/// surface each blocking remedy points at.
+/// A focused status-and-fix surface for one title, with its readiness
+/// report and the relevant BIOS/controller state visible inline.
 ///
-/// `ReadinessReportView` and `ReadinessEngine` were both instantiated
-/// only in tests before this; the shipped Play path checked only whether
-/// the required members happened to be cached and then failed with an
-/// untyped `"Launch failed: …"` string. This view is where a blocking
-/// condition becomes something the user can act on instead.
+/// The row owns the primary Play action. This sheet explains any blocker,
+/// offers its remedy, and lets the user inspect launch-related setup.
 struct ReadinessSheetView: View {
     let entry: CatalogueEntry
     let report: ReadinessReport
     /// Re-runs the readiness evaluation after a remedy was acted on.
     var onRefresh: () -> Void = {}
     var onDownload: () -> Void = {}
-    var onPlay: () -> Void = {}
     var onClose: () -> Void = {}
     /// D-37: the Save row's "Review versions…" action -- navigational
     /// only, opens the per-game save history sheet inline below. Never
@@ -33,9 +28,8 @@ struct ReadinessSheetView: View {
 
     @Environment(AppEnvironment.self) private var environment
     @State private var showsAdapterSetup = false
-    @State private var showsBiosDropTarget = false
-    @State private var showsInputSettings = false
     @State private var showsSaveHistory = false
+    @State private var showsControllerTest = false
     /// MC-06: shown instead of `SaveHistorySheet` when "Review
     /// versions…" is reached for a genuinely diverged line — history and
     /// comparison are different questions ("what happened" vs. "which
@@ -59,84 +53,136 @@ struct ReadinessSheetView: View {
         )
     }
 
+    private var systemDisplayName: String {
+        LibraryViewModel.isUnidentified(entry)
+            ? "Unknown system"
+            : SystemRegistry.entry(for: entry.system).displayName
+    }
+
+    private var hasBIOSIssue: Bool {
+        report.checks.contains { $0.kind == .bios && $0.outcome.isIssue }
+    }
+
+    private var hasControllerIssue: Bool {
+        report.checks.contains { $0.kind == .controllerAndInput && $0.outcome.isIssue }
+    }
+
+    private var showsControllerSection: Bool {
+        hasControllerIssue || !environment.controllerHost.connectedControllers.isEmpty
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-            Text(entry.displayTitle)
-                .font(.psHeading)
-                .foregroundColor(DesignTokens.textPrimary)
+            // Setup and save details stay in the focused, scrollable sheet;
+            // the Done action remains visible while the content scrolls.
+            ScrollViewReader { scrollProxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+                        Text(entry.displayTitle)
+                            .font(.psHeading)
+                            .foregroundColor(DesignTokens.textPrimary)
 
-            ReadinessReportView(report: report, onRemedy: apply, onPlay: onPlay)
+                        ReadinessReportView(
+                            report: report,
+                            onRemedy: { apply($0, scrollProxy: scrollProxy) }
+                        )
 
-            if let onlyCopyEscalation {
-                OnlyCopyEscalationPanel(
-                    escalation: onlyCopyEscalation,
-                    onFix: { onRefresh() },
-                    onExport: {
-                        Task { await environment.openConsoleSavesExport(forAssetSetIDs: [entry.id]) }
-                    },
-                    onWhatsStoredWhere: { showsSaveHistory = true }
-                )
+                        if let saveCheck = report.checks.first(where: { $0.kind == .saveState }),
+                           !report.issueChecks.contains(where: { $0.kind == .saveState }) {
+                            HealthySaveReadinessRow(check: saveCheck)
+                        }
+
+                        if let onlyCopyEscalation {
+                            OnlyCopyEscalationPanel(
+                                escalation: onlyCopyEscalation,
+                                onFix: { onRefresh() },
+                                onExport: {
+                                    Task { await environment.openConsoleSavesExport(forAssetSetIDs: [entry.id]) }
+                                },
+                                onWhatsStoredWhere: { showsSaveHistory = true }
+                            )
+                        }
+
+                        if hasBIOSIssue {
+                            Divider()
+                            VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                                Label("BIOS for \(systemDisplayName)", systemImage: "memorychip")
+                                    .font(.psLabelEmphasized)
+                                Text("BIOS files apply to all games on this system.")
+                                    .font(.psLabel)
+                                    .foregroundStyle(DesignTokens.textMuted)
+                                BiosDropTargetView(
+                                    target: BiosDropTarget(store: environment.biosStore, system: entry.system)
+                                )
+                            }
+                            .id("readiness-bios")
+                        }
+
+                        if showsControllerSection {
+                            Divider()
+                            VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                                Label("Controller", systemImage: "gamecontroller")
+                                    .font(.psLabelEmphasized)
+                                Text("Controller mappings apply wherever you use this controller.")
+                                    .font(.psLabel)
+                                    .foregroundStyle(DesignTokens.textMuted)
+                                ControllerSettingsView(
+                                    connectedControllers: environment.controllerHost.connectedControllers,
+                                    assignedControllerID: environment.controllerHost.assignedControllerID,
+                                    mapping: environment.controllerMappingStore.mapping(
+                                        forControllerProductID: environment.controllerHost.assignedControllerID ?? ""
+                                    ),
+                                    onAssign: { environment.controllerHost.assign(controllerID: $0) },
+                                    onOpenTestView: { showsControllerTest = true }
+                                )
+                            }
+                            .id("readiness-controls")
+                        }
+
+                        if showsAdapterSetup {
+                            Divider()
+                            AdapterSetupView()
+                                .frame(minHeight: 220)
+                        }
+                        if showsSaveHistory {
+                            Divider()
+                            SaveHistorySheet(
+                                title: entry.displayTitle,
+                                sessions: saveHistorySessions(),
+                                summary: saveRollupSummary(),
+                                onClose: { showsSaveHistory = false }
+                            )
+                        }
+                        if showsConflictComparison {
+                            Divider()
+                            ConflictComparisonSheet(
+                                title: entry.displayTitle,
+                                sides: environment.conflictSides(forAssetSetID: entry.id),
+                                thisDeviceOrigin: Self.thisDeviceOrigin,
+                                onChoose: { chosenRevisionID in
+                                    environment.resolveSaveDivergence(assetSetID: entry.id, chosenRevisionID: chosenRevisionID)
+                                    showsConflictComparison = false
+                                    onRefresh()
+                                },
+                                onExport: { _ in
+                                    Task { await environment.openConsoleSavesExport(forAssetSetIDs: [entry.id]) }
+                                },
+                                onKeepBoth: {
+                                    environment.acknowledgeSaveDivergence(assetSetID: entry.id, thisDeviceOrigin: Self.thisDeviceOrigin)
+                                    showsConflictComparison = false
+                                    onRefresh()
+                                },
+                                onClose: { showsConflictComparison = false }
+                            )
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .accessibilityIdentifier("playstead.readiness.content")
             }
 
-            HStack(spacing: DesignTokens.Spacing.sm) {
-                Button("BIOS settings") { showsBiosDropTarget = true }
-                    .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.openBios)
-                Button("Controller settings") { showsInputSettings = true }
-                    .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.openControllerSettings)
-            }
-
-            if showsAdapterSetup {
-                Divider()
-                AdapterSetupView()
-                    .frame(minHeight: 220)
-            }
-            if showsBiosDropTarget {
-                Divider()
-                BiosDropTargetView(target: BiosDropTarget(store: environment.biosStore, system: entry.system))
-            }
-            if showsInputSettings {
-                Divider()
-                ControllerSettingsView(
-                    connectedControllers: environment.controllerHost.connectedControllers,
-                    assignedControllerID: environment.controllerHost.assignedControllerID,
-                    mapping: environment.controllerMappingStore.mapping(
-                        forControllerProductID: environment.controllerHost.assignedControllerID ?? ""
-                    ),
-                    onAssign: { environment.controllerHost.assign(controllerID: $0) }
-                )
-            }
-            if showsSaveHistory {
-                Divider()
-                SaveHistorySheet(
-                    title: entry.displayTitle,
-                    sessions: saveHistorySessions(),
-                    summary: saveRollupSummary(),
-                    onClose: { showsSaveHistory = false }
-                )
-            }
-            if showsConflictComparison {
-                Divider()
-                ConflictComparisonSheet(
-                    title: entry.displayTitle,
-                    sides: environment.conflictSides(forAssetSetID: entry.id),
-                    thisDeviceOrigin: Self.thisDeviceOrigin,
-                    onChoose: { chosenRevisionID in
-                        environment.resolveSaveDivergence(assetSetID: entry.id, chosenRevisionID: chosenRevisionID)
-                        showsConflictComparison = false
-                        onRefresh()
-                    },
-                    onExport: { _ in
-                        Task { await environment.openConsoleSavesExport(forAssetSetIDs: [entry.id]) }
-                    },
-                    onKeepBoth: {
-                        environment.acknowledgeSaveDivergence(assetSetID: entry.id, thisDeviceOrigin: Self.thisDeviceOrigin)
-                        showsConflictComparison = false
-                        onRefresh()
-                    },
-                    onClose: { showsConflictComparison = false }
-                )
-            }
-
+            // The dismissal control must remain reachable while a remedy is
+            // expanded, rather than becoming another off-screen target.
             HStack {
                 Spacer()
                 Button("Done", action: onClose)
@@ -152,9 +198,8 @@ struct ReadinessSheetView: View {
             }
         }
         .padding(DesignTokens.Spacing.lg)
-        .frame(minWidth: 520)
+        .frame(minWidth: 520, idealHeight: 620, maxHeight: 720)
         .background(DesignTokens.background.ignoresSafeArea())
-        .preferredColorScheme(.dark)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Game readiness")
         .accessibilityIdentifier(AccessibilityIdentifiers.Surface.readiness)
@@ -168,6 +213,30 @@ struct ReadinessSheetView: View {
         // `.defaultFocus` sheet by `sheet-focus-placement-test.sh`.
         .onAppear { placeInitialFocus() }
         .onExitCommand(perform: onClose)
+        .sheet(isPresented: $showsControllerTest) {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+                HStack {
+                    Text("Controller test").font(.psHeading)
+                    Spacer()
+                    Button("Done") { showsControllerTest = false }
+                }
+                if let descriptor = environment.controllerHost.connectedControllers.first(where: {
+                    $0.id == environment.controllerHost.assignedControllerID
+                }) {
+                    ControllerTestView(
+                        controllerName: descriptor.name,
+                        availableInputs: descriptor.availableInputs,
+                        liveInputs: environment.controllerHost.liveInputs
+                    )
+                } else {
+                    Text("No active controller is connected.")
+                        .foregroundStyle(DesignTokens.textMuted)
+                }
+            }
+            .padding(DesignTokens.Spacing.lg)
+            .frame(minWidth: 440, minHeight: 300)
+            .background(DesignTokens.background.ignoresSafeArea())
+        }
     }
 
     /// The dismissal control owns focus the moment this sheet appears, so a
@@ -183,14 +252,14 @@ struct ReadinessSheetView: View {
     /// Every branch either opens a real surface or performs a real
     /// action — a remedy button that did nothing would be worse than no
     /// button at all.
-    private func apply(_ remedy: Remedy) {
+    private func apply(_ remedy: Remedy, scrollProxy: ScrollViewProxy) {
         switch remedy.action {
         case .installAdapter:
             showsAdapterSetup = true
         case .openBiosDropTarget:
-            showsBiosDropTarget = true
+            scrollProxy.scrollTo("readiness-bios", anchor: .top)
         case .openInputSettings:
-            showsInputSettings = true
+            scrollProxy.scrollTo("readiness-controls", anchor: .top)
         case .downloadMember:
             onDownload()
         case .repairSaveDirectory:
@@ -217,4 +286,31 @@ struct ReadinessSheetView: View {
     /// the same reason), so this mirrors the literal placeholder this
     /// file family's own UI-testing harness already uses.
     private static let thisDeviceOrigin = SaveOriginNames.thisDevice
+}
+
+/// Healthy save state is still important readiness information: keep it
+/// visible even though the general report lists only warnings and blockers.
+private struct HealthySaveReadinessRow: View {
+    let check: ReadinessCheck
+
+    var body: some View {
+        HStack(spacing: DesignTokens.Spacing.sm) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundColor(StatusToken.verified)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(ReadinessCheckKind.saveState.displayName)
+                    .font(.psLabelEmphasized)
+                    .foregroundColor(DesignTokens.textPrimary)
+                Text(check.finding)
+                    .font(.psLabel)
+                    .foregroundColor(DesignTokens.textMuted)
+            }
+            Spacer()
+        }
+        .padding(DesignTokens.Spacing.md)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(ReadinessCheckKind.saveState.displayName). \(check.finding)")
+        .accessibilityIdentifier("playstead.readiness.row.saveState")
+    }
 }

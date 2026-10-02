@@ -1,0 +1,39 @@
+{
+  "webPalette": {
+    "canvas": "0F172A",
+    "surface": "1E293B",
+    "accent": "38BDF8",
+    "danger": "EF4444",
+    "success": "4ADE80",
+    "warning": "FBBF24",
+    "text": "F1F5F9",
+    "muted": "94A3B8",
+    "border": "334155"
+  },
+  "shared": {
+    "systemAccents": {
+      "gba": { "hex": "6366F1", "css": "system-accent-gba", "swift": "gba" },
+      "gb": { "hex": "65A30D", "css": "system-accent-gb", "swift": "gb" },
+      "gbc": { "hex": "0D9488", "css": "system-accent-gbc", "swift": "gbc" },
+      "nes": { "hex": "B91C1C", "css": "system-accent-nes", "swift": "nes" },
+      "snes": { "hex": "A21CAF", "css": "system-accent-snes", "swift": "snes" },
+      "md": { "hex": "1D4ED8", "css": "system-accent-md", "swift": "md" },
+      "psx": { "hex": "57534E", "css": "system-accent-psx", "swift": "psx" },
+      "unknown": { "hex": "64748B", "css": "system-accent-unknown", "swift": "unknown" }
+    },
+    "status": {
+      "attention": { "hex": "F59E0B", "css": "status-attention", "swift": "attention" },
+      "missingDependency": { "hex": "EA580C", "css": "status-missing-dependency", "swift": "missingDependency" },
+      "downloading": { "hex": "0EA5E9", "css": "status-downloading", "swift": "downloading" },
+      "queued": { "hex": "9CA3AF", "css": "status-queued", "swift": "queued" },
+      "verified": { "hex": "16A34A", "css": "status-verified", "swift": "verified" },
+      "serverOnly": { "hex": "94A3B8", "css": "status-server-only", "swift": "serverOnly" },
+      "safeToEvict": { "hex": "78716C", "css": "status-safe-to-evict", "swift": "safeToEvict" }
+    }
+  },
+  "platformSpecific": {
+    "webStatusPinned": "15803D",
+    "macPinned": "secondaryLabelColor",
+    "macSystemColors": "AppKit semantic colors that adapt to appearance, contrast, and user accent"
+  }
+}

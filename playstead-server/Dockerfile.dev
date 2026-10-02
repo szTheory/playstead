@@ -1,0 +1,69 @@
+# Development image for the containerized dev stack (docker-compose.dev.yml,
+# driven by ../scripts/dev-up.sh).
+#
+# THIS IS NOT THE DEPLOYMENT IMAGE. `Dockerfile` builds a MIX_ENV=prod OTP
+# release that runs as `nobody` behind Caddy; that is what a self-hoster
+# deploys. This image is the opposite on purpose:
+#
+#   - MIX_ENV=dev, so `config/dev.exs` applies: plain HTTP, `check_origin:
+#     false`, a hardcoded `secret_key_base`, and code reloading. None of those
+#     are acceptable in production, and all of them are what make a local
+#     stand-up a single command with no secrets to generate.
+#   - No source is COPYed in. docker-compose.dev.yml bind-mounts the repo at
+#     /app so edits on the host recompile in the container.
+#   - Runs as root. On macOS, Docker Desktop's VirtioFS translates UIDs so this
+#     is invisible; the reason it matters is Linux, where a bind-mounted repo
+#     owned by the host user is not writable by an arbitrary container uid, and
+#     `mix` must write _build, deps and priv/static. The deployment image goes
+#     to great lengths NOT to run as root (see rel/entrypoint.sh); that
+#     reasoning applies to a published, internet-facing service, not to a
+#     loopback-only dev container holding a hardcoded dev secret.
+#
+# Why a separate file rather than a `dev` stage in Dockerfile: a stage there
+# would sit in the deployment image's build graph, where a copy-paste of one of
+# the choices above into the `final` stage is a real security regression waiting
+# to happen. The version ARGs below are duplicated from that file deliberately
+# and must be kept in step with it.
+
+ARG ELIXIR_VERSION=1.19.5
+ARG OTP_VERSION=28.4.1
+ARG DEBIAN_VERSION=trixie-20260610-slim
+
+FROM docker.io/hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}
+
+# build-essential + git: compiling deps from source.
+# postgresql-client: `pg_isready`, which the entrypoint waits on. Compose's own
+#   `service_healthy` condition already gates startup, so this is a second,
+#   in-container check rather than the only one -- it turns "Ecto could not
+#   connect" into a named wait instead of a crash loop.
+# inotify-tools: Phoenix's file_system watcher has no fallback poller on Linux;
+#   without it, code reloading and the LiveView live_reload socket are dead and
+#   the only symptom is that edits appear to do nothing.
+# wget: docker-compose.dev.yml's healthcheck. NOT optional, and not obvious --
+#   this base image ships neither wget nor curl, so omitting it makes every
+#   probe exit 127 ("wget: not found"), which Docker counts as a failed check.
+#   The container then sits in `health: starting` forever while the server is
+#   perfectly fine, and `dev-up.sh --status` reports a healthy stack as still
+#   coming up. Found exactly that way on this file's first run. The deployment
+#   Dockerfile installs wget for the same healthcheck and the same reason.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+       build-essential \
+       git \
+       postgresql-client \
+       inotify-tools \
+       wget \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN mix local.hex --force \
+  && mix local.rebar --force
+
+ENV MIX_ENV="dev"
+# Elixir 1.19 warns when it cannot infer a UTF-8 capable environment.
+ENV LANG="C.UTF-8"
+
+WORKDIR /app
+
+# The entrypoint is read from the bind-mounted repo at runtime rather than baked
+# in, so editing it does not require an image rebuild.
+CMD ["/app/scripts/docker-dev-entrypoint.sh"]

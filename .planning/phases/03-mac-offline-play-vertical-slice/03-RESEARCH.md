@@ -510,46 +510,32 @@ func preflight(assetSet: AssetSet) throws -> ReadinessResult {
 
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
-| A1 | GRDB.swift / SQLite.swift are the standard Swift SQLite wrapper choices | Standard Stack | Low — explicitly Claude's Discretion in CONTEXT.md; either choice is viable, gate with checkpoint:human-verify before pinning a version |
-| A2 | CryptoKit's `SHA256` supports incremental streaming updates suitable for resumable hashing | Standard Stack | Medium — if the exact streaming API differs from assumed shape, the download engine's hashing loop needs adjustment during implementation; does not change the architecture |
-| A3 | Exact mGBA CLI flag names (`-C option=value`, `-b/--bios`) work unmodified against the shipped Qt `mGBA.app` binary | Code Examples / Pitfall 5 | High if wrong, but explicitly the spike's job to determine — D-01 probe 2 exists precisely to de-risk this; plan should not hard-commit to these flags before the spike confirms them |
-| A4 | `Process.terminationHandler` reliably distinguishes clean-exit vs crash vs force-kill via `terminationStatus`/`terminationReason` | Code Examples (Pattern 4) | Medium — spike probe 4 must empirically confirm the exact signal/reason values on macOS for mGBA specifically |
+| A1 | GRDB.swift / SQLite.swift are the standard Swift SQLite wrapper choices | Standard Stack | RESOLVED by implementation discretion — the client uses the project-owned `Persistence/SQLiteConnection.swift` wrapper over system SQLite3, so no third-party wrapper remains to select |
+| A2 | CryptoKit's `SHA256` supports incremental streaming updates suitable for resumable hashing | Standard Stack | RESOLVED — `Cache/StreamingSHA256.swift` wraps `SHA256.update(data:)`, and `DownloadEngine` uses it for prefix and continuing stream hashing |
+| A3 | Exact mGBA CLI flag names (`-C option=value`, `-b/--bios`) work unmodified against the shipped Qt `mGBA.app` binary | Code Examples / Pitfall 5 | RESOLVED for the used surface — D-01 probe 2 proved `-C savegamePath=<dir>` against shipped Qt `mGBA.app`; downstream code follows `03-ADAPTER-PIN.json` and does not assume unproven flags |
+| A4 | `Process.terminationHandler` reliably distinguishes clean-exit vs crash vs force-kill via `terminationStatus`/`terminationReason` | Code Examples (Pattern 4) | RESOLVED with a caveat — probe 4 recorded distinct signal/status pairs but also proved SIGTERM is not a graceful-quit signature; downstream code must not classify it as clean exit |
 
-**If this table is empty:** N/A — table has 4 entries requiring confirmation, primarily around the spike's own empirical questions (by design, since the spike itself is D-01's mechanism for resolving them) and the Mac persistence library choice (explicitly deferred to discretion).
+All four pre-implementation assumptions have recorded resolutions in the executed Phase 3 code or spike evidence; none remains a planning question.
 
-## Open Questions
+## Recorded Resolutions From Executed Evidence
 
-1. **Exact mGBA Qt CLI/config flag surface**
-   - What we know: mGBA's README documents `-C option=value` and `-b/--bios` for the SDL binary; portable-mode `config.ini` is a documented fallback.
-   - What's unclear: whether the Qt `mGBA.app` binary honors the same flags identically.
-   - Recommendation: the spike (D-01 probe 2) resolves this directly — do not plan downstream config-injection code around unverified flag names; treat the spike's output as the source of truth for the adapter host's config-injection module.
+1. **mGBA Qt configuration injection — RESOLVED.** D-01 probe 2 in `03-SPIKE-REPORT.md` executed the shipped Qt `mGBA.app` binary and proved `-C savegamePath=<dir>` writes the save only to the injected app-managed directory. Downstream code uses `03-ADAPTER-PIN.json` as the source of truth rather than the pre-spike assumption.
 
-2. **mGBA save-flush cadence (periodic vs exit-only)**
-   - What we know: mmap-based save I/O flushes deterministically at unmap; RetroArch's `autosave_interval` provides periodic flush as an alternative.
-   - What's unclear: whether mGBA standalone can be coaxed into a periodic flush (e.g., via an in-app manual-save hotkey users press, or some other observable signal) that satisfies D-03's owner ruling, or whether the fallback to RetroArch is required.
-   - Recommendation: the spike must test this explicitly and document the decision with evidence in `03-SPIKE-REPORT.md`; the planner should structure the adapter-selection plan so either outcome (mGBA passes or RetroArch fallback triggers) has a defined next step, not an open-ended "figure it out" task.
+2. **mGBA save-flush cadence — RESOLVED.** D-01 probe 3 observed eight distinct on-disk SHA-256 values over 185 seconds, with an approximately 24-second maximum observed flush interval and no digest loss when killed two seconds after the last observed flush. This satisfies D-03, pins mGBA standalone 0.10.5, and removes the need to advance to RetroArch; the adapter contract records that on-demand flush was not proven and that the durability floor is the measured periodic cadence.
 
-3. **Distribution posture — first-run Gatekeeper behavior on the current macOS build**
-   - What we know: Developer ID + notarization + hardened runtime is the chosen posture; the spike must verify no "Open Anyway" friction.
-   - What's unclear: Apple's Gatekeeper policy is known to tighten over macOS releases; behavior may differ from what CITED documentation from earlier macOS versions describes.
-   - Recommendation: the spike report must record the exact macOS build tested; if a policy regression is found, this becomes a roadmap-level event per the adversarial pass in discussion-research/A, not a silent workaround.
+3. **Developer ID / Gatekeeper posture on the tested macOS build — RESOLVED.** `03-NOTARIZATION-EVIDENCE.md` records a Developer-ID-signed hardened-runtime universal app on macOS 26.6.2 (25G83), accepted notarization submission `8465f74d-5468-4b73-9885-fb0ea1dafcdd`, stapler validation, repeated `spctl` acceptance with `source=Notarized Developer ID`, and successful launch/exit/relaunch of the exported artifact without an override path. This is the Phase 3 distribution evidence; future macOS policy changes remain a release revalidation concern, not an unresolved Phase 3 research question.
 
 ## Environment Availability
 
 | Dependency | Required By | Available | Version | Fallback |
 |------------|------------|-----------|---------|----------|
-| macOS (Apple Silicon or Intel Mac) with Xcode | All Mac client work, spike | Not verified this session — requires the executing developer's machine | — | Spike cannot proceed without a real Mac; this is a hard environment requirement, not a code dependency |
-| Apple Developer Program membership (Developer ID cert, notarization credentials) | D-04 distribution posture, D-01 probe 1 | Not verified this session | — | No fallback — notarized build is a phase success criterion (PLAY-05) |
-| mGBA official release binary (download-on-demand) | D-01/D-02 spike | Not verified this session — fetched at spike time per D-05 | Pinned exact version determined by spike | RetroArch+mGBA core fallback ladder (D-02) if mGBA standalone fails probes |
-| Homebrew GBA test ROM with SRAM-writing behavior | D-01 probe 3 | Must be sourced/selected during spike (Claude's Discretion per CONTEXT.md) | — | No fallback — required for a valid save-flush probe; selection criteria specified in discussion-research/A |
+| macOS (Apple Silicon or Intel Mac) with Xcode | All Mac client work, spike | Verified by executed evidence | macOS 26.6.2 (25G83), Xcode 26.6 (17F113) | Recurring macos-26 CI records the same environment family |
+| Apple Developer Program membership (Developer ID cert, notarization credentials) | D-04 distribution posture, D-01 probe 1 | Verified by `03-NOTARIZATION-EVIDENCE.md` | Team 6CH9Y797RU; accepted submission recorded | Revalidate at release; no Phase 3 blocker remains |
+| mGBA official release binary (download-on-demand) | D-01/D-02 spike | Verified and pinned by executed spike | mGBA standalone 0.10.5 | D-02 fallback ladder was not needed because D-03 passed |
+| Homebrew GBA test ROM with SRAM-writing behavior | D-01 probe 3 | Verified by executed spike fixture | `savetest.gba`, 32KB SRAM marker documented in report | Evidence is retained with the spike; no selection question remains |
 | PostgreSQL (existing) | Server-side curation/journal changes | Assumed available per Phase 1/2 infrastructure | Per existing `docker-compose.yml` | Already operational — no new requirement |
 
-**Missing dependencies with no fallback:**
-- Apple Developer Program membership/notarization credentials — blocks PLAY-05 entirely if unavailable.
-- A physical or virtual Mac to run the spike — this research cannot substitute for hands-on execution.
-
-**Missing dependencies with fallback:**
-- mGBA standalone → RetroArch+mGBA core → SameBoy/Gambatte → RetroArch+SNES core (D-02 fallback ladder, exhausted only on full posture reassessment).
+**Current dependency status:** The original spike and notarization dependencies were satisfied by the recorded executions above. The remaining virtual-controller automation proposal is deliberately not assumed feasible: plan 03-17 gates all dependent controller work on non-skipped evidence from the actual signed macos-26 recurring runner and escalates the phase if entitlement or GameController enumeration fails there.
 
 ## Validation Architecture
 
