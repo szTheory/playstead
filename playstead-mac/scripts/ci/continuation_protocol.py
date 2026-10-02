@@ -186,6 +186,31 @@ def bounded_run(command, *, timeout, cwd=None):
         child.stdout.close()
 
 
+def macos_exec_allowlist(adapter, frontends):
+    """Return only the Python runtime chain and validated local executable paths."""
+    candidates = {Path("/usr/bin/python3"), Path(sys.executable)}
+    runtime = Path(sys.executable).resolve(strict=True)
+    candidates.add(runtime)
+    # Apple's /usr/bin/python3 shim and Xcode's framework Python launcher use
+    # a short, fixed chain of executables. Add its adjacent Python.app binary
+    # when that layout exists; never allow a general process-exec wildcard.
+    if runtime.parent.name == "bin":
+        launcher = runtime.parent.parent / "Resources/Python.app/Contents/MacOS/Python"
+        if launcher.exists():
+            candidates.add(launcher.resolve(strict=True))
+    candidates.add(adapter)
+    candidates.update(frontends)
+    paths = []
+    for path in sorted(candidates, key=str):
+        require(path.is_absolute())
+        info = path.stat()
+        require(stat.S_ISREG(info.st_mode) and os.access(path, os.X_OK))
+        require(not (stat.S_IMODE(info.st_mode) & 0o022))
+        require(all(character.isalnum() or character in "/._-@" for character in str(path)))
+        paths.append(path)
+    return paths
+
+
 class IsolationRunner:
     def __init__(self, selector):
         self.selector = selector
@@ -238,8 +263,22 @@ class IsolationRunner:
         require(stat.S_IMODE(info.st_mode) == 0o700 and root.name.startswith("playstead-continuation."))
         if self.selector == "macos-seatbelt-v1":
             profile = ('(version 1) (allow default) (deny network*) (deny file-write*) '
-                       '(allow file-write* (subpath (param "OWNED_ROOT")))')
-            boundary = ["/usr/bin/sandbox-exec", "-D", "OWNED_ROOT=" + str(root), "-p", profile]
+                       '(allow file-write* (subpath (param "OWNED_ROOT"))) '
+                       '(deny process-exec) (allow process-fork)')
+            boundary = ["/usr/bin/sandbox-exec", "-D", "OWNED_ROOT=" + str(root)]
+            frontends = []
+            for name in ("continuation-libretro-frontend", "continuation-fixture-libretro-frontend"):
+                candidate = adapter.parent / name
+                if not (candidate.exists() or candidate.is_symlink()):
+                    continue
+                frontend = local_file(candidate, executable=True)
+                directory_info = frontend.parent.lstat()
+                require(stat.S_ISDIR(directory_info.st_mode) and directory_info.st_uid == os.getuid())
+                require(not (stat.S_IMODE(directory_info.st_mode) & 0o022))
+                frontends.append(frontend)
+            for executable in macos_exec_allowlist(adapter, frontends):
+                profile += ' (allow process-exec (literal "' + str(executable) + '"))'
+            boundary.extend(("-p", profile))
         else:
             boundary = self.boundary + ["--bind", str(root), str(root)]
         status, output = bounded_run(boundary + [str(adapter), action], timeout=120, cwd=root)
@@ -263,7 +302,7 @@ def verify_save_root(root, *, populated):
     require(found if populated else not any(save.iterdir()))
 
 
-def execute(env):
+def execute(env, *, qualify_only=False):
     """Return reduced stage/outcome/status only. Never return private inputs."""
     stage, accessed, root = "preflight", False, None
     try:
@@ -277,20 +316,36 @@ def execute(env):
         stage = "qualification"
         validate_qualification(decode(runner.run("qualify", adapter, root)), contract["contract_id"])
         require(not any(root.iterdir()))
+        if qualify_only:
+            # This branch deliberately precedes even looking up the fixture
+            # environment key. Its success attests synthetic capability only.
+            return "qualification", "qualified-only", 0
+        shutil.rmtree(root)
+        root = None
         # Only qualified adapters reach fixture path resolution. No bytes or
         # hashes are read here; the private adapter owns its fixture mapping.
         fixture = local_file(env.get("PLAYSTEAD_CONTINUATION_FIXTURE", ""))
         require(fixture.stat().st_size > 0)
-        (root / "persistent-save").mkdir(mode=0o700)
-        verify_save_root(root, populated=False)
-        stage, accessed = "initial-save", True
-        first = validate_action(decode(runner.run("initial-run", adapter, root)), contract["contract_id"], "initial-run")
-        verify_save_root(root, populated=True)
-        stage = "continue"
-        second = validate_action(decode(runner.run("continue", adapter, root)), contract["contract_id"], "continue")
-        if first == second:
-            raise LifecycleFailure("fresh-launch")
-        verify_save_root(root, populated=True)
+        # Independent roots prevent one successful first run from making a
+        # later repetition vacuous. Each adapter action is a fresh bounded
+        # process group, with a new mGBA process inside the child.
+        for _run in range(2):
+            root = Path(tempfile.mkdtemp(prefix="playstead-continuation.")).resolve()
+            root.chmod(0o700)
+            (root / "persistent-save").mkdir(mode=0o700)
+            verify_save_root(root, populated=False)
+            stage, accessed = "initial-save", True
+            first = validate_action(decode(runner.run("initial-run", adapter, root)),
+                                    contract["contract_id"], "initial-run")
+            verify_save_root(root, populated=True)
+            stage = "continue"
+            second = validate_action(decode(runner.run("continue", adapter, root)),
+                                     contract["contract_id"], "continue")
+            if first == second:
+                raise LifecycleFailure("fresh-launch")
+            verify_save_root(root, populated=True)
+            shutil.rmtree(root)
+            root = None
         return "oracle", "passed", 0
     except LifecycleFailure as failure:
         return failure.stage, "failed-stage" if accessed else "blocked-capability", 1 if accessed else 77
@@ -325,8 +380,8 @@ def main():
         raise InterruptedError()
     for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
         signal.signal(signum, interrupted)
-    if len(sys.argv) == 2 and sys.argv[1] == "spike":
-        stage, outcome, status = execute(os.environ)
+    if len(sys.argv) == 2 and sys.argv[1] in ("spike", "qualify-only"):
+        stage, outcome, status = execute(os.environ, qualify_only=sys.argv[1] == "qualify-only")
         try:
             emit(stage, outcome)
         except (Refused, OSError, ValueError, subprocess.SubprocessError):

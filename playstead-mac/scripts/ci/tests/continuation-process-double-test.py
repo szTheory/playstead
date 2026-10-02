@@ -46,6 +46,7 @@ class FakeRunner:
     mode="pass"
     current_contract=None
     first_id=None
+    action_roots=[]
     def __init__(self, selector):
         check(selector=="macos-seatbelt-v1","bad selector reached fake runner")
         self.events=type(self).events
@@ -64,6 +65,7 @@ class FakeRunner:
             result=qualification(c)
             if mode=="unqualified": result["outcome"]="blocked-capability"
             return json.dumps(result).encode()
+        type(self).action_roots.append((action_name, str(root)))
         if action_name=="initial-run":
             (Path(root)/"persistent-save"/"save.bin").write_bytes(b"test-double")
             result=action(c,action_name)
@@ -84,7 +86,8 @@ class FakeRunner:
         if mode=="extra-key": result["private"]="reject"
         return json.dumps(result).encode()
 
-def run_execute(directory, mode="pass", *, c=None, r=None, fixture=True):
+def run_execute(directory, mode="pass", *, c=None, r=None, fixture=True,
+                qualify_only=False, forbid_fixture_lookup=False):
     c=c or contract(); r=r or receipt()
     cpath=directory/"contract.json"; rpath=directory/"receipt.json"
     adapter_path=directory/"adapter"; fpath=directory/"fixture.bin"
@@ -97,7 +100,14 @@ def run_execute(directory, mode="pass", *, c=None, r=None, fixture=True):
          "PLAYSTEAD_CONTINUATION_CONTRACT":str(cpath),"PLAYSTEAD_RECOVERY_E2E_RECEIPT":str(rpath),
          "PLAYSTEAD_CONTINUATION_ADAPTER":str(adapter_path),
          "PLAYSTEAD_CONTINUATION_FIXTURE":str(fpath if fixture else directory/"missing-fixture")}
-    FakeRunner.events=[]; FakeRunner.mode=mode; FakeRunner.current_contract=c
+    if forbid_fixture_lookup:
+        class FixtureLookupForbidden(dict):
+            def get(self, key, default=None):
+                if key == "PLAYSTEAD_CONTINUATION_FIXTURE":
+                    raise AssertionError("qualification-only read fixture environment")
+                return super().get(key, default)
+        env=FixtureLookupForbidden(env)
+    FakeRunner.events=[]; FakeRunner.mode=mode; FakeRunner.current_contract=c; FakeRunner.action_roots=[]
     old=protocol.IsolationRunner; protocol.IsolationRunner=FakeRunner
     old_local=protocol.local_file
     def observed_local_file(value, **kwargs):
@@ -105,7 +115,7 @@ def run_execute(directory, mode="pass", *, c=None, r=None, fixture=True):
             FakeRunner.events.append("fixture-stat")
         return old_local(value, **kwargs)
     protocol.local_file=observed_local_file
-    try: result=protocol.execute(env)
+    try: result=protocol.execute(env,qualify_only=qualify_only)
     finally:
         protocol.IsolationRunner=old
         protocol.local_file=old_local
@@ -158,8 +168,21 @@ def main():
     result,events,_=run_execute(d)
     check(events != ["construct"], "preflight stopped before probe; files/modes may be invalid")
     check(result==("oracle","passed",0),"success double did not pass: "+repr(result)+" events="+repr(events))
-    check(events==["construct","probe","probe","qualify","fixture-stat","probe","initial-run","probe","continue"],
+    check(events==["construct","probe","probe","qualify","fixture-stat",
+                   "probe","initial-run","probe","continue",
+                   "probe","initial-run","probe","continue"],
           "per-action probe ordering wrong: "+repr(events))
+    roots=[root for _action,root in FakeRunner.action_roots]
+    check(len(roots)==4 and roots[0]==roots[1] and roots[2]==roots[3] and roots[0]!=roots[2],
+          "fixture repetitions did not use two independent save roots")
+    result,events,_=run_execute(d,qualify_only=True,forbid_fixture_lookup=True)
+    check(result==("qualification","qualified-only",0),
+          "synthetic-only qualification did not return its distinct pass: "+repr(result))
+    check(events==["construct","probe","probe","qualify"],
+          "qualification-only resolved fixture metadata or launched a lifecycle action: "+repr(events))
+    result,events,_=run_execute(d,mode="dirty-qualify",qualify_only=True,forbid_fixture_lookup=True)
+    check(result==("qualification","blocked-capability",77) and events==["construct","probe","probe","qualify"],
+          "qualification accepted a non-empty owned root or continued into fixture work")
     badc=contract(); badc["contract_id"]="bad"
     result,events,_=run_execute(d,c=badc)
     check(result[1:]==("blocked-capability",77) and events==["construct"],"bad metadata reached adapter")
@@ -220,6 +243,10 @@ def main():
     runner=object.__new__(protocol.IsolationRunner); runner.selector="macos-seatbelt-v1"
     runner.boundary=["/usr/bin/sandbox-exec","-p","fixed"]
     adapter_path=d/"adapter"; adapter_path.write_text("#!/bin/sh\n"); adapter_path.chmod(0o700)
+    frontend_path=d/"continuation-libretro-frontend"
+    frontend_path.write_text("#!/bin/sh\nexit 0\n"); frontend_path.chmod(0o700)
+    fixture_frontend_path=d/"continuation-fixture-libretro-frontend"
+    fixture_frontend_path.write_text("#!/bin/sh\nexit 0\n"); fixture_frontend_path.chmod(0o700)
     working=d/"playstead-continuation.runner"; working.mkdir(mode=0o700)
     calls=[]; real_bounded=protocol.bounded_run
     def fake_bounded(command,*,timeout,cwd=None):
@@ -231,8 +258,20 @@ def main():
     check(len(calls)==2 and calls[0][1]==5,"action skipped fixed denied-network probe")
     command,timeout,cwd=calls[1]
     check(command[-2:]==[str(adapter_path),"initial-run"],"adapter received more than exact action token")
-    check(command[0]==runner.boundary[0] and "fixture" not in " ".join(command) and
-          "contract" not in " ".join(command),"runner passed private path material to adapter argv")
+    child_argv=command[-2:]
+    check(command[0]==runner.boundary[0] and "fixture" not in " ".join(child_argv) and
+          "contract" not in " ".join(child_argv),"runner passed private path material to adapter argv")
+    profile=command[command.index("-p")+1]
+    expected_execs={str(path) for path in protocol.macos_exec_allowlist(
+        adapter_path,[frontend_path,fixture_frontend_path])}
+    check('(deny process-exec)' in profile and
+          all('(allow process-exec (literal "'+path+'"))' in profile for path in expected_execs) and
+          "(allow process-fork)" in profile and
+          'process-exec (literal "/bin/date")' not in profile and
+          "process-exec*" not in profile,
+          "macOS boundary did not deny unlisted child execution and allow only exact required executables")
+    check(str(frontend_path) in profile and str(fixture_frontend_path) in profile,
+          "macOS boundary did not bind both frontend exceptions to validated adjacent binaries")
     check(timeout==120 and cwd==working,"runner did not bind child to bounded private cwd")
 
     # Linux runner uses only the parent-owned network/PID namespace flags and
@@ -312,6 +351,12 @@ def main():
     check(set(emitted)=={"schema","run_id","stage","outcome"} and
           emitted["stage"]=="oracle" and emitted["outcome"]=="passed",
           "sanitizer-approved pass emitted non-public fields")
+    qualified_output=io.StringIO()
+    with contextlib.redirect_stdout(qualified_output): protocol.emit("qualification","qualified-only")
+    qualified=json.loads(qualified_output.getvalue())
+    check(set(qualified)=={"schema","run_id","stage","outcome"} and
+          qualified["stage"]=="qualification" and qualified["outcome"]=="qualified-only",
+          "sanitizer-approved synthetic-only qualification emitted non-public fields")
     # Sanitizer failure must suppress receipt output.
     real_subprocess_run=protocol.subprocess.run
     protocol.subprocess.run=lambda *a,**k: subprocess.CompletedProcess(a[0],1)
