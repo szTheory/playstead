@@ -5,7 +5,6 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 coordinator="$root/scripts/ci/recovery-fixture.sh"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/playstead-recovery-fixture-test.XXXXXXXX")"
 trap 'rm -rf -- "$tmp"' EXIT
-"$coordinator" --self-test
 python3 - "$root/lib/mix/tasks/playstead.restore.ex" <<'PY'
 import pathlib, re, sys
 source=pathlib.Path(sys.argv[1]).read_text()
@@ -21,8 +20,11 @@ assert "case File.rm_rf(root) do\n        {:ok, _removed_paths} -> :ok\n        
 assert "_ = source(project, source_file" not in run and "case File.rm_rf(root) do" in run
 filesystem_marker = re.search(r'Process\.put\(:playstead_recovery_fixture_failure_stage, "([a-z-]+)"\)\s+File\.mkdir_p!\(root\)\s+File\.write!\(source_file, source_compose\(\)\)', run)
 assert filesystem_marker and filesystem_marker.group(1) == "source-fixture-filesystem-create", "filesystem fixture operations need their own failure marker"
+connect_marker = re.search(r'Process\.put\(:playstead_recovery_fixture_failure_stage, "([a-z-]+)"\)\s+:ok =\s+source\(project, source_file, \[\s+"exec",\s+"-T",\s+"db",\s+"psql",\s+"-U",\s+"restore_source",\s+"-d",\s+"restore_source",\s+"-v",\s+"ON_ERROR_STOP=1",\s+"-c",\s+"SELECT 1"\s*\]\)', run, re.S)
+assert connect_marker and connect_marker.group(1) == "source-fixture-database-connect", "database connectivity probe needs its own failure marker"
 database_marker = re.search(r'Process\.put\(:playstead_recovery_fixture_failure_stage, "([a-z-]+)"\)\s+:ok =\s+source\(project, source_file, \[\s+"exec",\s+"-T",\s+"db",\s+"psql",', run)
 assert database_marker and database_marker.group(1) == "source-fixture-database-seed", "database seeding needs its own failure marker"
+assert '"CREATE TABLE restore_fixture (id integer primary key, note text); INSERT INTO restore_fixture VALUES (1, \'real pg_dump source\');"' in run[database_marker.start():], "seed marker must own the existing fixture DDL and insert"
 assert "source-fixture-create" not in run, "retired shared failure marker must not remain in the producer"
 assert run.index("{{:failure, kind, reason, stacktrace, stage}") < run.index("{{:ok, _correlation_id, _stages}, {:error, _}}")
 assert run.count('PLAYSTEAD_RECOVERY_FIXTURE_JSON="') == 1
@@ -39,6 +41,7 @@ assert outcome("source-dump", "cleanup-error") == ("failed", "source-dump", 1)
 assert outcome("target-restore", "ok") == ("failed", "target-restore", 1)
 print("restore task teardown and stage precedence contracts passed")
 PY
+"$coordinator" --self-test
 mkdir -p "$tmp/bin"
 cat >"$tmp/bin/mix" <<'EOF'
 #!/usr/bin/env bash
@@ -67,7 +70,7 @@ echo 'private fixture path /Users/owner/game.gba'
 echo 'PLAYSTEAD_RECOVERY_FIXTURE_JSON={"schema_version":1,"run_id":"123e4567-e89b-42d3-a456-426614174000","lane":"linux_restore_fixture","stages":["chain","preflight","database","cas","manifest","api"],"outcome":"passed"}'
 EOF
 chmod 700 "$tmp/bin/mix"
-allowed_stages=(source-compose-startup source-readiness source-fixture-filesystem-create source-fixture-database-seed source-dump backup-publication target-restore target-cleanup result-validation)
+allowed_stages=(source-compose-startup source-readiness source-fixture-filesystem-create source-fixture-database-connect source-fixture-database-seed source-dump backup-publication target-restore target-cleanup result-validation)
 TMPDIR="$tmp" PATH="$tmp/bin:$PATH" "$coordinator" --output "$tmp/pass"
 python3 - "$tmp/pass" <<'PY'
 import json, pathlib, sys
