@@ -98,7 +98,7 @@ defmodule Mix.Tasks.Playstead.Restore do
 
     work_result =
       try do
-        Process.put(:playstead_recovery_fixture_failure_stage, "source-fixture-create")
+        Process.put(:playstead_recovery_fixture_failure_stage, "source-fixture-filesystem-create")
         File.mkdir_p!(root)
         File.write!(source_file, source_compose())
 
@@ -108,7 +108,7 @@ defmodule Mix.Tasks.Playstead.Restore do
         Process.put(:playstead_recovery_fixture_failure_stage, "source-readiness")
         :ok = await_source(project, source_file, 20)
 
-        Process.put(:playstead_recovery_fixture_failure_stage, "source-fixture-create")
+        Process.put(:playstead_recovery_fixture_failure_stage, "source-fixture-database-seed")
 
         :ok =
           source(project, source_file, [
