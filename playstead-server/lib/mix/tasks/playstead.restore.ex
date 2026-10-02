@@ -108,6 +108,24 @@ defmodule Mix.Tasks.Playstead.Restore do
         Process.put(:playstead_recovery_fixture_failure_stage, "source-readiness")
         :ok = await_source(project, source_file, 20)
 
+        Process.put(:playstead_recovery_fixture_failure_stage, "source-fixture-database-connect")
+
+        :ok =
+          source(project, source_file, [
+            "exec",
+            "-T",
+            "db",
+            "psql",
+            "-U",
+            "restore_source",
+            "-d",
+            "restore_source",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-c",
+            "SELECT 1"
+          ])
+
         Process.put(:playstead_recovery_fixture_failure_stage, "source-fixture-database-seed")
 
         :ok =

@@ -8,15 +8,15 @@ if [ "${1:-}" = "--self-test" ] && [ "$#" -eq 1 ]; then
   python3 - <<'PY'
 import json, re
 valid = {"schema_version": 1, "run_id": "123e4567-e89b-42d3-a456-426614174000", "lane": "linux_restore_fixture", "stages": ["chain", "preflight", "database", "cas", "manifest", "api"], "outcome": "passed"}
-allowed = {"source-compose-startup", "source-readiness", "source-fixture-filesystem-create", "source-fixture-database-seed", "source-dump", "backup-publication", "target-restore", "target-cleanup", "result-validation", "unknown"}
-assert allowed == {"source-compose-startup", "source-readiness", "source-fixture-filesystem-create", "source-fixture-database-seed", "source-dump", "backup-publication", "target-restore", "target-cleanup", "result-validation", "unknown"}
+allowed = {"source-compose-startup", "source-readiness", "source-fixture-filesystem-create", "source-fixture-database-connect", "source-fixture-database-seed", "source-dump", "backup-publication", "target-restore", "target-cleanup", "result-validation", "unknown"}
+assert allowed == {"source-compose-startup", "source-readiness", "source-fixture-filesystem-create", "source-fixture-database-connect", "source-fixture-database-seed", "source-dump", "backup-publication", "target-restore", "target-cleanup", "result-validation", "unknown"}
 assert set(valid) == {"schema_version", "run_id", "lane", "stages", "outcome"}
 assert re.fullmatch(r"[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", valid["run_id"])
 assert json.loads(json.dumps(valid)) == valid
 def classify(markers):
     parsed = markers[0] if len(markers) == 1 and markers[0] in allowed else "unknown"
     return parsed
-for markers, expected in (([], "unknown"), (["source-dump"], "source-dump"), (["source-fixture-filesystem-create"], "source-fixture-filesystem-create"), (["source-fixture-database-seed"], "source-fixture-database-seed"), (["source-fixture-create"], "unknown"), (["source-dump", "source-dump"], "unknown"), (["private-path"], "unknown")):
+for markers, expected in (([], "unknown"), (["source-dump"], "source-dump"), (["source-fixture-filesystem-create"], "source-fixture-filesystem-create"), (["source-fixture-database-connect"], "source-fixture-database-connect"), (["source-fixture-database-seed"], "source-fixture-database-seed"), (["source-fixture-create"], "unknown"), (["source-dump", "source-dump"], "unknown"), (["private-path"], "unknown")):
     assert classify(markers) == expected
 PY
   exit 0
@@ -42,7 +42,7 @@ destination = pathlib.Path(sys.argv[2])
 forced_stage = sys.argv[3]
 allowed = {
     "source-compose-startup", "source-readiness", "source-fixture-filesystem-create",
-    "source-fixture-database-seed",
+    "source-fixture-database-connect", "source-fixture-database-seed",
     "source-dump", "backup-publication", "target-restore", "target-cleanup",
     "result-validation",
 }

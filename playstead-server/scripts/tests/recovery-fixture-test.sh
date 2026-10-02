@@ -22,9 +22,8 @@ filesystem_marker = re.search(r'Process\.put\(:playstead_recovery_fixture_failur
 assert filesystem_marker and filesystem_marker.group(1) == "source-fixture-filesystem-create", "filesystem fixture operations need their own failure marker"
 connect_marker = re.search(r'Process\.put\(:playstead_recovery_fixture_failure_stage, "([a-z-]+)"\)\s+:ok =\s+source\(project, source_file, \[\s+"exec",\s+"-T",\s+"db",\s+"psql",\s+"-U",\s+"restore_source",\s+"-d",\s+"restore_source",\s+"-v",\s+"ON_ERROR_STOP=1",\s+"-c",\s+"SELECT 1"\s*\]\)', run, re.S)
 assert connect_marker and connect_marker.group(1) == "source-fixture-database-connect", "database connectivity probe needs its own failure marker"
-database_marker = re.search(r'Process\.put\(:playstead_recovery_fixture_failure_stage, "([a-z-]+)"\)\s+:ok =\s+source\(project, source_file, \[\s+"exec",\s+"-T",\s+"db",\s+"psql",', run)
-assert database_marker and database_marker.group(1) == "source-fixture-database-seed", "database seeding needs its own failure marker"
-assert '"CREATE TABLE restore_fixture (id integer primary key, note text); INSERT INTO restore_fixture VALUES (1, \'real pg_dump source\');"' in run[database_marker.start():], "seed marker must own the existing fixture DDL and insert"
+database_marker = re.search(r'Process\.put\(:playstead_recovery_fixture_failure_stage, "(source-fixture-database-seed)"\)\s+:ok =\s+source\(project, source_file, \[.*?"CREATE TABLE restore_fixture', run, re.S)
+assert database_marker, "database seed marker must immediately own the existing fixture DDL and insert"
 assert "source-fixture-create" not in run, "retired shared failure marker must not remain in the producer"
 assert run.index("{{:failure, kind, reason, stacktrace, stage}") < run.index("{{:ok, _correlation_id, _stages}, {:error, _}}")
 assert run.count('PLAYSTEAD_RECOVERY_FIXTURE_JSON="') == 1
