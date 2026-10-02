@@ -1,19 +1,19 @@
 ---
 phase: 06-recovery-proof-ci-and-e2e-pipeline
 status: gaps_found
-verified: 2026-10-01T21:09:22Z
+verified: 2026-10-02T01:23:27Z
 requirements: [PORT-04, QUAL-02]
 execution: inline-codex-skill-fallback
 gaps:
   - truth: Hosted recovery lanes have current passing integration evidence.
     status: fail
-    reason: Historical workflow 36910091796 passed on SHA 631edf9665ace49c91a02bdebcbd49dbc0f0e6ba, but current SHA f978fa8268328e0c2106f1aa0b45315832ce440f failed Linux recovery and ordinary Mac in workflow 36920283265; its failed-only Linux retry also failed.
+    reason: Historical workflow 36910091796 passed on SHA 631edf9665ace49c91a02bdebcbd49dbc0f0e6ba. On exact current head cf978f4d3ece48197bf209b31cc451b73f84759e in workflow 36947656348, ordinary Mac passed but Linux recovery job 110653291551 failed; no sanitized Linux artifact was produced, so its internal stage remains unattributed.
     artifacts: [.github/workflows/ci.yml, playstead-mac/TestPlans/LiveServer.xctestplan, 06-HOSTED-EVIDENCE.md]
     missing: []
   - truth: The cross-phase regression gate is green.
     status: fail
-    reason: Current exact-head hosted recovery CI is failing on both Linux and ordinary Mac. The aggregate gate also remains open because entitlement and deterministic continuation are unresolved and the broader requirement review is incomplete.
-    missing: [Passing exact-head Linux recovery, Passing exact-head ordinary Mac, Entitled virtual-HID pass, Qualified continuation evidence, Full regression-gate review]
+    reason: Current exact-head hosted CI has a passing ordinary Mac lane but a failing Linux recovery lane. The aggregate gate also remains open because entitlement and deterministic continuation are unresolved and the broader requirement review is incomplete.
+    missing: [Passing exact-head Linux recovery, Entitled virtual-HID pass, Qualified continuation evidence, Full regression-gate review]
   - truth: The private continuation adapter proves a repeatable visible resumed state.
     status: blocked
     reason: Actual same-host qualification refused; deterministic replay and repeated oracle agreement are not established.
@@ -24,10 +24,11 @@ gaps:
 # Phase 06 Verification
 
 **Verdict: gaps found.** Historical Linux recovery and ordinary Mac jobs passed on
-`631edf9665ace49c91a02bdebcbd49dbc0f0e6ba` in workflow 36910091796. Current
-security-repair head `f978fa8268328e0c2106f1aa0b45315832ce440f` failed both lanes
-in workflow 36920283265, and the failed-only Linux retry also failed. PR #6 stays
-draft and unmerged pending green hosted CI on its exact head. The Phase 06
+`631edf9665ace49c91a02bdebcbd49dbc0f0e6ba` in workflow 36910091796. On the
+current exact PR head `cf978f4d3ece48197bf209b31cc451b73f84759e`, workflow
+36947656348 passed Docker cold-start, server `mix precommit`, and ordinary Mac;
+Linux recovery failed and produced no sanitized stage artifact. PR #6 stays draft
+and unmerged until all required hosted checks pass on its exact head. The Phase 06
 aggregate and PORT-04/QUAL-02 remain open; entitlement is blocked/not-configured,
 deterministic continuation remains unqualified, and full requirement review is
 incomplete.
@@ -36,11 +37,11 @@ incomplete.
 
 | Boundary | Implementation / observed evidence | Result |
 |---|---|---|
-| SC1: independent Linux restore lane | Dedicated bounded CI job; historical hosted receipt passed all six stages (`chain`, `preflight`, `database`, `cas`, `manifest`, `api`) and sanitizer upload | Historical pass on SHA `631edf9`; current SHA `f978fa8` failed twice; open |
-| SC2: native pairing, convergence, cache/preflight and save transport | Hosted ordinary Mac reachability, Unit, Rendering, UI and LiveServer selections passed; actual same-host clean-client recovery also passed | Hosted ordinary lane passed; entitlement remains a separate open lane |
+| SC1: independent Linux restore lane | Dedicated bounded CI job; historical hosted receipt passed all six stages (`chain`, `preflight`, `database`, `cas`, `manifest`, `api`) and sanitizer upload | Historical pass on SHA `631edf9`; current SHA `cf978f4` failed with no sanitized stage artifact; open |
+| SC2: native pairing, convergence, cache/preflight and save transport | Hosted ordinary Mac reachability, Unit, Rendering, UI and LiveServer selections passed; actual same-host clean-client recovery also passed | Current ordinary Mac job passed on `cf978f4`; entitlement remains a separate open lane |
 | SC3: fixture-specific continuation spike | Strict protocol, independently checked network denial, actual local qualification refusal, lifecycle/oracle negative corpus | Gate verified; actual continuation capability blocked |
 | PORT-04 | Existing legal fixture, production restored target, exact download/save materialization, graceful emulator exit and app relaunch exercised; historical hosted restore receipt exists | Partial; no in-game resumed-state oracle pass, current hosted Linux failure, and full requirement closure remains open |
-| QUAL-02 | Sanitizer, CI wiring, focused suites, historical hosted pass, and current hosted failure evidence present | Partial; current Mac/Linux CI failures, entitlement, continuation, and remaining release-quality gate review are open |
+| QUAL-02 | Sanitizer, CI wiring, focused suites, historical hosted pass, and current hosted evidence present | Partial; Linux CI, entitlement, continuation, and remaining release-quality gate review are open |
 
 Requirements originally belong to Phase 05 and are extended by these plans.
 Their unchecked canonical REQUIREMENTS.md status is retained. Earlier 06-01/02
@@ -48,9 +49,13 @@ summary completion lists do not establish whole-requirement closure.
 
 ## Fresh evidence from this execution
 
+- Plan 06-21 first hosted run [36931486120](https://github.com/szTheory/playstead/actions/runs/36931486120) was on SHA `3f2316d0a99ca0aff09da789dd1ea690d4bae8ab`: server `mix precommit` and Docker passed, Linux restore failed with sanitizer/upload skipped, and Mac failed at `Verify static contract guards` before app/native layers. Local static reproduction found a bare closed-schema early return; commit `cf978f4` corrected it. `fail-open-test-guard-test.sh` and `run-mac-verification.sh --self-test-contracts` passed locally after that correction; Linux source was unchanged and its synthetic tests had passed before the Mac-only fix.
+- Fresh exact-head workflow [36947656348](https://github.com/szTheory/playstead/actions/runs/36947656348) on `cf978f4d3ece48197bf209b31cc451b73f84759e`: Docker job `110653291243`, server `mix precommit` job `110653291608`, and ordinary Mac job `110655090300` passed; Linux isolated recovery job `110653291551` failed at `Run isolated restore fixture`, with sanitizer and upload skipped. No Linux sanitized artifact exists, so its internal stage is not attributed and raw job output was not inspected.
+- The exact-head sanitized Mac artifact `mac-ordinary-evidence` contained 11 files. Reachability passed; Unit 759/759, Rendering 52/52, UI 122/122, and LiveServer 6/6 passed with zero test failures, accessibility audit issues, or layout diagnostics. `entitled-gamepad.json` says `blocked/not-configured`; it does not count as a virtual-HID pass. The ordinary Mac lane is current-head green; the Linux and aggregate gates remain open.
+
 - Current repository Actions runner inventory checked at `2026-10-01T21:09:22Z`: owner type `User`, repository runner count `0`; runner-group enumeration is not applicable to this personal-user-owned repository. No runner, secrets, branch settings, or dependencies were changed. The topology script is a trusted-code regression check, not a security boundary against fork PR workflow edits.
 - Current pushed SHA `f978fa8268328e0c2106f1aa0b45315832ce440f`, workflow [36920283265](https://github.com/szTheory/playstead/actions/runs/36920283265): attempt 1 server precommit job `110564318056` passed, Docker job `110564318702` passed, Linux recovery job `110564318328` failed, ordinary Mac job `110567365139` failed. Failed-only retry attempt 2 failed Linux recovery job `110579269830`; the original Mac failure remains failed and was not rerun. No current exact-head recovery pass is claimed.
-- The sanitized Mac artifact reports Unit 759/759, Rendering 52/52, UI 121/122 (one failed), and LiveServer 6/6. The one failing test is `ZeroNetworkPlayFlowTests/testWholePlayFlowRecordsZeroHTTPRequests()` at `XCTAssertNil` line 53. Entitled status is `blocked/not-configured`, `gate_passed: false`. A raw job log was fetched only to private temporary storage and scanned with a fixed-vocabulary classifier; it did not identify a trusted stage. No raw log lines, raw `failure_reason`, screenshots/PNGs, or fixture data were displayed or copied into tracked evidence. Linux's underlying restore stage remains unknown. Plan 06-21 is the follow-up for bounded diagnosis and an evidence-based repair.
+- The older sanitized Mac artifact on SHA `f978fa8` reported Unit 759/759, Rendering 52/52, UI 121/122 (one failed), and LiveServer 6/6; the failed static guard was later reproduced locally and corrected on `cf978f4`. The prior raw job log was fetched only to private temporary storage and scanned with a fixed-vocabulary classifier; it did not identify a trusted stage. No raw log lines, raw `failure_reason`, screenshots/PNGs, or fixture data were displayed or copied into tracked evidence. For the latest Linux run the internal restore stage remains unknown because no sanitized artifact was produced; raw job output was not inspected. Plan 06-22 is the follow-up for a sanitized failure object and focused diagnosis.
 - Phase 06, PORT-04, and QUAL-02 remain open. PR #6 stays draft and unmerged until hosted checks pass on the exact head.
 
 - Plan 06-09 completed against reviewed branch `phase06/hosted-evidence-20261001`, draft PR #6, exact SHA `631edf9665ace49c91a02bdebcbd49dbc0f0e6ba`. Hosted workflow [36910091796](https://github.com/szTheory/playstead/actions/runs/36910091796) completed successfully: Linux recovery `110530300591`, server `mix precommit` `110530300895`, Docker cold-start `110530300975`, and ordinary Mac `110532872266` passed. The entitlement job `110530302434` was skipped/not configured.
@@ -145,12 +150,14 @@ isolated branch and draft PR #6 contain the reviewable source change set.
 
 1. Plan 06-09 is complete; do not rerun it unless its hosted jobs or exact-SHA
    evidence become stale.
-2. Keep the entitled virtual-HID lane separate until a matching profile and
+2. Follow Plan 06-22 to persist, sanitize, and upload a fixed-enum Linux failure
+   object before attempting stage-specific diagnosis.
+3. Keep the entitled virtual-HID lane separate until a matching profile and
    runner configuration produce a real pass.
-3. Resolve the adapter's supported script-loading path, then qualify the
+4. Resolve the adapter's supported script-loading path, then qualify the
    existing private fixture's deterministic replay and repeated visible
    resumed-state oracle before claiming automated in-game continuation.
-4. Revisit the full regression gate and remaining PORT-04/QUAL-02 evidence only
+5. Revisit the full regression gate and remaining PORT-04/QUAL-02 evidence only
    after the entitlement and continuation prerequisites have changed.
 
 Reuse the established fixture registry, local launchers and disposable-owner
