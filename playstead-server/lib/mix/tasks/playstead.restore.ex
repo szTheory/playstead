@@ -111,20 +111,7 @@ defmodule Mix.Tasks.Playstead.Restore do
         Process.put(:playstead_recovery_fixture_failure_stage, "source-fixture-database-connect")
 
         :ok =
-          source(project, source_file, [
-            "exec",
-            "-T",
-            "db",
-            "psql",
-            "-U",
-            "restore_source",
-            "-d",
-            "restore_source",
-            "-v",
-            "ON_ERROR_STOP=1",
-            "-c",
-            "SELECT 1"
-          ])
+          await_source_database_connection(project, source_file)
 
         Process.put(:playstead_recovery_fixture_failure_stage, "source-fixture-database-seed")
 
@@ -300,6 +287,43 @@ defmodule Mix.Tasks.Playstead.Restore do
     end
   rescue
     _ -> {:error, :source_dump_failed}
+  end
+
+  @source_database_connect_attempts 20
+  @source_database_connect_delay_ms 500
+
+  defp await_source_database_connection(project, file) do
+    await_source_database_connection(project, file, @source_database_connect_attempts)
+  end
+
+  defp await_source_database_connection(_project, _file, 0),
+    do: {:error, :source_database_connect_failed}
+
+  defp await_source_database_connection(project, file, attempts) do
+    case source(project, file, [
+           "exec",
+           "-T",
+           "db",
+           "psql",
+           "-U",
+           "restore_source",
+           "-d",
+           "restore_source",
+           "-v",
+           "ON_ERROR_STOP=1",
+           "-c",
+           "SELECT 1"
+         ]) do
+      :ok ->
+        :ok
+
+      {:error, _} when attempts == 1 ->
+        {:error, :source_database_connect_failed}
+
+      {:error, _} when attempts > 1 ->
+        Process.sleep(@source_database_connect_delay_ms)
+        await_source_database_connection(project, file, attempts - 1)
+    end
   end
 
   defp await_source(_project, _file, 0), do: {:error, :source_database_unavailable}
