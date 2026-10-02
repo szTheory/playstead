@@ -230,7 +230,7 @@ if grep -F 'token=duplicate-sentinel' "$TMP_ROOT/recovery_duplicate_key.out" "$T
 fi
 [ ! -e "$TMP_ROOT/recovery-duplicate-key-output/recovery-e2e.json" ]
 
-recovery_failure_stages=(source-compose-startup source-readiness source-fixture-create source-dump backup-publication target-restore target-cleanup result-validation unknown)
+recovery_failure_stages=(source-compose-startup source-readiness source-fixture-filesystem-create source-fixture-database-seed source-dump backup-publication target-restore target-cleanup result-validation unknown)
 for stage in "${recovery_failure_stages[@]}"; do
   root="$TMP_ROOT/recovery-failure-$stage"
   output="$TMP_ROOT/recovery-failure-$stage-output"
@@ -245,6 +245,10 @@ assert not any(s in path.read_text() for s in ("private-path-token","private pat
 PY
   [ ! -e "$output/recovery-e2e.json" ]
 done
+
+failure_retired_stage="$TMP_ROOT/recovery-failure-retired-stage"
+make_failure "$failure_retired_stage" source-fixture-create
+expect_recovery_failure_rejected recovery_failure_retired_stage "$failure_retired_stage" "$TMP_ROOT/recovery-failure-retired-stage-output"
 
 failure_missing="$TMP_ROOT/recovery-failure-missing"
 make_failure "$failure_missing" target-restore
