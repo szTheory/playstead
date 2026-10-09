@@ -23,7 +23,7 @@ rm -rf "$OUTPUT_ROOT"
 mkdir -p "$OUTPUT_ROOT"
 
 python3 - "$INPUT_ROOT/evidence" "$OUTPUT_ROOT" "$MAC_ROOT" <<'PY'
-import json, pathlib, re, shutil, sys
+import json, math, pathlib, re, shutil, sys
 
 source = pathlib.Path(sys.argv[1]).resolve()
 output = pathlib.Path(sys.argv[2]).resolve()
@@ -128,17 +128,25 @@ def validate_static_sweep_evidence(data, relative):
 
 
 def validate_test_evidence(data, relative):
-    allowed_keys = {
+    core_keys = {
         "schema_version", "layer", "executed_test_count", "required_tests",
         "failed_test_count", "failed_tests_truncated", "failed_tests",
-        "failure_diagnostic_count", "failure_diagnostics_truncated", "failure_diagnostics",
         "audit_issue_count", "audit_issues_truncated", "audit_issues",
     }
-    legacy_keys = allowed_keys - {
-        "failure_diagnostic_count", "failure_diagnostics_truncated", "failure_diagnostics"
+    diagnostic_keys = core_keys | {
+        "failure_diagnostic_count", "failure_diagnostics_truncated", "failure_diagnostics",
+    }
+    profile_keys = {
+        "in_test_seconds_total", "timed_test_count", "slowest_tests",
+    }
+    accepted_keys = {
+        frozenset(core_keys),
+        frozenset(diagnostic_keys),
+        frozenset(core_keys | profile_keys),
+        frozenset(diagnostic_keys | profile_keys),
     }
     actual_keys = set(data) if isinstance(data, dict) else set()
-    if not isinstance(data, dict) or (actual_keys != allowed_keys and actual_keys != legacy_keys):
+    if not isinstance(data, dict) or frozenset(actual_keys) not in accepted_keys:
         raise SystemExit(f"test evidence has unexpected schema: {relative}")
     if data.get("schema_version") != 1 or not isinstance(data.get("layer"), str):
         raise SystemExit(f"test evidence identity is malformed: {relative}")
@@ -161,6 +169,27 @@ def validate_test_evidence(data, relative):
             raise SystemExit(f"failed test identifier is not canonical: {relative}")
         if record.get("outcome") not in {"failed", "skipped", "unknown"}:
             raise SystemExit(f"failed test outcome is not allowlisted: {relative}")
+    if actual_keys & profile_keys:
+        total_seconds = data.get("in_test_seconds_total")
+        timed_count = data.get("timed_test_count")
+        slowest = data.get("slowest_tests")
+        if type(total_seconds) not in (int, float) or not math.isfinite(total_seconds) or total_seconds < 0:
+            raise SystemExit(f"test timing total is malformed: {relative}")
+        if type(timed_count) is not int or timed_count < 0 or timed_count > data["executed_test_count"]:
+            raise SystemExit(f"timed test count is malformed: {relative}")
+        if not isinstance(slowest, list) or len(slowest) > 20 or len(slowest) > timed_count:
+            raise SystemExit(f"slowest_tests exceeds its bounded allowlist: {relative}")
+        if len(slowest) != min(timed_count, 20):
+            raise SystemExit(f"slowest_tests count is inconsistent: {relative}")
+        for record in slowest:
+            if not isinstance(record, dict) or set(record) != {"identifier", "seconds"}:
+                raise SystemExit(f"slowest test record contains non-allowlisted fields: {relative}")
+            identifier = record.get("identifier")
+            seconds = record.get("seconds")
+            if not isinstance(identifier, str) or len(identifier) > 240 or not test_identifier.fullmatch(identifier):
+                raise SystemExit(f"slowest test identifier is not canonical: {relative}")
+            if type(seconds) not in (int, float) or not math.isfinite(seconds) or seconds < 0:
+                raise SystemExit(f"slowest test duration is malformed: {relative}")
     diagnostics = data.get("failure_diagnostics", [])
     diagnostic_count = data.get("failure_diagnostic_count", 0)
     diagnostics_truncated = data.get("failure_diagnostics_truncated", False)
