@@ -20,7 +20,7 @@ EMBEDDED_LOCAL_PATH = re.compile(
     r"(?<![A-Za-z0-9])[A-Za-z]:[\\/][^\s\"'<>]*|"  # Windows drive path
     r"(?<!\S)(?:\\\\|//)[^\\/\s]+[\\/][^\s\"'<>]*|"  # UNC path
     r"(?<![A-Za-z0-9])/(?:[^\s/\\<>\"']+/)*[^\s/\\<>\"']+|"  # POSIX absolute path
-    r"(?:^|[/\\])\.\.(?:[/\\]|$)"  # parent traversal component
+    r"(?<![A-Za-z0-9])\.\.(?:[/\\]|$)"  # parent traversal component
     r")"
 )
 

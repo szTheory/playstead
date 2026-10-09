@@ -159,6 +159,7 @@ class ReleaseEvidenceNegativeContracts(unittest.TestCase):
             "Windows drive": "scanner reported input at C:\\Users\\Alice\\private\\game.rom",
             "UNC": r"scanner reported input at \\fileserver\private\game.rom",
             "parent traversal": "scanner reported input at ../../private/game.rom",
+            "embedded Windows parent traversal": r"scanner reported input at ..\game.rom",
         }
         for kind, value in unsafe_values.items():
             ordinary = valid_evidence()
@@ -179,6 +180,7 @@ class ReleaseEvidenceNegativeContracts(unittest.TestCase):
         self.assertEqual(release_evidence.clean({
             "message": "Uploaded to https://example.invalid/releases/v1/evidence.json",
             "description": "Reviewed by release automation",
+            "prose": "The review covered versions .. before the current release",
         })["message"], "Uploaded to https://example.invalid/releases/v1/evidence.json")
 
         document = {"bomFormat": "CycloneDX", "specVersion": "1.6", "version": 1,
