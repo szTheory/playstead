@@ -31,6 +31,10 @@ EMBEDDED_LOCAL_PATH = re.compile(
     r"(?<![A-Za-z0-9])\.\.(?:[/\\]|$)"  # parent traversal component
     r")"
 )
+SAFE_DIAGNOSTIC_PACKAGE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.+-]{0,99}$")
+SAFE_DIAGNOSTIC_VERSION = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.+~:-]{0,119}$")
+SAFE_DIAGNOSTIC_FINDING = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,99}$")
+MAX_DIAGNOSTIC_FINDINGS = 25
 # CycloneDX vulnerability descriptions are third-party advisory prose. They
 # commonly include public system-file examples and `../` traversal payloads,
 # neither of which identifies the build host. Still reject roots associated
@@ -116,6 +120,59 @@ def validate_cyclonedx(document: dict) -> int:
         if not isinstance(component, dict) or not isinstance(component.get("type"), str) or not isinstance(component.get("name"), str) or not component["name"]:
             fail("malformed CycloneDX component")
     return len(components)
+
+
+def _safe_scan_identifier(value, pattern: re.Pattern[str]) -> str:
+    if not isinstance(value, str) or not pattern.fullmatch(value):
+        return "<redacted>"
+    if FORBIDDEN.search(value) or "PRIVATE_EVIDENCE_SENTINEL" in value:
+        return "<redacted>"
+    return value
+
+
+def safe_trivy_diagnostics(report: dict) -> dict:
+    """Return a bounded, value-redacted summary for CI failure logs only."""
+    results = report.get("Results") if isinstance(report, dict) else None
+    if not isinstance(results, list):
+        results = []
+    findings = []
+    total = 0
+
+    for result in results:
+        if not isinstance(result, dict):
+            continue
+        vulnerabilities = result.get("Vulnerabilities")
+        if not isinstance(vulnerabilities, list):
+            vulnerabilities = []
+        for vulnerability in vulnerabilities:
+            if not isinstance(vulnerability, dict) or vulnerability.get("Severity") not in {"HIGH", "CRITICAL"}:
+                continue
+            total += 1
+            if len(findings) < MAX_DIAGNOSTIC_FINDINGS:
+                findings.append({
+                    "category": "vulnerability",
+                    "package": _safe_scan_identifier(vulnerability.get("PkgName"), SAFE_DIAGNOSTIC_PACKAGE),
+                    "version": _safe_scan_identifier(vulnerability.get("InstalledVersion"), SAFE_DIAGNOSTIC_VERSION),
+                    "finding": _safe_scan_identifier(vulnerability.get("VulnerabilityID"), SAFE_DIAGNOSTIC_FINDING),
+                    "severity": vulnerability["Severity"],
+                })
+        licenses = result.get("Licenses")
+        if not isinstance(licenses, list):
+            licenses = []
+        for license_finding in licenses:
+            if not isinstance(license_finding, dict) or license_finding.get("Severity") not in {"HIGH", "CRITICAL"}:
+                continue
+            total += 1
+            if len(findings) < MAX_DIAGNOSTIC_FINDINGS:
+                findings.append({
+                    "category": "license",
+                    "package": _safe_scan_identifier(license_finding.get("PkgName"), SAFE_DIAGNOSTIC_PACKAGE),
+                    "version": _safe_scan_identifier(license_finding.get("PkgVersion"), SAFE_DIAGNOSTIC_VERSION),
+                    "finding": _safe_scan_identifier(license_finding.get("Name"), SAFE_DIAGNOSTIC_FINDING),
+                    "severity": license_finding["Severity"],
+                })
+
+    return {"total": total, "findings": findings}
 
 
 def summarize_trivy(report: dict, subject_sha256: str, image_id: str | None = None) -> dict:

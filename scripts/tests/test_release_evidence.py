@@ -53,6 +53,54 @@ class ReleaseEvidenceHappyPath(unittest.TestCase):
         self.assertEqual(checked["subject"]["archive_sha256"], checked["attestations"]["provenance"]["subject_sha256"])
 
 
+class TrivyDiagnosticContracts(unittest.TestCase):
+    def test_high_severity_failure_summary_is_actionable_bounded_and_redacted(self):
+        private_path = "/Users/alice/private/game.rom"
+        report = {"Results": [{
+            "Type": "debian",
+            "Vulnerabilities": [
+                {"PkgName": "openssl", "InstalledVersion": "3.0.17-1",
+                 "VulnerabilityID": "CVE-2026-12345", "Severity": "HIGH",
+                 "Description": f"host scan path: {private_path}"},
+                {"PkgName": private_path, "InstalledVersion": "../../home/runner",
+                 "VulnerabilityID": "PRIVATE_EVIDENCE_SENTINEL", "Severity": "CRITICAL",
+                 "Description": private_path},
+                {"PkgName": "libsafe", "InstalledVersion": "1.2.3",
+                 "VulnerabilityID": "CVE-2026-99999", "Severity": "LOW"},
+            ],
+            "Licenses": [{"PkgName": "libcodec", "PkgVersion": "4.5.6",
+                          "Name": "GPL-3.0", "Severity": "HIGH",
+                          "FilePath": private_path}],
+        }]}
+
+        summary = release_evidence.safe_trivy_diagnostics(report)
+        self.assertEqual(summary["total"], 3)
+        self.assertEqual(summary["findings"], [
+            {"category": "vulnerability", "package": "openssl", "version": "3.0.17-1",
+             "finding": "CVE-2026-12345", "severity": "HIGH"},
+            {"category": "vulnerability", "package": "<redacted>", "version": "<redacted>",
+             "finding": "<redacted>", "severity": "CRITICAL"},
+            {"category": "license", "package": "libcodec", "version": "4.5.6",
+             "finding": "GPL-3.0", "severity": "HIGH"},
+        ])
+        rendered = json.dumps(summary)
+        self.assertNotIn(private_path, rendered)
+        self.assertNotIn("../../home/runner", rendered)
+        self.assertNotIn("PRIVATE_EVIDENCE_SENTINEL", rendered)
+        self.assertNotIn("Description", rendered)
+        self.assertNotIn("FilePath", rendered)
+
+    def test_failure_summary_caps_finding_examples(self):
+        report = {"Results": [{"Vulnerabilities": [
+            {"PkgName": f"package-{index}", "InstalledVersion": "1.0.0",
+             "VulnerabilityID": f"CVE-2026-{index:05d}", "Severity": "HIGH"}
+            for index in range(30)
+        ]}]}
+        summary = release_evidence.safe_trivy_diagnostics(report)
+        self.assertEqual(summary["total"], 30)
+        self.assertEqual(len(summary["findings"]), 25)
+
+
 class ReleaseEvidenceNegativeContracts(unittest.TestCase):
     def run_rejected(self, evidence):
         with tempfile.TemporaryDirectory() as directory:

@@ -37,7 +37,15 @@ spec.loader.exec_module(validator)
 reports = {}
 for label in ('source', 'image'):
     report = json.loads((raw / f'{label}-trivy.json').read_text())
-    reports[label] = validator.summarize_trivy(report, digest, image_id if label == 'image' else None)
+    summary = validator.summarize_trivy(report, digest, image_id if label == 'image' else None)
+    reports[label] = summary
+    if summary['status'] != 'passed':
+        safe = validator.safe_trivy_diagnostics(report)
+        print(
+            f"Trivy {label} scan failed (bounded findings): "
+            + json.dumps(safe, sort_keys=True, separators=(',', ':')),
+            file=sys.stderr,
+        )
 sbom = json.loads((out / 'sbom.cdx.json').read_text())
 component_count = validator.validate_cyclonedx(sbom)
 evidence = {
