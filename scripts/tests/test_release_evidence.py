@@ -152,6 +152,20 @@ class ReleaseEvidenceNegativeContracts(unittest.TestCase):
         checked = release_evidence.validate(valid_evidence("pull-request"))
         self.assertEqual(checked["verdict"], "diagnostic-only")
 
+    def test_cyclonedx_document_shape_and_privacy_are_checked_before_upload(self):
+        document = {"bomFormat": "CycloneDX", "specVersion": "1.6", "version": 1,
+                    "components": [{"type": "library", "name": "example", "version": "1.0"}]}
+        self.assertEqual(release_evidence.validate_cyclonedx(document), 1)
+        for invalid in (
+            {**document, "components": []},
+            {**document, "bomFormat": "SPDX"},
+            {**document, "components": [{"type": "file", "name": "/private/collection/game.rom"}]},
+            {**document, "properties": [{"name": "private.localPath", "value": "/Users/owner/file"}]},
+        ):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(ValueError):
+                    release_evidence.validate_cyclonedx(invalid)
+
     def test_verified_attestations_must_name_the_exact_archive_subject(self):
         digest = "a" * 64
         def record(predicate, subject_digest):

@@ -33,14 +33,33 @@ def load(path: str | Path) -> dict:
 def clean(value, key=""):
     if FORBIDDEN.search(key):
         fail(f"forbidden evidence field: {key}")
+    if re.search(r"(?:^|[_-])(?:file)?path$|filename", key, re.I):
+        fail(f"path-bearing evidence field: {key}")
     if isinstance(value, dict):
         return {k: clean(v, k) for k, v in value.items()}
     if isinstance(value, list):
         return [clean(item, key) for item in value]
     if isinstance(value, str):
-        if value.startswith(("/Users/", "/home/", "C:\\")) or "PRIVATE_EVIDENCE_SENTINEL" in value:
+        if value.startswith(("/", "C:\\", "\\\\", "../", "..\\")) or "PRIVATE_EVIDENCE_SENTINEL" in value:
             fail("private path or sentinel in evidence")
     return value
+
+
+def validate_cyclonedx(document: dict) -> int:
+    if not isinstance(document, dict):
+        fail("CycloneDX SBOM must be a JSON object")
+    clean(document)
+    components = document.get("components")
+    if document.get("bomFormat") != "CycloneDX" or document.get("specVersion") not in {"1.4", "1.5", "1.6"}:
+        fail("malformed or unsupported CycloneDX document")
+    if not isinstance(document.get("version"), int) or document["version"] < 1:
+        fail("CycloneDX document version is missing")
+    if not isinstance(components, list) or not components:
+        fail("missing or empty CycloneDX components")
+    for component in components:
+        if not isinstance(component, dict) or not isinstance(component.get("type"), str) or not isinstance(component.get("name"), str) or not component["name"]:
+            fail("malformed CycloneDX component")
+    return len(components)
 
 
 def summarize_trivy(report: dict, subject_sha256: str, image_id: str | None = None) -> dict:

@@ -39,13 +39,12 @@ for label in ('source', 'image'):
     report = json.loads((raw / f'{label}-trivy.json').read_text())
     reports[label] = validator.summarize_trivy(report, digest, image_id if label == 'image' else None)
 sbom = json.loads((out / 'sbom.cdx.json').read_text())
-if sbom.get('bomFormat') != 'CycloneDX' or not sbom.get('components'):
-    raise SystemExit('missing or empty CycloneDX SBOM')
+component_count = validator.validate_cyclonedx(sbom)
 evidence = {
   'schema_version': 1, 'mode': 'pull-request',
   'subject': {'archive_sha256': digest, 'image_id': image_id},
   'scans': reports,
-  'sbom': {'format':'CycloneDX','status':'passed','subject_sha256':digest,'components':len(sbom['components'])},
+  'sbom': {'format':'CycloneDX','status':'passed','subject_sha256':digest,'components':component_count},
   'parser_inventory': json.loads((out / 'parser-inventory.json').read_text()),
   'attestations': {'provenance':{'status':'not-issued','subject_sha256':None},'sbom':{'status':'not-issued','subject_sha256':None}},
   'handoff': {'consumer':'Phase 05 D-11','subject_sha256':digest,'retained_gates':['D-07','D-13']},
