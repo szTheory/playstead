@@ -582,21 +582,23 @@ verify_layer_result() (
   local output="$3"
   shift 3
   local required_file
+  local result_bundle=""
   required_file="$(mktemp "${TMPDIR:-/tmp}/playstead-layer-tests.XXXXXX")"
   trap 'rm -f "$required_file"' EXIT
 
   while [ "$#" -gt 0 ]; do
     case "$1" in
+      --result-bundle) require_value "$1" "${2:-}"; result_bundle="$2"; shift 2 ;;
       --required-test) require_value "$1" "${2:-}"; printf '%s\n' "$2" >>"$required_file"; shift 2 ;;
       *) die "unknown layer-result argument: $1" ;;
     esac
   done
   [ -s "$required_file" ] || die "layer $layer requires at least one --required-test"
 
-  python3 - "$test_results" "$required_file" "$layer" "$output" "$MAC_ROOT" <<'PY'
-import json, pathlib, re, sys
+  python3 - "$test_results" "$required_file" "$layer" "$output" "$MAC_ROOT" "$result_bundle" <<'PY'
+import json, pathlib, re, subprocess, sys
 
-results_path, required_path, layer, output_path, mac_root = sys.argv[1:]
+results_path, required_path, layer, output_path, mac_root, result_bundle = sys.argv[1:]
 try:
     data = json.loads(pathlib.Path(results_path).read_text(encoding="utf-8"))
 except Exception as exc:
@@ -632,6 +634,7 @@ audit_issues = []
 durations = []
 failure_diagnostics = []
 failure_stages = set()
+failed_test_details = []
 audit_pattern = re.compile(r"PLAYSTEAD_A11Y_ISSUES\[([A-Za-z]+)\]=([a-z0-9.,@-]+)")
 ui_stage_pattern = re.compile(r"PLAYSTEAD_FAILURE_STAGE\[([a-z0-9-]+)\]")
 live_stage_pattern = re.compile(r"live-server-stage=([a-z0-9-]+) action=([a-z0-9-]+)")
@@ -746,6 +749,8 @@ def walk(value):
                 raise SystemExit(f"{layer}: malformed Test Case node")
             test_identifier = canonical(node_identifier)
             nodes.append((test_identifier, result))
+            if normalized_outcome(result) == "failed" and result_bundle:
+                failed_test_details.append((node_identifier, test_identifier))
             # Per-test wall time, straight off the node. Summed and compared
             # against the layer's own wall clock below, this is what
             # separates "the tests are slow" from "the harness around them
@@ -784,6 +789,49 @@ def walk(value):
         for child in value:
             walk(child)
 walk(data["testNodes"])
+
+# Xcode 26's compact test tree can report a failed test case without the
+# Failure Message children that older xcresult output included. Ask for the
+# bounded detail record only for failures whose source assertion was not
+# already recovered above. Extract only the assertion kind and repository
+# source location; never forward XCTest's free-text message or attachments.
+def failure_messages_in_details(value):
+    records = []
+
+    def collect(node):
+        if isinstance(node, dict):
+            if node.get("nodeType") == "Failure Message":
+                records.append(node)
+                return
+            for child in node.values():
+                collect(child)
+        elif isinstance(node, list):
+            for child in node:
+                collect(child)
+
+    collect(value)
+    return records
+
+diagnosed = {record["test_identifier"] for record in failure_diagnostics}
+for raw_identifier, test_identifier in failed_test_details[:50]:
+    if test_identifier in diagnosed:
+        continue
+    try:
+        detailed = subprocess.run(
+            ["xcrun", "xcresulttool", "get", "test-results", "test-details",
+             "--path", result_bundle, "--test-id", raw_identifier, "--compact"],
+            capture_output=True, text=True, timeout=15, check=False,
+        )
+        if detailed.returncode != 0:
+            continue
+        detail_data = json.loads(detailed.stdout)
+    except (OSError, subprocess.SubprocessError, json.JSONDecodeError):
+        continue
+    for failure_record in failure_messages_in_details(detail_data):
+        diagnostic = bounded_failure_diagnostic(failure_record, test_identifier)
+        if diagnostic is not None:
+            failure_diagnostics.append(diagnostic)
+            diagnosed.add(test_identifier)
 
 required = [line for line in pathlib.Path(required_path).read_text(encoding="utf-8").splitlines() if line]
 if not nodes:
@@ -1189,7 +1237,8 @@ run_test_layer() {
   fi
 
   if [ "$parse_status" -eq 0 ]; then
-    verify_layer_result "$result_json" "$slug" "$result_summary" "$@" || verify_status=$?
+    verify_layer_result "$result_json" "$slug" "$result_summary" \
+      --result-bundle "$result_bundle" "$@" || verify_status=$?
   else
     verify_status=1
   fi

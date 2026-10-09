@@ -71,8 +71,10 @@ PY
 }
 
 verify_fixture() {
-  "$VERIFIER" --verify-layer-result "$1" unit "$TMP_ROOT/summary.json" \
-    --required-test PlaysteadTests.KeychainScopingTests/testScopedMatchQueryRestrictsSearchWithoutSelectingAnAddDestination
+  local input="$1"
+  shift
+  "$VERIFIER" --verify-layer-result "$input" unit "$TMP_ROOT/summary.json" \
+    --required-test PlaysteadTests.KeychainScopingTests/testScopedMatchQueryRestrictsSearchWithoutSelectingAnAddDestination "$@"
 }
 
 valid="$TMP_ROOT/valid.json"
@@ -110,6 +112,79 @@ assert summary["slowest_tests"] == [
 assert set(summary) == {"schema_version", "layer", "executed_test_count", "required_tests", "failed_test_count", "failed_tests_truncated", "failed_tests", "failure_diagnostic_count", "failure_diagnostics_truncated", "failure_diagnostics", "audit_issue_count", "audit_issues_truncated", "audit_issues", "in_test_seconds_total", "timed_test_count", "slowest_tests"}
 PY
 PASS_COUNT=$((PASS_COUNT + 1))
+
+# Xcode 26 may put the assertion node only in `test-details`, leaving the
+# compact `tests` tree with a failed Test Case and no Failure Message child.
+# Exercise that path with a fake xcresulttool response that contains a secret
+# in its free-text message; only the canonical source site may reach output.
+details_only="$TMP_ROOT/details-only.json"
+python3 - "$details_only" <<'PY'
+import json, sys
+case = {
+    "nodeType": "Test Case",
+    "nodeIdentifier": "PlaysteadUITests.SurfaceAccessibilityTests/testSyntheticFailure()",
+    "name": "testSyntheticFailure()",
+    "result": "Failed",
+    "durationInSeconds": 4.25,
+}
+required = {
+    "nodeType": "Test Case",
+    "nodeIdentifier": "PlaysteadTests.KeychainScopingTests/testScopedMatchQueryRestrictsSearchWithoutSelectingAnAddDestination()",
+    "name": "testScopedMatchQueryRestrictsSearchWithoutSelectingAnAddDestination()",
+    "result": "Passed",
+    "durationInSeconds": 1.5,
+}
+json.dump({"testPlanConfigurations": [], "devices": [], "testNodes": [
+    {"nodeType": "Test Plan", "name": "Unit", "children": [required, case]}
+]}, open(sys.argv[1], "w"))
+PY
+mkdir -p "$TMP_ROOT/fake-bin"
+cat >"$TMP_ROOT/fake-bin/xcrun" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$1" = xcresulttool ] && [ "$2" = get ] && [ "$3" = test-results ] && \
+  [ "$4" = test-details ] || exit 31
+cat "$FAKE_XCRESULT_DETAILS"
+SH
+chmod +x "$TMP_ROOT/fake-bin/xcrun"
+details_json="$TMP_ROOT/test-details.json"
+python3 - "$details_json" <<'PY'
+import json, sys
+json.dump({
+    "testIdentifier": "PlaysteadUITests.SurfaceAccessibilityTests/testSyntheticFailure()",
+    "testRuns": [{"nodeType": "Test Case Run", "name": "run", "children": [{
+        "nodeType": "Failure Message",
+        "name": "SurfaceAccessibilityTests.swift:137: XCTAssertTrue failed: Bearer private-token /Users/private/file.rom",
+        "result": "Failed",
+    }]}],
+}, open(sys.argv[1], "w"))
+PY
+verify_fixture_with_details() {
+  PATH="$TMP_ROOT/fake-bin:$PATH" \
+    FAKE_XCRESULT_DETAILS="$details_json" \
+    verify_fixture "$1" --result-bundle /synthetic/result.xcresult
+  "$VERIFIER" --print-failure-diagnostics "$TMP_ROOT/summary.json" unit
+}
+expect_pass details_only verify_fixture_with_details "$details_only"
+grep -Fx 'unit: FAILURE_DIAGNOSTIC SurfaceAccessibilityTests/testSyntheticFailure() XCTAssertTrue PlaysteadUITests/SurfaceAccessibilityTests.swift:137' "$TMP_ROOT/details_only.out" >/dev/null || {
+  printf 'FAIL: bounded xcresult test-details diagnostic was not recovered\n' >&2
+  exit 1
+}
+if grep -E 'Bearer|private-token|/Users/|file\.rom' "$TMP_ROOT/details_only.out" >/dev/null; then
+  printf 'FAIL: xcresult test-details diagnostic leaked a raw message or path\n' >&2
+  exit 1
+fi
+python3 - "$TMP_ROOT/summary.json" <<'PY'
+import json, pathlib, sys
+summary = json.loads(pathlib.Path(sys.argv[1]).read_text())
+assert summary["failure_diagnostics"] == [{
+    "test_identifier": "SurfaceAccessibilityTests/testSyntheticFailure()",
+    "assertion": "XCTAssertTrue",
+    "source_file": "PlaysteadUITests/SurfaceAccessibilityTests.swift",
+    "source_line": 137,
+}]
+PY
+PASS_COUNT=$((PASS_COUNT + 3))
 
 build_log="$TMP_ROOT/build.log"
 printf '%s:137:9: error: Bearer private-token /Users/private/game.rom must remain raw only\n' \

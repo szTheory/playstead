@@ -560,7 +560,7 @@ class ParserInventorySchemaContract(unittest.TestCase):
         )
 
 
-class HostedPostgresRegistryContracts(unittest.TestCase):
+class HostedContainerRegistryContracts(unittest.TestCase):
     def test_github_actions_uses_official_ecr_mirror_without_changing_deploy_default(self):
         repository_root = Path(__file__).parents[2]
         workflow = (repository_root / ".github/workflows/ci.yml").read_text()
@@ -572,6 +572,18 @@ class HostedPostgresRegistryContracts(unittest.TestCase):
         self.assertNotIn("image: postgres:17.2", workflow)
         self.assertIn("image: postgres:17.2", compose_default)
         self.assertIn(f"  db:\n    # Docker Official Image mirrored by AWS ECR Public. Hosted CI avoids\n    # Docker Hub's unauthenticated pull limit without changing deploy defaults.\n    image: {mirror}", compose_ci)
+
+    def test_buildkit_builder_uses_pinned_ecr_public_mirror(self):
+        repository_root = Path(__file__).parents[2]
+        workflow = (repository_root / ".github/workflows/ci.yml").read_text()
+        image = (
+            "public.ecr.aws/xqdo/hub/moby/buildkit@sha256:"
+            "751921dc37d2f842de38c9387f891fe6ae7d80f03d050ea98f780d7e0874ba00"
+        )
+
+        self.assertIn("driver-opts: |", workflow)
+        self.assertIn(f"            image={image}", workflow)
+        self.assertNotIn("image=moby/buildkit:", workflow)
 
 
 if __name__ == "__main__":

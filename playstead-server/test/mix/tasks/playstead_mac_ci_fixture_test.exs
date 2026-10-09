@@ -2,9 +2,11 @@ defmodule Mix.Tasks.Playstead.MacCiFixtureTest do
   use Playstead.DataCase, async: false
 
   alias Mix.Tasks.Playstead.MacCiFixture
+  alias Playstead.Blobs
   alias Playstead.Accounts.Scope
   alias Playstead.Catalogue
   alias Playstead.Pairing
+  alias Playstead.Sync.Snapshot
 
   setup do
     blob_root =
@@ -66,6 +68,25 @@ defmodule Mix.Tasks.Playstead.MacCiFixtureTest do
     assert approved.display_code == request.display_code
     assert approved.status == "approved"
     assert Pairing.list_pending_requests(Scope.for_user(fixture.owner)) == []
+  end
+
+  test "the prepared sentinel is in the first paired snapshot before any download" do
+    fixture = MacCiFixture.provision!()
+    {:ok, request} = pairing_request("snapshot-fixture-device-code")
+
+    MacCiFixture.approve_exact!(fixture.owner, %{
+      request_id: request.id,
+      display_code: request.display_code,
+      device_label: MacCiFixture.device_label()
+    })
+
+    {:ok, page} = Snapshot.read(fixture.owner.id)
+    assert [entry] = page.catalogue
+    assert entry.id == fixture.sentinel.asset_set_id
+    assert entry.display_title == fixture.sentinel.title
+    assert is_binary(page.cursor) and byte_size(page.cursor) > 0
+    refute page.has_more
+    assert page.next_after_id == nil
   end
 
   test "approval fails closed when any request identity claim differs or the queue is not sole" do
@@ -141,6 +162,36 @@ defmodule Mix.Tasks.Playstead.MacCiFixtureTest do
     assert Catalogue.list_assets(Scope.for_user(fixture.owner))
            |> Enum.map(& &1.asset_set.display_title)
            |> Enum.sort() == ["Playstead CI Sentinel One", "Playstead CI Sentinel Two"]
+  end
+
+  test "provision resets a prior snapshot test's second sentinel from later mirrors" do
+    fixture = MacCiFixture.provision!()
+    second = MacCiFixture.add_second_sentinel!(fixture.owner)
+
+    assert Catalogue.list_assets(Scope.for_user(fixture.owner))
+           |> Enum.map(& &1.asset_set.display_title)
+           |> Enum.sort() == ["Playstead CI Sentinel One", "Playstead CI Sentinel Two"]
+
+    {:ok, second_detail} =
+      Catalogue.get_asset_detail(Scope.for_user(fixture.owner), second.asset_set_id)
+
+    [second_member] = second_detail.asset_set.asset_members
+    second_sha256 = second_member.blob.sha256
+
+    reprovisioned = MacCiFixture.provision!()
+
+    assert reprovisioned.sentinel.asset_set_id == fixture.sentinel.asset_set_id
+
+    assert Catalogue.list_assets(Scope.for_user(fixture.owner))
+           |> Enum.map(& &1.asset_set.display_title) == ["Playstead CI Sentinel One"]
+
+    assert {:error, :not_found} =
+             Catalogue.get_asset_detail(Scope.for_user(fixture.owner), second.asset_set_id)
+
+    assert {:ok, _stat} = Blobs.stat(second_sha256)
+    {:ok, page} = Snapshot.read(fixture.owner.id)
+    assert [snapshot_sentinel] = page.catalogue
+    assert snapshot_sentinel.display_title == "Playstead CI Sentinel One"
   end
 
   defp pairing_request(device_code) do

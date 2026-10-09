@@ -11,6 +11,7 @@ must_haves:
     - The full image scan gates package vulnerabilities; restricted-license policy remains enforced for Playstead's resolved source dependencies without treating Debian base-system packages as app dependencies.
     - A failed scan reports bounded package, version, and advisory identifiers without raw descriptions, paths, or arbitrary scanner data.
     - Mac failure evidence accepts bounded test-timing fields, and each live-server caller verifies its own explicit synthetic fixture state.
+    - Reprovisioning a first-only live-server fixture removes only the exact prior second synthetic catalogue row from later snapshots, journals that removal, and preserves its content-addressed bytes and import receipts.
     - The focused PR's required GitHub Actions checks finish green before this fix is reported complete.
   artifacts:
     - scripts/ci/release-evidence.py
@@ -21,6 +22,8 @@ must_haves:
     - playstead-mac/scripts/ci/live-server.sh
     - playstead-mac/PlaysteadUITests/LiveServerSnapshotTests.swift
     - playstead-mac/PlaysteadUITests/SaveEndToEndTests.swift
+    - playstead-server/lib/mix/tasks/playstead.mac_ci_fixture.ex
+    - playstead-server/test/mix/tasks/playstead_mac_ci_fixture_test.exs
   key_links:
     - The validator accepts normal generated CycloneDX metadata while enforcing the existing fail-closed privacy policy.
     - The unit regression suite exercises both safe acceptance and unsafe rejection through validate_cyclonedx.
@@ -96,7 +99,7 @@ Output: A narrowly scoped validator correction with deterministic regression tes
     - Mac failure evidence accepts bounded timing telemetry and each live-server test verifies its own declared sentinel set.
     - The exact pushed commit's full required GitHub Actions checks complete successfully.
   </behavior>
-  <action>Emit bounded safe summaries for failing fixable findings and for unfixed findings retained in evidence. Include only validated package name/version, finding ID, severity, and a Boolean fix-availability signal; do not log descriptions, paths, or raw Trivy JSON. Keep vulnerability scanning on the full image but apply restricted-license policy to the app dependency source scan. Accept and strictly validate the sanitizer's bounded timing fields. Make the live-server verifier require an explicit one- or two-sentinel expectation per caller; add a synthetic SQLite seam test and a bounded row-existence wait for the first network sync. Refresh the Debian stable runtime pin independently from the Hex builder tag and apply available Debian security updates. Add tests for scanner scope, counts, fail/pass behavior, fixture states, and hostile-value redaction. Commit and push only focused changes to the authorized PR branch.</action>
+  <action>Emit bounded safe summaries for failing fixable findings and for unfixed findings retained in evidence. Include only validated package name/version, finding ID, severity, and a Boolean fix-availability signal; do not log descriptions, paths, or raw Trivy JSON. Keep vulnerability scanning on the full image but apply restricted-license policy to the app dependency source scan. Accept and strictly validate the sanitizer's bounded timing fields. Make the live-server verifier require an explicit one- or two-sentinel expectation per caller; add a synthetic SQLite seam test and a bounded row-existence wait for the first network sync. Normalize shared hosted server state before first-only fixture provisioning by removing only the exact second synthetic catalogue row inside a transaction that appends its catalogue tombstone; retain its content-addressed blob and immutable import receipt, and cover the resulting snapshot with a regression test. Refresh the Debian stable runtime pin independently from the Hex builder tag and apply available Debian security updates. Add tests for scanner scope, counts, fail/pass behavior, fixture states, and hostile-value redaction. Commit and push only focused changes to the authorized PR branch.</action>
   <verify>
     <automated>python3 -m unittest scripts.tests.test_release_evidence -v; bash playstead-mac/scripts/ci/run-mac-verification.sh --self-test-contracts</automated>
     <hosted>After pushing, obtain the exact fix commit SHA and query the connected GitHub workflow API with `github_fetch_commit_workflow_runs({repo_full_name: "szTheory/playstead", commit_sha: "&lt;fix-commit-sha&gt;"})`. Select the PR CI run for that exact SHA and require `status: completed` and `conclusion: success`. Then query `github_fetch_workflow_run_jobs({repo_full_name: "szTheory/playstead", run_id: &lt;run-id&gt;})`; require every required job in the run to be completed successfully. Query `github_fetch_workflow_job_steps` for the Docker job and require the `Scan tested image and validate release evidence` step to have conclusion `success`. Record the run URL, run ID, SHA, required-job results, and Docker-step result in the quick summary. A missing run, pending/in-progress run, failed required job, or missing/failed named step does not pass verification; diagnose and rerun after fixes.</hosted>
@@ -140,6 +143,7 @@ Output: A narrowly scoped validator correction with deterministic regression tes
 - Confirm unsafe path, forbidden-field, and sentinel cases fail closed, while the legitimate generated target-image SBOM validates.
 - Confirm scan-failure diagnostics include only bounded safe package/version/finding identifiers, with hostile values redacted and raw descriptions/paths absent.
 - Confirm all required checks for the focused PR complete green on the fix commit; preserve the run URL, run ID, and SHA in the quick summary.
+- Confirm fixture normalization leaves only Sentinel One in the next first-only server snapshot, removes only Sentinel Two's exact synthetic catalogue record, and preserves that sentinel's content-addressed bytes.
 </verification>
 
 <success_criteria>

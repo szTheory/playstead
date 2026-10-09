@@ -9,13 +9,18 @@ defmodule Mix.Tasks.Playstead.MacCiFixture do
 
   use Mix.Task
 
+  import Ecto.Query, warn: false
+
   alias Playstead.Accounts
   alias Playstead.Accounts.Scope
   alias Playstead.Blobs
   alias Playstead.Catalogue
+  alias Playstead.Catalogue.{AssetMember, AssetSet}
   alias Playstead.Import
   alias Playstead.Pairing
+  alias Playstead.Repo
   alias Playstead.Setup
+  alias Playstead.Sync.ChangeJournal
 
   @shortdoc "Creates and approves the bounded hosted Mac CI fixture"
   @device_label "Playstead Hosted Mac"
@@ -70,9 +75,10 @@ defmodule Mix.Tasks.Playstead.MacCiFixture do
 
   def device_label, do: @device_label
 
-  @doc "Creates the sole owner and first public synthetic catalogue sentinel."
+  @doc "Creates the owner and restores a first-only synthetic catalogue baseline."
   def provision! do
     owner = Accounts.get_owner() || create_owner!()
+    reset_second_sentinel!(owner)
     %{owner: owner, sentinel: import_sentinel!(owner, @first)}
   end
 
@@ -185,6 +191,49 @@ defmodule Mix.Tasks.Playstead.MacCiFixture do
       asset_set_id: detail.asset_set.id,
       byte_size: byte_size(bytes)
     }
+  end
+
+  # The serial hosted UI-test plan reuses one server owner. Snapshot tests add
+  # Sentinel Two to prove refresh behavior, while later pairing/save tests
+  # provision a fresh client mirror that must contain only Sentinel One. Remove
+  # only the exact disposable synthetic catalogue row after that proof and
+  # journal the tombstone; leave its content-addressed bytes and import receipt
+  # intact. Exclusion is insufficient because full snapshots include excluded
+  # rows so clients can reconstruct that state too.
+  defp reset_second_sentinel!(owner) do
+    sentinel_sha256 = :crypto.hash(:sha256, @second.bytes) |> Base.encode16(case: :lower)
+    sentinel_title = @second.title
+
+    query =
+      from(asset_set in AssetSet,
+        join: member in AssetMember,
+        on: member.asset_set_id == asset_set.id,
+        join: blob in Blobs.Blob,
+        on: blob.id == member.blob_id,
+        where: asset_set.user_id == ^owner.id,
+        where: asset_set.display_title == ^sentinel_title,
+        where: blob.sha256 == ^sentinel_sha256,
+        select: asset_set
+      )
+
+    case Repo.transaction(fn ->
+           query
+           |> Repo.all()
+           |> Enum.each(fn asset_set ->
+             with {:ok, _deleted} <- Repo.delete(asset_set),
+                  {:ok, _tombstone} <-
+                    ChangeJournal.tombstone(owner.id, :catalogue, asset_set.id) do
+               :ok
+             else
+               {:error, reason} -> Repo.rollback(reason)
+             end
+           end)
+
+           :ok
+         end) do
+      {:ok, :ok} -> :ok
+      {:error, _reason} -> raise ArgumentError, "could not reset second CI sentinel"
+    end
   end
 
   defp write_control!(output, payload) do
