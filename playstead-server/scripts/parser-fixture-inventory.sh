@@ -5,16 +5,23 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 if [[ -z "$ROOT" ]]; then ROOT="$(cd "$(dirname "$0")/../.." && pwd)"; fi
 INVENTORY="$ROOT/playstead-server/priv/recovery/parser-fixture-inventory.json"
 SELF_TEST=false
+SELF_TEST_INVENTORY=""
 OUTPUT=""
 SUBJECT_SHA=""
 while (($#)); do
   case "$1" in
     --self-test) SELF_TEST=true; shift ;;
+    --self-test-inventory) SELF_TEST_INVENTORY="${2:?--self-test-inventory requires a path}"; shift 2 ;;
     --output) OUTPUT="${2:?--output requires a path}"; shift 2 ;;
     --subject-sha256) SUBJECT_SHA="${2:?--subject-sha256 requires a digest}"; shift 2 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
+
+if [[ -n "$SELF_TEST_INVENTORY" ]]; then
+  [[ "$SELF_TEST" == true ]] || { echo "--self-test-inventory requires --self-test" >&2; exit 2; }
+  INVENTORY="$SELF_TEST_INVENTORY"
+fi
 
 cd "$ROOT"
 python3 - "$INVENTORY" <<'PY'
@@ -57,7 +64,7 @@ elif re.search(r'PsxCue\.recognize\(bounded\)', formats):
     registered.add('psx_cue')
 registered = {'gb_gbc' if key == 'gb' else key for key in registered}
 entries = inventory.get('parsers')
-if inventory.get('schema_version') != 1 or not isinstance(entries, list) or not entries:
+if type(inventory.get('schema_version')) is not int or inventory['schema_version'] != 1 or not isinstance(entries, list) or not entries:
     raise SystemExit('empty or malformed parser inventory')
 mapped = {}
 for entry in entries:
