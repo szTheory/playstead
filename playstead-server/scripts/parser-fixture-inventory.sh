@@ -22,6 +22,31 @@ import json, pathlib, re, sys
 inventory = json.loads(pathlib.Path(sys.argv[1]).read_text())
 formats = pathlib.Path('playstead-server/lib/playstead/formats.ex').read_text()
 archive = pathlib.Path('playstead-server/lib/playstead/formats/archive.ex').read_text()
+# Each registered parser has one explicitly reviewed adversarial test contract.
+# Adding a parser requires adding its exact category, file, test name, and the
+# parser call that the selected test must exercise here as well as in inventory.
+contracts = {
+    'archive': ('malformed-container-signatures', 'test/playstead/formats/archive_test.exs',
+                'does not match empty input', r'Archive\.detect\(<<>>\)\s*==\s*:no_match'),
+    'gba': ('malformed-header-and-checksum', 'test/playstead/formats/validators/gba_test.exs',
+            'does not match a correct logo with a wrong checksum',
+            r'Gba\.recognize\(RomFixtures\.bad_checksum_gba\(\)\)\s*==\s*:no_match'),
+    'gb_gbc': ('malformed-header-and-checksum', 'test/playstead/formats/validators/gb_test.exs',
+               'does not match a correct logo with a wrong checksum',
+               r'Gb\.recognize\(RomFixtures\.bad_checksum_gb\(\)\)\s*==\s*:no_match'),
+    'nes': ('malformed-truncated-header', 'test/playstead/formats/validators/nes_test.exs',
+            'does not match input truncated before the header ends',
+            r'Nes\.recognize\(RomFixtures\.truncated_nes\(\)\)\s*==\s*:no_match'),
+    'md': ('malformed-truncated-header', 'test/playstead/formats/validators/md_test.exs',
+           'does not match input truncated before the header ends',
+           r'Md\.recognize\(RomFixtures\.truncated_md\(\)\)\s*==\s*:no_match'),
+    'snes': ('malformed-truncated-header', 'test/playstead/formats/validators/snes_test.exs',
+             'does not match input truncated before the header ends',
+             r'Snes\.recognize\(binary_part\(RomFixtures\.valid_snes_lorom\(\), 0, 100\)\)\s*==\s*:no_match'),
+    'psx_cue': ('path-traversal-and-malformed-descriptor', 'test/playstead/formats/validators/psx_cue_test.exs',
+                'rejects a referenced name containing a parent-directory segment',
+                r'PsxCue\.recognize\(RomFixtures\.cue_with_parent_traversal\(\)\)\s*==\s*:no_match'),
+}
 registered = set(re.findall(r'\{:(\w+),\s*&\w+\.recognize/1\}', formats))
 if 'Archive.detect(bounded)' not in formats or '@signatures [' not in archive:
     raise SystemExit('archive detector is not registered from production Formats code')
@@ -44,8 +69,18 @@ for entry in entries:
         raise SystemExit(f'duplicate inventory entry: {entry["id"]}')
     mapped[entry['id']] = entry
     test = pathlib.Path('playstead-server') / entry['test_file']
-    if not test.is_file() or not re.search(r'\btest\s+"' + re.escape(entry['test_identity']) + r'"', test.read_text()):
-        raise SystemExit(f'missing discoverable test identity for {entry["id"]}')
+    contract = contracts.get(entry['id'])
+    if contract is None:
+        raise SystemExit(f'missing explicit parser fixture contract for {entry["id"]}')
+    category, expected_file, expected_identity, assertion = contract
+    if (entry['category'], entry['test_file'], entry['test_identity']) != (category, expected_file, expected_identity):
+        raise SystemExit(f'parser fixture contract mismatch for {entry["id"]}')
+    if not test.is_file():
+        raise SystemExit(f'missing parser fixture test file for {entry["id"]}')
+    test_source = test.read_text()
+    identity = re.search(r'\btest\s+"' + re.escape(expected_identity) + r'"\s+do(.*?)\n\s+end', test_source, re.S)
+    if not identity or not re.search(assertion, identity.group(1)):
+        raise SystemExit(f'parser fixture test does not exercise {entry["id"]}')
 if registered != set(mapped):
     raise SystemExit(f'parser inventory drift: enabled={sorted(registered)}, mapped={sorted(mapped)}')
 PY
