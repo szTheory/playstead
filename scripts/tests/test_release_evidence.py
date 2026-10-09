@@ -227,6 +227,35 @@ class ReleaseEvidenceNegativeContracts(unittest.TestCase):
                                     "description": "See https://example.invalid/docs/releases/v1"}]}
         self.assertEqual(release_evidence.validate_cyclonedx(document), 1)
 
+    def test_trivy_1_7_generated_sbom_metadata_is_accepted(self):
+        # Trivy 0.75 emits CycloneDX 1.7 for the tested container image.
+        reference = "docker.io/library/playstead-app:ci"
+        document = {
+            "$schema": "http://cyclonedx.org/schema/bom-1.7.schema.json",
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.7",
+            "version": 1,
+            "metadata": {
+                "component": {"type": "container", "name": "playstead-app"},
+                "properties": [
+                    {"name": "aquasecurity:trivy:Reference", "value": reference},
+                ],
+            },
+            "components": [{"type": "library", "name": "example", "version": "1.0"}],
+        }
+        self.assertEqual(release_evidence.validate_cyclonedx(document), 1)
+
+        for private_value in (
+            "/Users/alice/private/collection",
+            "PRIVATE_EVIDENCE_SENTINEL",
+        ):
+            unsafe = json.loads(json.dumps(document))
+            unsafe["metadata"]["properties"][0]["value"] = private_value
+            with self.subTest(private_value="sentinel" if "SENTINEL" in private_value else "path"):
+                with self.assertRaises(ValueError) as error:
+                    release_evidence.validate_cyclonedx(unsafe)
+                self.assertNotIn(private_value, str(error.exception))
+
     def test_cyclonedx_document_shape_and_privacy_are_checked_before_upload(self):
         document = {"bomFormat": "CycloneDX", "specVersion": "1.6", "version": 1,
                     "components": [{"type": "library", "name": "example", "version": "1.0"}]}

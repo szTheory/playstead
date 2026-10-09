@@ -65,7 +65,7 @@ def validate_cyclonedx(document: dict) -> int:
         fail("CycloneDX SBOM must be a JSON object")
     clean(document)
     components = document.get("components")
-    if document.get("bomFormat") != "CycloneDX" or document.get("specVersion") not in {"1.4", "1.5", "1.6"}:
+    if document.get("bomFormat") != "CycloneDX" or document.get("specVersion") not in {"1.4", "1.5", "1.6", "1.7"}:
         fail("malformed or unsupported CycloneDX document")
     if not is_json_integer(document.get("version")) or document["version"] < 1:
         fail("CycloneDX document version is missing")
