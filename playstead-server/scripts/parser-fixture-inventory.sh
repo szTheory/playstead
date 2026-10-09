@@ -68,6 +68,8 @@ if type(inventory.get('schema_version')) is not int or inventory['schema_version
     raise SystemExit('empty or malformed parser inventory')
 mapped = {}
 for entry in entries:
+    if not isinstance(entry, dict):
+        raise SystemExit('parser inventory entries must be objects')
     if set(entry) != {'id','category','test_file','test_identity'}:
         raise SystemExit('inventory entries must use only id/category/test_file/test_identity')
     if not all(isinstance(entry[k], str) and entry[k] for k in entry):
