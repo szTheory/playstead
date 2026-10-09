@@ -1,0 +1,23 @@
+quiet: true
+timeout: 10m
+format: json
+exit-code: 0
+severity:
+  - HIGH
+  - CRITICAL
+scan:
+  scanners:
+    - vuln
+    - license
+license:
+  full: true
+  forbidden:
+    - AGPL-1.0
+    - AGPL-3.0
+    - SSPL-1.0
+  restricted:
+    - GPL-2.0
+    - GPL-3.0
+# No exceptions are currently approved. Any future exception must identify the
+# exact package plus advisory/license, include a review reason and ISO expiry
+# date, and be validated by release-evidence.py before a report can pass.

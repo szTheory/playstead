@@ -172,20 +172,27 @@ jobs:
               - 'playstead-server/priv/repo/migrations/**'
               - '.github/workflows/ci.yml'
 
-      - if: github.ref == 'refs/heads/main' || steps.changes.outputs.infra == 'true'
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3.12.0
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3.12.0
 
-      - if: github.ref == 'refs/heads/main' || steps.changes.outputs.infra == 'true'
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8  # v6.19.2
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8  # v6.19.2
         with:
           context: playstead-server
-          load: true
           tags: playstead-app:ci
+          outputs: type=docker,dest=/tmp/playstead-release.tar
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - if: github.ref == 'refs/heads/main' || steps.changes.outputs.infra == 'true'
-        name: Cold-start smoke (fresh volumes, restart, volume survival)
+      - name: Load the release archive used by the smoke test
+        run: docker load --input /tmp/playstead-release.tar
+
+      - name: Record tested release identity
+        id: release
+        run: |
+          set -euo pipefail
+          echo "sha256=$(sha256sum /tmp/playstead-release.tar | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "image_id=$(docker image inspect --format '{{.Id}}' playstead-app:ci)" >> "$GITHUB_OUTPUT"
+
+      - name: Cold-start smoke (fresh volumes, restart, volume survival)
         env:
           CI: "true"
           COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
@@ -205,3 +212,88 @@ jobs:
           PLAYSTEAD_SETUP_TOKEN=
           ENV
           bash scripts/compose-smoke.sh --fresh
+
+      - name: Scan tested image and validate release evidence
+        working-directory: .
+        env:
+          RELEASE_ARCHIVE: ${{ runner.temp }}/playstead-release-evidence/playstead-release.tar
+          RELEASE_SHA256: ${{ steps.release.outputs.sha256 }}
+          RELEASE_IMAGE_REF: playstead-app:ci
+        run: |
+          mkdir -p "$RUNNER_TEMP/playstead-release-evidence"
+          cp /tmp/playstead-release.tar "$RELEASE_ARCHIVE"
+          bash playstead-server/scripts/parser-fixture-inventory.sh --output "$RUNNER_TEMP/playstead-release-evidence/parser-inventory.json" --subject-sha256 "$RELEASE_SHA256"
+          bash scripts/ci/release-supply-chain.sh "$RUNNER_TEMP/playstead-release-evidence"
+
+      - name: Upload tested archive and validated evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: tested-release-evidence
+          path: ${{ runner.temp }}/playstead-release-evidence
+          if-no-files-found: error
+          retention-days: 14
+
+  release-attestation:
+    name: Protected-main release attestations
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.ref_protected == true
+    needs: [compose-smoke]
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          name: tested-release-evidence
+          path: release-evidence
+
+      - name: Check downloaded tested archive and scan manifest
+        run: |
+          set -euo pipefail
+          test -s release-evidence/playstead-release.tar
+          test -s release-evidence/evidence.json
+          test -s release-evidence/sbom.cdx.json
+          python3 - <<'PY'
+          import hashlib, json, pathlib
+          root = pathlib.Path('release-evidence')
+          evidence = json.loads((root / 'evidence.json').read_text())
+          digest = hashlib.sha256((root / 'playstead-release.tar').read_bytes()).hexdigest()
+          if evidence['subject']['archive_sha256'] != digest:
+              raise SystemExit('downloaded release archive digest differs from validated report')
+          PY
+          python3 scripts/ci/release-evidence.py --input release-evidence/evidence.json --output release-evidence/evidence-revalidated.json
+
+      # Pin resolved from the official actions/attest v4.2.2 signed release (2026-10-09):
+      # https://github.com/actions/attest/releases/tag/v4.2.2
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6  # v4.2.2 provenance
+        with:
+          subject-path: release-evidence/playstead-release.tar
+      - id: attest-sbom
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6  # v4.2.2 CycloneDX SBOM
+        with:
+          subject-path: release-evidence/playstead-release.tar
+          sbom-path: release-evidence/sbom.cdx.json
+
+      - name: Verify provenance and SBOM attestations against archive digest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh attestation verify release-evidence/playstead-release.tar --repo "$GITHUB_REPOSITORY" --format json > release-evidence/provenance-verified.json
+          gh attestation verify release-evidence/playstead-release.tar --repo "$GITHUB_REPOSITORY" --predicate-type https://cyclonedx.org/bom --format json > release-evidence/sbom-verified.json
+          python3 scripts/ci/release-evidence.py --input release-evidence/evidence.json --provenance release-evidence/provenance-verified.json --sbom release-evidence/sbom-verified.json --output release-evidence/release-evidence.json
+
+      - name: Upload verified release evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: release-ready-evidence
+          path: release-evidence/release-evidence.json
+          if-no-files-found: error
+          retention-days: 90
