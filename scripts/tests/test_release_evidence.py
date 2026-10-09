@@ -228,6 +228,43 @@ class ReleaseEvidenceNegativeContracts(unittest.TestCase):
                                     "description": "See https://example.invalid/docs/releases/v1"}]}
         self.assertEqual(release_evidence.validate_cyclonedx(document), 1)
 
+    def test_vendor_vulnerability_description_may_contain_path_examples(self):
+        document = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "version": 1,
+            "components": [{"type": "library", "name": "example"}],
+            "vulnerabilities": [{
+                "id": "CVE-2026-12345",
+                "description": (
+                    "A path traversal issue may let an attacker use ../ to read "
+                    "a system file such as /etc/example.conf."
+                ),
+            }],
+        }
+        self.assertEqual(release_evidence.validate_cyclonedx(document), 1)
+
+        for private_path in (
+            "/home/runner/work/playstead/private-test.rom",
+            r"C:\Users\runner\work\private-test.rom",
+            r"\\private-host\share\private-test.rom",
+        ):
+            unsafe = json.loads(json.dumps(document))
+            unsafe["vulnerabilities"][0]["description"] += f" Scanned local input: {private_path}"
+            with self.subTest(private_path_kind="host path"):
+                with self.assertRaisesRegex(ValueError, "private path or sentinel") as error:
+                    release_evidence.validate_cyclonedx(unsafe)
+                self.assertIn("$.vulnerabilities[0].description", str(error.exception))
+                self.assertNotIn(private_path, str(error.exception))
+
+        # A marker for project-local/private input is still rejected even in
+        # vendor prose, and the diagnostic must not echo it.
+        document["vulnerabilities"][0]["description"] += " PRIVATE_EVIDENCE_SENTINEL"
+        with self.assertRaisesRegex(ValueError, "private path or sentinel") as error:
+            release_evidence.validate_cyclonedx(document)
+        self.assertIn("$.vulnerabilities[0].description", str(error.exception))
+        self.assertNotIn("PRIVATE_EVIDENCE_SENTINEL", str(error.exception))
+
     def test_rejection_locations_are_redacted_and_structural(self):
         document = {
             "bomFormat": "CycloneDX",

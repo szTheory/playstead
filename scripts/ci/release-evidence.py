@@ -31,6 +31,18 @@ EMBEDDED_LOCAL_PATH = re.compile(
     r"(?<![A-Za-z0-9])\.\.(?:[/\\]|$)"  # parent traversal component
     r")"
 )
+# CycloneDX vulnerability descriptions are third-party advisory prose. They
+# commonly include public system-file examples and `../` traversal payloads,
+# neither of which identifies the build host. Still reject roots associated
+# with actual user, runner, or temporary workspaces in this specific field.
+VULNERABILITY_DESCRIPTION_HOST_PATH = re.compile(
+    r"(?:"
+    r"(?<![A-Za-z0-9])/(?:Users|home|root|private|tmp|var/folders|var/tmp|__w|workspace|workspaces)(?:/|$)|"
+    r"(?<![A-Za-z0-9])[A-Za-z]:[\\/](?:Users|Documents and Settings)(?:[\\/]|$)|"
+    r"(?<!\S)(?:\\\\|//)[^\\/\s]+[\\/]"
+    r")",
+    re.I,
+)
 
 
 def fail(message: str) -> None:
@@ -76,7 +88,15 @@ def clean(value, key="", path=()):
         return [clean(item, key, (*path, index)) for index, item in enumerate(value)]
     if isinstance(value, str):
         without_urls = URL_VALUE.sub("", value)
-        if EMBEDDED_LOCAL_PATH.search(without_urls) or "PRIVATE_EVIDENCE_SENTINEL" in value:
+        is_advisory_description = (
+            len(path) >= 3 and path[0] == "vulnerabilities" and path[-1] == "description"
+        )
+        path_leak = (
+            VULNERABILITY_DESCRIPTION_HOST_PATH.search(without_urls)
+            if is_advisory_description
+            else EMBEDDED_LOCAL_PATH.search(without_urls)
+        )
+        if path_leak or "PRIVATE_EVIDENCE_SENTINEL" in value:
             fail(f"private path or sentinel in evidence at {location}")
     return value
 
