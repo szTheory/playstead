@@ -308,5 +308,21 @@ class ReleaseEvidenceNegativeContracts(unittest.TestCase):
                     self.assertFalse(output.exists())
 
 
+class ParserInventorySchemaContract(unittest.TestCase):
+    def test_boolean_schema_version_is_rejected_by_production_inventory_script(self):
+        repository_root = Path(__file__).parents[2]
+        regression = repository_root / "playstead-server/scripts/tests/parser-fixture-inventory-schema-test.sh"
+        result = subprocess.run(
+            ["bash", str(regression)],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(
+            result.returncode,
+            0,
+            f"parser inventory schema regression failed\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
