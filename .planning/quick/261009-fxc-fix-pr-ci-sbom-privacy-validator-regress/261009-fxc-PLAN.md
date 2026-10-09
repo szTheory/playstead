@@ -49,6 +49,7 @@ Output: A narrowly scoped validator correction with deterministic regression tes
 - Run 37983148056 on SHA `6c4d5ed24c8b9fdb96d3d2f19e09c72767e61e7d` proves the image has 48 unfixed HIGH/CRITICAL vulnerabilities and zero fixable ones, but the scan still fails on 181 restricted-license records from Debian image packages. The source dependency scan is green. Scope the license gate to source dependencies while retaining the complete image vulnerability scan and image SBOM.
 - The same run exposes a Mac failure-evidence schema mismatch: the writer includes bounded timing fields, while the privacy sanitizer rejects them. It also shows that `SaveEndToEndTests` uses a fresh one-sentinel fixture but calls a verifier that always required both sentinels; require every verifier caller to declare its own expected sentinel set.
 - Run 37983148056's `LiveServerSnapshotTests` missed the initial network-backed row within its existing 10-second element wait; give that first sync pass a 20-second hosted budget and retain the no-blob/readability assertions.
+- Exact-head run 37990636933 failed before test startup because both GitHub-hosted Linux jobs hit Docker Hub's unauthenticated pull rate limit for `postgres:17.2`. The official Docker Postgres image is available in AWS ECR Public's Docker-verified `docker/library` namespace. Use that mirror for the server test service and CI compose DB; remove the compose-smoke job's redundant external Postgres service, which its `db` compose service never uses. Preserve the regular deployment compose default.
 - Run 37970978972 proves the Mint/HPAX lockfile update removes the Mint dependency-audit findings and the server and Mac jobs pass. The image scan still fails with only a generic image-scan status, and the raw report is removed after the job. Add a bounded package/version/advisory-ID summary to the failure log without descriptions, paths, or arbitrary scanner data so the remaining image finding can be fixed from hosted evidence.
 </context>
 
@@ -105,12 +106,12 @@ Output: A narrowly scoped validator correction with deterministic regression tes
 
 <task type="auto">
   <name>Task 4: Prove all fixes through exact-head hosted CI</name>
-  <files>.github/workflows/ci.yml, scripts/ci/release-evidence.py, scripts/ci/release-supply-chain.sh, playstead-mac/scripts/ci/live-server.sh, playstead-mac/scripts/ci/sanitize-evidence.sh</files>
+  <files>.github/workflows/ci.yml, playstead-server/docker-compose.ci.yml, scripts/ci/release-evidence.py, scripts/ci/release-supply-chain.sh, playstead-mac/scripts/ci/live-server.sh, playstead-mac/scripts/ci/sanitize-evidence.sh, scripts/tests/test_release_evidence.py</files>
   <behavior>
     - The exact pushed commit's server, Docker cold-start and scan, and macOS verification gates complete successfully.
     - Mac failure artifacts remain privacy-safe if a later regression occurs.
   </behavior>
-  <action>Push the focused correction and query the connected GitHub workflow API for the exact full SHA. Require the PR CI run to complete successfully, every required job to pass, and the named `Scan tested image and validate release evidence` step to pass. If a check fails, inspect the sanitized evidence and correct the observed cause; never infer that a pending or superseded run passed. Record the exact run URL, ID, SHA, and required gate outcomes in the quick summary.</action>
+  <action>Push the focused correction and query the connected GitHub workflow API for the exact full SHA. Run 37990636933 proved hosted CI's Docker Hub image pulls are rate-limited, so point the server test service and CI-only compose DB override at the Docker-verified official image in AWS ECR Public. Remove the compose-smoke job's redundant external Postgres service, which the job's compose-managed `db` service does not use. Preserve `docker-compose.yml`'s regular deployment default and assert this source boundary in a regression test. Require the PR CI run to complete successfully, every required job to pass, and the named `Scan tested image and validate release evidence` step to pass. If a check fails, inspect the sanitized evidence and correct the observed cause; never infer that a pending or superseded run passed. Record the exact run URL, ID, SHA, and required gate outcomes in the quick summary.</action>
   <verify>
     <hosted>After pushing, query `github_fetch_commit_workflow_runs`, `github_fetch_workflow_run_jobs`, and `github_fetch_workflow_job_steps` for the exact full SHA and named Docker scan step.</hosted>
   </verify>

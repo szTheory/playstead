@@ -7,7 +7,9 @@ covered_files:
   - .planning/quick/261009-fxc-fix-pr-ci-sbom-privacy-validator-regress/261009-fxc-PLAN.md
   - .planning/quick/261009-fxc-fix-pr-ci-sbom-privacy-validator-regress/261009-fxc-SUMMARY.md
   - playstead-server/Dockerfile
+  - playstead-server/docker-compose.ci.yml
   - playstead-server/mix.lock
+  - .github/workflows/ci.yml
   - scripts/ci/release-evidence.py
   - scripts/ci/release-supply-chain.sh
   - scripts/ci/trivy.yaml
@@ -48,7 +50,7 @@ gaps:
       - "A green exact-head Mac verification run after the fixture correction."
   - truth: "The focused PR's required GitHub Actions checks finish green on the exact fix commit."
     status: partial
-    reason: "Run 37983148056 targets exact SHA 6c4d5ed24c8b9fdb96d3d2f19e09c72767e61e7d and failed the Docker scan and Mac verification; a new corrected commit still needs hosted verification."
+    reason: "Run 37990636933 failed before the Linux jobs could start because GitHub-hosted runners hit Docker Hub's unauthenticated postgres:17.2 pull limit. CI now uses Docker's official ECR Public image for both hosted Postgres services and the CI Compose override; exact-head hosted verification is still needed."
     artifacts:
       - path: ".github/workflows/ci.yml"
         issue: "The exact-head server, Docker and Mac jobs must complete green after the in-progress corrections are pushed."
@@ -72,7 +74,7 @@ gaps:
 | 4 | Scan diagnostics are bounded and privacy-safe for failures and unfixed findings. | ✓ VERIFIED | Tests prove the 25-example cap, safe identifiers, fix-availability booleans, and omission of private paths, descriptions and arbitrary scanner values; hosted run 37979493239 emitted bounded package findings. |
 | 5 | Restricted-license policy applies to Playstead source dependencies while the full image remains vulnerability-scanned. | ⚠️ PARTIAL | The source scan passed and the old image scan produced 181 Debian license records. The updated command scopes image scanning to vulnerabilities and preserves source dependency license scanning; local regression tests pass, pending hosted confirmation. |
 | 6 | Mac failure evidence accepts bounded timing fields and each live-server caller verifies its own fixture state. | ⚠️ PARTIAL | Run 37983148056 confirms the timing sanitizer accepted and uploaded the failure artifact. Caller-specific sentinel expectations, the synthetic SQLite seam test and 20-second first-sync wait now pass locally, pending hosted Mac verification. |
-| 7 | Required PR CI checks finish green on the exact fix commit. | ⚠️ PENDING | The scanner-scope and Mac fixture changes are not yet pushed; exact-head server, Docker scan and Mac results are therefore outstanding. |
+| 7 | Required PR CI checks finish green on the exact fix commit. | ⚠️ PENDING | Run [37990636933](https://github.com/szTheory/playstead/actions/runs/37990636933) for SHA `1a4178ff5e4a31f35f3e150d1332e8ff878a691c` failed before Linux checks due to Docker Hub's unauthenticated Postgres pull limit. The follow-up uses Docker's official ECR Public image for the server test service and CI compose database, and removes a redundant service from compose-smoke; that exact-head run is not yet available. |
 
 **Score:** 3/7 must-haves verified
 
@@ -82,6 +84,7 @@ gaps:
 |---|---|---|
 | `scripts/ci/release-evidence.py` | ✓ VERIFIED locally | Retains strict SBOM privacy checks, counts total/fixable/unfixed HIGH/CRITICAL findings, and rejects evidence with a published fix or inconsistent counts. |
 | `scripts/ci/release-supply-chain.sh` | ⚠️ HOSTED CONFIRMATION PENDING | Full image vulnerability scanning remains enabled; restricted-license checks stay enabled for the Playstead source dependency scan. Scope contract tests pass. |
+| `.github/workflows/ci.yml` and `playstead-server/docker-compose.ci.yml` | ⚠️ HOSTED CONFIRMATION PENDING | The server test service uses Docker's official image in ECR Public; compose-smoke uses its CI-only mirror override and no longer starts an unused external database. Regression coverage preserves the normal Compose deployment source. |
 | `playstead-mac/scripts/ci/live-server.sh` | ⚠️ HOSTED CONFIRMATION PENDING | Requires the caller to declare `first-only` or `both`; both expectations pass synthetic SQLite tests. |
 | `playstead-mac/PlaysteadUITests/LiveServerSnapshotTests.swift` and `SaveEndToEndTests.swift` | ⚠️ HOSTED CONFIRMATION PENDING | Callers declare their actual fixture sets; the initial network-backed row has a 20-second wait. |
 | `scripts/tests/test_release_evidence.py` | ✓ VERIFIED | `python3 -m unittest scripts.tests.test_release_evidence -v` — 21 tests passed. |
@@ -95,6 +98,7 @@ gaps:
 | Safe generated-format metadata and fail-closed privacy regressions | `python3 -m unittest scripts.tests.test_release_evidence -v` — 21 passed | ✓ PASS |
 | Fixable versus unfixed HIGH/CRITICAL policy | Contract tests cover fixable failure, unfixed counts, and evidence consistency | ✓ PASS |
 | Bounded scanner diagnostics and scanner scope | Unit tests plus exact image-vulnerability/source-license command contract | ✓ PASS locally |
+| Hosted Postgres registry source | Contract requires the server test service and CI override to use the official ECR Public mirror while the deploy default remains `postgres:17.2` | ✓ PASS locally; hosted pull pending |
 | Sanitizer timing fields | Hosted failure artifact uploaded in run 37983148056; 35 sanitizer checks pass locally | ✓ PASS |
 | Per-caller live-server mirror evidence | Synthetic SQLite contract and topology suite pass locally | ✓ PASS locally |
 | Four-layer shell contracts | `run-mac-verification.sh --self-test-contracts` — 43 Python tests plus shell contracts passed | ✓ PASS locally |
@@ -110,7 +114,7 @@ None for this CI task. The remaining scan, fixture and exact-head checks are mac
 
 ## Gaps Summary
 
-The original CycloneDX privacy regression, bounded diagnostic path, Debian fixability policy and timing-field sanitizer have evidence. The last hosted run exposed two remaining issues: the image license scan was applying application policy to Debian base packages, and the shared Mac verifier expected two sentinels from a one-sentinel test profile. Both are corrected with local regression coverage. Push these focused changes, then keep the quick task open until the exact final SHA passes the server, Docker build/cold-start/scan and Mac verification gates.
+The original CycloneDX privacy regression, bounded diagnostic path, Debian fixability policy and timing-field sanitizer have evidence. The hosted run exposed image-license scope and Mac fixture defects, now corrected with local regression coverage. Its follow-up then hit Docker Hub's shared unauthenticated pull quota before Linux checks could start. Hosted Postgres pulls now use Docker's official ECR Public mirror, the compose-smoke job drops its unused external database, and normal deployment configuration is preserved. Keep this quick task open until the exact final SHA pulls the mirror successfully and passes server, Docker build/cold-start/scan and Mac verification gates.
 
 ---
 

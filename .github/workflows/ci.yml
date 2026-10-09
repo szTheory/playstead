@@ -27,7 +27,7 @@ jobs:
     timeout-minutes: 20
     services:
       postgres:
-        image: postgres:17.2
+        image: public.ecr.aws/docker/library/postgres:17.2
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -152,19 +152,6 @@ jobs:
     name: docker compose cold start
     runs-on: ubuntu-24.04
     timeout-minutes: 25
-    services:
-      postgres:
-        image: postgres:17.2
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: postgres
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 

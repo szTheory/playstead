@@ -560,5 +560,19 @@ class ParserInventorySchemaContract(unittest.TestCase):
         )
 
 
+class HostedPostgresRegistryContracts(unittest.TestCase):
+    def test_github_actions_uses_official_ecr_mirror_without_changing_deploy_default(self):
+        repository_root = Path(__file__).parents[2]
+        workflow = (repository_root / ".github/workflows/ci.yml").read_text()
+        compose_default = (repository_root / "playstead-server/docker-compose.yml").read_text()
+        compose_ci = (repository_root / "playstead-server/docker-compose.ci.yml").read_text()
+        mirror = "public.ecr.aws/docker/library/postgres:17.2"
+
+        self.assertEqual(workflow.count(f"image: {mirror}"), 1)
+        self.assertNotIn("image: postgres:17.2", workflow)
+        self.assertIn("image: postgres:17.2", compose_default)
+        self.assertIn(f"  db:\n    # Docker Official Image mirrored by AWS ECR Public. Hosted CI avoids\n    # Docker Hub's unauthenticated pull limit without changing deploy defaults.\n    image: {mirror}", compose_ci)
+
+
 if __name__ == "__main__":
     unittest.main()
