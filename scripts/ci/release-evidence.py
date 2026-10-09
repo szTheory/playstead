@@ -197,7 +197,10 @@ def validate(data: dict) -> dict:
 
 def verify_attestation_reports(evidence_path: str, provenance_path: str, sbom_path: str, output_path: str) -> None:
     evidence = load(evidence_path)
-    digest = evidence.get("subject", {}).get("archive_sha256")
+    subject = evidence.get("subject")
+    if not isinstance(subject, dict):
+        fail("invalid evidence subject before attestation verification")
+    digest = subject.get("archive_sha256")
     if not isinstance(digest, str) or not HEX64.fullmatch(digest):
         fail("invalid evidence subject before attestation verification")
     for name, path, predicate in (

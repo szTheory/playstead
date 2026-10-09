@@ -307,6 +307,28 @@ class ReleaseEvidenceNegativeContracts(unittest.TestCase):
                     self.assertNotIn("Traceback", result.stderr)
                     self.assertFalse(output.exists())
 
+    def test_malformed_evidence_subject_shapes_are_rejected_without_tracebacks(self):
+        for malformed_subject in (None, []):
+            with self.subTest(subject=malformed_subject), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                evidence = valid_evidence()
+                evidence["subject"] = malformed_subject
+                source = root / "input.json"
+                output = root / "output.json"
+                source.write_text(json.dumps(evidence))
+                result = subprocess.run(
+                    [sys.executable, str(MODULE_PATH), "--input", str(source),
+                     "--provenance", str(root / "provenance.json"), "--sbom", str(root / "sbom.json"),
+                     "--output", str(output)],
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("invalid evidence subject before attestation verification", result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assertEqual(result.stdout, "")
+                self.assertFalse(output.exists())
+
 
 class ParserInventorySchemaContract(unittest.TestCase):
     def test_boolean_schema_version_is_rejected_by_production_inventory_script(self):
