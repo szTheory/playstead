@@ -204,7 +204,7 @@ jobs:
           tags: playstead-app:ci
           outputs: type=docker,dest=/tmp/playstead-release.tar
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=max,ignore-error=true
 
       - name: Load the release archive used by the smoke test
         run: docker load --input /tmp/playstead-release.tar

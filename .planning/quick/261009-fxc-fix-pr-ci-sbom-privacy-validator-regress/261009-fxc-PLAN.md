@@ -10,6 +10,7 @@ must_haves:
     - The tested image has no HIGH/CRITICAL vulnerabilities with a published fix; unfixed HIGH/CRITICAL findings remain counted in release evidence and are reported with safe identifiers.
     - The full image scan gates package vulnerabilities; restricted-license policy remains enforced for Playstead's resolved source dependencies without treating Debian base-system packages as app dependencies.
     - A failed scan reports bounded package, version, and advisory identifiers without raw descriptions, paths, or arbitrary scanner data.
+    - GitHub Actions cache import/export remains a build optimization; cache-service outages cannot fail the tested-image build or release-evidence gate.
     - Mac failure evidence accepts bounded test-timing fields, and each live-server caller verifies its own explicit synthetic fixture state.
     - Reprovisioning a first-only live-server fixture removes only the exact prior second synthetic catalogue row from later snapshots, journals that removal, and preserves its content-addressed bytes and import receipts.
     - The focused PR's required GitHub Actions checks finish green before this fix is reported complete.
@@ -142,6 +143,7 @@ Output: A narrowly scoped validator correction with deterministic regression tes
 - Run `python3 -m unittest scripts.tests.test_release_evidence -v` from the repository root.
 - Confirm unsafe path, forbidden-field, and sentinel cases fail closed, while the legitimate generated target-image SBOM validates.
 - Confirm scan-failure diagnostics include only bounded safe package/version/finding identifiers, with hostile values redacted and raw descriptions/paths absent.
+- Confirm a failed external cache export does not prevent the tested release image from proceeding to smoke and scan; retain cache import/export when the service is available.
 - Confirm all required checks for the focused PR complete green on the fix commit; preserve the run URL, run ID, and SHA in the quick summary.
 - Confirm fixture normalization leaves only Sentinel One in the next first-only server snapshot, removes only Sentinel Two's exact synthetic catalogue record, and preserves that sentinel's content-addressed bytes.
 </verification>

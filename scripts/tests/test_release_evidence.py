@@ -585,6 +585,13 @@ class HostedContainerRegistryContracts(unittest.TestCase):
         self.assertIn(f"            image={image}", workflow)
         self.assertNotIn("image=moby/buildkit:", workflow)
 
+    def test_hosted_image_build_treats_unavailable_external_cache_as_optional(self):
+        repository_root = Path(__file__).parents[2]
+        workflow = (repository_root / ".github/workflows/ci.yml").read_text()
+
+        self.assertIn("cache-from: type=gha", workflow)
+        self.assertIn("cache-to: type=gha,mode=max,ignore-error=true", workflow)
+
 
 if __name__ == "__main__":
     unittest.main()
