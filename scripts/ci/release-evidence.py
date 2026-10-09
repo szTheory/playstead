@@ -204,15 +204,23 @@ def verify_attestation_reports(evidence_path: str, provenance_path: str, sbom_pa
             fail(f"missing verified {name} attestation")
         matching = False
         for record in records:
-            result = record.get("verificationResult", {}) if isinstance(record, dict) else {}
-            statement = result.get("statement", {})
+            if not isinstance(record, dict):
+                fail(f"malformed verified {name} attestation report")
+            result = record.get("verificationResult")
+            if not isinstance(result, dict):
+                fail(f"malformed verified {name} attestation report")
+            statement = result.get("statement")
+            if not isinstance(statement, dict):
+                fail(f"malformed verified {name} attestation report")
             if statement.get("predicateType") != predicate:
                 continue
             subjects = statement.get("subject")
-            if isinstance(subjects, list) and any(
-                isinstance(item, dict) and item.get("digest", {}).get("sha256") == digest
-                for item in subjects
-            ):
+            if not isinstance(subjects, list):
+                fail(f"malformed verified {name} attestation report")
+            for item in subjects:
+                if not isinstance(item, dict) or not isinstance(item.get("digest"), dict):
+                    fail(f"malformed verified {name} attestation report")
+            if any(item["digest"].get("sha256") == digest for item in subjects):
                 matching = True
         if not matching:
             fail(f"verified {name} attestation has no matching archive subject")

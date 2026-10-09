@@ -226,6 +226,48 @@ class ReleaseEvidenceNegativeContracts(unittest.TestCase):
             with self.assertRaises(ValueError):
                 release_evidence.verify_attestation_reports(str(evidence), str(provenance), str(sbom), str(output))
 
+    def test_malformed_attestation_shapes_are_rejected_without_tracebacks(self):
+        digest = "a" * 64
+        valid_statement = {
+            "predicateType": "https://slsa.dev/provenance/v1",
+            "subject": [{"name": "release.tar", "digest": {"sha256": digest}}],
+        }
+        malformed_records = (
+            [None],
+            [{"verificationResult": []}],
+            [{"verificationResult": {"statement": []}}],
+            [{"verificationResult": {"statement": {**valid_statement, "subject": [{}]}}}],
+            [{"verificationResult": {"statement": {**valid_statement, "subject": [{"digest": []}]}}}],
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            evidence = root / "input.json"
+            provenance = root / "provenance.json"
+            sbom = root / "sbom.json"
+            output = root / "output.json"
+            evidence.write_text(json.dumps(valid_evidence()))
+            sbom.write_text(json.dumps([{
+                "verificationResult": {"statement": {
+                    "predicateType": "https://cyclonedx.org/bom",
+                    "subject": [{"name": "release.tar", "digest": {"sha256": digest}}],
+                }}
+            }]))
+
+            for malformed in malformed_records:
+                with self.subTest(malformed=malformed):
+                    provenance.write_text(json.dumps(malformed))
+                    result = subprocess.run(
+                        [sys.executable, str(MODULE_PATH), "--input", str(evidence), "--provenance",
+                         str(provenance), "--sbom", str(sbom), "--output", str(output)],
+                        capture_output=True,
+                        text=True,
+                    )
+                    self.assertEqual(result.returncode, 1)
+                    self.assertIn("release evidence rejected:", result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assertFalse(output.exists())
+
 
 if __name__ == "__main__":
     unittest.main()
