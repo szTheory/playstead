@@ -125,8 +125,8 @@ final class SaveEndToEndTests: XCTestCase {
         XCTAssertEqual(result.adapterID, "e2e-harness", "adapter_id must survive upload, journal and sync")
         XCTAssertEqual(result.adapterVersion, "1.0")
 
-        // This test calls `verify` for the mirror-state half only: stored
-        // cursor, both sentinels, empty objects/partials, and zero blob
+        // This test owns a separate fresh profile with only the first
+        // sentinel: stored cursor, that sentinel, empty objects/partials, and zero blob
         // routes. It makes NO claim about how many snapshots the layer
         // fetched, and saying so explicitly is what stops it inheriting
         // LiveServerSnapshotTests' count -- which is what failed it in run
@@ -134,7 +134,7 @@ final class SaveEndToEndTests: XCTestCase {
         guard try runFixture(
             "verify",
             root: runRoot,
-            extraArguments: ["snapshots-not-asserted-here"]
+            extraArguments: ["snapshots-not-asserted-here", "first-only"]
         ) else {
             return XCTFail("live fixture stage 'verify' failed")
         }

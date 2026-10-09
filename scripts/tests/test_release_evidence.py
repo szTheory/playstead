@@ -134,6 +134,29 @@ class TrivyFixabilityPolicyContracts(unittest.TestCase):
         self.assertEqual(summary["fixable_high_critical"], 0)
         self.assertEqual(summary["unfixed_high_critical"], 1)
 
+    def test_restricted_application_license_remains_a_release_blocker(self):
+        report = {"Results": [{"Licenses": [{
+            "PkgName": "app-dependency", "PkgVersion": "1.0.0",
+            "Name": "GPL-3.0", "Severity": "HIGH",
+        }]}]}
+
+        summary = release_evidence.summarize_trivy(report, "a" * 64)
+
+        self.assertEqual(summary["status"], "failed")
+        self.assertEqual(summary["license_policy"], "failed")
+        self.assertEqual(summary["prohibited_licenses"], 1)
+
+
+class ReleaseScannerScopeContracts(unittest.TestCase):
+    def test_container_vulnerability_and_application_license_scans_are_scoped(self):
+        script = (Path(__file__).parents[1] / "ci" / "release-supply-chain.sh").read_text()
+        image_scan = script.split('"$TRIVY_IMAGE" image \\\n', 1)[1].split('"$IMAGE_REF"', 1)[0]
+        source_scan = script.split('"$TRIVY_IMAGE" fs \\\n', 1)[1].split("/work/playstead-server", 1)[0]
+
+        self.assertIn("--scanners vuln --format json", image_scan)
+        self.assertNotIn("--scanners vuln,license", image_scan)
+        self.assertIn("--scanners vuln,license", source_scan)
+
     def test_evidence_preserves_unfixed_counts_and_rejects_fixable_findings(self):
         evidence = valid_evidence()
         image_scan = evidence["scans"]["image"]

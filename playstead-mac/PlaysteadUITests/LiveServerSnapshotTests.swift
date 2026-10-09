@@ -60,7 +60,10 @@ final class LiveServerSnapshotTests: XCTestCase {
         XCTAssertTrue(launched.buttons["playstead.control.show-list"].awaitExistence(timeout: 10))
         launched.buttons["playstead.control.show-list"].clickWhenHittable()
         let row = launched.descendants(matching: .any)["playstead.game.\(first.assetSetID).summary"]
-        XCTAssertTrue(row.awaitExistence(timeout: 10))
+        // The library surface renders before its initial network snapshot is
+        // applied. Give that first sync pass its hosted-run budget before
+        // treating the asynchronous row refresh as a missing catalogue entry.
+        XCTAssertTrue(row.awaitExistence(timeout: 20))
         XCTAssertTrue(row.readableText.contains(first.title))
         XCTAssertFalse(try storedCursor(root: runRoot).isEmpty)
         try assertNoGameBytes(root: runRoot)
@@ -96,7 +99,7 @@ final class LiveServerSnapshotTests: XCTestCase {
         // shared phoenix.log, so it is only sound while this runs first --
         // stated explicitly here so a future reordering fails loudly instead
         // of drifting into some other test's failure.
-        guard try runFixture("verify", root: runRoot, extraArguments: ["2"]) else {
+        guard try runFixture("verify", root: runRoot, extraArguments: ["2", "both"]) else {
             return XCTFail("live fixture stage 'verify' failed")
         }
     }
