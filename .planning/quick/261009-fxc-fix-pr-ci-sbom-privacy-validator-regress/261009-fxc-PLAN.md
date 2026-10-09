@@ -11,6 +11,8 @@ must_haves:
     - The full image scan gates package vulnerabilities; restricted-license policy remains enforced for Playstead's resolved source dependencies without treating Debian base-system packages as app dependencies.
     - A failed scan reports bounded package, version, and advisory identifiers without raw descriptions, paths, or arbitrary scanner data.
     - GitHub Actions cache import/export remains a build optimization; cache-service outages cannot fail the tested-image build or release-evidence gate.
+    - The compose-smoke job's parser-fixture `mix test` runs in `MIX_ENV=test` with a ready isolated PostgreSQL service.
+    - Hosted curation drag checks wait up to 10 seconds for post-drag evidence and emit only allowlisted failure-stage tokens when that evidence does not arrive.
     - Mac failure evidence accepts bounded test-timing fields, and each live-server caller verifies its own explicit synthetic fixture state.
     - Reprovisioning a first-only live-server fixture removes only the exact prior second synthetic catalogue row from later snapshots, journals that removal, and preserves its content-addressed bytes and import receipts.
     - The focused PR's required GitHub Actions checks finish green before this fix is reported complete.
@@ -20,6 +22,9 @@ must_haves:
     - scripts/tests/test_release_evidence.py
     - playstead-server/mix.lock
     - playstead-mac/scripts/ci/sanitize-evidence.sh
+    - playstead-mac/scripts/ci/run-mac-verification.sh
+    - playstead-mac/scripts/ci/tests/four-layer-topology-test.sh
+    - playstead-mac/PlaysteadUITests/CurationInteractionTests.swift
     - playstead-mac/scripts/ci/live-server.sh
     - playstead-mac/PlaysteadUITests/LiveServerSnapshotTests.swift
     - playstead-mac/PlaysteadUITests/SaveEndToEndTests.swift
@@ -53,7 +58,7 @@ Output: A narrowly scoped validator correction with deterministic regression tes
 - Run 37983148056 on SHA `6c4d5ed24c8b9fdb96d3d2f19e09c72767e61e7d` proves the image has 48 unfixed HIGH/CRITICAL vulnerabilities and zero fixable ones, but the scan still fails on 181 restricted-license records from Debian image packages. The source dependency scan is green. Scope the license gate to source dependencies while retaining the complete image vulnerability scan and image SBOM.
 - The same run exposes a Mac failure-evidence schema mismatch: the writer includes bounded timing fields, while the privacy sanitizer rejects them. It also shows that `SaveEndToEndTests` uses a fresh one-sentinel fixture but calls a verifier that always required both sentinels; require every verifier caller to declare its own expected sentinel set.
 - Run 37983148056's `LiveServerSnapshotTests` missed the initial network-backed row within its existing 10-second element wait; give that first sync pass a 20-second hosted budget and retain the no-blob/readability assertions.
-- Exact-head run 37990636933 failed before test startup because both GitHub-hosted Linux jobs hit Docker Hub's unauthenticated pull rate limit for `postgres:17.2`. The official Docker Postgres image is available in AWS ECR Public's Docker-verified `docker/library` namespace. Use that mirror for the server test service and CI compose DB; remove the compose-smoke job's redundant external Postgres service, which its `db` compose service never uses. Preserve the regular deployment compose default.
+- Exact-head run 37990636933 failed before test startup because both GitHub-hosted Linux jobs hit Docker Hub's unauthenticated pull rate limit for `postgres:17.2`. The official Docker Postgres image is available in AWS ECR Public's Docker-verified `docker/library` namespace. Use that mirror for the server test service and CI compose DB; the compose-smoke job also needs a separate host-mapped Postgres service because its parser-fixture `mix test` runs on the runner before Compose starts. Preserve the regular deployment compose default.
 - Run 37970978972 proves the Mint/HPAX lockfile update removes the Mint dependency-audit findings and the server and Mac jobs pass. The image scan still fails with only a generic image-scan status, and the raw report is removed after the job. Add a bounded package/version/advisory-ID summary to the failure log without descriptions, paths, or arbitrary scanner data so the remaining image finding can be fixed from hosted evidence.
 </context>
 
@@ -115,7 +120,7 @@ Output: A narrowly scoped validator correction with deterministic regression tes
     - The exact pushed commit's server, Docker cold-start and scan, and macOS verification gates complete successfully.
     - Mac failure artifacts remain privacy-safe if a later regression occurs.
   </behavior>
-  <action>Push the focused correction and query the connected GitHub workflow API for the exact full SHA. Run 37990636933 proved hosted CI's Docker Hub image pulls are rate-limited, so point the server test service and CI-only compose DB override at the Docker-verified official image in AWS ECR Public. Remove the compose-smoke job's redundant external Postgres service, which the job's compose-managed `db` service does not use. Preserve `docker-compose.yml`'s regular deployment default and assert this source boundary in a regression test. Require the PR CI run to complete successfully, every required job to pass, and the named `Scan tested image and validate release evidence` step to pass. If a check fails, inspect the sanitized evidence and correct the observed cause; never infer that a pending or superseded run passed. Record the exact run URL, ID, SHA, and required gate outcomes in the quick summary.</action>
+  <action>Push the focused correction and query the connected GitHub workflow API for the exact full SHA. Run 37990636933 proved hosted CI's Docker Hub image pulls are rate-limited, so point the server test service and CI-only compose DB override at the Docker-verified official image in AWS ECR Public. The compose-smoke job also runs parser fixtures through `mix test` before Compose starts; give it a separate ready PostgreSQL service mapped to localhost and `MIX_ENV=test`, and cover that requirement with a regression test. Preserve `docker-compose.yml`'s regular deployment default and assert this source boundary in a regression test. Require the PR CI run to complete successfully, every required job to pass, and the named `Scan tested image and validate release evidence` step to pass. If a check fails, inspect the sanitized evidence and correct the observed cause; never infer that a pending or superseded run passed. Record the exact run URL, ID, SHA, and required gate outcomes in the quick summary.</action>
   <verify>
     <hosted>After pushing, query `github_fetch_commit_workflow_runs`, `github_fetch_workflow_run_jobs`, and `github_fetch_workflow_job_steps` for the exact full SHA and named Docker scan step.</hosted>
   </verify>

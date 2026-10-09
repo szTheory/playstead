@@ -152,6 +152,23 @@ jobs:
     name: docker compose cold start
     runs-on: ubuntu-24.04
     timeout-minutes: 25
+    # The parser fixture inventory runs `mix test` before the production image
+    # is built. Give it the same isolated Postgres service as the main test job.
+    services:
+      postgres:
+        image: public.ecr.aws/docker/library/postgres:17.2
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: playstead_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      MIX_ENV: test
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 

@@ -515,6 +515,18 @@ grep -F 'settleMove(assetSetID: members[index].assetSetID, to: destination)' "$C
 grep -F 'list.typeKey(.downArrow, modifierFlags: [])' "$CURATION_TEST" >/dev/null
 grep -F 'harness.app.typeKey("u", modifierFlags: [.command, .option])' "$CURATION_TEST" >/dev/null
 grep -F 'curation-keyboard-stage=selection-target-not-reached' "$CURATION_TEST" >/dev/null
+grep -F 'XCTWaiter.wait(for: [expectation], timeout: timeout)' "$CURATION_TEST" >/dev/null
+grep -F 'PLAYSTEAD_FAILURE_STAGE[\($0)]' "$CURATION_TEST" >/dev/null
+for stage in curation-drag-before curation-drag-after curation-drag-after-relaunch; do
+  grep -F "failureStage: \"${stage}\"" "$CURATION_TEST" >/dev/null || {
+    printf 'curation drag evidence stage missing from its assertion site: %s\n' "$stage" >&2
+    exit 1
+  }
+  grep -F "\"${stage}\"" "$RUNNER" >/dev/null || {
+    printf 'curation drag evidence stage missing from the bounded CI allowlist: %s\n' "$stage" >&2
+    exit 1
+  }
+done
 grep -F 'harness.element(collectionRowID, type: .button)' "$CURATION_TEST" >/dev/null
 if grep -F 'try fixture.assertExactState()' "$UI_BOOTSTRAP" >/dev/null; then
   printf 'bootstrap must preserve makeFixture relaunch validation instead of requiring fresh positions\n' >&2

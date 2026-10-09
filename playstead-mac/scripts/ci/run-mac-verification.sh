@@ -641,6 +641,7 @@ live_stage_pattern = re.compile(r"live-server-stage=([a-z0-9-]+) action=([a-z0-9
 allowed_ui_stages = {
     "all-surface-library-layout", "all-surface-collection-reorder",
     "all-surface-quota-list", "all-surface-adapter-actions",
+    "curation-drag-before", "curation-drag-after", "curation-drag-after-relaunch",
 }
 allowed_live_stages = {
     "validate-input", "resolve-server-root", "create-control-root",

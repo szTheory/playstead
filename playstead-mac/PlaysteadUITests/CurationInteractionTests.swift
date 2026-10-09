@@ -122,7 +122,13 @@ final class CurationInteractionTests: XCTestCase {
         openSyntheticCollection(in: harness)
 
         let draggedOrder = assertInitialOrderAndPerformDrag(in: harness)
-        assertEvidence(order: draggedOrder, outboxCount: 1, in: harness)
+        assertEvidence(
+            order: draggedOrder,
+            outboxCount: 1,
+            in: harness,
+            timeout: 10,
+            failureStage: "curation-drag-after"
+        )
         assertExactCollectionOrder(draggedOrder, in: harness)
     }
 
@@ -131,12 +137,24 @@ final class CurationInteractionTests: XCTestCase {
         openSyntheticCollection(in: harness)
 
         let draggedOrder = assertInitialOrderAndPerformDrag(in: harness)
-        assertEvidence(order: draggedOrder, outboxCount: 1, in: harness)
+        assertEvidence(
+            order: draggedOrder,
+            outboxCount: 1,
+            in: harness,
+            timeout: 10,
+            failureStage: "curation-drag-after"
+        )
         assertExactCollectionOrder(draggedOrder, in: harness)
 
         harness.relaunch(settledAt: "playstead.surface.library")
         openSyntheticCollection(in: harness)
-        assertEvidence(order: draggedOrder, outboxCount: 1, in: harness)
+        assertEvidence(
+            order: draggedOrder,
+            outboxCount: 1,
+            in: harness,
+            timeout: 10,
+            failureStage: "curation-drag-after-relaunch"
+        )
         assertExactCollectionOrder(draggedOrder, in: harness)
     }
 
@@ -262,7 +280,12 @@ final class CurationInteractionTests: XCTestCase {
     private func assertInitialOrderAndPerformDrag(in harness: UITestHarness) -> [String] {
         let initialOrder = [memberID(1), memberID(2), memberID(3)]
         assertExactCollectionOrder(initialOrder, in: harness)
-        assertEvidence(order: initialOrder, outboxCount: 0, in: harness)
+        assertEvidence(
+            order: initialOrder,
+            outboxCount: 0,
+            in: harness,
+            failureStage: "curation-drag-before"
+        )
         return performExactDrag(in: harness)
     }
 
@@ -333,17 +356,34 @@ final class CurationInteractionTests: XCTestCase {
         }
     }
 
-    private func assertEvidence(order: [String], outboxCount: Int, in harness: UITestHarness) {
+    private func assertEvidence(
+        order: [String],
+        outboxCount: Int,
+        in harness: UITestHarness,
+        timeout: TimeInterval = 5,
+        failureStage: String? = nil
+    ) {
         waitForValue(
             harness.element("playstead.test.curation.evidence"),
-            equals: evidence(order: order, outboxCount: outboxCount)
+            equals: evidence(order: order, outboxCount: outboxCount),
+            timeout: timeout,
+            failureStage: failureStage
         )
     }
 
-    private func waitForValue(_ element: XCUIElement, equals expected: String) {
+    private func waitForValue(
+        _ element: XCUIElement,
+        equals expected: String,
+        timeout: TimeInterval,
+        failureStage: String?
+    ) {
         let predicate = NSPredicate(format: "value == %@", expected)
         let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
-        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed)
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [expectation], timeout: timeout),
+            .completed,
+            failureStage.map { "PLAYSTEAD_FAILURE_STAGE[\($0)]" } ?? ""
+        )
     }
 
     private func selectCollectionMemberByKeyboard(_ memberID: String, in harness: UITestHarness) -> XCUIElement {

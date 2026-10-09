@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -561,6 +562,19 @@ class ParserInventorySchemaContract(unittest.TestCase):
 
 
 class HostedContainerRegistryContracts(unittest.TestCase):
+    def test_parser_inventory_gate_has_its_own_test_database_service(self):
+        repository_root = Path(__file__).parents[2]
+        workflow = (repository_root / ".github/workflows/ci.yml").read_text()
+        match = re.search(r"(?ms)^  compose-smoke:\n(?P<body>.*?)(?=^  [A-Za-z0-9_-]+:|\Z)", workflow)
+
+        self.assertIsNotNone(match)
+        job = match.group("body")
+        self.assertIn("MIX_ENV: test", job)
+        self.assertIn("Resolve parser fixture test dependencies", job)
+        self.assertRegex(job, r"(?m)^      postgres:\n        image: public\.ecr\.aws/docker/library/postgres:17\.2$")
+        self.assertIn('ports: ["5432:5432"]', job)
+        self.assertIn("--health-cmd pg_isready", job)
+
     def test_github_actions_uses_official_ecr_mirror_without_changing_deploy_default(self):
         repository_root = Path(__file__).parents[2]
         workflow = (repository_root / ".github/workflows/ci.yml").read_text()
@@ -568,7 +582,7 @@ class HostedContainerRegistryContracts(unittest.TestCase):
         compose_ci = (repository_root / "playstead-server/docker-compose.ci.yml").read_text()
         mirror = "public.ecr.aws/docker/library/postgres:17.2"
 
-        self.assertEqual(workflow.count(f"image: {mirror}"), 1)
+        self.assertEqual(workflow.count(f"image: {mirror}"), 2)
         self.assertNotIn("image: postgres:17.2", workflow)
         self.assertIn("image: postgres:17.2", compose_default)
         self.assertIn(f"  db:\n    # Docker Official Image mirrored by AWS ECR Public. Hosted CI avoids\n    # Docker Hub's unauthenticated pull limit without changing deploy defaults.\n    image: {mirror}", compose_ci)
