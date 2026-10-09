@@ -29,6 +29,11 @@ def fail(message: str) -> None:
     raise ValueError(message)
 
 
+def is_json_integer(value) -> bool:
+    """Accept JSON integers while excluding Python's bool subclass."""
+    return type(value) is int
+
+
 def load(path: str | Path) -> dict:
     try:
         value = json.loads(Path(path).read_text())
@@ -62,7 +67,7 @@ def validate_cyclonedx(document: dict) -> int:
     components = document.get("components")
     if document.get("bomFormat") != "CycloneDX" or document.get("specVersion") not in {"1.4", "1.5", "1.6"}:
         fail("malformed or unsupported CycloneDX document")
-    if not isinstance(document.get("version"), int) or document["version"] < 1:
+    if not is_json_integer(document.get("version")) or document["version"] < 1:
         fail("CycloneDX document version is missing")
     if not isinstance(components, list) or not components:
         fail("missing or empty CycloneDX components")
@@ -121,7 +126,7 @@ def validate(data: dict) -> dict:
     if set(data) != allowed:
         fail(f"evidence fields must be exactly {sorted(allowed)}")
     clean(data)
-    if data["schema_version"] != 1:
+    if not is_json_integer(data["schema_version"]) or data["schema_version"] != 1:
         fail("unsupported schema_version")
     subject = data["subject"]
     if not isinstance(subject, dict) or set(subject) != {"archive_sha256", "image_id"}:
@@ -136,22 +141,25 @@ def validate(data: dict) -> dict:
     for name, report in data["scans"].items():
         if set(report) != {"status", "subject_sha256", "targets_discovered", "high_critical", "license_policy", "prohibited_licenses"}:
             fail(f"invalid {name} scan")
-        if report["status"] != "passed" or report["subject_sha256"] != digest or not isinstance(report["targets_discovered"], int) or report["targets_discovered"] < 1:
+        if report["status"] != "passed" or report["subject_sha256"] != digest or not is_json_integer(report["targets_discovered"]) or report["targets_discovered"] < 1:
             fail(f"{name} scan failed or subject digest differs")
-        if report["license_policy"] != "passed" or report["prohibited_licenses"] != 0:
+        if report["license_policy"] != "passed" or not is_json_integer(report["prohibited_licenses"]) or report["prohibited_licenses"] != 0:
             fail(f"{name} license policy failed")
-        if not isinstance(report["high_critical"], int) or report["high_critical"] < 0:
+        if not is_json_integer(report["high_critical"]) or report["high_critical"] < 0:
             fail(f"invalid {name} vulnerability count")
         if report["high_critical"] != 0:
             fail(f"{name} has unresolved high or critical vulnerabilities")
     sbom = data["sbom"]
     if not isinstance(sbom, dict) or set(sbom) != {"format", "status", "subject_sha256", "components"}:
         fail("invalid SBOM record")
-    if sbom["format"] != "CycloneDX" or sbom["status"] != "passed" or sbom["subject_sha256"] != digest or not isinstance(sbom["components"], int) or sbom["components"] < 1:
+    if sbom["format"] != "CycloneDX" or sbom["status"] != "passed" or sbom["subject_sha256"] != digest or not is_json_integer(sbom["components"]) or sbom["components"] < 1:
         fail("missing, empty, or mismatched CycloneDX SBOM")
     inventory = data["parser_inventory"]
     if not isinstance(inventory, dict) or set(inventory) != {"status", "subject_sha256", "discovered", "mapped", "tests_discovered", "tests_passed", "parsers"}:
         fail("invalid parser inventory")
+    count_fields = ("discovered", "mapped", "tests_discovered", "tests_passed")
+    if any(not is_json_integer(inventory[field]) for field in count_fields):
+        fail("parser inventory counts must be integers")
     if inventory["status"] != "passed" or inventory["subject_sha256"] != digest or inventory["discovered"] < 1 or inventory["discovered"] != inventory["mapped"] or inventory["tests_discovered"] < 1 or inventory["tests_discovered"] != inventory["tests_passed"]:
         fail("parser inventory incomplete or not digest-bound")
     parsers = inventory["parsers"]

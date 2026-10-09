@@ -153,6 +153,45 @@ class ReleaseEvidenceNegativeContracts(unittest.TestCase):
         checked = release_evidence.validate(valid_evidence("pull-request"))
         self.assertEqual(checked["verdict"], "diagnostic-only")
 
+    def test_json_booleans_are_rejected_in_every_numeric_evidence_field(self):
+        cases = {}
+        for field, value in (
+            ("schema_version", True),
+        ):
+            evidence = valid_evidence()
+            evidence[field] = value
+            cases[f"{field} boolean"] = evidence
+
+        for scan_name in ("source", "image"):
+            for field, value in (
+                ("targets_discovered", True),
+                ("high_critical", True),
+                # False compares equal to zero, so exercise the equality-only check.
+                ("prohibited_licenses", False),
+            ):
+                evidence = valid_evidence()
+                evidence["scans"][scan_name][field] = value
+                cases[f"{scan_name} scan {field} boolean"] = evidence
+
+        evidence = valid_evidence()
+        evidence["sbom"]["components"] = True
+        cases["SBOM components boolean"] = evidence
+
+        for field in ("discovered", "mapped", "tests_discovered", "tests_passed"):
+            evidence = valid_evidence()
+            evidence["parser_inventory"][field] = True
+            cases[f"parser inventory {field} boolean"] = evidence
+
+        for name, evidence in cases.items():
+            with self.subTest(name=name):
+                self.run_rejected(evidence)
+
+    def test_cyclonedx_version_must_be_an_integer_not_a_boolean(self):
+        document = {"bomFormat": "CycloneDX", "specVersion": "1.6", "version": True,
+                    "components": [{"type": "library", "name": "example"}]}
+        with self.assertRaisesRegex(ValueError, "document version"):
+            release_evidence.validate_cyclonedx(document)
+
     def test_embedded_local_paths_are_rejected_without_echoing_values(self):
         unsafe_values = {
             "POSIX": "scanner reported input at /Users/alice/private/game.rom",
