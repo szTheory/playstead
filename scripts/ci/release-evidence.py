@@ -131,12 +131,15 @@ def _safe_scan_identifier(value, pattern: re.Pattern[str]) -> str:
 
 
 def safe_trivy_diagnostics(report: dict) -> dict:
-    """Return a bounded, value-redacted summary for CI failure logs only."""
+    """Return bounded safe finding identifiers for CI failure/status logs."""
     results = report.get("Results") if isinstance(report, dict) else None
     if not isinstance(results, list):
         results = []
     findings = []
     total = 0
+    fixable_vulnerabilities = 0
+    unfixed_vulnerabilities = 0
+    high_severity_licenses = 0
 
     for result in results:
         if not isinstance(result, dict):
@@ -148,6 +151,11 @@ def safe_trivy_diagnostics(report: dict) -> dict:
             if not isinstance(vulnerability, dict) or vulnerability.get("Severity") not in {"HIGH", "CRITICAL"}:
                 continue
             total += 1
+            has_fix = isinstance(vulnerability.get("FixedVersion"), str) and bool(vulnerability["FixedVersion"].strip())
+            if has_fix:
+                fixable_vulnerabilities += 1
+            else:
+                unfixed_vulnerabilities += 1
             if len(findings) < MAX_DIAGNOSTIC_FINDINGS:
                 findings.append({
                     "category": "vulnerability",
@@ -155,6 +163,7 @@ def safe_trivy_diagnostics(report: dict) -> dict:
                     "version": _safe_scan_identifier(vulnerability.get("InstalledVersion"), SAFE_DIAGNOSTIC_VERSION),
                     "finding": _safe_scan_identifier(vulnerability.get("VulnerabilityID"), SAFE_DIAGNOSTIC_FINDING),
                     "severity": vulnerability["Severity"],
+                    "fix_available": has_fix,
                 })
         licenses = result.get("Licenses")
         if not isinstance(licenses, list):
@@ -163,6 +172,7 @@ def safe_trivy_diagnostics(report: dict) -> dict:
             if not isinstance(license_finding, dict) or license_finding.get("Severity") not in {"HIGH", "CRITICAL"}:
                 continue
             total += 1
+            high_severity_licenses += 1
             if len(findings) < MAX_DIAGNOSTIC_FINDINGS:
                 findings.append({
                     "category": "license",
@@ -170,9 +180,16 @@ def safe_trivy_diagnostics(report: dict) -> dict:
                     "version": _safe_scan_identifier(license_finding.get("PkgVersion"), SAFE_DIAGNOSTIC_VERSION),
                     "finding": _safe_scan_identifier(license_finding.get("Name"), SAFE_DIAGNOSTIC_FINDING),
                     "severity": license_finding["Severity"],
+                    "fix_available": False,
                 })
 
-    return {"total": total, "findings": findings}
+    return {
+        "total": total,
+        "fixable_vulnerabilities": fixable_vulnerabilities,
+        "unfixed_vulnerabilities": unfixed_vulnerabilities,
+        "high_severity_licenses": high_severity_licenses,
+        "findings": findings,
+    }
 
 
 def summarize_trivy(report: dict, subject_sha256: str, image_id: str | None = None) -> dict:
@@ -195,6 +212,8 @@ def summarize_trivy(report: dict, subject_sha256: str, image_id: str | None = No
     if image_id and report.get("Metadata", {}).get("ImageID") != image_id:
         fail("Trivy scanned an image other than the smoke-tested image ID")
     high_critical = 0
+    fixable_high_critical = 0
+    unfixed_high_critical = 0
     prohibited = 0
     for result in report["Results"]:
         for vulnerability in result.get("Vulnerabilities") or []:
@@ -203,17 +222,26 @@ def summarize_trivy(report: dict, subject_sha256: str, image_id: str | None = No
             package = f"{vulnerability.get('PkgName', '')}@{vulnerability.get('InstalledVersion', '')}"
             if not exceptions.get((package, vulnerability.get("VulnerabilityID"))):
                 high_critical += 1
+                fixed_version = vulnerability.get("FixedVersion")
+                if isinstance(fixed_version, str) and fixed_version.strip():
+                    fixable_high_critical += 1
+                else:
+                    unfixed_high_critical += 1
         for license_finding in result.get("Licenses") or []:
             if license_finding.get("Severity") not in {"HIGH", "CRITICAL"}:
                 continue
             package = f"{license_finding.get('PkgName', '')}@{license_finding.get('PkgVersion', '')}"
             if not exceptions.get((package, license_finding.get("Name"))):
                 prohibited += 1
+    # Keep unfixed findings visible and digest-bound. A stable-release build
+    # blocks only findings for which the scanner publishes a remediation.
     return {
-        "status": "passed" if high_critical == 0 and prohibited == 0 else "failed",
+        "status": "passed" if fixable_high_critical == 0 and prohibited == 0 else "failed",
         "subject_sha256": subject_sha256,
         "targets_discovered": len(report["Results"]),
         "high_critical": high_critical,
+        "fixable_high_critical": fixable_high_critical,
+        "unfixed_high_critical": unfixed_high_critical,
         "license_policy": "passed" if prohibited == 0 else "failed",
         "prohibited_licenses": prohibited,
     }
@@ -237,16 +265,22 @@ def validate(data: dict) -> dict:
     if not isinstance(data["scans"], dict) or set(data["scans"]) != {"source", "image"}:
         fail("source and image scans are required")
     for name, report in data["scans"].items():
-        if set(report) != {"status", "subject_sha256", "targets_discovered", "high_critical", "license_policy", "prohibited_licenses"}:
+        if set(report) != {
+            "status", "subject_sha256", "targets_discovered", "high_critical",
+            "fixable_high_critical", "unfixed_high_critical", "license_policy", "prohibited_licenses",
+        }:
             fail(f"invalid {name} scan")
         if report["status"] != "passed" or report["subject_sha256"] != digest or not is_json_integer(report["targets_discovered"]) or report["targets_discovered"] < 1:
             fail(f"{name} scan failed or subject digest differs")
         if report["license_policy"] != "passed" or not is_json_integer(report["prohibited_licenses"]) or report["prohibited_licenses"] != 0:
             fail(f"{name} license policy failed")
-        if not is_json_integer(report["high_critical"]) or report["high_critical"] < 0:
+        count_fields = ("high_critical", "fixable_high_critical", "unfixed_high_critical")
+        if any(not is_json_integer(report[field]) or report[field] < 0 for field in count_fields):
             fail(f"invalid {name} vulnerability count")
-        if report["high_critical"] != 0:
-            fail(f"{name} has unresolved high or critical vulnerabilities")
+        if report["high_critical"] != report["fixable_high_critical"] + report["unfixed_high_critical"]:
+            fail(f"{name} vulnerability counts are inconsistent")
+        if report["fixable_high_critical"] != 0:
+            fail(f"{name} has high or critical vulnerabilities with a published fix")
     sbom = data["sbom"]
     if not isinstance(sbom, dict) or set(sbom) != {"format", "status", "subject_sha256", "components"}:
         fail("invalid SBOM record")

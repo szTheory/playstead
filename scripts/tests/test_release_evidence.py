@@ -21,7 +21,8 @@ def valid_evidence(mode="release"):
         "mode": mode,
         "subject": {"archive_sha256": digest, "image_id": "sha256:" + "b" * 64},
         "scans": {
-            name: {"status": "passed", "subject_sha256": digest, "targets_discovered": 1, "high_critical": 0,
+            name: {"status": "passed", "subject_sha256": digest, "targets_discovered": 1,
+                   "high_critical": 0, "fixable_high_critical": 0, "unfixed_high_critical": 0,
                    "license_policy": "passed", "prohibited_licenses": 0}
             for name in ("source", "image")
         },
@@ -60,9 +61,11 @@ class TrivyDiagnosticContracts(unittest.TestCase):
             "Type": "debian",
             "Vulnerabilities": [
                 {"PkgName": "openssl", "InstalledVersion": "3.0.17-1",
+                 "FixedVersion": "3.0.18",
                  "VulnerabilityID": "CVE-2026-12345", "Severity": "HIGH",
                  "Description": f"host scan path: {private_path}"},
                 {"PkgName": private_path, "InstalledVersion": "../../home/runner",
+                 "FixedVersion": "/Users/alice/fixed-version-private",
                  "VulnerabilityID": "PRIVATE_EVIDENCE_SENTINEL", "Severity": "CRITICAL",
                  "Description": private_path},
                 {"PkgName": "libsafe", "InstalledVersion": "1.2.3",
@@ -75,17 +78,21 @@ class TrivyDiagnosticContracts(unittest.TestCase):
 
         summary = release_evidence.safe_trivy_diagnostics(report)
         self.assertEqual(summary["total"], 3)
+        self.assertEqual(summary["fixable_vulnerabilities"], 2)
+        self.assertEqual(summary["unfixed_vulnerabilities"], 0)
+        self.assertEqual(summary["high_severity_licenses"], 1)
         self.assertEqual(summary["findings"], [
             {"category": "vulnerability", "package": "openssl", "version": "3.0.17-1",
-             "finding": "CVE-2026-12345", "severity": "HIGH"},
+             "finding": "CVE-2026-12345", "severity": "HIGH", "fix_available": True},
             {"category": "vulnerability", "package": "<redacted>", "version": "<redacted>",
-             "finding": "<redacted>", "severity": "CRITICAL"},
+             "finding": "<redacted>", "severity": "CRITICAL", "fix_available": True},
             {"category": "license", "package": "libcodec", "version": "4.5.6",
-             "finding": "GPL-3.0", "severity": "HIGH"},
+             "finding": "GPL-3.0", "severity": "HIGH", "fix_available": False},
         ])
         rendered = json.dumps(summary)
         self.assertNotIn(private_path, rendered)
         self.assertNotIn("../../home/runner", rendered)
+        self.assertNotIn("/Users/alice/fixed-version-private", rendered)
         self.assertNotIn("PRIVATE_EVIDENCE_SENTINEL", rendered)
         self.assertNotIn("Description", rendered)
         self.assertNotIn("FilePath", rendered)
@@ -93,12 +100,49 @@ class TrivyDiagnosticContracts(unittest.TestCase):
     def test_failure_summary_caps_finding_examples(self):
         report = {"Results": [{"Vulnerabilities": [
             {"PkgName": f"package-{index}", "InstalledVersion": "1.0.0",
-             "VulnerabilityID": f"CVE-2026-{index:05d}", "Severity": "HIGH"}
+             "VulnerabilityID": f"CVE-2026-{index:05d}", "Severity": "HIGH",
+             "FixedVersion": "1.0.1"}
             for index in range(30)
         ]}]}
         summary = release_evidence.safe_trivy_diagnostics(report)
         self.assertEqual(summary["total"], 30)
+        self.assertEqual(summary["fixable_vulnerabilities"], 30)
         self.assertEqual(len(summary["findings"]), 25)
+
+
+class TrivyFixabilityPolicyContracts(unittest.TestCase):
+    def test_only_high_findings_with_a_published_fix_block_the_scan(self):
+        report = {"Results": [{"Vulnerabilities": [
+            {"PkgName": "patched-lib", "InstalledVersion": "1.0.0",
+             "FixedVersion": "1.0.1", "VulnerabilityID": "CVE-2026-11111", "Severity": "HIGH"},
+            {"PkgName": "unfixed-lib", "InstalledVersion": "2.0.0",
+             "FixedVersion": "", "VulnerabilityID": "CVE-2026-22222", "Severity": "CRITICAL"},
+            {"PkgName": "low-lib", "InstalledVersion": "3.0.0",
+             "FixedVersion": "3.0.1", "VulnerabilityID": "CVE-2026-33333", "Severity": "LOW"},
+        ]}]}
+
+        summary = release_evidence.summarize_trivy(report, "a" * 64)
+        self.assertEqual(summary["status"], "failed")
+        self.assertEqual(summary["high_critical"], 2)
+        self.assertEqual(summary["fixable_high_critical"], 1)
+        self.assertEqual(summary["unfixed_high_critical"], 1)
+
+        report["Results"][0]["Vulnerabilities"].pop(0)
+        summary = release_evidence.summarize_trivy(report, "a" * 64)
+        self.assertEqual(summary["status"], "passed")
+        self.assertEqual(summary["high_critical"], 1)
+        self.assertEqual(summary["fixable_high_critical"], 0)
+        self.assertEqual(summary["unfixed_high_critical"], 1)
+
+    def test_evidence_preserves_unfixed_counts_and_rejects_fixable_findings(self):
+        evidence = valid_evidence()
+        image_scan = evidence["scans"]["image"]
+        image_scan.update(high_critical=1, unfixed_high_critical=1)
+        self.assertEqual(release_evidence.validate(evidence)["verdict"], "release-ready")
+
+        image_scan.update(high_critical=1, fixable_high_critical=1, unfixed_high_critical=0)
+        with self.assertRaisesRegex(ValueError, "published fix"):
+            release_evidence.validate(evidence)
 
 
 class ReleaseEvidenceNegativeContracts(unittest.TestCase):
@@ -214,6 +258,8 @@ class ReleaseEvidenceNegativeContracts(unittest.TestCase):
             for field, value in (
                 ("targets_discovered", True),
                 ("high_critical", True),
+                ("fixable_high_critical", True),
+                ("unfixed_high_critical", True),
                 # False compares equal to zero, so exercise the equality-only check.
                 ("prohibited_licenses", False),
             ):

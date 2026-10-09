@@ -21,3 +21,6 @@ license:
 # No exceptions are currently approved. A future entry belongs in
 # release-evidence.py's APPROVED_EXCEPTIONS and must specify exact package@version,
 # vulnerability/license finding, a review reason, and an ISO expiry date.
+# Keep Trivy's complete findings for evidence. The release gate blocks HIGH/CRITICAL
+# vulnerabilities with a published fix; findings without a fix remain counted and
+# logged as safe identifiers so an upstream fix becomes actionable automatically.

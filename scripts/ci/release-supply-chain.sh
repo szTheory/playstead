@@ -46,6 +46,14 @@ for label in ('source', 'image'):
             + json.dumps(safe, sort_keys=True, separators=(',', ':')),
             file=sys.stderr,
         )
+    elif summary['unfixed_high_critical']:
+        safe = validator.safe_trivy_diagnostics(report)
+        print(
+            f"Trivy {label} scan passed with {summary['unfixed_high_critical']} high/critical findings without a published fix; "
+            "these remain recorded in release evidence (bounded findings): "
+            + json.dumps(safe, sort_keys=True, separators=(',', ':')),
+            file=sys.stderr,
+        )
 sbom = json.loads((out / 'sbom.cdx.json').read_text())
 component_count = validator.validate_cyclonedx(sbom)
 evidence = {
