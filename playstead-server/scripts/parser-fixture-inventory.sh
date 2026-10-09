@@ -51,7 +51,14 @@ if registered != set(mapped):
 PY
 
 cd "$ROOT/playstead-server"
-test_files=(test/playstead/formats/archive_test.exs test/playstead/formats/validators/{gba,gb,nes,md,snes,psx_cue}_test.exs)
+mapfile -t test_files < <(python3 - "$INVENTORY" <<'PY'
+import json, pathlib, sys
+inventory = json.loads(pathlib.Path(sys.argv[1]).read_text())
+for entry in inventory['parsers']:
+    print(entry['test_file'])
+PY
+)
+(( ${#test_files[@]} > 0 )) || { echo "zero parser fixture test files discovered" >&2; exit 1; }
 test_output="$(mix test "${test_files[@]}" --trace 2>&1)" || { printf '%s\n' "$test_output"; exit 1; }
 printf '%s\n' "$test_output"
 count="$(printf '%s\n' "$test_output" | sed -nE 's/^([0-9]+ properties, )?([0-9]+) tests?, [0-9]+ failures?$/\2/p' | tail -1)"

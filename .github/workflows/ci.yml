@@ -146,15 +146,47 @@ jobs:
           retention-days: 7
 
   # Cold-start deployment proof (docker build + compose up from destroyed
-  # volumes + restart). It is slow (~5 min) and only changes when the
-  # deployment surface does, so it runs on main and on PRs that touch it.
-  # This path has already caught two real Dockerfile regressions.
+  # volumes + restart). It runs on every PR and protected-main push so the
+  # scanners and attestations always refer to the image that passed this smoke.
   compose-smoke:
     name: docker compose cold start
     runs-on: ubuntu-24.04
     timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17.2
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+
+      - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124  # v1.24.1
+        with:
+          version-file: playstead-server/.tool-versions
+          version-type: strict
+
+      - name: Resolve parser fixture test dependencies
+        working-directory: playstead-server
+        run: |
+          mix deps.get
+          mix assets.setup
+
+      - name: Release evidence contract (must discover tests)
+        working-directory: .
+        run: |
+          set -euo pipefail
+          test -s scripts/tests/test_release_evidence.py
+          contract_output="$(python3 -m unittest discover -s scripts/tests -p 'test_release_evidence.py' -v 2>&1)"
+          printf '%s\n' "$contract_output"
+          printf '%s\n' "$contract_output" | grep -Eq '^Ran [1-9][0-9]* tests?'
 
       - id: changes
         uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad  # v3.0.4
@@ -229,7 +261,11 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: tested-release-evidence
-          path: ${{ runner.temp }}/playstead-release-evidence
+          path: |
+            ${{ runner.temp }}/playstead-release-evidence/playstead-release.tar
+            ${{ runner.temp }}/playstead-release-evidence/evidence.json
+            ${{ runner.temp }}/playstead-release-evidence/scan-reports.json
+            ${{ runner.temp }}/playstead-release-evidence/sbom.cdx.json
           if-no-files-found: error
           retention-days: 14
 
@@ -238,7 +274,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.ref_protected == true
-    needs: [compose-smoke]
+    needs: [test, compose-smoke]
     permissions:
       contents: read
       id-token: write
@@ -249,6 +285,8 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
+      # actions/download-artifact v4.3.0 commit resolved from its official release ref:
+      # https://github.com/actions/download-artifact/releases/tag/v4.3.0
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
         with:
           name: tested-release-evidence
@@ -286,8 +324,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh attestation verify release-evidence/playstead-release.tar --repo "$GITHUB_REPOSITORY" --format json > release-evidence/provenance-verified.json
-          gh attestation verify release-evidence/playstead-release.tar --repo "$GITHUB_REPOSITORY" --predicate-type https://cyclonedx.org/bom --format json > release-evidence/sbom-verified.json
+          gh attestation verify release-evidence/playstead-release.tar --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/ci.yml" --source-ref refs/heads/main --format json > release-evidence/provenance-verified.json
+          gh attestation verify release-evidence/playstead-release.tar --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/ci.yml" --source-ref refs/heads/main --predicate-type https://cyclonedx.org/bom --format json > release-evidence/sbom-verified.json
           python3 scripts/ci/release-evidence.py --input release-evidence/evidence.json --provenance release-evidence/provenance-verified.json --sbom release-evidence/sbom-verified.json --output release-evidence/release-evidence.json
 
       - name: Upload verified release evidence

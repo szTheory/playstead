@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import re
 import sys
+from datetime import date
 from pathlib import Path
 
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
 FORBIDDEN = re.compile(r"rom|save|owner|credential|token|secret|password|local.?path|filename|raw.?log|private", re.I)
+# Approved exceptions are deliberately empty. Entries added here must match
+# one exact package@version and finding, explain the review decision, and expire.
+APPROVED_EXCEPTIONS: list[dict[str, str]] = []
 
 
 def fail(message: str) -> None:
@@ -40,6 +43,50 @@ def clean(value, key=""):
     return value
 
 
+def summarize_trivy(report: dict, subject_sha256: str, image_id: str | None = None) -> dict:
+    if not isinstance(report.get("Results"), list) or not report["Results"]:
+        fail("scanner discovered zero targets")
+    today = date.today()
+    exceptions = {}
+    for item in APPROVED_EXCEPTIONS:
+        if not isinstance(item, dict) or set(item) != {"package", "finding", "reason", "expires"}:
+            fail("exceptions require package, finding, reason, and expiry")
+        if "@" not in item["package"] or not item["finding"] or len(item["reason"].strip()) < 12:
+            fail("exception lacks exact package identity, finding, or review reason")
+        try:
+            expiry = date.fromisoformat(item["expires"])
+        except (TypeError, ValueError):
+            fail("exception expiry must be an ISO date")
+        if expiry < today:
+            fail(f"expired exception for {item['package']} {item['finding']}")
+        exceptions[(item["package"], item["finding"])] = True
+    if image_id and report.get("Metadata", {}).get("ImageID") != image_id:
+        fail("Trivy scanned an image other than the smoke-tested image ID")
+    high_critical = 0
+    prohibited = 0
+    for result in report["Results"]:
+        for vulnerability in result.get("Vulnerabilities") or []:
+            if vulnerability.get("Severity") not in {"HIGH", "CRITICAL"}:
+                continue
+            package = f"{vulnerability.get('PkgName', '')}@{vulnerability.get('InstalledVersion', '')}"
+            if not exceptions.get((package, vulnerability.get("VulnerabilityID"))):
+                high_critical += 1
+        for license_finding in result.get("Licenses") or []:
+            if license_finding.get("Severity") not in {"HIGH", "CRITICAL"}:
+                continue
+            package = f"{license_finding.get('PkgName', '')}@{license_finding.get('PkgVersion', '')}"
+            if not exceptions.get((package, license_finding.get("Name"))):
+                prohibited += 1
+    return {
+        "status": "passed" if high_critical == 0 and prohibited == 0 else "failed",
+        "subject_sha256": subject_sha256,
+        "targets_discovered": len(report["Results"]),
+        "high_critical": high_critical,
+        "license_policy": "passed" if prohibited == 0 else "failed",
+        "prohibited_licenses": prohibited,
+    }
+
+
 def validate(data: dict) -> dict:
     allowed = {"schema_version", "mode", "subject", "scans", "sbom", "parser_inventory", "attestations", "handoff"}
     if set(data) != allowed:
@@ -53,29 +100,43 @@ def validate(data: dict) -> dict:
     digest = subject["archive_sha256"]
     if not isinstance(digest, str) or not HEX64.fullmatch(digest):
         fail("invalid archive SHA-256")
-    if not isinstance(subject["image_id"], str) or not subject["image_id"].startswith("sha256:"):
+    if not isinstance(subject["image_id"], str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", subject["image_id"]):
         fail("invalid image identity")
     if not isinstance(data["scans"], dict) or set(data["scans"]) != {"source", "image"}:
         fail("source and image scans are required")
     for name, report in data["scans"].items():
-        if set(report) != {"status", "subject_sha256", "high_critical", "license_policy", "prohibited_licenses"}:
+        if set(report) != {"status", "subject_sha256", "targets_discovered", "high_critical", "license_policy", "prohibited_licenses"}:
             fail(f"invalid {name} scan")
-        if report["status"] != "passed" or report["subject_sha256"] != digest:
+        if report["status"] != "passed" or report["subject_sha256"] != digest or not isinstance(report["targets_discovered"], int) or report["targets_discovered"] < 1:
             fail(f"{name} scan failed or subject digest differs")
         if report["license_policy"] != "passed" or report["prohibited_licenses"] != 0:
             fail(f"{name} license policy failed")
         if not isinstance(report["high_critical"], int) or report["high_critical"] < 0:
             fail(f"invalid {name} vulnerability count")
+        if report["high_critical"] != 0:
+            fail(f"{name} has unresolved high or critical vulnerabilities")
     sbom = data["sbom"]
     if not isinstance(sbom, dict) or set(sbom) != {"format", "status", "subject_sha256", "components"}:
         fail("invalid SBOM record")
     if sbom["format"] != "CycloneDX" or sbom["status"] != "passed" or sbom["subject_sha256"] != digest or not isinstance(sbom["components"], int) or sbom["components"] < 1:
         fail("missing, empty, or mismatched CycloneDX SBOM")
     inventory = data["parser_inventory"]
-    if not isinstance(inventory, dict) or set(inventory) != {"status", "subject_sha256", "discovered", "mapped", "tests_discovered", "tests_passed"}:
+    if not isinstance(inventory, dict) or set(inventory) != {"status", "subject_sha256", "discovered", "mapped", "tests_discovered", "tests_passed", "parsers"}:
         fail("invalid parser inventory")
     if inventory["status"] != "passed" or inventory["subject_sha256"] != digest or inventory["discovered"] < 1 or inventory["discovered"] != inventory["mapped"] or inventory["tests_discovered"] < 1 or inventory["tests_discovered"] != inventory["tests_passed"]:
         fail("parser inventory incomplete or not digest-bound")
+    parsers = inventory["parsers"]
+    if not isinstance(parsers, list) or len(parsers) != inventory["discovered"]:
+        fail("parser inventory must enumerate every discovered parser")
+    parser_ids = set()
+    for entry in parsers:
+        if not isinstance(entry, dict) or set(entry) != {"id", "category", "test_file", "test_identity", "result"}:
+            fail("invalid parser inventory entry")
+        if not all(isinstance(entry[key], str) and entry[key] for key in entry):
+            fail("empty parser inventory entry")
+        if entry["result"] != "passed" or entry["id"] in parser_ids or entry["test_file"].startswith(("/", "..")):
+            fail("failed, duplicate, or path-leaking parser inventory entry")
+        parser_ids.add(entry["id"])
     attest = data["attestations"]
     if not isinstance(attest, dict) or set(attest) != {"provenance", "sbom"}:
         fail("attestation records are required")

@@ -8,42 +8,36 @@ ARCHIVE="${RELEASE_ARCHIVE:?RELEASE_ARCHIVE must name the smoke-tested docker ar
 EXPECTED_SHA="${RELEASE_SHA256:?RELEASE_SHA256 is required}"
 IMAGE_REF="${RELEASE_IMAGE_REF:?RELEASE_IMAGE_REF is required}"
 mkdir -p "$OUTPUT_DIR"
-ACTUAL_SHA="$(shasum -a 256 "$ARCHIVE" | awk '{print $1}')"
+RAW_DIR="$(mktemp -d "${RUNNER_TEMP:-/tmp}/playstead-trivy.XXXXXX")"
+trap 'rm -rf "$RAW_DIR"' EXIT
+export RAW_DIR
+ACTUAL_SHA="$(sha256sum "$ARCHIVE" | awk '{print $1}')"
 test "$ACTUAL_SHA" = "$EXPECTED_SHA"
 IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$IMAGE_REF")"
 test -n "$IMAGE_ID"
 
-docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/work:ro" -v "$OUTPUT_DIR:/evidence" "$TRIVY_IMAGE" image \
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/work:ro" -v "$RAW_DIR:/raw" "$TRIVY_IMAGE" image \
   --config /work/scripts/ci/trivy.yaml --scanners vuln,license --format json \
-  --output /evidence/image-trivy.json "$IMAGE_REF"
-docker run --rm -v "$PWD:/work:ro" -v "$OUTPUT_DIR:/evidence" "$TRIVY_IMAGE" fs \
+  --output /raw/image-trivy.json "$IMAGE_REF"
+docker run --rm -v "$PWD:/work:ro" -v "$RAW_DIR:/raw" "$TRIVY_IMAGE" fs \
   --config /work/scripts/ci/trivy.yaml --scanners vuln,license --format json \
-  --output /evidence/source-trivy.json /work/playstead-server
+  --output /raw/source-trivy.json /work/playstead-server
 docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/work:ro" -v "$OUTPUT_DIR:/evidence" "$TRIVY_IMAGE" image \
   --config /work/scripts/ci/trivy.yaml --format cyclonedx --output /evidence/sbom.cdx.json "$IMAGE_REF"
 
 python3 - "$OUTPUT_DIR" "$ACTUAL_SHA" "$IMAGE_ID" <<'PY'
 import json, pathlib, sys
+sys.dont_write_bytecode = True
+import importlib.util
 out, digest, image_id = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+raw = pathlib.Path(__import__('os').environ['RAW_DIR'])
+spec = importlib.util.spec_from_file_location('release_evidence', 'scripts/ci/release-evidence.py')
+validator = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(validator)
 reports = {}
 for label in ('source', 'image'):
-    report = json.loads((out / f'{label}-trivy.json').read_text())
-    if not isinstance(report.get('Results'), list) or not report['Results']:
-        raise SystemExit(f'{label} scanner discovered zero targets')
-    if label == 'image' and report.get('Metadata', {}).get('ImageID') != image_id:
-        raise SystemExit('Trivy scanned an image other than the smoke-tested image ID')
-    high_critical = 0
-    prohibited = 0
-    for result in report['Results']:
-        for vuln in result.get('Vulnerabilities') or []:
-            if vuln.get('Severity') in {'HIGH', 'CRITICAL'}:
-                high_critical += 1
-        for license in result.get('Licenses') or []:
-            if license.get('Severity') in {'HIGH', 'CRITICAL'} or license.get('Name') in {'AGPL-3.0', 'GPL-3.0-only', 'GPL-3.0-or-later', 'SSPL-1.0'}:
-                prohibited += 1
-    reports[label] = {'status':'passed' if high_critical == 0 and prohibited == 0 else 'failed',
-      'subject_sha256':digest,'high_critical':high_critical,
-      'license_policy':'passed' if prohibited == 0 else 'failed','prohibited_licenses':prohibited}
+    report = json.loads((raw / f'{label}-trivy.json').read_text())
+    reports[label] = validator.summarize_trivy(report, digest, image_id if label == 'image' else None)
 sbom = json.loads((out / 'sbom.cdx.json').read_text())
 if sbom.get('bomFormat') != 'CycloneDX' or not sbom.get('components'):
     raise SystemExit('missing or empty CycloneDX SBOM')
@@ -57,5 +51,6 @@ evidence = {
   'handoff': {'consumer':'Phase 05 D-11','subject_sha256':digest,'retained_gates':['D-07','D-13']},
 }
 (out / 'evidence-input.json').write_text(json.dumps(evidence))
+(out / 'scan-reports.json').write_text(json.dumps({'schema_version':1,'subject_sha256':digest,'scanner':'Trivy 0.75.0','reports':reports}, sort_keys=True, separators=(',',':')) + '\n')
 PY
 python3 scripts/ci/release-evidence.py --input "$OUTPUT_DIR/evidence-input.json" --output "$OUTPUT_DIR/evidence.json"
