@@ -214,6 +214,7 @@ class ReleaseEvidenceNegativeContracts(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "private path or sentinel") as error:
                     release_evidence.validate_cyclonedx(document)
                 self.assertNotIn(value, str(error.exception))
+                self.assertIn("$.components[0].properties[0].value", str(error.exception))
 
     def test_safe_urls_and_descriptive_text_remain_accepted(self):
         self.assertEqual(release_evidence.clean({
@@ -226,6 +227,36 @@ class ReleaseEvidenceNegativeContracts(unittest.TestCase):
                     "components": [{"type": "library", "name": "example", "version": "1.0",
                                     "description": "See https://example.invalid/docs/releases/v1"}]}
         self.assertEqual(release_evidence.validate_cyclonedx(document), 1)
+
+    def test_rejection_locations_are_redacted_and_structural(self):
+        document = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "version": 1,
+            "metadata": {"custom private key /Users/alice/secret": "PRIVATE_EVIDENCE_SENTINEL"},
+            "components": [{"type": "library", "name": "example"}],
+        }
+        with self.assertRaisesRegex(ValueError, "forbidden evidence field") as error:
+            release_evidence.validate_cyclonedx(document)
+        message = str(error.exception)
+        self.assertIn("$.metadata.<field>", message)
+        self.assertNotIn("custom private key", message)
+        self.assertNotIn("/Users/alice/secret", message)
+        self.assertNotIn("PRIVATE_EVIDENCE_SENTINEL", message)
+
+        forbidden = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "version": 1,
+            "components": [{"type": "library", "name": "example", "properties": [
+                {"name": "private.ownerCredential", "value": "PRIVATE_EVIDENCE_SENTINEL"},
+            ]}],
+        }
+        with self.assertRaisesRegex(ValueError, "forbidden CycloneDX property") as error:
+            release_evidence.validate_cyclonedx(forbidden)
+        self.assertNotIn("private.ownerCredential", str(error.exception))
+        self.assertNotIn("PRIVATE_EVIDENCE_SENTINEL", str(error.exception))
+        self.assertIn("$.components[0].properties[0].name", str(error.exception))
 
     def test_trivy_1_7_generated_sbom_metadata_is_accepted(self):
         # Trivy 0.75 emits CycloneDX 1.7 for the tested container image.

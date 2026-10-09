@@ -15,6 +15,14 @@ FORBIDDEN = re.compile(r"rom|save|owner|credential|token|secret|password|local.?
 # one exact package@version and finding, explain the review decision, and expire.
 APPROVED_EXCEPTIONS: list[dict[str, str]] = []
 URL_VALUE = re.compile(r"https?://[^\s\"'<>]+", re.I)
+DIAGNOSTIC_KEYS = {
+    "$schema", "bomFormat", "specVersion", "version", "metadata", "component",
+    "components", "dependencies", "vulnerabilities", "properties", "name", "value",
+    "type", "group", "purl", "bom-ref", "scope", "hashes", "externalReferences",
+    "url", "reference", "licenses", "license", "id", "expression", "copyright",
+    "manufacturer", "supplier", "publisher", "description", "authors", "tools",
+    "timestamp", "serialNumber", "evidence", "occurrences", "location", "field",
+}
 EMBEDDED_LOCAL_PATH = re.compile(
     r"(?:"
     r"(?<![A-Za-z0-9])[A-Za-z]:[\\/][^\s\"'<>]*|"  # Windows drive path
@@ -44,19 +52,32 @@ def load(path: str | Path) -> dict:
     return value
 
 
-def clean(value, key=""):
+def clean(value, key="", path=()):
+    location = "$" + "".join(
+        f".{part}" if isinstance(part, str) else f"[{part}]"
+        for part in path
+    )
     if FORBIDDEN.search(key):
-        fail(f"forbidden evidence field: {key}")
+        fail(f"forbidden evidence field at {location}")
     if re.search(r"(?:^|[_-])(?:file)?path$|filename", key, re.I):
-        fail(f"path-bearing evidence field: {key}")
+        fail(f"path-bearing evidence field at {location}")
     if isinstance(value, dict):
-        return {k: clean(v, k) for k, v in value.items()}
+        if key == "properties" and isinstance(value.get("name"), str):
+            property_name = value["name"]
+            if FORBIDDEN.search(property_name) or re.search(
+                r"(?:^|[_-])(?:file)?path$|filename", property_name, re.I
+            ):
+                fail(f"forbidden CycloneDX property at {location}.name")
+        return {
+            k: clean(v, k, (*path, k if k in DIAGNOSTIC_KEYS else "<field>"))
+            for k, v in value.items()
+        }
     if isinstance(value, list):
-        return [clean(item, key) for item in value]
+        return [clean(item, key, (*path, index)) for index, item in enumerate(value)]
     if isinstance(value, str):
         without_urls = URL_VALUE.sub("", value)
         if EMBEDDED_LOCAL_PATH.search(without_urls) or "PRIVATE_EVIDENCE_SENTINEL" in value:
-            fail("private path or sentinel in evidence")
+            fail(f"private path or sentinel in evidence at {location}")
     return value
 
 
