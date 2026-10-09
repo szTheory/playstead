@@ -14,6 +14,15 @@ FORBIDDEN = re.compile(r"rom|save|owner|credential|token|secret|password|local.?
 # Approved exceptions are deliberately empty. Entries added here must match
 # one exact package@version and finding, explain the review decision, and expire.
 APPROVED_EXCEPTIONS: list[dict[str, str]] = []
+URL_VALUE = re.compile(r"https?://[^\s\"'<>]+", re.I)
+EMBEDDED_LOCAL_PATH = re.compile(
+    r"(?:"
+    r"(?<![A-Za-z0-9])[A-Za-z]:[\\/][^\s\"'<>]*|"  # Windows drive path
+    r"(?<!\S)(?:\\\\|//)[^\\/\s]+[\\/][^\s\"'<>]*|"  # UNC path
+    r"(?<![A-Za-z0-9])/(?:[^\s/\\<>\"']+/)*[^\s/\\<>\"']+|"  # POSIX absolute path
+    r"(?:^|[/\\])\.\.(?:[/\\]|$)"  # parent traversal component
+    r")"
+)
 
 
 def fail(message: str) -> None:
@@ -40,7 +49,8 @@ def clean(value, key=""):
     if isinstance(value, list):
         return [clean(item, key) for item in value]
     if isinstance(value, str):
-        if value.startswith(("/", "C:\\", "\\\\", "../", "..\\")) or "PRIVATE_EVIDENCE_SENTINEL" in value:
+        without_urls = URL_VALUE.sub("", value)
+        if EMBEDDED_LOCAL_PATH.search(without_urls) or "PRIVATE_EVIDENCE_SENTINEL" in value:
             fail("private path or sentinel in evidence")
     return value
 

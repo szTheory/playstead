@@ -66,6 +66,7 @@ class ReleaseEvidenceNegativeContracts(unittest.TestCase):
             )
             self.assertNotEqual(result.returncode, 0, result.stdout)
             self.assertFalse(output.exists())
+            return result
 
     def test_each_incomplete_or_private_evidence_class_is_rejected(self):
         cases = {}
@@ -151,6 +152,39 @@ class ReleaseEvidenceNegativeContracts(unittest.TestCase):
     def test_pull_request_evidence_is_diagnostic_only(self):
         checked = release_evidence.validate(valid_evidence("pull-request"))
         self.assertEqual(checked["verdict"], "diagnostic-only")
+
+    def test_embedded_local_paths_are_rejected_without_echoing_values(self):
+        unsafe_values = {
+            "POSIX": "scanner reported input at /Users/alice/private/game.rom",
+            "Windows drive": "scanner reported input at C:\\Users\\Alice\\private\\game.rom",
+            "UNC": r"scanner reported input at \\fileserver\private\game.rom",
+            "parent traversal": "scanner reported input at ../../private/game.rom",
+        }
+        for kind, value in unsafe_values.items():
+            ordinary = valid_evidence()
+            ordinary["parser_inventory"]["parsers"][0]["test_identity"] = value
+            document = {"bomFormat": "CycloneDX", "specVersion": "1.6", "version": 1,
+                        "components": [{"type": "library", "name": "example", "properties": [
+                            {"name": "metadata", "value": {"details": [value]}}
+                        ]}]}
+            with self.subTest(kind=kind, location="ordinary evidence"):
+                result = self.run_rejected(ordinary)
+                self.assertNotIn(value, result.stderr)
+            with self.subTest(kind=kind, location="nested CycloneDX"):
+                with self.assertRaisesRegex(ValueError, "private path or sentinel") as error:
+                    release_evidence.validate_cyclonedx(document)
+                self.assertNotIn(value, str(error.exception))
+
+    def test_safe_urls_and_descriptive_text_remain_accepted(self):
+        self.assertEqual(release_evidence.clean({
+            "message": "Uploaded to https://example.invalid/releases/v1/evidence.json",
+            "description": "Reviewed by release automation",
+        })["message"], "Uploaded to https://example.invalid/releases/v1/evidence.json")
+
+        document = {"bomFormat": "CycloneDX", "specVersion": "1.6", "version": 1,
+                    "components": [{"type": "library", "name": "example", "version": "1.0",
+                                    "description": "See https://example.invalid/docs/releases/v1"}]}
+        self.assertEqual(release_evidence.validate_cyclonedx(document), 1)
 
     def test_cyclonedx_document_shape_and_privacy_are_checked_before_upload(self):
         document = {"bomFormat": "CycloneDX", "specVersion": "1.6", "version": 1,
