@@ -54,6 +54,30 @@ class ReleaseEvidenceHappyPath(unittest.TestCase):
         self.assertEqual(checked["subject"]["archive_sha256"], checked["sbom"]["subject_sha256"])
         self.assertEqual(checked["subject"]["archive_sha256"], checked["attestations"]["provenance"]["subject_sha256"])
 
+    def test_canonical_evidence_can_be_revalidated_without_changing_it(self):
+        for mode in ("pull-request", "release"):
+            with self.subTest(mode=mode):
+                canonical = release_evidence.validate(valid_evidence(mode))
+                self.assertEqual(release_evidence.validate(canonical), canonical)
+                with tempfile.TemporaryDirectory() as directory:
+                    source = Path(directory) / "evidence.json"
+                    output = Path(directory) / "revalidated.json"
+                    source.write_text(json.dumps(canonical))
+                    result = subprocess.run(
+                        [sys.executable, str(MODULE_PATH), "--input", str(source), "--output", str(output)],
+                        capture_output=True, text=True,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(json.loads(output.read_text()), canonical)
+
+    def test_supplied_verdict_must_match_mode(self):
+        for mode, false_verdict in (("pull-request", "release-ready"), ("release", "diagnostic-only")):
+            with self.subTest(mode=mode):
+                evidence = release_evidence.validate(valid_evidence(mode))
+                evidence["verdict"] = false_verdict
+                with self.assertRaisesRegex(ValueError, "verdict"):
+                    release_evidence.validate(evidence)
+
 
 class TrivyDiagnosticContracts(unittest.TestCase):
     def test_high_severity_failure_summary_is_actionable_bounded_and_redacted(self):
@@ -479,6 +503,38 @@ class ReleaseEvidenceNegativeContracts(unittest.TestCase):
             sbom.write_text(json.dumps(record("https://cyclonedx.org/bom", "e" * 64)))
             with self.assertRaises(ValueError):
                 release_evidence.verify_attestation_reports(str(evidence), str(provenance), str(sbom), str(output))
+
+    def test_canonical_pr_evidence_transitions_to_release_verdict(self):
+        digest = "a" * 64
+        def report(predicate):
+            return [{"verificationResult": {"statement": {
+                "predicateType": predicate,
+                "subject": [{"digest": {"sha256": digest}}],
+            }}}]
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            evidence = root / "evidence.json"
+            provenance = root / "provenance.json"
+            sbom = root / "sbom.json"
+            output = root / "release.json"
+            evidence.write_text(json.dumps(release_evidence.validate(valid_evidence("pull-request"))))
+            provenance.write_text(json.dumps(report("https://slsa.dev/provenance/v1")))
+            sbom.write_text(json.dumps(report("https://cyclonedx.org/bom")))
+
+            release_evidence.verify_attestation_reports(str(evidence), str(provenance), str(sbom), str(output))
+            released = json.loads(output.read_text())
+            self.assertEqual(released["mode"], "release")
+            self.assertEqual(released["verdict"], "release-ready")
+            self.assertEqual(release_evidence.validate(released), released)
+
+            original = json.loads(evidence.read_text())
+            original["verdict"] = "release-ready"
+            evidence.write_text(json.dumps(original))
+            output.unlink()
+            with self.assertRaisesRegex(ValueError, "verdict"):
+                release_evidence.verify_attestation_reports(str(evidence), str(provenance), str(sbom), str(output))
+            self.assertFalse(output.exists())
 
     def test_malformed_attestation_shapes_are_rejected_without_tracebacks(self):
         digest = "a" * 64
