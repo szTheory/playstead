@@ -238,7 +238,7 @@ def validate_test_evidence(data, relative):
                 raise SystemExit(f"save upload diagnostic contains non-allowlisted fields: {relative}")
             if not isinstance(record.get("test_identifier"), str) or not test_identifier.fullmatch(record["test_identifier"]):
                 raise SystemExit(f"save upload diagnostic test identifier is malformed: {relative}")
-            if record.get("drain_outcome") not in {"stopped_for_retry", "no_pending"} or record.get("classification") not in classifications:
+            if record.get("drain_outcome") not in {"stopped_for_retry", "no_pending", "sent_without_target_upload"} or record.get("classification") not in classifications:
                 raise SystemExit(f"save upload diagnostic tokens are malformed: {relative}")
             status = record.get("http_status")
             if status is not None and (type(status) is not int or not 100 <= status <= 599):

@@ -180,7 +180,7 @@ final class SaveEndToEndTests: XCTestCase {
         }
 
         var safeMarker: String? {
-            let outcomes: Set<String> = ["stopped_for_retry", "no_pending"]
+            let outcomes: Set<String> = ["stopped_for_retry", "no_pending", "sent_without_target_upload"]
             let classifications: Set<String> = ["none", "offline_queue", "slow_upload", "revoked_auth", "capability_skew", "server_refusal", "compatibility_rejection"]
             let codes: Set<String> = ["device_revoked", "unauthorized", "capability_incompatible", "save_binding_incompatible", "save_revision_digest_mismatch", "save_parent_unknown", "save_revision_immutable", "save_branch_limit_exceeded", "slow_down", "rate_limited", "internal_error", "other"]
             guard outcomes.contains(drainOutcome), classifications.contains(classification),
@@ -212,7 +212,7 @@ final class SaveEndToEndTests: XCTestCase {
         case "save-e2e: upload stopped for retry, retryable":
             XCTAssertTrue(false, "save-e2e-harness=upload-stopped-retryable\(marker)")
         case "save-e2e: upload still retryable-failing after all attempts":
-            XCTAssertTrue(false, "save-e2e-harness=upload-exhausted-retries")
+            XCTAssertTrue(false, "save-e2e-harness=upload-exhausted-retries\(marker)")
         case "save-e2e: upload stopped for retry, server refused":
             XCTAssertTrue(false, "save-e2e-harness=upload-server-refused\(marker)")
         case "save-e2e: upload found nothing pending":

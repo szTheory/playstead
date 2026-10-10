@@ -268,7 +268,9 @@ enum UITestBootstrap {
         case .compatibilityRejection: classification = "compatibility_rejection"
         }
         let payload: [String: Any] = [
-            "drain_outcome": result.stoppedForRetry ? "stopped_for_retry" : "no_pending",
+            "drain_outcome": result.stoppedForRetry
+                ? "stopped_for_retry"
+                : (result.sent == 0 ? "no_pending" : "sent_without_target_upload"),
             "classification": classification,
             "http_status": result.httpStatus.map { $0 as Any } ?? NSNull(),
             "api_code": result.apiCode?.rawValue as Any? ?? NSNull(),

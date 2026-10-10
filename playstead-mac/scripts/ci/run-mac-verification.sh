@@ -639,7 +639,7 @@ failed_test_details = []
 audit_pattern = re.compile(r"PLAYSTEAD_A11Y_ISSUES\[([A-Za-z]+)\]=([a-z0-9.,@-]+)")
 ui_stage_pattern = re.compile(r"PLAYSTEAD_FAILURE_STAGE\[([a-z0-9-]+)\]")
 live_stage_pattern = re.compile(r"live-server-stage=([a-z0-9-]+) action=([a-z0-9-]+)")
-save_upload_pattern = re.compile(r"save-e2e-diagnostic=drain:(stopped_for_retry|no_pending),classification:(none|offline_queue|slow_upload|revoked_auth|capability_skew|server_refusal|compatibility_rejection),status:(unavailable|[1-5][0-9][0-9]),api:(unavailable|device_revoked|unauthorized|capability_incompatible|save_binding_incompatible|save_revision_digest_mismatch|save_parent_unknown|save_revision_immutable|save_branch_limit_exceeded|slow_down|rate_limited|internal_error|other),route:unavailable")
+save_upload_pattern = re.compile(r"save-e2e-diagnostic=drain:(stopped_for_retry|no_pending|sent_without_target_upload),classification:(none|offline_queue|slow_upload|revoked_auth|capability_skew|server_refusal|compatibility_rejection),status:(unavailable|[1-5][0-9][0-9]),api:(unavailable|device_revoked|unauthorized|capability_incompatible|save_binding_incompatible|save_revision_digest_mismatch|save_parent_unknown|save_revision_immutable|save_branch_limit_exceeded|slow_down|rate_limited|internal_error|other),route:unavailable")
 allowed_ui_stages = {
     "all-surface-library-layout", "all-surface-collection-reorder",
     "all-surface-quota-list", "all-surface-adapter-actions",

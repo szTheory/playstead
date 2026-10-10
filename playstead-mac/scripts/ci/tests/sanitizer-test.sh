@@ -41,8 +41,11 @@ make_valid() {
   python3 - "$root/evidence/ui-tests.json" <<'PY'
 import json, pathlib, sys
 path = pathlib.Path(sys.argv[1]); data = json.loads(path.read_text())
-data["save_upload_diagnostic_count"] = 1
-data["save_upload_diagnostics"] = [{"test_identifier":"SaveEndToEndTests/testOneSaveRoundTripsCaptureUploadAndJournalReturn()","drain_outcome":"stopped_for_retry","classification":"server_refusal","http_status":409,"api_code":"other","server_route_status":"unavailable"}]
+data["save_upload_diagnostic_count"] = 2
+data["save_upload_diagnostics"] = [
+    {"test_identifier":"SaveEndToEndTests/testOneSaveRoundTripsCaptureUploadAndJournalReturn()","drain_outcome":"stopped_for_retry","classification":"server_refusal","http_status":409,"api_code":"other","server_route_status":"unavailable"},
+    {"test_identifier":"SaveEndToEndTests/testOneSaveRoundTripsCaptureUploadAndJournalReturn()","drain_outcome":"sent_without_target_upload","classification":"none","http_status":None,"api_code":None,"server_route_status":"unavailable"},
+]
 path.write_text(json.dumps(data))
 PY
   printf 'safe app event at /Users/example/private/location\n' >"$root/evidence/logs/app.log"
@@ -73,8 +76,11 @@ data = json.loads(pathlib.Path(sys.argv[1]).read_text())
 assert data["failed_tests"] == [{"identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "outcome": "failed"}]
 assert all(set(record) == {"identifier", "outcome"} for record in data["failed_tests"])
 assert data["failure_diagnostics"] == [{"test_identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","assertion":"XCTAssertTrue","source_file":"PlaysteadUITests/SurfaceAccessibilityTests.swift","source_line":137}]
-assert data["save_upload_diagnostic_count"] == 1
-assert data["save_upload_diagnostics"] == [{"test_identifier":"SaveEndToEndTests/testOneSaveRoundTripsCaptureUploadAndJournalReturn()","drain_outcome":"stopped_for_retry","classification":"server_refusal","http_status":409,"api_code":"other","server_route_status":"unavailable"}]
+assert data["save_upload_diagnostic_count"] == 2
+assert data["save_upload_diagnostics"] == [
+    {"test_identifier":"SaveEndToEndTests/testOneSaveRoundTripsCaptureUploadAndJournalReturn()","drain_outcome":"stopped_for_retry","classification":"server_refusal","http_status":409,"api_code":"other","server_route_status":"unavailable"},
+    {"test_identifier":"SaveEndToEndTests/testOneSaveRoundTripsCaptureUploadAndJournalReturn()","drain_outcome":"sent_without_target_upload","classification":"none","http_status":None,"api_code":None,"server_route_status":"unavailable"},
+]
 assert data["audit_issues"] == [{"test_identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "category": "parentChild", "element_identifier": "playstead.surface.library", "element_role": "role-3"}]
 assert data["in_test_seconds_total"] == 5.8
 assert data["timed_test_count"] == 2

@@ -387,10 +387,11 @@ PY
 # Requiring `OnlyCopyEscalationReason(classification:)` is what keeps the
 # harness and the shipped escalation panel from ever disagreeing about which
 # verdicts are unfixable: they gate on the same initializer.
-python3 - "$UI_BOOTSTRAP" <<'RETRYABLE_PY'
+python3 - "$UI_BOOTSTRAP" "$MAC_ROOT/PlaysteadUITests/SaveEndToEndTests.swift" <<'RETRYABLE_PY'
 import pathlib, sys
 
 raw = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+ui_test = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8")
 
 # Comment lines are stripped before any of this is judged. The first draft of
 # this guard passed a probe that gutted the helper body, because the phrase it
@@ -415,6 +416,9 @@ region = source.split("func runSaveEndToEnd", 1)[1]
 uses = region.count("isRetryable(drainResult.failureClassification)")
 if uses != 3:
     raise SystemExit(f"save-e2e must consult the retryable predicate at all 3 decision points, found {uses}")
+for failure in ("upload-exhausted-retries", "upload-server-refused", "upload-nothing-pending"):
+    if f'save-e2e-harness={failure}\\(marker)' not in ui_test:
+        raise SystemExit(f"save-e2e failure `{failure}` must retain its bounded per-attempt diagnostic marker")
 RETRYABLE_PY
 
 # The most expensive test in the Unit layer must not be paid for twice.

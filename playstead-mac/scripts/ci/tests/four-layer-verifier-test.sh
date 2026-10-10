@@ -56,7 +56,7 @@ non_required_failure = {
     "children": [
         {
             "nodeType": "Failure Message",
-            "name": "SurfaceAccessibilityTests.swift:137: XCTAssertTrue failed: private runtime values are deliberately discarded - PLAYSTEAD_A11Y_ISSUES[parentChild]=playstead.surface.library@role-3,unidentified@role-64 save-e2e-diagnostic=drain:stopped_for_retry,classification:server_refusal,status:409,api:other,route:unavailable",
+            "name": "SurfaceAccessibilityTests.swift:137: XCTAssertTrue failed: private runtime values are deliberately discarded - PLAYSTEAD_A11Y_ISSUES[parentChild]=playstead.surface.library@role-3,unidentified@role-64 save-e2e-diagnostic=drain:sent_without_target_upload,classification:none,status:unavailable,api:unavailable,route:unavailable",
             "result": "Failed",
         }
     ],
@@ -97,10 +97,10 @@ assert summary["failure_diagnostics"] == [{
 assert summary["save_upload_diagnostic_count"] == 1
 assert summary["save_upload_diagnostics"] == [{
     "test_identifier": "SurfaceAccessibilityTests/testSyntheticFailure()",
-    "drain_outcome": "stopped_for_retry",
-    "classification": "server_refusal",
-    "http_status": 409,
-    "api_code": "other",
+    "drain_outcome": "sent_without_target_upload",
+    "classification": "none",
+    "http_status": None,
+    "api_code": None,
     "server_route_status": "unavailable",
 }]
 assert summary["audit_issue_count"] == 2
