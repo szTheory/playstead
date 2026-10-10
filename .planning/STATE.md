@@ -1,14 +1,14 @@
 ---
-gsd_state_version: 1.0
+gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: 03
 current_phase_name: Mac Offline Play Vertical Slice
 status: executing
 stopped_at: Completed 03-16-PLAN.md
-last_updated: "2026-09-11T15:26:11.737Z"
+last_updated: "2026-10-10T00:18:21.101Z"
 last_activity: 2026-09-11
 last_activity_desc: Phase 03 execution started
-state_head: 0294ccdd09d2b6e95583bbe5f87c70f45b19fe01
+state_head: f7e6aaca5beb19202366fab67f1624b99578c1f7
 progress:
   total_phases: 7
   completed_phases: 5
@@ -342,6 +342,7 @@ None yet.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 260826-tqx | Adopt Playstead as the project identity, update the planning corpus, establish workspace subproject folders, and rename the parent workspace | 2026-08-26 | 1fd0dbe | [260826-tqx-adopt-playstead-as-the-project-identity-](./quick/260826-tqx-adopt-playstead-as-the-project-identity-/) |
+| 261009-fxc | Fix PR CI SBOM privacy-validator regression and make focused PR gates converge | 2026-10-09 | f7e6aac | [261009-fxc-fix-pr-ci-sbom-privacy-validator-regress](./quick/261009-fxc-fix-pr-ci-sbom-privacy-validator-regress/) |
 
 ## Deferred Items
 
@@ -353,6 +354,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-11T15:26:11.219Z
-Stopped at: Completed 03-16-PLAN.md
+Last session: 2026-10-10T00:18:12.000Z
+Stopped at: Completed quick task 261009-fxc; PR #9 exact-head CI passed on f7e6aac
 Resume file: None

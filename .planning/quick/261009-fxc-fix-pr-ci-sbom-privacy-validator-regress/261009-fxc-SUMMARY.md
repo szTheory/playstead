@@ -1,6 +1,13 @@
+---
+quick_id: 261009-fxc
+status: complete
+date: 2026-10-09
+implementation_commit: f7e6aac
+---
+
 # Quick Task 261009-fxc: Fix PR CI SBOM privacy validator regression
 
-**Status: INCOMPLETE — exact-SHA hosted CI verification is pending.**
+**Status: COMPLETE — all 11 planned outcomes verified; exact-head hosted CI passed.**
 
 ## Evidence and implementation
 
@@ -63,3 +70,14 @@ Run [37981789288](https://github.com/szTheory/playstead/actions/runs/37981789288
 Run [37991439424](https://github.com/szTheory/playstead/actions/runs/37991439424) on SHA `6506161ebd0882e002552fdf53d90482dc411e5f` completed unsuccessfully: server precommit passed; Docker stopped at Buildx's Docker Hub pull; Mac verification exposed the shared second-sentinel fixture leak. The current local fixes have not yet been pushed. Keep the task incomplete until a new exact-SHA run passes all required jobs and the named Docker scan step.
 
 Run [37998382102](https://github.com/szTheory/playstead/actions/runs/37998382102) on SHA `b03821b96220e6b502ef75867d81338a19dfa7e0` completed after two attempts. Attempt 1: server passed, Docker cache-service error, Mac UI assertion timeout. Attempt 2: server passed, Mac four-layer verification passed, Docker cache-service error repeated. The local cache-export resilience change has not been pushed; push it and require a fresh exact-SHA run with every required job green.
+
+## Final exact-head closeout
+
+- Commit `f7e6aaca5beb19202366fab67f1624b99578c1f7` was pushed to `codex/phase-05-1-supply-chain` for PR [#9](https://github.com/szTheory/playstead/pull/9).
+- Exact-head GitHub Actions run [38006269757](https://github.com/szTheory/playstead/actions/runs/38006269757) completed successfully on that full SHA. The required server, Docker cold-start, and macOS jobs all passed; the protected-main attestation job was correctly skipped for a pull request.
+- Server `mix precommit`: **1,076 tests, 0 failures**. Docker compose smoke: parser fixture inventory **42 tests, 0 failures**; image build, cold start, release-evidence validation, and tested-image upload all passed. The full image vulnerability scan passed with **48 HIGH/CRITICAL findings without a published fix**, retained in digest-bound release evidence; fixable HIGH/CRITICAL findings therefore numbered **0**.
+- Mac verification passed all four layers: unit **34 required / 665 executed**, rendering **8 / 45**, UI **53 / 113**, and live-server **5 / 5**. The earlier curation drag timeout did not recur with the scoped 10-second evidence budget; live-server fixture verification passed on the hosted run.
+- Run artifacts: `tested-release-evidence` (ID `11651333120`, SHA-256 `9a4f3f30e281d7603de4b0799e2b987c0d721c46e5939551924edf458c87413c`) and `complete-verification-evidence` (ID `11652625228`, SHA-256 `fb38aa71f7fa12b832cf183850e5baa8ee9378922a8cf803d62c5affc49bf808`).
+- Final local checks passed: 25 release-evidence unit tests; parser fixture self-test (7 properties, 42 tests); Mac verification self-contracts (43 Python tests and shell guards); `actionlint`; shell syntax; CI Compose validation; and `git diff --check`.
+
+Earlier “pending” and “not yet pushed” notes above describe the state at the time of those historical attempts. This exact-head result supersedes them. No owner UAT is required for this CI task.

@@ -1,7 +1,7 @@
 ---
 id: 261009-fxc
 type: quick-full
-status: in_progress
+status: complete
 description: Fix PR CI SBOM privacy-validator regression and make the focused PR gates converge
 must_haves:
   truths:
