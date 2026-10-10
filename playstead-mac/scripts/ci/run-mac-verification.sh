@@ -1392,6 +1392,7 @@ PY
 
   run_test_layer rendering Rendering 600 \
     --required-test PlaysteadTests.DeterministicProfileTests/testQuotaBlockReclaimProfileComputesExactProductionDecisionBeforeExternalIO \
+    --required-test PlaysteadTests.DeterministicProfileTests/testCatalogueTransitionControlRejectsInvalidSelectorsAndNonPrivateRoots \
     --required-test PlaysteadTests.SnapshotHarnessCanaryTests/testIntentionalMismatchProducesReviewableTriplet \
     --required-test PlaysteadTests.SnapshotHarnessCanaryTests/testMeaningfulMutationFailsAndCalibratedNoisePasses \
     --required-test PlaysteadTests.LibraryContractSnapshotTests/testCardAndStatusVisualContract \
@@ -1459,6 +1460,9 @@ PY
     --required-test PlaysteadUITests.BiosRejectionCopyTests/testRejectedDropRendersTheStoresExactReasonAsVisibleCopy \
     --required-test PlaysteadUITests.BiosRejectionCopyTests/testAnUnusableCandidatePathLeavesTheSurfaceUntouchedRatherThanShowingAGenericFailure \
     --required-test PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit \
+    --required-test PlaysteadUITests.SurfaceAccessibilityTests/testFirstPointerClickActivatesListInFreshLibraryProfiles \
+    --required-test PlaysteadUITests.SurfaceAccessibilityTests/testInitialCatalogueRefreshKeepsListPointerTarget \
+    --required-test PlaysteadUITests.SurfaceAccessibilityTests/testEarlyListActivationSurvivesInitialCatalogueRefresh \
     --required-test PlaysteadUITests.ZeroNetworkPlayFlowTests/testWholePlayFlowRecordsZeroHTTPRequests
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
 
@@ -1946,6 +1950,10 @@ required = [
     "PlaysteadTests.PlaySessionTests/test_sameSessionIdentifierPostedTwice_resultsInOneServerSideEffect",
     "PlaysteadTests.PlaySessionTests/test_userDeletion_enqueuesDeleteIntentAndRemovesFromRecent",
     "PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit",
+    "PlaysteadTests.DeterministicProfileTests/testCatalogueTransitionControlRejectsInvalidSelectorsAndNonPrivateRoots",
+    "PlaysteadUITests.SurfaceAccessibilityTests/testFirstPointerClickActivatesListInFreshLibraryProfiles",
+    "PlaysteadUITests.SurfaceAccessibilityTests/testInitialCatalogueRefreshKeepsListPointerTarget",
+    "PlaysteadUITests.SurfaceAccessibilityTests/testEarlyListActivationSurvivesInitialCatalogueRefresh",
     "PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch",
     "PlaysteadUITests.PairingCeremonyTests/testAHumanCanPairAFreshMacEntirelyFromInsideTheAppAgainstTheRealServer",
 ]
