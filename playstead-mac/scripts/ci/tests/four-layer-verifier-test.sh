@@ -56,7 +56,7 @@ non_required_failure = {
     "children": [
         {
             "nodeType": "Failure Message",
-            "name": "SurfaceAccessibilityTests.swift:137: XCTAssertTrue failed: private runtime values are deliberately discarded - PLAYSTEAD_A11Y_ISSUES[parentChild]=playstead.surface.library@role-3,unidentified@role-64",
+            "name": "SurfaceAccessibilityTests.swift:137: XCTAssertTrue failed: private runtime values are deliberately discarded - PLAYSTEAD_A11Y_ISSUES[parentChild]=playstead.surface.library@role-3,unidentified@role-64 save-e2e-diagnostic=drain:sent_without_target_upload,classification:none,status:unavailable,api:unavailable,route:unavailable",
             "result": "Failed",
         }
     ],
@@ -94,6 +94,15 @@ assert summary["failure_diagnostics"] == [{
     "source_file": "PlaysteadUITests/SurfaceAccessibilityTests.swift",
     "source_line": 137,
 }]
+assert summary["save_upload_diagnostic_count"] == 1
+assert summary["save_upload_diagnostics"] == [{
+    "test_identifier": "SurfaceAccessibilityTests/testSyntheticFailure()",
+    "drain_outcome": "sent_without_target_upload",
+    "classification": "none",
+    "http_status": None,
+    "api_code": None,
+    "server_route_status": "unavailable",
+}]
 assert summary["audit_issue_count"] == 2
 assert summary["audit_issues_truncated"] is False
 assert summary["audit_issues"] == [
@@ -109,7 +118,7 @@ assert summary["slowest_tests"] == [
     {"identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "seconds": 4.25},
     {"identifier": "KeychainScopingTests/testScopedMatchQueryRestrictsSearchWithoutSelectingAnAddDestination()", "seconds": 1.5},
 ]
-assert set(summary) == {"schema_version", "layer", "executed_test_count", "required_tests", "failed_test_count", "failed_tests_truncated", "failed_tests", "failure_diagnostic_count", "failure_diagnostics_truncated", "failure_diagnostics", "audit_issue_count", "audit_issues_truncated", "audit_issues", "in_test_seconds_total", "timed_test_count", "slowest_tests"}
+assert set(summary) == {"schema_version", "layer", "executed_test_count", "required_tests", "failed_test_count", "failed_tests_truncated", "failed_tests", "failure_diagnostic_count", "failure_diagnostics_truncated", "failure_diagnostics", "save_upload_diagnostic_count", "save_upload_diagnostics", "audit_issue_count", "audit_issues_truncated", "audit_issues", "in_test_seconds_total", "timed_test_count", "slowest_tests"}
 PY
 PASS_COUNT=$((PASS_COUNT + 1))
 

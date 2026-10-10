@@ -633,11 +633,13 @@ nodes = []
 audit_issues = []
 durations = []
 failure_diagnostics = []
+save_upload_diagnostics = []
 failure_stages = set()
 failed_test_details = []
 audit_pattern = re.compile(r"PLAYSTEAD_A11Y_ISSUES\[([A-Za-z]+)\]=([a-z0-9.,@-]+)")
 ui_stage_pattern = re.compile(r"PLAYSTEAD_FAILURE_STAGE\[([a-z0-9-]+)\]")
 live_stage_pattern = re.compile(r"live-server-stage=([a-z0-9-]+) action=([a-z0-9-]+)")
+save_upload_pattern = re.compile(r"save-e2e-diagnostic=drain:(stopped_for_retry|no_pending|sent_without_target_upload),classification:(none|offline_queue|slow_upload|revoked_auth|capability_skew|server_refusal|compatibility_rejection),status:(unavailable|[1-5][0-9][0-9]),api:(unavailable|device_revoked|unauthorized|capability_incompatible|save_binding_incompatible|save_revision_digest_mismatch|save_parent_unknown|save_revision_immutable|save_branch_limit_exceeded|slow_down|rate_limited|internal_error|other),route:unavailable")
 allowed_ui_stages = {
     "all-surface-library-layout", "all-surface-collection-reorder",
     "all-surface-quota-list", "all-surface-adapter-actions",
@@ -766,6 +768,16 @@ def walk(value):
                 if diagnostic is not None:
                     failure_diagnostics.append(diagnostic)
             for diagnostic in strings(value):
+                for match in save_upload_pattern.finditer(diagnostic):
+                    drain_outcome, classification, status, api_code = match.groups()
+                    save_upload_diagnostics.append({
+                        "test_identifier": test_identifier,
+                        "drain_outcome": drain_outcome,
+                        "classification": classification,
+                        "http_status": None if status == "unavailable" else int(status),
+                        "api_code": None if api_code == "unavailable" else api_code,
+                        "server_route_status": "unavailable",
+                    })
                 for match in ui_stage_pattern.finditer(diagnostic):
                     stage = match.group(1)
                     if stage in allowed_ui_stages:
@@ -879,6 +891,10 @@ all_failure_diagnostics = sorted(
     ),
 )
 max_failure_diagnostics = 50
+all_save_upload_diagnostics = sorted(
+    {tuple(sorted(record.items())) for record in save_upload_diagnostics},
+    key=lambda fields: dict(fields)["test_identifier"],
+)
 
 summary = {
     "schema_version": 1,
@@ -891,6 +907,8 @@ summary = {
     "failure_diagnostic_count": len(all_failure_diagnostics),
     "failure_diagnostics_truncated": len(all_failure_diagnostics) > max_failure_diagnostics,
     "failure_diagnostics": [dict(fields) for fields in all_failure_diagnostics[:max_failure_diagnostics]],
+    "save_upload_diagnostic_count": len(all_save_upload_diagnostics),
+    "save_upload_diagnostics": [dict(fields) for fields in all_save_upload_diagnostics[:50]],
     "audit_issue_count": len(all_audit_issues),
     "audit_issues_truncated": len(all_audit_issues) > max_audit_issues,
     "audit_issues": [dict(fields) for fields in all_audit_issues[:max_audit_issues]],

@@ -107,7 +107,9 @@ final class SaveEndToEndTests: XCTestCase {
         }
         if FileManager.default.fileExists(atPath: errorURL.path) {
             let reason = (try? String(contentsOf: errorURL, encoding: .utf8)) ?? ""
-            return recordSaveHarnessFailure(reason.trimmingCharacters(in: .whitespacesAndNewlines))
+            let diagnosticURL = resultURL.deletingPathExtension().appendingPathExtension("diagnostic.json")
+            let diagnostic = try? JSONDecoder().decode(SaveUploadFailureDiagnostic.self, from: Data(contentsOf: diagnosticURL))
+            return recordSaveHarnessFailure(reason.trimmingCharacters(in: .whitespacesAndNewlines), diagnostic: diagnostic)
         }
         XCTAssertTrue(FileManager.default.fileExists(atPath: resultURL.path), "save-e2e result was never written within 120s")
 
@@ -162,12 +164,42 @@ final class SaveEndToEndTests: XCTestCase {
         }
     }
 
+    private struct SaveUploadFailureDiagnostic: Decodable {
+        let drainOutcome: String
+        let classification: String
+        let httpStatus: Int?
+        let apiCode: String?
+        let serverRouteStatus: String
+
+        enum CodingKeys: String, CodingKey {
+            case drainOutcome = "drain_outcome"
+            case classification
+            case httpStatus = "http_status"
+            case apiCode = "api_code"
+            case serverRouteStatus = "server_route_status"
+        }
+
+        var safeMarker: String? {
+            let outcomes: Set<String> = ["stopped_for_retry", "no_pending", "sent_without_target_upload"]
+            let classifications: Set<String> = ["none", "offline_queue", "slow_upload", "revoked_auth", "capability_skew", "server_refusal", "compatibility_rejection"]
+            let codes: Set<String> = ["device_revoked", "unauthorized", "capability_incompatible", "save_binding_incompatible", "save_revision_digest_mismatch", "save_parent_unknown", "save_revision_immutable", "save_branch_limit_exceeded", "slow_down", "rate_limited", "internal_error", "other"]
+            guard outcomes.contains(drainOutcome), classifications.contains(classification),
+                  apiCode.map(codes.contains) ?? (httpStatus == nil),
+                  httpStatus.map({ (100...599).contains($0) }) ?? true,
+                  serverRouteStatus == "unavailable" else { return nil }
+            let status = httpStatus.map(String.init) ?? "unavailable"
+            let code = apiCode ?? "unavailable"
+            return "save-e2e-diagnostic=drain:\(drainOutcome),classification:\(classification),status:\(status),api:\(code),route:\(serverRouteStatus)"
+        }
+    }
+
     /// One assertion site per cause, for the same reason
     /// `recordFixtureFailure` has one: CI's evidence pipeline keeps
     /// `file:line` and discards assertion messages, so a single shared
     /// `XCTFail(reason)` would report every distinct failure at the same
     /// line and diagnose nothing.
-    private func recordSaveHarnessFailure(_ reason: String) {
+    private func recordSaveHarnessFailure(_ reason: String, diagnostic: SaveUploadFailureDiagnostic? = nil) {
+        let marker = diagnostic?.safeMarker.map { " \($0)" } ?? ""
         switch reason {
         case "save-e2e: capture did not quiesce":
             XCTAssertTrue(false, "save-e2e-harness=capture-did-not-quiesce")
@@ -178,13 +210,13 @@ final class SaveEndToEndTests: XCTestCase {
         // to succeed on a single un-retried pass -- a harness limitation,
         // not a product defect. The other two are real defects.
         case "save-e2e: upload stopped for retry, retryable":
-            XCTAssertTrue(false, "save-e2e-harness=upload-stopped-retryable")
+            XCTAssertTrue(false, "save-e2e-harness=upload-stopped-retryable\(marker)")
         case "save-e2e: upload still retryable-failing after all attempts":
-            XCTAssertTrue(false, "save-e2e-harness=upload-exhausted-retries")
+            XCTAssertTrue(false, "save-e2e-harness=upload-exhausted-retries\(marker)")
         case "save-e2e: upload stopped for retry, server refused":
-            XCTAssertTrue(false, "save-e2e-harness=upload-server-refused")
+            XCTAssertTrue(false, "save-e2e-harness=upload-server-refused\(marker)")
         case "save-e2e: upload found nothing pending":
-            XCTAssertTrue(false, "save-e2e-harness=upload-nothing-pending")
+            XCTAssertTrue(false, "save-e2e-harness=upload-nothing-pending\(marker)")
         case "save-e2e: revision not found after sync":
             XCTAssertTrue(false, "save-e2e-harness=revision-missing-after-sync")
         default:
