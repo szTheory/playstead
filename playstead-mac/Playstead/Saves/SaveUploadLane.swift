@@ -68,6 +68,7 @@ final class SaveUploadClassificationCell: @unchecked Sendable {
 actor SaveUploadLane {
     private let apiClient: APIClient
     private let saveStore: SaveStore
+    private var inFlightDrain: Task<SaveUploadDrainResult, Never>?
 
     /// Per-revision attempt count and next-eligible time, following
     /// `Outbox.maxAttempts`/`retryDelay(forAttempt:)`'s exact curve
@@ -149,6 +150,24 @@ actor SaveUploadLane {
 
     @discardableResult
     func drainOnce(at now: Date = Date()) async -> SaveUploadDrainResult {
+        // Actor isolation does not hold across the network awaits below.
+        // Concurrent callers must share the same pass so they cannot both
+        // select and commit a revision that is still marked queued.
+        if let inFlightDrain {
+            return await inFlightDrain.value
+        }
+        let task = Task {
+            let result = await performDrainOnce(at: now)
+            // Clear before releasing waiters. A waiter may immediately
+            // request the next retry pass with a later eligibility time.
+            inFlightDrain = nil
+            return result
+        }
+        inFlightDrain = task
+        return await task.value
+    }
+
+    private func performDrainOnce(at now: Date) async -> SaveUploadDrainResult {
         var sent = 0
 
         let pending = (saveStore.fetchPending(durability: .localOnly) + saveStore.fetchPending(durability: .queued))

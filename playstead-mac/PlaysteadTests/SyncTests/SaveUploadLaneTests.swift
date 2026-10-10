@@ -333,6 +333,36 @@ final class SaveUploadLaneTests: XCTestCase {
         XCTAssertEqual(lane.lastFailureClassification, .none)
     }
 
+    func test_overlappingDrainsShareOneUploadAndCommit() async throws {
+        let revision = try makeLocalOnlyRevision(bytes: Data(repeating: 0x44, count: 1024))
+        let firstUpload = expectation(description: "first upload entered URLSession")
+        firstUpload.assertForOverFulfill = false
+        StubURLProtocol.responder = { request in
+            if request.httpMethod == "PUT" { firstUpload.fulfill() }
+            return StubURLProtocol.Stub(
+                statusCode: request.httpMethod == "PUT" ? 200 : 201,
+                headers: ["Content-Type": "application/json"],
+                body: Data("{\"save_line_id\":\"\(revision.saveLineID)\"}".utf8)
+            )
+        }
+
+        let lane = SaveUploadLane(apiClient: apiClient, saveStore: saveStore)
+        let first = Task { await lane.drainOnce() }
+        await fulfillment(of: [firstUpload], timeout: 2)
+        let second = Task { await lane.drainOnce() }
+
+        let firstResult = await first.value
+        let secondResult = await second.value
+        XCTAssertEqual(firstResult.sent, 1)
+        XCTAssertEqual(secondResult.sent, 1, "the overlapping caller observes the same completed pass")
+        XCTAssertFalse(firstResult.stoppedForRetry)
+        XCTAssertFalse(secondResult.stoppedForRetry)
+        XCTAssertEqual(saveStore.fetchRevision(id: revision.id)?.durability, SaveDurability.uploaded.rawValue)
+        let methods = StubURLProtocol.requestLog.compactMap(\.httpMethod)
+        XCTAssertEqual(methods.filter { $0 == "PUT" }.count, 1)
+        XCTAssertEqual(methods.filter { $0 == "POST" }.count, 1)
+    }
+
     // MARK: - Helpers
 
     /// `StubURLProtocol.responder` is a `@Sendable` closure, so it cannot
