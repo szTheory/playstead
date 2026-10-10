@@ -730,7 +730,7 @@ final class AppEnvironment {
     /// actor, so overlapping calls serialize rather than racing the same
     /// revision.
     @discardableResult
-    func drainSaveUploads() -> Task<OutboxDrainResult, Never> {
+    func drainSaveUploads() -> Task<SaveUploadDrainResult, Never> {
         Task { [saveUploadLane] in await saveUploadLane.drainOnce() }
     }
 

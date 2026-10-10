@@ -1,6 +1,26 @@
 import Foundation
 import CryptoKit
 
+/// Immutable outcome from one save-upload drain invocation. Only bounded,
+/// closed diagnostic values cross this boundary; API text/body is excluded.
+struct SaveUploadDrainResult: Equatable, Sendable {
+    let sent: Int
+    let stoppedForRetry: Bool
+    let failureClassification: SaveUploadFailureClassification
+    let httpStatus: Int?
+    let apiCode: SafeAPIErrorCode?
+
+    init(sent: Int = 0, stoppedForRetry: Bool = false,
+         failureClassification: SaveUploadFailureClassification = .none,
+         httpStatus: Int? = nil, apiCode: SafeAPIErrorCode? = nil) {
+        self.sent = sent
+        self.stoppedForRetry = stoppedForRetry
+        self.failureClassification = failureClassification
+        self.httpStatus = (100...599).contains(httpStatus ?? 0) ? httpStatus : nil
+        self.apiCode = apiCode
+    }
+}
+
 enum SaveUploadError: Error, Equatable {
     case missingLocalBytes
     case missingLine
@@ -128,8 +148,8 @@ actor SaveUploadLane {
     }
 
     @discardableResult
-    func drainOnce(at now: Date = Date()) async -> OutboxDrainResult {
-        var result = OutboxDrainResult()
+    func drainOnce(at now: Date = Date()) async -> SaveUploadDrainResult {
+        var sent = 0
 
         let pending = (saveStore.fetchPending(durability: .localOnly) + saveStore.fetchPending(durability: .queued))
             .filter { revision in
@@ -148,22 +168,31 @@ actor SaveUploadLane {
                 // attempt escalated -- the condition is demonstrably
                 // gone.
                 classificationCell.set(.none)
-                result.sent += 1
+                sent += 1
             } catch {
                 // Left `queued` — visible and non-terminal (D-32). The
                 // pass stops here so a later revision never uploads
                 // ahead of this still-outstanding one.
-                classificationCell.set(Self.classify(error))
+                let classification = Self.classify(error)
+                classificationCell.set(classification)
                 let attempt = (attemptCounts[revision.id] ?? 0) + 1
                 attemptCounts[revision.id] = attempt
                 let delayAttempt = min(attempt, Outbox.maxAttempts)
                 nextEligibleAt[revision.id] = now.addingTimeInterval(Outbox.retryDelay(forAttempt: delayAttempt))
-                result.stoppedForRetry = true
-                return result
+                let safeFailure = Self.safeFailureFields(error)
+                return SaveUploadDrainResult(sent: sent, stoppedForRetry: true,
+                    failureClassification: classification,
+                    httpStatus: safeFailure.status, apiCode: safeFailure.code)
             }
         }
 
-        return result
+        return SaveUploadDrainResult(sent: sent)
+    }
+
+    private static func safeFailureFields(_ error: Error) -> (status: Int?, code: SafeAPIErrorCode?) {
+        guard case APIClientError.server(let apiError) = error else { return (nil, nil) }
+        let status = (100...599).contains(apiError.status) ? apiError.status : nil
+        return (status, SafeAPIErrorCode(untrustedCode: apiError.code))
     }
 
     private func uploadAndCommit(_ revision: SaveRevisionRow) async throws {

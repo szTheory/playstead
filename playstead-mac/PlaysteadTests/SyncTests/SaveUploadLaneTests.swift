@@ -281,12 +281,56 @@ final class SaveUploadLaneTests: XCTestCase {
         let first = await lane.drainOnce(at: now)
         XCTAssertEqual(first.sent, 0, "a single transient error makes one pass send nothing")
         XCTAssertTrue(first.stoppedForRetry, "the lane stopped to retry rather than failing terminally")
+        XCTAssertEqual(first.failureClassification, .none)
+        XCTAssertEqual(first.httpStatus, 503)
+        XCTAssertEqual(first.apiCode, .other, "unrecognized API codes leave the lane only as the fixed other token")
         XCTAssertEqual(lane.lastFailureClassification, .none, "a 503 is retryable and must never escalate")
 
         now = now.addingTimeInterval(3600) // past any backoff
         let second = await lane.drainOnce(at: now)
         XCTAssertEqual(second.sent, 1, "same server, one pass later — the upload was never broken")
+        XCTAssertFalse(second.stoppedForRetry)
+        XCTAssertNil(second.httpStatus)
+        XCTAssertNil(second.apiCode)
         XCTAssertEqual(saveStore.fetchRevision(id: revision.id)?.durability, SaveDurability.uploaded.rawValue)
+    }
+
+    func test_passDiagnosticRemainsBoundToFailureAfterLaterPassSucceeds() async throws {
+        let revision = try makeLocalOnlyRevision(bytes: Data(repeating: 0x33, count: 1024))
+        let attempts = Counter()
+        StubURLProtocol.responder = { request in
+            if attempts.next() == 1 {
+                return StubURLProtocol.Stub(statusCode: 409, headers: [:], body: Data("{\"code\":\"private-unlisted-code\",\"title\":\"private title\",\"detail\":\"/private/path\"}".utf8))
+            }
+            return StubURLProtocol.Stub(
+                statusCode: request.httpMethod == "PUT" ? 200 : 201,
+                headers: [:], body: Data("{\"save_line_id\":\"\(revision.saveLineID)\"}".utf8)
+            )
+        }
+        let lane = SaveUploadLane(apiClient: apiClient, saveStore: saveStore)
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        async let passA = lane.drainOnce(at: now)
+        async let passB = lane.drainOnce(at: now)
+        let (resultA, resultB) = await (passA, passB)
+        let first = resultA.httpStatus == 409 ? resultA : resultB
+        let queuedPass = resultA.httpStatus == 409 ? resultB : resultA
+        XCTAssertEqual(first.failureClassification, .serverRefusal)
+        XCTAssertEqual(first.httpStatus, 409)
+        XCTAssertEqual(first.apiCode, .other)
+        XCTAssertTrue(first.stoppedForRetry)
+        XCTAssertFalse(queuedPass.stoppedForRetry, "actor-serialized overlapping drain observes the scheduled backoff")
+        XCTAssertNil(queuedPass.httpStatus)
+        XCTAssertNil(queuedPass.apiCode)
+
+        let second = await lane.drainOnce(at: Date(timeIntervalSince1970: 1_700_010_000))
+        XCTAssertEqual(second.sent, 1)
+        XCTAssertEqual(second.failureClassification, .none)
+        XCTAssertNil(second.httpStatus)
+        XCTAssertNil(second.apiCode)
+        XCTAssertEqual(first.failureClassification, .serverRefusal)
+        XCTAssertEqual(first.httpStatus, 409)
+        XCTAssertEqual(first.apiCode, .other)
+        XCTAssertEqual(lane.lastFailureClassification, .none)
     }
 
     // MARK: - Helpers
