@@ -38,6 +38,13 @@ make_valid() {
   printf '%s\n' '{"schema_version":1,"architecture":"arm64","xcode":["Xcode 26.6","Build version 17F113"]}' >"$root/evidence/environment-fingerprint.json"
   printf '%s\n' '{"schema_version":1,"build_count":1,"automatic_retries":0,"aggregate_outcome":"failed","layers":[]}' >"$root/evidence/layers.json"
   printf '%s\n' '{"schema_version":1,"layer":"ui","executed_test_count":2,"required_tests":[{"identifier":"PlaysteadUITests.HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice","discovered":true,"execution_count":1,"skipped":false,"outcome":"passed"}],"failed_test_count":1,"failed_tests_truncated":false,"failed_tests":[{"identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","outcome":"failed"}],"failure_diagnostic_count":1,"failure_diagnostics_truncated":false,"failure_diagnostics":[{"test_identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","assertion":"XCTAssertTrue","source_file":"PlaysteadUITests/SurfaceAccessibilityTests.swift","source_line":137}],"audit_issue_count":1,"audit_issues_truncated":false,"audit_issues":[{"test_identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","category":"parentChild","element_identifier":"playstead.surface.library","element_role":"role-3"}],"in_test_seconds_total":5.8,"timed_test_count":2,"slowest_tests":[{"identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","seconds":4.25},{"identifier":"KeychainScopingTests/testScopedMatchQueryRestrictsSearchWithoutSelectingAnAddDestination()","seconds":1.5}]}' >"$root/evidence/ui-tests.json"
+  python3 - "$root/evidence/ui-tests.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1]); data = json.loads(path.read_text())
+data["save_upload_diagnostic_count"] = 1
+data["save_upload_diagnostics"] = [{"test_identifier":"SaveEndToEndTests/testOneSaveRoundTripsCaptureUploadAndJournalReturn()","drain_outcome":"stopped_for_retry","classification":"server_refusal","http_status":409,"api_code":"other","server_route_status":"unavailable"}]
+path.write_text(json.dumps(data))
+PY
   printf 'safe app event at /Users/example/private/location\n' >"$root/evidence/logs/app.log"
   printf 'server health passed\n' >"$root/evidence/logs/server.log"
   printf '\211PNG\r\n\032\nreference' >"$root/evidence/snapshot-triplet/reference.png"
@@ -66,6 +73,8 @@ data = json.loads(pathlib.Path(sys.argv[1]).read_text())
 assert data["failed_tests"] == [{"identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "outcome": "failed"}]
 assert all(set(record) == {"identifier", "outcome"} for record in data["failed_tests"])
 assert data["failure_diagnostics"] == [{"test_identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","assertion":"XCTAssertTrue","source_file":"PlaysteadUITests/SurfaceAccessibilityTests.swift","source_line":137}]
+assert data["save_upload_diagnostic_count"] == 1
+assert data["save_upload_diagnostics"] == [{"test_identifier":"SaveEndToEndTests/testOneSaveRoundTripsCaptureUploadAndJournalReturn()","drain_outcome":"stopped_for_retry","classification":"server_refusal","http_status":409,"api_code":"other","server_route_status":"unavailable"}]
 assert data["audit_issues"] == [{"test_identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "category": "parentChild", "element_identifier": "playstead.surface.library", "element_role": "role-3"}]
 assert data["in_test_seconds_total"] == 5.8
 assert data["timed_test_count"] == 2
@@ -128,6 +137,26 @@ data["failure_diagnostics"][0]["source_file"] = "/Users/example/private/Secret.s
 path.write_text(json.dumps(data))
 PY
 expect_fail unsafe_diagnostic "$SANITIZER" --input "$unsafe_diagnostic" --output "$TMP_ROOT/unsafe-diagnostic-output"
+
+unsafe_save_diagnostic="$TMP_ROOT/unsafe-save-diagnostic"
+make_valid "$unsafe_save_diagnostic"
+python3 - "$unsafe_save_diagnostic/evidence/ui-tests.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1]); data = json.loads(path.read_text())
+data["save_upload_diagnostics"][0]["response_body"] = "private response"
+path.write_text(json.dumps(data))
+PY
+expect_fail unsafe_save_diagnostic "$SANITIZER" --input "$unsafe_save_diagnostic" --output "$TMP_ROOT/unsafe-save-diagnostic-output"
+
+unbounded_save_status="$TMP_ROOT/unbounded-save-status"
+make_valid "$unbounded_save_status"
+python3 - "$unbounded_save_status/evidence/ui-tests.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1]); data = json.loads(path.read_text())
+data["save_upload_diagnostics"][0]["http_status"] = 999
+path.write_text(json.dumps(data))
+PY
+expect_fail unbounded_save_status "$SANITIZER" --input "$unbounded_save_status" --output "$TMP_ROOT/unbounded-save-status-output"
 
 unbounded_diagnostics="$TMP_ROOT/unbounded-diagnostics"
 make_valid "$unbounded_diagnostics"

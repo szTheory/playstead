@@ -412,7 +412,7 @@ if "OnlyCopyEscalationReason(classification:" not in body[1].split("}", 1)[0]:
 # decision points, not merely defined. A helper nothing calls is the exact
 # shape of a fix that passes its own guard and changes no behaviour.
 region = source.split("func runSaveEndToEnd", 1)[1]
-uses = region.count("isRetryable(lane.lastFailureClassification)")
+uses = region.count("isRetryable(drainResult.failureClassification)")
 if uses != 3:
     raise SystemExit(f"save-e2e must consult the retryable predicate at all 3 decision points, found {uses}")
 RETRYABLE_PY

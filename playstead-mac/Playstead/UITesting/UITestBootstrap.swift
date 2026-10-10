@@ -252,6 +252,33 @@ enum UITestBootstrap {
         resultURL.deletingPathExtension().appendingPathExtension("error.txt")
     }
 
+    static func saveEndToEndDiagnosticURL(for resultURL: URL) -> URL {
+        resultURL.deletingPathExtension().appendingPathExtension("diagnostic.json")
+    }
+
+    private static func writeSaveEndToEndDiagnostic(_ result: SaveUploadDrainResult, to resultURL: URL) {
+        let classification: String
+        switch result.failureClassification {
+        case .none: classification = "none"
+        case .offlineQueue: classification = "offline_queue"
+        case .slowUpload: classification = "slow_upload"
+        case .revokedAuth: classification = "revoked_auth"
+        case .capabilitySkew: classification = "capability_skew"
+        case .serverRefusal: classification = "server_refusal"
+        case .compatibilityRejection: classification = "compatibility_rejection"
+        }
+        let payload: [String: Any] = [
+            "drain_outcome": result.stoppedForRetry ? "stopped_for_retry" : "no_pending",
+            "classification": classification,
+            "http_status": result.httpStatus.map { $0 as Any } ?? NSNull(),
+            "api_code": result.apiCode?.rawValue as Any? ?? NSNull(),
+            "server_route_status": "unavailable"
+        ]
+        guard JSONSerialization.isValidJSONObject(payload),
+              let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]) else { return }
+        try? data.write(to: saveEndToEndDiagnosticURL(for: resultURL), options: [.atomic])
+    }
+
     private static func runSaveEndToEnd(
         artifactURL: URL, resultURL: URL, contentKey: String, appEnvironment: AppEnvironment
     ) async throws {
@@ -344,7 +371,7 @@ enum UITestBootstrap {
         var attempt = 1
         while drainResult.sent == 0,
               drainResult.stoppedForRetry,
-              Self.isRetryable(lane.lastFailureClassification),
+              Self.isRetryable(drainResult.failureClassification),
               attempt < Self.saveEndToEndMaxUploadAttempts {
             attempt += 1
             drainResult = await lane.drainOnce(at: Date().addingTimeInterval(Double(attempt) * 3600))
@@ -357,7 +384,8 @@ enum UITestBootstrap {
         // the work, while the revision's durability is the fact either way.
         let uploaded = saveStore.fetchRevision(id: revisionID)?.durability == SaveDurability.uploaded.rawValue
 
-        if !uploaded, drainResult.stoppedForRetry, Self.isRetryable(lane.lastFailureClassification) {
+        if !uploaded, drainResult.stoppedForRetry, Self.isRetryable(drainResult.failureClassification) {
+            Self.writeSaveEndToEndDiagnostic(drainResult, to: resultURL)
             // Retryable, and still failing after every attempt. That is no
             // longer a blip -- it is a server that is genuinely not
             // accepting this upload.
@@ -365,13 +393,14 @@ enum UITestBootstrap {
         }
 
         guard uploaded else {
+            Self.writeSaveEndToEndDiagnostic(drainResult, to: resultURL)
             // `drainOnce` is ONE pass over a lane whose whole job is to
             // retry: any single error inside it sets `stoppedForRetry`,
             // schedules a backoff, and returns with `sent == 0`. So a
             // failure here means one of three quite different things, and
             // reporting them all as "upload did not complete" is what made
             // this an opaque flake -- both `stoppedForRetry` and
-            // `lastFailureClassification` were already sitting here
+            // pass-local failure fields were already sitting here
             // unread.
             //
             // These stay FIXED LITERALS, per this file's rule: a `Bool` and
@@ -379,7 +408,7 @@ enum UITestBootstrap {
             // error's own description can carry paths and must never reach
             // the reason channel.
             if drainResult.stoppedForRetry {
-                if Self.isRetryable(lane.lastFailureClassification) {
+                if Self.isRetryable(drainResult.failureClassification) {
                     // Retryable by design: transport loss, 5xx, rate
                     // limiting. Production would simply try again.
                     throw DeterministicProfileError.stateMismatch("save-e2e: upload stopped for retry, retryable")
