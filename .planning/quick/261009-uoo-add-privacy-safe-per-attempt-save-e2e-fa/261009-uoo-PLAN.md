@@ -1,7 +1,7 @@
 ---
 id: 261009-uoo
 type: quick-full
-status: planned
+status: complete
 description: Add privacy-safe per-attempt Save E2E failure diagnostics
 must_haves:
   truths:
