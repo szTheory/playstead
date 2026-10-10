@@ -51,6 +51,25 @@ controls = (
 )
 
 granular_coverage = {
+    "testInitialCatalogueRefreshKeepsListPointerTarget": (
+        "launchCatalogueTransitionProfile()", "let before = button.frame",
+        "apply-catalogue-transition", ".frame.intersects(after)",
+        "window.coordinate(withNormalizedOffset: .zero)",
+        "dx: before.midX - windowFrame.minX", "dy: before.midY - windowFrame.minY",
+        "playstead.library.list-selection", "playstead.surface.game-list",
+        "playstead.game.transition-sentinel.summary",
+    ),
+    "testEarlyListActivationSurvivesInitialCatalogueRefresh": (
+        "clickWhenHittable()", "playstead.library.list-selection",
+        "apply-catalogue-transition", "library.filter.gba",
+        "playstead.surface.game-list", "playstead.game.transition-sentinel.summary",
+    ),
+    "testFirstPointerClickActivatesListInFreshLibraryProfiles": (
+        "[.emptyLibrary, .populatedCurationReorder]", ".runningForeground",
+        "listButton.isHittable", "listButton.clickWhenHittable()",
+        "playstead.library.list-selection", "playstead.surface.game-list",
+        "playstead.surface.game-card",
+    ),
     "testLibraryRouteInventorySettlesOnProductionProfile": (
         "playstead.surface.library", "playstead.surface.sidebar",
         "playstead.surface.search", "playstead.surface.filter",
@@ -163,14 +182,15 @@ for name, markers in granular_coverage.items():
     following = re.search(r"^    (?:func test|private func)", tests[method.end():], re.MULTILINE)
     end = method.end() + following.start() if following else len(tests)
     section = tests[method.start():end]
-    mutated_section = section.replace(markers[0], "removed.granular.coverage")
-    mutated = tests[:method.start()] + mutated_section + tests[end:]
-    try:
-        check_granular_coverage(mutated)
-    except AssertionError:
-        pass
-    else:
-        raise SystemExit(f"granular coverage meta-test did not fail for {name}")
+    for marker in markers:
+        mutated_section = section.replace(marker, "removed.granular.coverage")
+        mutated = tests[:method.start()] + mutated_section + tests[end:]
+        try:
+            check_granular_coverage(mutated)
+        except AssertionError:
+            pass
+        else:
+            raise SystemExit(f"granular coverage meta-test did not fail for {name}: {marker}")
 
 def check_route_inventory(sources):
     missing = [route for route, source in sources.items() if route not in tests or route not in identifiers or "AccessibilityIdentifiers.Surface" not in source]

@@ -139,11 +139,14 @@ def validate_test_evidence(data, relative):
     profile_keys = {
         "in_test_seconds_total", "timed_test_count", "slowest_tests",
     }
+    save_diagnostic_keys = {"save_upload_diagnostic_count", "save_upload_diagnostics"}
     accepted_keys = {
-        frozenset(core_keys),
-        frozenset(diagnostic_keys),
-        frozenset(core_keys | profile_keys),
-        frozenset(diagnostic_keys | profile_keys),
+        frozenset(core_keys | (diagnostic_keys - core_keys if has_diagnostics else set()) |
+                  (profile_keys if has_profile else set()) |
+                  (save_diagnostic_keys if has_save_diagnostics else set()))
+        for has_diagnostics in (False, True)
+        for has_profile in (False, True)
+        for has_save_diagnostics in (False, True)
     }
     actual_keys = set(data) if isinstance(data, dict) else set()
     if not isinstance(data, dict) or frozenset(actual_keys) not in accepted_keys:
@@ -221,6 +224,29 @@ def validate_test_evidence(data, relative):
             raise SystemExit(f"failure diagnostic source is not one unique project source: {relative}")
         if type(record.get("source_line")) is not int or not 1 <= record["source_line"] <= 1_000_000:
             raise SystemExit(f"failure diagnostic line is malformed: {relative}")
+    if actual_keys & save_diagnostic_keys:
+        save_diagnostics = data.get("save_upload_diagnostics")
+        save_diagnostic_count = data.get("save_upload_diagnostic_count")
+        if not isinstance(save_diagnostics, list) or len(save_diagnostics) > 50:
+            raise SystemExit(f"save upload diagnostics exceed their bounded allowlist: {relative}")
+        if type(save_diagnostic_count) is not int or save_diagnostic_count != len(save_diagnostics):
+            raise SystemExit(f"save upload diagnostic count is malformed: {relative}")
+        classifications = {"none", "offline_queue", "slow_upload", "revoked_auth", "capability_skew", "server_refusal", "compatibility_rejection"}
+        api_codes = {"device_revoked", "unauthorized", "capability_incompatible", "save_binding_incompatible", "save_revision_digest_mismatch", "save_parent_unknown", "save_revision_immutable", "save_branch_limit_exceeded", "slow_down", "rate_limited", "internal_error", "other"}
+        for record in save_diagnostics:
+            if not isinstance(record, dict) or set(record) != {"test_identifier", "drain_outcome", "classification", "http_status", "api_code", "server_route_status"}:
+                raise SystemExit(f"save upload diagnostic contains non-allowlisted fields: {relative}")
+            if not isinstance(record.get("test_identifier"), str) or not test_identifier.fullmatch(record["test_identifier"]):
+                raise SystemExit(f"save upload diagnostic test identifier is malformed: {relative}")
+            if record.get("drain_outcome") not in {"stopped_for_retry", "no_pending", "sent_without_target_upload"} or record.get("classification") not in classifications:
+                raise SystemExit(f"save upload diagnostic tokens are malformed: {relative}")
+            status = record.get("http_status")
+            if status is not None and (type(status) is not int or not 100 <= status <= 599):
+                raise SystemExit(f"save upload diagnostic status is malformed: {relative}")
+            if record.get("api_code") is not None and record.get("api_code") not in api_codes:
+                raise SystemExit(f"save upload diagnostic API code is malformed: {relative}")
+            if record.get("server_route_status") != "unavailable":
+                raise SystemExit(f"save upload route status is not in its closed unavailable representation: {relative}")
     audit_issues = data.get("audit_issues")
     audit_count = data.get("audit_issue_count")
     audit_truncated = data.get("audit_issues_truncated")

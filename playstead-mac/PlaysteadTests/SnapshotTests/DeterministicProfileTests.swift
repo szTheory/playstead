@@ -14,6 +14,26 @@ final class DeterministicProfileTests: XCTestCase {
         try super.tearDownWithError()
     }
 
+    func testCatalogueTransitionControlRejectsInvalidSelectorsAndNonPrivateRoots() throws {
+        let token = UUID().uuidString.lowercased()
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("playstead-ui-catalogue-transition-\(token)")
+        roots.append(root)
+        for (profile, value) in [("empty-library", "../../outside"), ("storage", token),
+                                 ("empty-library", token.uppercased()), ("empty-library", token)] {
+            XCTAssertThrowsError(try UITestBootstrap.makeSession(environment: [
+                "PLAYSTEAD_UI_TESTING": "1", "PLAYSTEAD_UI_TEST_PROFILE": profile,
+                "PLAYSTEAD_UI_TEST_CATALOGUE_TRANSITION": value
+            ]))
+        }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false,
+                                               attributes: [.posixPermissions: 0o755])
+        XCTAssertThrowsError(try UITestBootstrap.makeSession(environment: [
+            "PLAYSTEAD_UI_TESTING": "1", "PLAYSTEAD_UI_TEST_PROFILE": "empty-library",
+            "PLAYSTEAD_UI_TEST_CATALOGUE_TRANSITION": token
+        ]))
+    }
+
     func testProfileVocabularyIsFiniteAndExact() {
         XCTAssertEqual(
             DeterministicProfile.allCases.map(\.rawValue),

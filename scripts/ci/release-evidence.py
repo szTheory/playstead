@@ -249,8 +249,8 @@ def summarize_trivy(report: dict, subject_sha256: str, image_id: str | None = No
 
 def validate(data: dict) -> dict:
     allowed = {"schema_version", "mode", "subject", "scans", "sbom", "parser_inventory", "attestations", "handoff"}
-    if set(data) != allowed:
-        fail(f"evidence fields must be exactly {sorted(allowed)}")
+    if set(data) not in (allowed, allowed | {"verdict"}):
+        fail(f"evidence fields must be exactly {sorted(allowed)} with optional verdict")
     clean(data)
     if not is_json_integer(data["schema_version"]) or data["schema_version"] != 1:
         fail("unsupported schema_version")
@@ -322,8 +322,11 @@ def validate(data: dict) -> dict:
     handoff = data["handoff"]
     if handoff != {"consumer": "Phase 05 D-11", "subject_sha256": digest, "retained_gates": ["D-07", "D-13"]}:
         fail("invalid downstream handoff")
+    expected_verdict = "release-ready" if data["mode"] == "release" else "diagnostic-only"
+    if "verdict" in data and data["verdict"] != expected_verdict:
+        fail("evidence verdict does not match mode")
     result = dict(data)
-    result["verdict"] = "release-ready" if data["mode"] == "release" else "diagnostic-only"
+    result["verdict"] = expected_verdict
     return result
 
 
@@ -335,6 +338,7 @@ def verify_attestation_reports(evidence_path: str, provenance_path: str, sbom_pa
     digest = subject.get("archive_sha256")
     if not isinstance(digest, str) or not HEX64.fullmatch(digest):
         fail("invalid evidence subject before attestation verification")
+    evidence = validate(evidence)
     for name, path, predicate in (
         ("provenance", provenance_path, "https://slsa.dev/provenance/v1"),
         ("sbom", sbom_path, "https://cyclonedx.org/bom"),
@@ -367,6 +371,7 @@ def verify_attestation_reports(evidence_path: str, provenance_path: str, sbom_pa
                 matching = True
         if not matching:
             fail(f"verified {name} attestation has no matching archive subject")
+    evidence.pop("verdict")
     evidence["mode"] = "release"
     evidence["attestations"] = {
         name: {"status": "verified", "subject_sha256": digest}

@@ -376,6 +376,8 @@ struct LibraryShellView: View {
                     selectedID: library.selectedSystemID,
                     onSelect: { library.selectedSystemID = $0 }
                 )
+                // Initial sync must not move the layout buttons under a click.
+                .frame(height: DesignTokens.InteractiveTarget.minimum)
             }
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Library filters")

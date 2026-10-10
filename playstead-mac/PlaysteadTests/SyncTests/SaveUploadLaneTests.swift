@@ -281,12 +281,86 @@ final class SaveUploadLaneTests: XCTestCase {
         let first = await lane.drainOnce(at: now)
         XCTAssertEqual(first.sent, 0, "a single transient error makes one pass send nothing")
         XCTAssertTrue(first.stoppedForRetry, "the lane stopped to retry rather than failing terminally")
+        XCTAssertEqual(first.failureClassification, .none)
+        XCTAssertEqual(first.httpStatus, 503)
+        XCTAssertEqual(first.apiCode, .other, "unrecognized API codes leave the lane only as the fixed other token")
         XCTAssertEqual(lane.lastFailureClassification, .none, "a 503 is retryable and must never escalate")
 
         now = now.addingTimeInterval(3600) // past any backoff
         let second = await lane.drainOnce(at: now)
         XCTAssertEqual(second.sent, 1, "same server, one pass later — the upload was never broken")
+        XCTAssertFalse(second.stoppedForRetry)
+        XCTAssertNil(second.httpStatus)
+        XCTAssertNil(second.apiCode)
         XCTAssertEqual(saveStore.fetchRevision(id: revision.id)?.durability, SaveDurability.uploaded.rawValue)
+    }
+
+    func test_passDiagnosticRemainsBoundToFailureAfterLaterPassSucceeds() async throws {
+        let revision = try makeLocalOnlyRevision(bytes: Data(repeating: 0x33, count: 1024))
+        let attempts = Counter()
+        StubURLProtocol.responder = { request in
+            if attempts.next() == 1 {
+                return StubURLProtocol.Stub(statusCode: 409, headers: [:], body: Data("{\"code\":\"private-unlisted-code\",\"title\":\"private title\",\"detail\":\"/private/path\"}".utf8))
+            }
+            return StubURLProtocol.Stub(
+                statusCode: request.httpMethod == "PUT" ? 200 : 201,
+                headers: [:], body: Data("{\"save_line_id\":\"\(revision.saveLineID)\"}".utf8)
+            )
+        }
+        let lane = SaveUploadLane(apiClient: apiClient, saveStore: saveStore)
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let first = await lane.drainOnce(at: now)
+        XCTAssertEqual(first.failureClassification, .serverRefusal)
+        XCTAssertEqual(first.httpStatus, 409)
+        XCTAssertEqual(first.apiCode, .other)
+        XCTAssertTrue(first.stoppedForRetry)
+
+        let backoffPass = await lane.drainOnce(at: now)
+        XCTAssertEqual(backoffPass.sent, 0)
+        XCTAssertFalse(backoffPass.stoppedForRetry)
+        XCTAssertEqual(backoffPass.failureClassification, .none)
+        XCTAssertNil(backoffPass.httpStatus)
+        XCTAssertNil(backoffPass.apiCode)
+
+        let second = await lane.drainOnce(at: Date(timeIntervalSince1970: 1_700_010_000))
+        XCTAssertEqual(second.sent, 1)
+        XCTAssertEqual(second.failureClassification, .none)
+        XCTAssertNil(second.httpStatus)
+        XCTAssertNil(second.apiCode)
+        XCTAssertEqual(first.failureClassification, .serverRefusal)
+        XCTAssertEqual(first.httpStatus, 409)
+        XCTAssertEqual(first.apiCode, .other)
+        XCTAssertEqual(lane.lastFailureClassification, .none)
+    }
+
+    func test_overlappingDrainsShareOneUploadAndCommit() async throws {
+        let revision = try makeLocalOnlyRevision(bytes: Data(repeating: 0x44, count: 1024))
+        let firstUpload = expectation(description: "first upload entered URLSession")
+        firstUpload.assertForOverFulfill = false
+        StubURLProtocol.responder = { request in
+            if request.httpMethod == "PUT" { firstUpload.fulfill() }
+            return StubURLProtocol.Stub(
+                statusCode: request.httpMethod == "PUT" ? 200 : 201,
+                headers: ["Content-Type": "application/json"],
+                body: Data("{\"save_line_id\":\"\(revision.saveLineID)\"}".utf8)
+            )
+        }
+
+        let lane = SaveUploadLane(apiClient: apiClient, saveStore: saveStore)
+        let first = Task { await lane.drainOnce() }
+        await fulfillment(of: [firstUpload], timeout: 2)
+        let second = Task { await lane.drainOnce() }
+
+        let firstResult = await first.value
+        let secondResult = await second.value
+        XCTAssertEqual(firstResult.sent, 1)
+        XCTAssertEqual(secondResult.sent, 1, "the overlapping caller observes the same completed pass")
+        XCTAssertFalse(firstResult.stoppedForRetry)
+        XCTAssertFalse(secondResult.stoppedForRetry)
+        XCTAssertEqual(saveStore.fetchRevision(id: revision.id)?.durability, SaveDurability.uploaded.rawValue)
+        let methods = StubURLProtocol.requestLog.compactMap(\.httpMethod)
+        XCTAssertEqual(methods.filter { $0 == "PUT" }.count, 1)
+        XCTAssertEqual(methods.filter { $0 == "POST" }.count, 1)
     }
 
     // MARK: - Helpers

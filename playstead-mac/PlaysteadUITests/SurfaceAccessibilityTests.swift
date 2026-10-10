@@ -3,6 +3,7 @@ import XCTest
 @MainActor
 final class SurfaceAccessibilityTests: XCTestCase {
     private var harness: UITestHarness!
+    private var catalogueTransitionRoot: URL?
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -10,7 +11,78 @@ final class SurfaceAccessibilityTests: XCTestCase {
 
     override func tearDownWithError() throws {
         harness?.app.terminate()
+        if let catalogueTransitionRoot { try? FileManager.default.removeItem(at: catalogueTransitionRoot) }
+        catalogueTransitionRoot = nil
         harness = nil
+    }
+
+    func testInitialCatalogueRefreshKeepsListPointerTarget() throws {
+        let root = try launchCatalogueTransitionProfile()
+        defer { harness.app.terminate(); try? FileManager.default.removeItem(at: root) }
+        let button = harness.element("playstead.control.show-list", type: .button)
+        XCTAssertTrue(button.isHittable)
+        let before = button.frame
+        try Data().write(to: root.appendingPathComponent("apply-catalogue-transition"))
+        XCTAssertTrue(harness.element("library.filter.gba").awaitExistence(timeout: 10))
+        let after = button.frame
+        XCTAssertFalse(harness.element("library.filter.gba").frame.intersects(after),
+                       "the layout button and filter must remain distinct hit regions")
+        print("snapshot-list-pointer original=\(before) updated=\(after)")
+        // Freeze the point as XCUITest does when resolving a pointer target;
+        // publish the first catalogue between resolution and event delivery.
+        let window = harness.app.windows.firstMatch
+        let windowFrame = window.frame
+        window.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(
+            dx: before.midX - windowFrame.minX, dy: before.midY - windowFrame.minY
+        )).click()
+        XCTAssertTrue(harness.element("playstead.library.list-selection").awaitExistence(),
+                      "the initially resolved List click did not activate List after refresh")
+        XCTAssertTrue(after.contains(CGPoint(x: before.midX, y: before.midY)),
+                      "initial snapshot moved List away from the resolved click target")
+        XCTAssertTrue(harness.element("playstead.surface.game-list").exists)
+        XCTAssertFalse(harness.element("playstead.surface.game-card").exists)
+        XCTAssertTrue(harness.element("playstead.game.transition-sentinel.summary").awaitExistence())
+    }
+
+    func testEarlyListActivationSurvivesInitialCatalogueRefresh() throws {
+        let root = try launchCatalogueTransitionProfile()
+        defer { harness.app.terminate(); try? FileManager.default.removeItem(at: root) }
+        harness.element("playstead.control.show-list", type: .button).clickWhenHittable()
+        XCTAssertTrue(harness.element("playstead.library.list-selection").awaitExistence())
+        XCTAssertTrue(harness.element("playstead.surface.game-list").awaitExistence())
+        try Data().write(to: root.appendingPathComponent("apply-catalogue-transition"))
+        XCTAssertTrue(harness.element("library.filter.gba").awaitExistence(timeout: 10))
+        XCTAssertTrue(harness.element("playstead.surface.game-list").exists)
+        XCTAssertTrue(harness.element("playstead.game.transition-sentinel.summary").awaitExistence())
+    }
+
+    private func launchCatalogueTransitionProfile() throws -> URL {
+        let token = UUID().uuidString.lowercased()
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("playstead-ui-catalogue-transition-\(token)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false,
+                                               attributes: [.posixPermissions: 0o700])
+        catalogueTransitionRoot = root
+        harness = UITestHarness(profile: .emptyLibrary, extraEnvironment: [
+            "PLAYSTEAD_UI_TEST_CATALOGUE_TRANSITION": token
+        ])
+        harness.launch(settledAt: "playstead.surface.library")
+        return root
+    }
+
+    func testFirstPointerClickActivatesListInFreshLibraryProfiles() {
+        for profile: UITestHarness.Profile in [.emptyLibrary, .populatedCurationReorder] {
+            launchLibrary(profile: profile)
+            XCTAssertEqual(harness.app.state, .runningForeground)
+            XCTAssertTrue(harness.element("playstead.surface.game-card").exists)
+            let listButton = harness.element("playstead.control.show-list", type: .button)
+            XCTAssertTrue(listButton.isHittable)
+            listButton.clickWhenHittable()
+            XCTAssertTrue(harness.element("playstead.library.list-selection").awaitExistence())
+            XCTAssertTrue(harness.element("playstead.surface.game-list").awaitExistence())
+            XCTAssertFalse(harness.element("playstead.surface.game-card").exists)
+            harness.app.terminate()
+        }
     }
 
     func testLibraryRouteInventorySettlesOnProductionProfile() {

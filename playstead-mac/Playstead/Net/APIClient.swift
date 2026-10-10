@@ -41,6 +41,26 @@ enum APIClientError: Error {
     case server(APIError)
 }
 
+/// Finite API-code vocabulary permitted in save-upload diagnostics.
+enum SafeAPIErrorCode: String, Equatable, Sendable {
+    case deviceRevoked = "device_revoked"
+    case unauthorized
+    case capabilityIncompatible = "capability_incompatible"
+    case saveBindingIncompatible = "save_binding_incompatible"
+    case saveRevisionDigestMismatch = "save_revision_digest_mismatch"
+    case saveParentUnknown = "save_parent_unknown"
+    case saveRevisionImmutable = "save_revision_immutable"
+    case saveBranchLimitExceeded = "save_branch_limit_exceeded"
+    case slowDown = "slow_down"
+    case rateLimited = "rate_limited"
+    case internalError = "internal_error"
+    case other
+
+    init(untrustedCode: String) {
+        self = SafeAPIErrorCode(rawValue: untrustedCode) ?? .other
+    }
+}
+
 /// A single HTTP response as read by `APIClient.get`.
 struct APIResponse {
     let status: Int
