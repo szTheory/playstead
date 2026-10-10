@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 @testable import Playstead
 
 #if UI_TESTING
@@ -12,6 +13,39 @@ final class DeterministicProfileTests: XCTestCase {
         }
         roots.removeAll()
         try super.tearDownWithError()
+    }
+
+    func testRootReconstructionBootstrapsOneSessionAndUploadLane() throws {
+        var lanes: [ObjectIdentifier] = []
+        let makeSession = {
+            let session = try UITestBootstrap.makeSession(environment: [
+                UITestBootstrap.modeKey: "1",
+                UITestBootstrap.profileKey: DeterministicProfile.emptyLibrary.rawValue
+            ])
+            self.roots.append(session.fixture.root)
+            lanes.append(ObjectIdentifier(session.environment.saveUploadLane))
+            return session
+        }
+        let host = NSHostingView(rootView: UITestProfileRootView(makeSession: makeSession))
+        host.frame = CGRect(x: 0, y: 0, width: 960, height: 560)
+        host.layoutSubtreeIfNeeded()
+        XCTAssertEqual(lanes.count, 1, "the mounted root must actually bootstrap")
+
+        // SwiftUI retains the same root identity while reconstructing its
+        // value. Session creation starts tasks, so even a discarded session
+        // would own an independent lane over the same live profile store.
+        for _ in 0..<2 {
+            host.rootView = UITestProfileRootView(makeSession: makeSession)
+            host.layoutSubtreeIfNeeded()
+        }
+        XCTAssertEqual(lanes.count, 1, "root reconstruction must not start another bootstrap")
+        XCTAssertEqual(Set(lanes).count, 1, "one root identity must own one upload lane")
+
+        let secondHost = NSHostingView(rootView: UITestProfileRootView(makeSession: makeSession))
+        secondHost.frame = host.frame
+        secondHost.layoutSubtreeIfNeeded()
+        XCTAssertEqual(lanes.count, 2, "a different root identity must own its own session")
+        XCTAssertEqual(Set(lanes).count, 2, "session ownership must not become a global cache")
     }
 
     func testCatalogueTransitionControlRejectsInvalidSelectorsAndNonPrivateRoots() throws {

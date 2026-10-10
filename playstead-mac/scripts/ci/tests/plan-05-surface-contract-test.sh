@@ -344,9 +344,28 @@ if "guard isRequested(environment: processEnvironment)" not in bootstrap or "Det
 if "APIClient.unpairedForUITesting()" not in app_root or "credential" in " ".join(re.findall(r'app\.launchEnvironment\["([^"]+)"\]', harness)).lower():
     raise SystemExit("UI profile composition may use a credential override")
 
-profile_root = app_root[app_root.find("private struct UITestProfileRootView"):app_root.find("private struct ProductionRootView")]
-if "LibraryShellView()" not in profile_root or ".environment(session.environment)" not in profile_root:
-    raise SystemExit("deterministic UI profile does not render the production library shell")
+def check_profile_root(source):
+    # The compile-gated root is internal so the lifecycle regression can
+    # mount the real composition. Access control is not the surface contract.
+    marker = "struct UITestProfileRootView: View {"
+    start = source.find(marker)
+    end = source.find("private struct ProductionRootView")
+    if source.count(marker) != 1 or start < 0 or end <= start:
+        raise AssertionError("deterministic UI profile root boundaries are missing or ambiguous")
+    profile = source[start:end]
+    if "LibraryShellView()" not in profile or ".environment(session.environment)" not in profile:
+        raise AssertionError("deterministic UI profile does not render the production library shell")
+    return profile
+
+profile_root = check_profile_root(app_root)
+for marker in ("struct UITestProfileRootView: View {", "LibraryShellView()", ".environment(session.environment)"):
+    mutated = app_root.replace(profile_root, profile_root.replace(marker, "removed.profile.contract"))
+    try:
+        check_profile_root(mutated)
+    except AssertionError:
+        pass
+    else:
+        raise SystemExit(f"profile-root removal meta-test did not fail for {marker}")
 if any(name in profile_root for name in ("AdapterSetupView()", "ReadinessSheetView(", "BiosDropTargetView(", "ControllerSettingsView(")):
     raise SystemExit("deterministic UI profile duplicates a Plan 05 production surface")
 for marker in (

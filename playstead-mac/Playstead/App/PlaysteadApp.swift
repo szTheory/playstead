@@ -63,12 +63,19 @@ struct PlaysteadApp: App {
 
 #if UI_TESTING
 /// The real library shell backed by one validated, isolated production-store profile.
-private struct UITestProfileRootView: View {
-    @State private var session: UITestProfileSession
+struct UITestProfileRootView: View {
+    @StateObject private var session: UITestProfileSession
 
-    init() {
+    init(makeSession: @escaping @MainActor () throws -> UITestProfileSession = { try UITestBootstrap.makeSession() }) {
+        // StateObject defers this factory until SwiftUI installs the root's
+        // identity. Reconstructing a view value must not start a discarded
+        // session's save harness or an independent lane over the same store.
+        _session = StateObject(wrappedValue: Self.bootstrap(makeSession))
+    }
+
+    private static func bootstrap(_ makeSession: @MainActor () throws -> UITestProfileSession) -> UITestProfileSession {
         do {
-            _session = State(initialValue: try UITestBootstrap.makeSession())
+            return try makeSession()
         } catch {
             fatalError("UI-testing bootstrap failed closed: \(error)")
         }

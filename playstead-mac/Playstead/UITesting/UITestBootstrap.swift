@@ -1,9 +1,10 @@
 #if UI_TESTING
 import Foundation
 import CryptoKit
+import Combine
 
 @MainActor
-final class UITestProfileSession {
+final class UITestProfileSession: ObservableObject {
     private let profileFixture: DeterministicProfileFixture?
     let environment: AppEnvironment
 
@@ -376,21 +377,11 @@ enum UITestBootstrap {
 
         // The APP'S OWN lane, never a second one built here.
         //
-        // This is the root cause of the SaveEndToEndTests flake, and it is a
-        // race, not a timeout and not a transient error. The running app
-        // drains save uploads on a reachability transition
-        // (PlaysteadApp.swift: `Task { await uploadLane.drainOnce() }` inside
-        // `reachability.onChange`), which in CI fires right after pairing --
-        // exactly when this harness is inserting its revision. `drainOnce`'s
-        // own doc comment says "the lane is an actor, so overlapping calls
-        // serialize rather than racing the same revision", and that is true;
-        // constructing a SECOND lane over the same store is what defeated it,
-        // because two actor instances serialize nothing. Whichever lane lost
-        // the race saw an empty pending set and reported `sent == 0`.
-        //
-        // Run 34663361104 named it exactly: `upload-nothing-pending`, which
-        // is what the three-way split was added to distinguish. Sharing the
-        // one actor restores the serialization the comment already promised.
+        // Reachability can drain while the harness is inserting its revision.
+        // SaveUploadLane coalesces overlapping async passes within one lane;
+        // actor isolation alone cannot serialize work across network awaits.
+        // UITestProfileRootView must also retain one bootstrapped session so
+        // reconstruction cannot create independent lanes over this live root.
         let lane = appEnvironment.saveUploadLane
 
         // Drive the lane the way PRODUCTION does, not the way a single pass
