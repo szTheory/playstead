@@ -62,6 +62,26 @@ enum UITestBootstrap {
             return try makeLiveServerSession(environment: processEnvironment)
         }
         let profile = try DeterministicProfile.parse(processEnvironment[profileKey])
+        let transitionRoot: URL?
+        if let token = processEnvironment["PLAYSTEAD_UI_TEST_CATALOGUE_TRANSITION"] {
+            guard profile == .emptyLibrary else {
+                throw DeterministicProfileError.stateMismatch("catalogue transition requires empty profile")
+            }
+            guard let uuid = UUID(uuidString: token), uuid.uuidString.lowercased() == token else {
+                throw DeterministicProfileError.stateMismatch("invalid catalogue transition token")
+            }
+            let control = FileManager.default.temporaryDirectory
+                .appendingPathComponent("playstead-ui-catalogue-transition-\(token)")
+            let root = try ownedURL(control.path, label: "catalogue transition control")
+            let attributes = try FileManager.default.attributesOfItem(atPath: root.path)
+            guard (attributes[.type] as? FileAttributeType) == .typeDirectory,
+                  (attributes[.posixPermissions] as? NSNumber)?.intValue == 0o700 else {
+                throw DeterministicProfileError.stateMismatch("catalogue transition control is not private")
+            }
+            transitionRoot = root
+        } else {
+            transitionRoot = nil
+        }
         let fixture = try profile.makeFixture(sessionID: processEnvironment[sessionIDKey])
         let appEnvironment = AppEnvironment(
             uiTestingPaths: fixture.paths,
@@ -70,6 +90,9 @@ enum UITestBootstrap {
             credential: profile.uiTestingCredential
         )
         appEnvironment.blockExternalIOForUITesting()
+        if let transitionRoot {
+            observeCatalogueTransition(root: transitionRoot, appEnvironment: appEnvironment)
+        }
         maybeRunSaveRestoreProof(environment: processEnvironment, root: fixture.root, appEnvironment: appEnvironment)
         maybeRunZeroNetworkPlayFlowProof(environment: processEnvironment, root: fixture.root, appEnvironment: appEnvironment)
         // makeFixture validates a fresh seed exactly and validates a reopened
@@ -77,6 +100,27 @@ enum UITestBootstrap {
         // fresh positions again here would reject the reorder state relaunch is
         // specifically responsible for proving.
         return UITestProfileSession(fixture: fixture, environment: appEnvironment)
+    }
+
+    /// Test-only barrier for the empty-to-populated render transition. It accepts
+    /// no paths or data: a UUID names an ownership-checked temporary signal,
+    /// and the synthetic row belongs to the validated empty profile.
+    private static func observeCatalogueTransition(root: URL, appEnvironment: AppEnvironment) {
+        Task { @MainActor in
+            let signal = root.appendingPathComponent("apply-catalogue-transition")
+            let deadline = ContinuousClock.now.advanced(by: .seconds(30))
+            while ContinuousClock.now < deadline {
+                if FileManager.default.fileExists(atPath: signal.path) {
+                    try? appEnvironment.catalogueStore.upsert(CatalogueEntry(
+                        id: "transition-sentinel", system: "gba", displayTitle: "Transition sentinel",
+                        tags: [:], members: []
+                    ))
+                    appEnvironment.libraryViewModel.refresh()
+                    return
+                }
+                do { try await Task.sleep(for: .milliseconds(10)) } catch { return }
+            }
+        }
     }
 
     private struct CredentialHandoff: Decodable {
