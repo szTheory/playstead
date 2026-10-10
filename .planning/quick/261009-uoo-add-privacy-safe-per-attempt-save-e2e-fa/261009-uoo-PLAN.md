@@ -20,7 +20,7 @@ must_haves:
     - `drainOnce` returns a value carrying that pass's classification and bounded API status/code, and the UI harness uses that value instead of sampling `lastFailureClassification` after an await.
     - The failure-only test evidence writer emits a fixed schema that `sanitize-evidence.sh` validates and copies to the hosted artifact.
     - The live-server fixture's route status is correlated to the synthetic upload attempt without capturing request bodies or user/device credentials.
-    - Deterministic tests prove overlapping passes cannot change another pass's diagnostic and prove sanitizer acceptance and rejection boundaries.
+    - Deterministic tests prove a later successful pass cannot change an earlier failure's diagnostic and prove sanitizer acceptance and rejection boundaries.
 ---
 
 <objective>
@@ -53,11 +53,11 @@ The only assumption shift is to capture diagnostic classification and response m
   <files>playstead-mac/Playstead/Saves/SaveUploadLane.swift, playstead-mac/Playstead/Net/APIClient.swift, playstead-mac/PlaysteadTests/SyncTests/SaveUploadLaneTests.swift</files>
   <behavior>
     - Each drain result exposes that pass's outcome, closed `SaveUploadFailureClassification`, optional HTTP status, and finite API error code or `other` marker.
-    - A later or overlapping pass cannot mutate the already-returned diagnostic value for an earlier pass.
+    - A later pass cannot mutate the already-returned diagnostic value for an earlier pass.
     - Successful and no-pending passes report no failure metadata; production `lastFailureClassification` continues to update and reset as it does today.
     - Diagnostic values never include title, detail, response body, or error descriptions.
   </behavior>
-  <action>Define an immutable, Sendable, Equatable per-pass diagnostic/result value in the save upload lane boundary. Capture classification and safe API fields while handling the concrete failure inside that `drainOnce` invocation, before updating/returning to any caller; include the result in the returned value rather than consulting the mutable classification cell later. Keep `lastFailureClassification` and its existing update/reset semantics for production escalation. Extract only the HTTP status and a finite allowlist of API error codes, normalizing all other code strings to a fixed `other` case before they leave APIClient/lane handling. Never copy APIError title/detail or arbitrary `Error` values into the diagnostic. Add deterministic tests using separate controlled passes to prove returned metadata is pass-local, including the overlapping-pass ordering that can otherwise reproduce stale attribution.</action>
+  <action>Define an immutable, Sendable, Equatable per-pass diagnostic/result value in the save upload lane boundary. Capture classification and safe API fields while handling the concrete failure inside that `drainOnce` invocation, before updating/returning to any caller; include the result in the returned value rather than consulting the mutable classification cell later. Keep `lastFailureClassification` and its existing update/reset semantics for production escalation. Extract only the HTTP status and a finite allowlist of API error codes, normalizing all other code strings to a fixed `other` case before they leave APIClient/lane handling. Never copy APIError title/detail or arbitrary `Error` values into the diagnostic. Add deterministic tests using a returned failure snapshot followed by a backoff pass and a later successful pass; do not assume Swift actor calls serialize while suspended on network awaits.</action>
   <verify>
     <automated>cd playstead-mac && xcodebuild test -project Playstead.xcodeproj -scheme Playstead -testPlan Unit -destination 'platform=macOS' -only-testing:PlaysteadTests/SaveUploadLaneTests && scripts/ci/run-mac-verification.sh --self-test-contracts</automated>
   </verify>
@@ -77,7 +77,7 @@ The only assumption shift is to capture diagnostic classification and response m
   <verify>
     <automated>cd playstead-mac && scripts/ci/tests/sanitizer-test.sh && scripts/ci/run-mac-verification.sh --self-test-contracts</automated>
   </verify>
-  <done>A deterministic overlapping-pass test and sanitizer fixtures demonstrate correct same-attempt attribution, allowlisted status/code/classification preservation, and rejection of secret-bearing or unbounded evidence; hosted sanitized failure evidence can distinguish the two candidate causes without exposing raw data.</done>
+  <done>A deterministic failure/backoff/success test and sanitizer fixtures demonstrate correct same-attempt attribution, allowlisted status/code/classification preservation, and rejection of secret-bearing or unbounded evidence; hosted sanitized failure evidence can distinguish the two candidate causes without exposing raw data.</done>
 </task>
 
 </tasks>
@@ -96,11 +96,11 @@ The only assumption shift is to capture diagnostic classification and response m
 |-----------|----------|-----------|----------|-------------|-----------------|
 | T-261009-UOO-01 | Information disclosure | Per-attempt diagnostic serialization in `UITestBootstrap.swift` | high | mitigate | Serialize only the closed classification, bounded status, finite API code/`other`, and safely matched route status; tests assert titles, details, response bodies, credentials, paths, content keys, and arbitrary descriptions never enter artifacts. |
 | T-261009-UOO-02 | Tampering | `sanitize-evidence.sh` diagnostic schema validation | high | mitigate | Validate exact keys, token enums, integer bounds, and finite code values; deterministic adversarial fixtures prove unknown fields and hostile/unbounded values block artifact creation. |
-| T-261009-UOO-03 | Spoofing | Per-pass result attribution in `SaveUploadLane` | medium | mitigate | Capture immutable metadata in the pass handling the failure and test interleaved drains so a later classification update cannot impersonate the failing attempt. |
+| T-261009-UOO-03 | Spoofing | Per-pass result attribution in `SaveUploadLane` | medium | mitigate | Capture immutable metadata in the pass handling the failure and prove a later successful pass cannot alter the earlier returned failure snapshot. |
 </threat_model>
 
 <verification>
-- Run the deterministic `SaveUploadLaneTests` coverage through the repository's Mac unit-test lane and verify interleaved pass results remain independently attributed.
+- Run the deterministic `SaveUploadLaneTests` coverage through the repository's Mac unit-test lane and verify an earlier failure result remains independently attributed after a later successful pass.
 - Run `cd playstead-mac && scripts/ci/tests/sanitizer-test.sh` and `cd playstead-mac && scripts/ci/run-mac-verification.sh --self-test-contracts`.
 - Inspect a synthetic sanitized failure artifact: its status/code/classification and correlated route status identify one attempt; all forbidden data classes are absent.
 - Confirm no retry policy, failure branch, API schema, or product-facing `lastFailureClassification` contract changed.

@@ -309,18 +309,18 @@ final class SaveUploadLaneTests: XCTestCase {
         }
         let lane = SaveUploadLane(apiClient: apiClient, saveStore: saveStore)
         let now = Date(timeIntervalSince1970: 1_700_000_000)
-        async let passA = lane.drainOnce(at: now)
-        async let passB = lane.drainOnce(at: now)
-        let (resultA, resultB) = await (passA, passB)
-        let first = resultA.httpStatus == 409 ? resultA : resultB
-        let queuedPass = resultA.httpStatus == 409 ? resultB : resultA
+        let first = await lane.drainOnce(at: now)
         XCTAssertEqual(first.failureClassification, .serverRefusal)
         XCTAssertEqual(first.httpStatus, 409)
         XCTAssertEqual(first.apiCode, .other)
         XCTAssertTrue(first.stoppedForRetry)
-        XCTAssertFalse(queuedPass.stoppedForRetry, "actor-serialized overlapping drain observes the scheduled backoff")
-        XCTAssertNil(queuedPass.httpStatus)
-        XCTAssertNil(queuedPass.apiCode)
+
+        let backoffPass = await lane.drainOnce(at: now)
+        XCTAssertEqual(backoffPass.sent, 0)
+        XCTAssertFalse(backoffPass.stoppedForRetry)
+        XCTAssertEqual(backoffPass.failureClassification, .none)
+        XCTAssertNil(backoffPass.httpStatus)
+        XCTAssertNil(backoffPass.apiCode)
 
         let second = await lane.drainOnce(at: Date(timeIntervalSince1970: 1_700_010_000))
         XCTAssertEqual(second.sent, 1)
