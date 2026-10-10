@@ -1,0 +1,26 @@
+quiet: true
+timeout: 10m
+format: json
+exit-code: 0
+severity:
+  - HIGH
+  - CRITICAL
+scan:
+  scanners:
+    - vuln
+    - license
+license:
+  full: true
+  forbidden:
+    - AGPL-1.0
+    - AGPL-3.0
+    - SSPL-1.0
+  restricted:
+    - GPL-2.0
+    - GPL-3.0
+# No exceptions are currently approved. A future entry belongs in
+# release-evidence.py's APPROVED_EXCEPTIONS and must specify exact package@version,
+# vulnerability/license finding, a review reason, and an ISO expiry date.
+# Keep Trivy's complete findings for evidence. The release gate blocks HIGH/CRITICAL
+# vulnerabilities with a published fix; findings without a fix remain counted and
+# logged as safe identifiers so an upstream fix becomes actionable automatically.

@@ -27,7 +27,7 @@ jobs:
     timeout-minutes: 20
     services:
       postgres:
-        image: postgres:17.2
+        image: public.ecr.aws/docker/library/postgres:17.2
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -146,15 +146,51 @@ jobs:
           retention-days: 7
 
   # Cold-start deployment proof (docker build + compose up from destroyed
-  # volumes + restart). It is slow (~5 min) and only changes when the
-  # deployment surface does, so it runs on main and on PRs that touch it.
-  # This path has already caught two real Dockerfile regressions.
+  # volumes + restart). It runs on every PR and protected-main push so the
+  # scanners and attestations always refer to the image that passed this smoke.
   compose-smoke:
     name: docker compose cold start
     runs-on: ubuntu-24.04
     timeout-minutes: 25
+    # The parser fixture inventory runs `mix test` before the production image
+    # is built. Give it the same isolated Postgres service as the main test job.
+    services:
+      postgres:
+        image: public.ecr.aws/docker/library/postgres:17.2
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: playstead_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      MIX_ENV: test
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+
+      - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124  # v1.24.1
+        with:
+          version-file: playstead-server/.tool-versions
+          version-type: strict
+
+      - name: Resolve parser fixture test dependencies
+        working-directory: playstead-server
+        run: |
+          mix deps.get
+          mix assets.setup
+
+      - name: Release evidence contract (must discover tests)
+        working-directory: .
+        run: |
+          set -euo pipefail
+          test -s scripts/tests/test_release_evidence.py
+          contract_output="$(python3 -m unittest discover -s scripts/tests -p 'test_release_evidence.py' -v 2>&1)"
+          printf '%s\n' "$contract_output"
+          printf '%s\n' "$contract_output" | grep -Eq '^Ran [1-9][0-9]* tests?'
 
       - id: changes
         uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad  # v3.0.4
@@ -172,20 +208,32 @@ jobs:
               - 'playstead-server/priv/repo/migrations/**'
               - '.github/workflows/ci.yml'
 
-      - if: github.ref == 'refs/heads/main' || steps.changes.outputs.infra == 'true'
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3.12.0
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3.12.0
+        # Docker's official BuildKit image mirrored in ECR Public. Pin its
+        # OCI index so hosted smoke builds do not depend on Docker Hub.
+        with:
+          driver-opts: |
+            image=public.ecr.aws/xqdo/hub/moby/buildkit@sha256:751921dc37d2f842de38c9387f891fe6ae7d80f03d050ea98f780d7e0874ba00
 
-      - if: github.ref == 'refs/heads/main' || steps.changes.outputs.infra == 'true'
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8  # v6.19.2
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8  # v6.19.2
         with:
           context: playstead-server
-          load: true
           tags: playstead-app:ci
+          outputs: type=docker,dest=/tmp/playstead-release.tar
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=max,ignore-error=true
 
-      - if: github.ref == 'refs/heads/main' || steps.changes.outputs.infra == 'true'
-        name: Cold-start smoke (fresh volumes, restart, volume survival)
+      - name: Load the release archive used by the smoke test
+        run: docker load --input /tmp/playstead-release.tar
+
+      - name: Record tested release identity
+        id: release
+        run: |
+          set -euo pipefail
+          echo "sha256=$(sha256sum /tmp/playstead-release.tar | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "image_id=$(docker image inspect --format '{{.Id}}' playstead-app:ci)" >> "$GITHUB_OUTPUT"
+
+      - name: Cold-start smoke (fresh volumes, restart, volume survival)
         env:
           CI: "true"
           COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
@@ -205,3 +253,94 @@ jobs:
           PLAYSTEAD_SETUP_TOKEN=
           ENV
           bash scripts/compose-smoke.sh --fresh
+
+      - name: Scan tested image and validate release evidence
+        working-directory: .
+        env:
+          RELEASE_ARCHIVE: ${{ runner.temp }}/playstead-release-evidence/playstead-release.tar
+          RELEASE_SHA256: ${{ steps.release.outputs.sha256 }}
+          RELEASE_IMAGE_REF: playstead-app:ci
+        run: |
+          mkdir -p "$RUNNER_TEMP/playstead-release-evidence"
+          cp /tmp/playstead-release.tar "$RELEASE_ARCHIVE"
+          bash playstead-server/scripts/parser-fixture-inventory.sh --output "$RUNNER_TEMP/playstead-release-evidence/parser-inventory.json" --subject-sha256 "$RELEASE_SHA256"
+          bash scripts/ci/release-supply-chain.sh "$RUNNER_TEMP/playstead-release-evidence"
+
+      - name: Upload tested archive and validated evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: tested-release-evidence
+          path: |
+            ${{ runner.temp }}/playstead-release-evidence/playstead-release.tar
+            ${{ runner.temp }}/playstead-release-evidence/evidence.json
+            ${{ runner.temp }}/playstead-release-evidence/scan-reports.json
+            ${{ runner.temp }}/playstead-release-evidence/sbom.cdx.json
+          if-no-files-found: error
+          retention-days: 14
+
+  release-attestation:
+    name: Protected-main release attestations
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.ref_protected == true
+    needs: [test, compose-smoke]
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+
+      # actions/download-artifact v4.3.0 commit resolved from its official release ref:
+      # https://github.com/actions/download-artifact/releases/tag/v4.3.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          name: tested-release-evidence
+          path: release-evidence
+
+      - name: Check downloaded tested archive and scan manifest
+        run: |
+          set -euo pipefail
+          test -s release-evidence/playstead-release.tar
+          test -s release-evidence/evidence.json
+          test -s release-evidence/sbom.cdx.json
+          python3 - <<'PY'
+          import hashlib, json, pathlib
+          root = pathlib.Path('release-evidence')
+          evidence = json.loads((root / 'evidence.json').read_text())
+          digest = hashlib.sha256((root / 'playstead-release.tar').read_bytes()).hexdigest()
+          if evidence['subject']['archive_sha256'] != digest:
+              raise SystemExit('downloaded release archive digest differs from validated report')
+          PY
+          python3 scripts/ci/release-evidence.py --input release-evidence/evidence.json --output release-evidence/evidence-revalidated.json
+
+      # Pin resolved from the official actions/attest v4.2.2 signed release (2026-10-09):
+      # https://github.com/actions/attest/releases/tag/v4.2.2
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6  # v4.2.2 provenance
+        with:
+          subject-path: release-evidence/playstead-release.tar
+      - id: attest-sbom
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6  # v4.2.2 CycloneDX SBOM
+        with:
+          subject-path: release-evidence/playstead-release.tar
+          sbom-path: release-evidence/sbom.cdx.json
+
+      - name: Verify provenance and SBOM attestations against archive digest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh attestation verify release-evidence/playstead-release.tar --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/ci.yml" --source-ref refs/heads/main --format json > release-evidence/provenance-verified.json
+          gh attestation verify release-evidence/playstead-release.tar --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/ci.yml" --source-ref refs/heads/main --predicate-type https://cyclonedx.org/bom --format json > release-evidence/sbom-verified.json
+          python3 scripts/ci/release-evidence.py --input release-evidence/evidence.json --provenance release-evidence/provenance-verified.json --sbom release-evidence/sbom-verified.json --output release-evidence/release-evidence.json
+
+      - name: Upload verified release evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: release-ready-evidence
+          path: release-evidence/release-evidence.json
+          if-no-files-found: error
+          retention-days: 90

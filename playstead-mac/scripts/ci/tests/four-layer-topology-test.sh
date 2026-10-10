@@ -23,6 +23,7 @@ STORAGE_VIEW="${MAC_ROOT}/Playstead/Library/StorageView.swift"
 WORKFLOW="${REPO_ROOT}/.github/workflows/ci.yml"
 REFRESH_WORKFLOW="${REPO_ROOT}/.github/workflows/mac-snapshot-refresh.yml"
 SANITIZER="${MAC_ROOT}/scripts/ci/sanitize-evidence.sh"
+LIVE_VERIFY_TEST="${MAC_ROOT}/scripts/ci/tests/live-server-verification-test.sh"
 PBXPROJ="${MAC_ROOT}/Playstead.xcodeproj/project.pbxproj"
 UITEST_ENTITLEMENTS="${MAC_ROOT}/PlaysteadUITests/PlaysteadUITests.entitlements"
 APP_ENTITLEMENTS="${MAC_ROOT}/Playstead/App/Playstead.entitlements"
@@ -30,7 +31,7 @@ PROMPT_SAFETY="${MAC_ROOT}/scripts/ci/tests/keychain-prompt-safety-test.sh"
 KEYBOARD_CLEANUP="${MAC_ROOT}/scripts/ci/tests/keyboard-mode-cleanup-test.sh"
 SWIFT_SEMANTIC="${MAC_ROOT}/scripts/ci/tests/wave6-swift-semantic-test.sh"
 
-for file in "$RUNNER" "$SCHEME" "$APP_ENTRY" "$PROFILE_TEST" "$UI_CANARY" "$CURATION_TEST" "$COLLECTION_DETAIL" "$UI_BOOTSTRAP" "$LIVE_SERVER_TEST" "$LIVE_SERVER_FIXTURE" "$MAC_CI_CONFIG" "$STORAGE_TEST" "$GAME_ROW" "$LIBRARY_SHELL" "$RECLAIM_VIEW" "$STORAGE_VIEW" "$WORKFLOW" "$REFRESH_WORKFLOW" "$SANITIZER" "$PROMPT_SAFETY" "$KEYBOARD_CLEANUP" "$SWIFT_SEMANTIC"; do
+for file in "$RUNNER" "$SCHEME" "$APP_ENTRY" "$PROFILE_TEST" "$UI_CANARY" "$CURATION_TEST" "$COLLECTION_DETAIL" "$UI_BOOTSTRAP" "$LIVE_SERVER_TEST" "$LIVE_SERVER_FIXTURE" "$MAC_CI_CONFIG" "$STORAGE_TEST" "$GAME_ROW" "$LIBRARY_SHELL" "$RECLAIM_VIEW" "$STORAGE_VIEW" "$WORKFLOW" "$REFRESH_WORKFLOW" "$SANITIZER" "$LIVE_VERIFY_TEST" "$PROMPT_SAFETY" "$KEYBOARD_CLEANUP" "$SWIFT_SEMANTIC"; do
   [ -f "$file" ] || { printf 'four-layer topology file missing: %s\n' "$file" >&2; exit 1; }
 done
 for plan in Unit Rendering UI LiveServer; do
@@ -301,7 +302,7 @@ GUARD
 # time, and run 34636187313 failed SaveEndToEndTests on an invariant it
 # had never asserted. The sentinel below is deliberately a word and not
 # an empty string, so opting out is a visible decision in the diff.
-for token in 'snapshots-not-asserted-here' 'snapshot_expectation="${4:-}"'; do
+for token in 'snapshots-not-asserted-here' 'snapshot_expectation="${4:-}"' 'expected_sentinel_set="${5:-}"'; do
   grep -F "$token" "$LIVE_SERVER_FIXTURE" >/dev/null || {
     printf 'live-server.sh: the verify stage lost its caller-stated snapshot expectation (%s)\n' "$token" >&2
     exit 1
@@ -330,12 +331,12 @@ for path in callers:
             raise SystemExit(
                 f"{path.name}: runFixture(\"verify\") must state a snapshot expectation"
             )
-        if "snapshots-not-asserted-here" in body:
-            opted_out.append(path.name)
-        elif re.search(r'extraArguments:\s*\["\d+"\]', body):
+        if re.search(r'extraArguments:\s*\["\d+",\s*"both"\]', body):
             numeric.append(path.name)
+        elif re.search(r'extraArguments:\s*\["snapshots-not-asserted-here",\s*"first-only"\]', body):
+            opted_out.append(path.name)
         else:
-            raise SystemExit(f"{path.name}: unrecognised snapshot expectation")
+            raise SystemExit(f"{path.name}: unrecognised snapshot or sentinel-set expectation")
 
 if not numeric:
     raise SystemExit("no test asserts the live-server snapshot count any more")
@@ -514,6 +515,18 @@ grep -F 'settleMove(assetSetID: members[index].assetSetID, to: destination)' "$C
 grep -F 'list.typeKey(.downArrow, modifierFlags: [])' "$CURATION_TEST" >/dev/null
 grep -F 'harness.app.typeKey("u", modifierFlags: [.command, .option])' "$CURATION_TEST" >/dev/null
 grep -F 'curation-keyboard-stage=selection-target-not-reached' "$CURATION_TEST" >/dev/null
+grep -F 'XCTWaiter.wait(for: [expectation], timeout: timeout)' "$CURATION_TEST" >/dev/null
+grep -F 'PLAYSTEAD_FAILURE_STAGE[\($0)]' "$CURATION_TEST" >/dev/null
+for stage in curation-drag-before curation-drag-after curation-drag-after-relaunch; do
+  grep -F "failureStage: \"${stage}\"" "$CURATION_TEST" >/dev/null || {
+    printf 'curation drag evidence stage missing from its assertion site: %s\n' "$stage" >&2
+    exit 1
+  }
+  grep -F "\"${stage}\"" "$RUNNER" >/dev/null || {
+    printf 'curation drag evidence stage missing from the bounded CI allowlist: %s\n' "$stage" >&2
+    exit 1
+  }
+done
 grep -F 'harness.element(collectionRowID, type: .button)' "$CURATION_TEST" >/dev/null
 if grep -F 'try fixture.assertExactState()' "$UI_BOOTSTRAP" >/dev/null; then
   printf 'bootstrap must preserve makeFixture relaunch validation instead of requiring fresh positions\n' >&2

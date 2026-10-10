@@ -239,17 +239,24 @@ PY
     # deliberately no default: an omitted or malformed argument dies here
     # rather than quietly skipping the check, because a silent skip is how a
     # guard rots into a pass (see reachability-allowlist.txt's header on the
-    # same failure mode).
+    # same failure mode). Every caller also states whether this is the initial
+    # one-sentinel mirror or the two-sentinel refresh proof; SaveEndToEnd owns a
+    # fresh profile of its own and must not inherit another test's fixture.
     snapshot_expectation="${4:-}"
     case "$snapshot_expectation" in
       snapshots-not-asserted-here) expected_snapshots="" ;;
       ''|*[!0-9]*) die ;;
       *) expected_snapshots="$snapshot_expectation" ;;
     esac
-    python3 - "$root" "$(dirname "$PLAYSTEAD_MAC_CI_ROOT")/phoenix.log" "$expected_snapshots" <<'PY'
+    expected_sentinel_set="${5:-}"
+    case "$expected_sentinel_set" in
+      first-only|both) ;;
+      *) die ;;
+    esac
+    python3 - "$root" "$(dirname "$PLAYSTEAD_MAC_CI_ROOT")/phoenix.log" "$expected_snapshots" "$expected_sentinel_set" <<'PY'
 import pathlib, sqlite3, sys
 root, log_path = map(pathlib.Path, sys.argv[1:3])
-expected_snapshots = sys.argv[3]
+expected_snapshots, expected_sentinel_set = sys.argv[3:5]
 if not root.is_dir() or not log_path.is_file():
     raise SystemExit("live-server verification inputs are missing")
 
@@ -282,8 +289,15 @@ with sqlite3.connect(database) as connection:
     titles = {row[0] for row in connection.execute("SELECT display_title FROM catalogue_entries")}
 if not cursor or not cursor[0]:
     raise SystemExit("stored snapshot cursor is empty")
-if titles != {"Playstead CI Sentinel One", "Playstead CI Sentinel Two"}:
-    raise SystemExit("fresh mirror does not contain exactly both synthetic sentinels")
+expected_titles = {"Playstead CI Sentinel One"}
+if expected_sentinel_set == "both":
+    expected_titles.add("Playstead CI Sentinel Two")
+if titles != expected_titles:
+    first = "present" if "Playstead CI Sentinel One" in titles else "absent"
+    second = "present" if "Playstead CI Sentinel Two" in titles else "absent"
+    raise SystemExit(
+        f"mirror sentinel set mismatch: expected={expected_sentinel_set} rows={len(titles)} first={first} second={second}"
+    )
 for name in ("objects", "partials"):
     directory = root / name
     if not directory.is_dir() or any(directory.iterdir()):

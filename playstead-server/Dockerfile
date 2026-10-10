@@ -2,15 +2,17 @@
 #
 #   - https://hub.docker.com/r/hexpm/elixir/tags - for the builder image
 #     E.g.: docker.io/hexpm/elixir:1.19.5-erlang-28.4.1-debian-trixie-20260610-slim
-#   - https://hub.docker.com/_/debian/tags?name=trixie-20260610-slim - for the runner image
-#     E.g.: docker.io/debian:trixie-20260610-slim
+#   - https://hub.docker.com/_/debian/tags?name=trixie-20260918-slim - for the runner image
+#     E.g.: docker.io/debian:trixie-20260918-slim
 #
 # Find builder and runner images on Docker Hub or on Hex's Build Server (Bob).
 # We recommend using Bob's Web UI to find recent tags:
 #
 #   - https://bob.hex.pm/docker
 #
-# We suggest using the same Debian version for both the builder and runner images.
+# We suggest using the same Debian release for both images. Keep their dated
+# tags independent when Hex has not published a matching builder tag, so the
+# runtime can receive Debian security updates without changing the toolchain.
 #
 # We suggest Debian/Ubuntu instead of Alpine to avoid production compatibility issues
 # (such as DNS resolution failures, and dynamically linked NIFs/precompiled binaries).
@@ -20,14 +22,16 @@
 ARG ELIXIR_VERSION=1.19.5
 ARG OTP_VERSION=28.4.1
 ARG DEBIAN_VERSION=trixie-20260610-slim
+ARG RUNNER_DEBIAN_VERSION=trixie-20260918-slim
 
 ARG BUILDER_IMAGE="docker.io/hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
-ARG RUNNER_IMAGE="docker.io/debian:${DEBIAN_VERSION}"
+ARG RUNNER_IMAGE="docker.io/debian:${RUNNER_DEBIAN_VERSION}"
 
 FROM ${BUILDER_IMAGE} AS builder
 
 # install build dependencies
 RUN apt-get update \
+  && apt-get upgrade -y --no-install-recommends \
   && apt-get install -y --no-install-recommends build-essential git \
   && rm -rf /var/lib/apt/lists/*
 
@@ -79,6 +83,7 @@ RUN mix release
 FROM ${RUNNER_IMAGE} AS final
 
 RUN apt-get update \
+  && apt-get upgrade -y --no-install-recommends \
   && apt-get install -y --no-install-recommends libstdc++6 openssl libncurses6 locales ca-certificates wget \
   && rm -rf /var/lib/apt/lists/*
 

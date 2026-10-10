@@ -2,6 +2,10 @@
 # built (with the GitHub Actions layer cache) instead of rebuilding.
 #   COMPOSE_FILE=docker-compose.yml:docker-compose.ci.yml scripts/compose-smoke.sh --fresh
 services:
+  db:
+    # Docker Official Image mirrored by AWS ECR Public. Hosted CI avoids
+    # Docker Hub's unauthenticated pull limit without changing deploy defaults.
+    image: public.ecr.aws/docker/library/postgres:17.2
   app:
     image: ${PLAYSTEAD_APP_IMAGE:-playstead-app:ci}
     build: !reset null

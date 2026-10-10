@@ -37,7 +37,7 @@ make_valid() {
   mkdir -p "$root/evidence/snapshot-triplet" "$root/evidence/storage-candidate" "$root/evidence/logs" "$root/raw/Unit.xcresult" "$root/DerivedData"
   printf '%s\n' '{"schema_version":1,"architecture":"arm64","xcode":["Xcode 26.6","Build version 17F113"]}' >"$root/evidence/environment-fingerprint.json"
   printf '%s\n' '{"schema_version":1,"build_count":1,"automatic_retries":0,"aggregate_outcome":"failed","layers":[]}' >"$root/evidence/layers.json"
-  printf '%s\n' '{"schema_version":1,"layer":"ui","executed_test_count":2,"required_tests":[{"identifier":"PlaysteadUITests.HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice","discovered":true,"execution_count":1,"skipped":false,"outcome":"passed"}],"failed_test_count":1,"failed_tests_truncated":false,"failed_tests":[{"identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","outcome":"failed"}],"failure_diagnostic_count":1,"failure_diagnostics_truncated":false,"failure_diagnostics":[{"test_identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","assertion":"XCTAssertTrue","source_file":"PlaysteadUITests/SurfaceAccessibilityTests.swift","source_line":137}],"audit_issue_count":1,"audit_issues_truncated":false,"audit_issues":[{"test_identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","category":"parentChild","element_identifier":"playstead.surface.library","element_role":"role-3"}]}' >"$root/evidence/ui-tests.json"
+  printf '%s\n' '{"schema_version":1,"layer":"ui","executed_test_count":2,"required_tests":[{"identifier":"PlaysteadUITests.HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice","discovered":true,"execution_count":1,"skipped":false,"outcome":"passed"}],"failed_test_count":1,"failed_tests_truncated":false,"failed_tests":[{"identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","outcome":"failed"}],"failure_diagnostic_count":1,"failure_diagnostics_truncated":false,"failure_diagnostics":[{"test_identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","assertion":"XCTAssertTrue","source_file":"PlaysteadUITests/SurfaceAccessibilityTests.swift","source_line":137}],"audit_issue_count":1,"audit_issues_truncated":false,"audit_issues":[{"test_identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","category":"parentChild","element_identifier":"playstead.surface.library","element_role":"role-3"}],"in_test_seconds_total":5.8,"timed_test_count":2,"slowest_tests":[{"identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","seconds":4.25},{"identifier":"KeychainScopingTests/testScopedMatchQueryRestrictsSearchWithoutSelectingAnAddDestination()","seconds":1.5}]}' >"$root/evidence/ui-tests.json"
   printf 'safe app event at /Users/example/private/location\n' >"$root/evidence/logs/app.log"
   printf 'server health passed\n' >"$root/evidence/logs/server.log"
   printf '\211PNG\r\n\032\nreference' >"$root/evidence/snapshot-triplet/reference.png"
@@ -67,6 +67,12 @@ assert data["failed_tests"] == [{"identifier": "SurfaceAccessibilityTests/testSy
 assert all(set(record) == {"identifier", "outcome"} for record in data["failed_tests"])
 assert data["failure_diagnostics"] == [{"test_identifier":"SurfaceAccessibilityTests/testSyntheticFailure()","assertion":"XCTAssertTrue","source_file":"PlaysteadUITests/SurfaceAccessibilityTests.swift","source_line":137}]
 assert data["audit_issues"] == [{"test_identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "category": "parentChild", "element_identifier": "playstead.surface.library", "element_role": "role-3"}]
+assert data["in_test_seconds_total"] == 5.8
+assert data["timed_test_count"] == 2
+assert data["slowest_tests"] == [
+    {"identifier": "SurfaceAccessibilityTests/testSyntheticFailure()", "seconds": 4.25},
+    {"identifier": "KeychainScopingTests/testScopedMatchQueryRestrictsSearchWithoutSelectingAnAddDestination()", "seconds": 1.5},
+]
 PY
 PASS_COUNT=$((PASS_COUNT + 1))
 
@@ -77,9 +83,21 @@ import json, pathlib, sys
 path = pathlib.Path(sys.argv[1]); data = json.loads(path.read_text())
 for key in ("failure_diagnostic_count", "failure_diagnostics_truncated", "failure_diagnostics"):
     data.pop(key)
+for key in ("in_test_seconds_total", "timed_test_count", "slowest_tests"):
+    data.pop(key)
 path.write_text(json.dumps(data))
 PY
 expect_pass legacy_schema "$SANITIZER" --input "$legacy_schema" --output "$TMP_ROOT/legacy-schema-output"
+
+malformed_profile="$TMP_ROOT/malformed-profile"
+make_valid "$malformed_profile"
+python3 - "$malformed_profile/evidence/ui-tests.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1]); data = json.loads(path.read_text())
+data["timed_test_count"] = -1
+path.write_text(json.dumps(data))
+PY
+expect_fail malformed_profile "$SANITIZER" --input "$malformed_profile" --output "$TMP_ROOT/malformed-profile-output"
 
 secret_json="$TMP_ROOT/secret-json"
 make_valid "$secret_json"

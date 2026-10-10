@@ -60,7 +60,20 @@ final class LiveServerSnapshotTests: XCTestCase {
         XCTAssertTrue(launched.buttons["playstead.control.show-list"].awaitExistence(timeout: 10))
         launched.buttons["playstead.control.show-list"].clickWhenHittable()
         let row = launched.descendants(matching: .any)["playstead.game.\(first.assetSetID).summary"]
-        XCTAssertTrue(row.awaitExistence(timeout: 10))
+        // The library surface renders before its initial network snapshot is
+        // applied. Give that first sync pass its hosted-run budget before
+        // treating the asynchronous row refresh as a missing catalogue entry.
+        let firstRowAppeared = row.awaitExistence(timeout: 20)
+        if !firstRowAppeared {
+            // Sample only AFTER the original timeout, without changing launch
+            // or click timing. These read-only assertions distinguish an
+            // unapplied snapshot from a failed layout switch or missing AX
+            // row. CI publishes these distinct source lines, never raw data.
+            XCTAssertFalse(try storedCursor(root: runRoot).isEmpty, "initial snapshot cursor missing")
+            XCTAssertTrue(try storedSentinel(first, root: runRoot), "initial snapshot sentinel missing")
+            XCTAssertTrue(launched.descendants(matching: .any)["playstead.surface.game-list"].exists, "List was not activated")
+        }
+        XCTAssertTrue(firstRowAppeared)
         XCTAssertTrue(row.readableText.contains(first.title))
         XCTAssertFalse(try storedCursor(root: runRoot).isEmpty)
         try assertNoGameBytes(root: runRoot)
@@ -96,7 +109,7 @@ final class LiveServerSnapshotTests: XCTestCase {
         // shared phoenix.log, so it is only sound while this runs first --
         // stated explicitly here so a future reordering fails loudly instead
         // of drifting into some other test's failure.
-        guard try runFixture("verify", root: runRoot, extraArguments: ["2"]) else {
+        guard try runFixture("verify", root: runRoot, extraArguments: ["2", "both"]) else {
             return XCTFail("live fixture stage 'verify' failed")
         }
     }
@@ -399,13 +412,33 @@ final class LiveServerSnapshotTests: XCTestCase {
         let process = Process()
         let output = Pipe()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
-        process.arguments = [root.appendingPathComponent("playstead.sqlite3").path, "SELECT cursor FROM sync_cursor WHERE id = 1;"]
+        process.arguments = ["-readonly", root.appendingPathComponent("playstead.sqlite3").path, "SELECT cursor FROM sync_cursor WHERE id = 1;"]
         process.standardOutput = output
         process.standardError = FileHandle.nullDevice
         try process.run()
         process.waitUntilExit()
         XCTAssertEqual(process.terminationStatus, 0)
         return String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Inspect the real mirror without producing a network request, creating
+    /// a database, or printing private row contents into test diagnostics.
+    private func storedSentinel(_ sentinel: Control.Sentinel, root: URL) throws -> Bool {
+        let quote: (String) -> String = { "'" + $0.replacingOccurrences(of: "'", with: "''") + "'" }
+        let process = Process()
+        let output = Pipe()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
+        process.arguments = [
+            "-readonly", root.appendingPathComponent("playstead.sqlite3").path,
+            "SELECT EXISTS(SELECT 1 FROM catalogue_entries WHERE id = \(quote(sentinel.assetSetID)) AND display_title = \(quote(sentinel.title)));"
+        ]
+        process.standardOutput = output
+        process.standardError = FileHandle.nullDevice
+        try process.run()
+        process.waitUntilExit()
+        let result = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return process.terminationStatus == 0 && result == "1"
     }
 
     private func assertNoGameBytes(root: URL) throws {
