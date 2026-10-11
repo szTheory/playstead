@@ -1391,6 +1391,7 @@ PY
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
 
   run_test_layer rendering Rendering 600 \
+    --required-test PlaysteadTests.DeterministicProfileTests/testRootReconstructionBootstrapsOneSessionAndUploadLane \
     --required-test PlaysteadTests.DeterministicProfileTests/testQuotaBlockReclaimProfileComputesExactProductionDecisionBeforeExternalIO \
     --required-test PlaysteadTests.DeterministicProfileTests/testCatalogueTransitionControlRejectsInvalidSelectorsAndNonPrivateRoots \
     --required-test PlaysteadTests.SnapshotHarnessCanaryTests/testIntentionalMismatchProducesReviewableTriplet \
@@ -1950,6 +1951,7 @@ required = [
     "PlaysteadTests.PlaySessionTests/test_sameSessionIdentifierPostedTwice_resultsInOneServerSideEffect",
     "PlaysteadTests.PlaySessionTests/test_userDeletion_enqueuesDeleteIntentAndRemovesFromRecent",
     "PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit",
+    "PlaysteadTests.DeterministicProfileTests/testRootReconstructionBootstrapsOneSessionAndUploadLane",
     "PlaysteadTests.DeterministicProfileTests/testCatalogueTransitionControlRejectsInvalidSelectorsAndNonPrivateRoots",
     "PlaysteadUITests.SurfaceAccessibilityTests/testFirstPointerClickActivatesListInFreshLibraryProfiles",
     "PlaysteadUITests.SurfaceAccessibilityTests/testInitialCatalogueRefreshKeepsListPointerTarget",
