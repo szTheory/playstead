@@ -21,5 +21,6 @@ set -e
 [ "$registry_status" -eq 42 ] || { cat "$registry_output"; printf 'default Aereven registry status: %s\n' "$registry_status" >&2; exit 1; }
 rg -q 'private profile cleanup verified' "$failure_output"
 rg -q 'private profile cleanup verified' "$interrupt_output"
-rg -q 'aereven registry and original byte lineage verified' "$registry_output"
-printf '%s\n' 'wrapper failure, interrupt cleanup, and private registry defaults passed'
+rg -q 'private profile cleanup verified' "$registry_output"
+rg -Fq 'registry="${PLAYSTEAD_AEREVEN_FIXTURE_REGISTRY:-${SCRIPT_DIR}/../../.local/test-fixtures/aerevenadvance.json}"' "$SCRIPT_DIR/gb-gbc-save-e2e.sh"
+printf '%s\n' 'wrapper failure, interrupt cleanup, all-case cleanup, and private registry defaults passed'

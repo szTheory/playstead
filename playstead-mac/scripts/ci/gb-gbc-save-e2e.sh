@@ -130,6 +130,14 @@ for fixture in gb-mbc1-8k gbc-mbc5-32k gbc-mbc3-rtc aerevenadvance; do
     exit 1
   fi
 done
+# Cleanup contract probes do not require private game/save fixtures.
+if [ "$self_test_cleanup" = "--self-test-cleanup-failure" ]; then
+  exit 42
+elif [ "$self_test_cleanup" = "--self-test-cleanup-interrupt" ]; then
+  kill -INT "$$"
+  sleep 10
+  exit 99
+fi
 registry="${PLAYSTEAD_AEREVEN_FIXTURE_REGISTRY:-${SCRIPT_DIR}/../../.local/test-fixtures/aerevenadvance.json}"
 if [ "$case_name" = "all" ] || [ "$case_name" = "aerevenadvance" ]; then
   python3 "${SCRIPT_DIR}/prepare-aereven-fixture.py" "$registry" "$task_root/aereven-fixture"
@@ -163,13 +171,6 @@ fi
 export PLAYSTEAD_GB_GBC_SAVE_E2E_PROFILE_ROOT="$task_root"
 export PLAYSTEAD_GB_GBC_SAVE_E2E_RUN_ID="$run_id"
 export PLAYSTEAD_GB_GBC_SAVE_E2E_CASES="$case_name"
-if [ "$self_test_cleanup" = "--self-test-cleanup-failure" ]; then
-  exit 42
-elif [ "$self_test_cleanup" = "--self-test-cleanup-interrupt" ]; then
-  kill -INT "$$"
-  sleep 10
-  exit 99
-fi
 if [ "$local_no_hid" = true ]; then
   if [ "$build_only" = true ]; then
     PLAYSTEAD_HUMAN_APPROVED_LOCAL_APP_LAUNCH=1 "$runner" --layers recovery --build-only --only-testing "${selectors[@]}"

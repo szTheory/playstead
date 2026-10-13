@@ -33,10 +33,19 @@
     "sanitizer_checks": 92,
     "release_tests": 28,
     "server_compile_warnings_as_errors": "pass",
-    "server_format": "pass"
+    "server_format": "pass",
+    "ci_repairs": {
+      "static_contracts": "all passed; 91 validator tests",
+      "workflow_environment_tests": "16 passed under inherited pull_request identity",
+      "child_cleanup_tests": "13 passed including missing executable and unlinked live process rejection",
+      "restore_compilation": "227 files compiled with warnings as errors",
+      "restore_fixture": "passed all six production stages; target and source cleanup complete",
+      "restore_cleanup_tests": "24 executed, 0 failures",
+      "cleanup_defect": "File.rm_rf returns {:ok, paths}; valid teardown now reports success"
+    }
   },
   "sources": {
-    ".github/workflows/ci.yml": "657fb7d883c0b2e0a6040ab135fd36c19c25f9bf91b47ffb0f5a7860d95c9bc8",
+    ".github/workflows/ci.yml": "82aee6f8206ab53785efe1ae650f9a71ba3d790f0202b8c3c492182f194c5fb2",
     ".github/workflows/verify-hosted-evidence.yml": "82da05f045fb66a4409e69867f7acfe542c8671c2c194535624dbcb5621cd936",
     ".gitignore": "03dbdeb8c5c9987310f4b44bc6f934907ad3a86a1732575e212172e13ae87d70",
     ".planning/ROADMAP.md": "13704a294139e257e9067c4ab1d707cad1065c82780f947be651f81c00adad24",
@@ -354,12 +363,12 @@
     "playstead-mac/scripts/ci/classify-phoenix-startup.py": "b24353a73f7d7539bcc9a71c329ffb6e7ab7a84af1fb2f6947cb033dba3c8815",
     "playstead-mac/scripts/ci/classify-postgres-startup.py": "29e49021f86b33a44e59a072f7c6d62cf0820b116775cbec3afb31cd65cbb0fa",
     "playstead-mac/scripts/ci/classify-xcode-failure.py": "617c2427be2f84196795e097415b6507e5d1c75573a5184d901ea881fba3d312",
-    "playstead-mac/scripts/ci/cleanup-gb-gbc-save-children.py": "164b7dab1ca82c0454a1cabb1d8c2c7f8a2c823470bbcb539568f96d1200ca39",
+    "playstead-mac/scripts/ci/cleanup-gb-gbc-save-children.py": "bce56976fd8d308a5de86f11a7d74247d87aad9577c17fb531314e266a94dd97",
     "playstead-mac/scripts/ci/continuation-isolation-runner.sh": "93d2aa11c075c399ef1f1d882b9e65d9f7cc5b351288c5e1f3c94ef7454e37b8",
     "playstead-mac/scripts/ci/continuation-spike.sh": "5566f410e685c29fa975011caa4db2de30fe89360b8fe4faa3950e9b66ea7922",
     "playstead-mac/scripts/ci/continuation_protocol.py": "f7ca32c955d7de6ac9fe5958ab4c0d444ea435d02cdd564b2715fed80d2e7606",
     "playstead-mac/scripts/ci/discover-browser-tests.py": "303d5dab404f1bf37e6826d5c140165947b4feef398ed936186f7d2ebe97da6a",
-    "playstead-mac/scripts/ci/gb-gbc-save-e2e.sh": "f62e798e0abcf75337fbbdde41d2d867e151cc7db0ba181c0160e536387fb1d4",
+    "playstead-mac/scripts/ci/gb-gbc-save-e2e.sh": "0ba5c7d81c25ccf10a9d9180d242e9762670ef1ab524aaf079ae60aa07e42122",
     "playstead-mac/scripts/ci/install-pinned-mgba-ci.sh": "ff37e0d04593df63293cfcf9e88a1e5961d41236864b8ebdf2ba18860831dce8",
     "playstead-mac/scripts/ci/layout_evidence.py": "93654ea56e52d9eead01858a919e9fbf9c19bf4fe6d856b5756ffbf899201b84",
     "playstead-mac/scripts/ci/mgba-sdl-binding-probe.c": "16a63417fb3972748b460014435ff41b67b6e58ecb515114cb65ea1a79fa504a",
@@ -395,12 +404,12 @@
     "playstead-mac/scripts/ci/tests/reliability-load-process-group-test.sh": "61ae1747c0bd38a81fd59a2c4dcde367f08ec90dbe5d863a7bf500322123058a",
     "playstead-mac/scripts/ci/tests/save-reliability-signing-mode-test.sh": "6e95e2c28014cceb1011b55494773375ea38b8ffc260c5d34e533721862f864a",
     "playstead-mac/scripts/ci/tests/test-gb-gbc-fixture-registry.sh": "02dac4b8de0724173aff0c50bae1f7bf547105e321462d0e945f7c9b7ac42001",
-    "playstead-mac/scripts/ci/tests/test-gb-gbc-save-wrapper-cleanup.sh": "77fa69a0d384aae0d76abfdcfa354d497ce84f017d4b1cd4a61bbc4a000d2e9a",
-    "playstead-mac/scripts/ci/tests/test_cleanup_gb_gbc_save_children.py": "c34dfdd107f592acdb9f6b98f7768ad626024b88eb8204e60bd04868718589bd",
+    "playstead-mac/scripts/ci/tests/test-gb-gbc-save-wrapper-cleanup.sh": "e8dfce3df18ce2cc99849f46280c2e2d4e6a0be6ee9db55deb6ff65cf292dd16",
+    "playstead-mac/scripts/ci/tests/test_cleanup_gb_gbc_save_children.py": "f1f550df21c70cacfa930985a84bf7d9870adfa98091add303253876b632912d",
     "playstead-mac/scripts/ci/tests/test_layout_evidence.py": "bfbb3676aacc3f46fc54861f2cdf47d68e8b83157e667e1e59e9263550a7aa43",
-    "playstead-mac/scripts/ci/tests/test_server_workflow_contract.py": "653db26c7aa353f7e26df12976ab10db4640a06761837eed5d5cb68698f294cd",
+    "playstead-mac/scripts/ci/tests/test_server_workflow_contract.py": "023a02a1a451228f78af8800ba91d68faa0989e3479e31878cf7c45bda904338",
     "playstead-mac/scripts/ci/tests/test_surface_contract_registration.py": "f10ec7159842b1973e70eeb2b569d5e5c38f3d14b1395221ab19817046d9798c",
-    "playstead-mac/scripts/ci/tests/test_virtual_hid_workflow_contract.py": "cb659636e9a5be799aae4580f0115c1691abaecfe702733b371b22852850f6a9",
+    "playstead-mac/scripts/ci/tests/test_virtual_hid_workflow_contract.py": "d3dd65e7b91382b97dc74320ef302c37d4b17a49a5e3aa88f11aeb98eee20906",
     "playstead-mac/scripts/ci/verify-hosted-evidence.py": "1ab423f2414afcce77721de07caabc5a6cc1fa629993778bc8b7500994838147",
     "playstead-mac/scripts/ci/virtual-hid-evidence.py": "a782c2eec3ed409851270c3dd00c8894829ace216b6dc7789b125fc0ab75ac20",
     "playstead-mac/scripts/ci/virtual-hid-signing.sh": "bee33c8f46dcf40355d8bbb4ba90c01c28749b072439b10516b267383f2e6342",
@@ -409,14 +418,14 @@
     "playstead-server/docker-compose.dev.yml": "957c64a677bfa1009dba7bd4c2823919ded7190857532d67d9de83e00d403c79",
     "playstead-server/docs/INBOX.md": "8c5f4b5730d77f2ffc73323deede757d88113a6fe4a16570604362486f9ba741",
     "playstead-server/inbox/.gitkeep": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "playstead-server/lib/mix/tasks/playstead.restore.ex": "743bbf54186d9f609d358af963eb36c5dc20948e0049be821d18b535caec827a",
+    "playstead-server/lib/mix/tasks/playstead.restore.ex": "d6e65163f35f0ea6e3d63e6b2fdd7af0df1565c4fd4ab40e7cded5757e207b97",
     "playstead-server/lib/mix/tasks/playstead.upgrade_preflight.ex": "82d1dfd6da6ca5ecc9c1353795662eea6408a35cd06e4fb5db1d0bc0c926fbaa",
     "playstead-server/lib/playstead/operations.ex": "cc65588fe1ab82b8823817b21f12d5a1927309e9075903d16f3180fe1fb6887a",
     "playstead-server/lib/playstead/operations/diagnostic_bundle.ex": "0aa922a3390f2b648bb725bc56403b4465c507afdfa2e7be070de5e81c4f99e5",
     "playstead-server/lib/playstead/recovery.ex": "66b2ca30793844c74a274645a0199436de65c34c26ac06d747cd55c77c25b096",
     "playstead-server/lib/playstead/recovery/backup_set.ex": "f97261eecbbf5e6093eb0c02423a457aa93e87ce9e70a7caebac4a5419a8712d",
     "playstead-server/lib/playstead/recovery/compose_runner.ex": "11b667d960860b4c0762ad898438194ba7beef63f0869e635f0dd062197d6e4e",
-    "playstead-server/lib/playstead/recovery/restore.ex": "e6172967945731e20c45017f52bf25b4a1287c243b4b775d44d37e8eed6d7e5c",
+    "playstead-server/lib/playstead/recovery/restore.ex": "e08d875e1a200545d417596e96eacd42263dd1471f2dbd238a592bae1ffe0d6c",
     "playstead-server/lib/playstead/recovery/upgrade.ex": "11f7e2bbe0f31d0aed923cbbba27a6b0eee7358b4601e98875edbc896e611667",
     "playstead-server/lib/playstead/recovery/verifier.ex": "87c844f8e1beaabbbb0bc2cc4d82710c326ea0687e5db0c7689c5acde83a2083",
     "playstead-server/lib/playstead/recovery/worker.ex": "155e985ad7be694b6f68f69983f63ab0fa0306a8ae3e183345a936341a005aaa",
@@ -454,7 +463,7 @@
     "playstead-server/test/playstead/operations/operations_test.exs": "f51a1a73efd53ab65792315cc8a0f4ddc63238112699e50f045410d4a617be69",
     "playstead-server/test/playstead/recovery/backup_operator_test.exs": "abd5bf50e21c38d9f0d6f3dd0efed14eb47e580478cb6232b0c1fbc512fcff50",
     "playstead-server/test/playstead/recovery/backup_set_test.exs": "9db8d03aa00ca06dd7c6b1560843d5361842c37764b7360b1caebac4196ac278",
-    "playstead-server/test/playstead/recovery/restore_test.exs": "a892d6bd04ac0a3f0705d6164e78aa9151c179e6032f31fc8967471baf6d33c7",
+    "playstead-server/test/playstead/recovery/restore_test.exs": "55f868b9799687a88790c30712610a9ec4e92af5e3becb36985a3d7011490afc",
     "playstead-server/test/playstead/recovery/upgrade_test.exs": "e4b92b3c8b1b5678c61dc91b1f9110a1f929464c20ebf7f1c9974e26d77971d7",
     "playstead-server/test/playstead/recovery/verifier_test.exs": "e0fbe7b4acf1d32bc3cd737d57a8fdc6598682c4a1ead2e17613e2a66a41e6b4",
     "playstead-server/test/playstead/recovery/worker_test.exs": "fee5ae23ed271364b7f594c76284daefd2ebad5214e6440555a1a615147c5454",
@@ -479,10 +488,17 @@
     "wrapper-cleanup-qualified.log": "95c0f7728968bda319ead53ebf5e4a68459ba78e3f66d5097dfac3e82c624fa8",
     "fixture-registry-final.log": "df3962bc57f9231befa1f66f243a0bd4cfc59cda71d8be8a297c786dc997b130",
     "uat-boundaries-qualified.log": "362c97debb7bebd69c41a7421746ddd729973568c9816c1faa03da00b51fa87a",
-    "upstream_pins_compile": "c872b3d6d27b144803516ce5708137cdf79398fc061d441c925c1352244417a9"
+    "upstream_pins_compile": "c872b3d6d27b144803516ce5708137cdf79398fc061d441c925c1352244417a9",
+    "prerequisite-ci-fix-static.log": "888760854ea40711d935ec1552ca52b4cb90e0d21904137a89df35a71dabc4d3",
+    "hosted-workflow-environment-tests.log": "adf4e061581edd7cf40e4f6997d64789e481f91136b650b5bbd62573d98cf8b8",
+    "clean-runner-cleanup-tests.log": "9a8cc899270874b3b840cd4a3ecc6ab3dceed0ced54ea9064c387f0b22a1e821",
+    "restore-tcp-compile.log": "1ea88b312b23b6c2bc7f88d71ac734e573c8a254e8b1dd07f7e04364346bb262",
+    "restore-cleanup-qualified.log": "a615c8a5e964231d7170981cb6519433e2304f3a5d74e30e07d3bbd88ee5504e",
+    "restore-cleanup-fixture-qualified.log": "923923919b6b0dafb1b7418a86a6304c14b81e1425fa4b492ab3b28c7812dead",
+    "ci-repairs-format.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   },
   "unit_receipt_sha256": "fe2eddb2a6da32419ceade7ae16206908d5bdc3932c262ccbd432f5dbe002cbf",
-  "hosted_ci": "not_run",
+  "hosted_ci": "current CI corrections verified locally; next exact-head hosted run pending",
   "hardware_qualification": "parked",
   "upstream_protections_retained": true,
   "exclusions": [
@@ -496,11 +512,37 @@
   "phase_layer_boundary": "decoder activation calls in first-adopter up are held for Phase 4.7",
   "base_ref_correction": "local-clone origin/main was workspace local main24491a6; final delivery is parented to GitHub maine115899 and untouched upstream artifacts retained",
   "dependency_pins": "retain GitHub main Mint1.11.0/HPAX1.1.0; prerequisite-server-compile-qualified.log previously passed these pins",
-  "hosted_attempt": {
-    "run_id": 38431765242,
-    "failed_job": "test",
-    "cause": "palette test compile missing shared-tokens.json",
-    "fix": "publish existing public token contract",
-    "success_claim": false
+  "hosted_attempts": [
+    {
+      "run_id": 38431765242,
+      "failed_job": "test",
+      "cause": "palette test compile missing shared-tokens.json",
+      "fix": "publish existing public token contract",
+      "success_claim": false
+    },
+    {
+      "run_id": 38433771592,
+      "success_claim": false,
+      "failures": [
+        "PostgreSQL 16 client versus 17 service",
+        "source initialization readiness race",
+        "fresh Mac with absent adapter",
+        "inherited GitHub event in negative identity test"
+      ]
+    }
+  ],
+  "restore_fixture_receipt": {
+    "lane": "linux_restore_fixture",
+    "outcome": "passed",
+    "run_id": "1209c990-43d6-444e-b22d-a92154fa046f",
+    "schema_version": 1,
+    "stages": [
+      "chain",
+      "preflight",
+      "database",
+      "cas",
+      "manifest",
+      "api"
+    ]
   }
 }

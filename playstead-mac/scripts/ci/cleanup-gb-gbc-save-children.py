@@ -181,11 +181,21 @@ def main() -> int:
     parser.add_argument("--profile-root", required=True)
     parser.add_argument("--preflight", action="store_true")
     args = parser.parse_args()
-    executable = Path(args.executable).resolve(strict=True)
+    executable = Path(args.executable).resolve(strict=False)
     try:
         profile = resolve_profile(args.profile_root)
     except ValueError as error:
         raise SystemExit(str(error))
+    if not executable.exists():
+        # A clean runner can have neither an installed adapter nor any child.
+        # An unlinked running executable is unsafe: require exact path absence
+        # in the process inventory before treating this as an empty cleanup.
+        if any(pid_path(row.pid) == str(executable) for row in process_rows()):
+            raise SystemExit("refusing child cleanup: missing executable has a live process")
+        result = ({"kind": "preflight", "stale_children": []} if args.preflight else
+                  {"kind": "cleanup", "profile_root": str(profile), "children": []})
+        print(json.dumps(result, sort_keys=True))
+        return 0
     if hashlib.sha256(executable.read_bytes()).hexdigest() != PINNED_SHA256:
         raise SystemExit("refusing child cleanup: managed mGBA executable digest changed")
     rows = process_rows()

@@ -99,6 +99,14 @@ jobs:
           dirname "$CHROMEDRIVER_PATH" >> "$GITHUB_PATH"
           python3 ../playstead-mac/scripts/ci/discover-browser-tests.py test/playstead_web/browser
 
+      - name: Match PostgreSQL dump client to the test service
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y postgresql-client-17
+          /usr/lib/postgresql/17/bin/pg_dump --version | grep -Eq '^pg_dump \(PostgreSQL\) 17\.'
+          echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"
+
       - run: mix precommit
         env:
           WALLABY_CHROME_BINARY: ${{ steps.chrome.outputs.chrome-path }}

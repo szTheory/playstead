@@ -346,7 +346,8 @@ def write_sanitized_fixtures(root: pathlib.Path) -> None:
 
 
 def run_evidence(directory: pathlib.Path, output: pathlib.Path, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
-    merged = dict(os.environ)
+    # Every run identity belongs to the test fixture, including absent fields.
+    merged = {key: value for key, value in os.environ.items() if not key.startswith("GITHUB_")}
     merged.update(env)
     return subprocess.run(
         ["python3", str(EVIDENCE), "--sanitized-dir", str(directory), "--output", str(output)],

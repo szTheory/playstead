@@ -261,7 +261,20 @@ defmodule Mix.Tasks.Playstead.Restore do
   defp await_source(_project, _file, 0), do: {:error, :source_database_unavailable}
 
   defp await_source(project, file, attempts) do
-    case source(project, file, ["exec", "-T", "db", "pg_isready", "-U", "restore_source"]) do
+    # The entrypoint's temporary initialization server listens only on a Unix
+    # socket. Probe TCP and the intended database before issuing fixture SQL.
+    case source(project, file, [
+           "exec",
+           "-T",
+           "db",
+           "pg_isready",
+           "-h",
+           "127.0.0.1",
+           "-U",
+           "restore_source",
+           "-d",
+           "restore_source"
+         ]) do
       :ok ->
         :ok
 

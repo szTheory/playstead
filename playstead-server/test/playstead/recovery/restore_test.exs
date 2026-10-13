@@ -645,6 +645,23 @@ defmodule Playstead.Recovery.RestoreTest do
     assert File.regular?(handoff)
     assert {:ok, stat} = File.stat(handoff)
     assert rem(stat.mode, 0o1000) == 0o600
+
+    parent = self()
+
+    assert :ok =
+             Restore.cleanup(
+               target_root: target_root,
+               handoff_output: handoff,
+               command_executor: fn command, args, _opts ->
+                 send(parent, {:retained_cleanup, command, args})
+                 {"", 0}
+               end
+             )
+
+    assert_receive {:retained_cleanup, "docker", args}
+    assert Enum.take(args, 3) == ["compose", "--project-name", receipt["target"]["project"]]
+    assert Enum.take(args, -3) == ["down", "--volumes", "--remove-orphans"]
+    refute File.exists?(target_root)
   end
 
   test "retained mode refuses fixture, relative, reused, and canonical inputs before Docker", %{

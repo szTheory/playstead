@@ -80,7 +80,7 @@ defmodule Playstead.Recovery.Restore do
          {:ok, receipt} <- read_receipt(handoff["receipt_path"]),
          :ok <- cleanup_matches?(handoff, receipt, opts),
          :ok <- cleanup_compose(handoff, opts),
-         :ok <- File.rm_rf(Keyword.fetch!(opts, :target_root)) do
+         {:ok, _removed_paths} <- File.rm_rf(Keyword.fetch!(opts, :target_root)) do
       :ok
     else
       {:error, _} = error -> error

@@ -66,6 +66,19 @@ class CleanupGBGBCChildrenTests(unittest.TestCase):
             )
             self.assertTrue(CLEANUP.is_exact_launch(command, executable, profile))
 
+    def test_absent_adapter_requires_no_process_at_its_exact_path(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            profile = Path(temporary) / "profile"
+            profile.mkdir()
+            executable = Path(temporary) / "missing" / "mGBA"
+            argv = [str(SCRIPT), "--executable", str(executable), "--profile-root", str(profile)]
+            with patch.object(sys, "argv", argv), patch.object(CLEANUP, "process_rows", return_value=[]):
+                self.assertEqual(0, CLEANUP.main())
+            row = CLEANUP.ProcessRow(101, "start-a", "unlinked executable")
+            with patch.object(sys, "argv", argv), patch.object(CLEANUP, "process_rows", return_value=[row]), patch.object(CLEANUP, "pid_path", return_value=str(executable.resolve())):
+                with self.assertRaisesRegex(SystemExit, "missing executable has a live process"):
+                    CLEANUP.main()
+
     def test_missing_profile_is_refused(self):
         with tempfile.TemporaryDirectory() as temporary:
             missing = Path(temporary) / "deleted-profile"
