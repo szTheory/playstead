@@ -43,7 +43,7 @@
     "live IGDB image rights grant"
   ],
   "source_sha256": {
-    ".github/workflows/ci.yml": "189d43a37409ed0a2a5d09baee9588c5126b10240aaf17514890061ef50b5193",
+    ".github/workflows/ci.yml": "4d1db81c2979837cfd39e763659fa246ee42321439569d6036853303ea4a4234",
     ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-00-PLAN.md": "effc28a36466de04aaa46b97ff371d74555dc1b3d942f6f5e958b1745ec4bc7b",
     ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-00-SUMMARY.md": "7ae6eae22a176981f065ff93e253b0b7c136895e98a9161585718114f264e051",
     ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-01-PLAN.md": "78f4ef44095c25e73696cff7a01f7ec850b1d9207951a31558da6598cd5febe9",
@@ -167,7 +167,10 @@
     "playstead-server/test/playstead/recovery/restore_test.exs": "55f868b9799687a88790c30712610a9ec4e92af5e3becb36985a3d7011490afc",
     "scripts/check-phase-summary-coverage.py": "fab8211985703788f5d1fdd052137535925d4ad98a7bdb96ed948a5aadf63b1c",
     "scripts/ci/media-decoder-evidence.py": "41f52eb2002324f07594722d80695b9372eb4ebaedc1c7811a19368f92691e79",
-    "scripts/tests/test_media_decoder_supply_chain.py": "35e07490fc41b3d542ff79bfa0fc52235aefa5d2eb908d27e658e9f05c4a7bcd"
+    "scripts/tests/test_media_decoder_supply_chain.py": "7b5a182edea173eaa565684e968badb97369dee809844b26ac0d33f980364179",
+    "playstead-server/ops/media-decoder/build/wolfi_repo_proxy.py": "e19c31643d7f42aa483392bee458fe35b47faea1aa971f17a68b9719661aba83",
+    "scripts/ci/media-decoder-supply-chain.sh": "a4ee40975f9951e260b3a690640337218b4f02dac7d1323df8da99d931f07442",
+    "scripts/tests/test_wolfi_repo_proxy.py": "8ba71dad79f685435b93d48a5508ad39848b84bd52a5b73729913a0b99eb5dd8"
   },
   "logs_sha256": {
     "phase-final-build.log": "aa87117cef03c791bad48eefddbc85dc994ff6639bf7427b75b3ff32810f005f",
@@ -201,7 +204,7 @@
       "failures": 0,
       "skips": 0
     },
-    "decoder_policy_tests": 11,
+    "decoder_policy_tests": 12,
     "shared_release_policy_tests": 28,
     "static_validator_tests": 91,
     "real_decoder_restore": "passed six production stages and exact cleanup",
@@ -222,9 +225,11 @@
         "api"
       ]
     },
-    "hosted_mac_setup": "install and validate ripgrep before static guards; composed positive/negative contract passes"
+    "hosted_mac_setup": "install and validate ripgrep before static guards; composed positive/negative contract passes",
+    "relay_qualification": "04.7-SHIP-RELAY-QUALIFICATION.json",
+    "relay_http_tests": 5
   },
-  "covered_digest": "v3:sha256:60ae16991420a09272e28e25bd35c56f2d872155d398d04833abb41e81a3711a",
+  "covered_digest": "v3:sha256:55181a129f8fd0fce179cb7c265e91f1043c2ea3fe58aaf8dcd29bd9bd747b0e",
   "log_sha256": {
     "phase-ci-repairs-static.log": "a9c213cd5c89461d2f17ff53cfa2e8a89ccc1d8b98deb964a9186341735995a3",
     "phase-ci-repairs-compile.log": "7f95425152a32b6e0c48d184d776fd2373280f0144e38b8deb759977dc69f574",
@@ -234,6 +239,11 @@
     "metadata-backup-cleanup-regression.log": "378e76a4a09de26eee4332bac914b108c570481301f81f943842f475f29cf0b2",
     "phase-restore-qualified.log": "923923919b6b0dafb1b7418a86a6304c14b81e1425fa4b492ab3b28c7812dead",
     "decoder-strict-revalidation.log": "3a385507b9895200afbd9efbcb5596ea95923abb5ded483a93eee1b9455e8055",
-    "phase-mac-static-prerequisite-contract.log": "a400182ab17bdee093dfdee7903088bf3c0b90f48925823889342589f7dbfa9f"
+    "phase-mac-static-prerequisite-contract.log": "a400182ab17bdee093dfdee7903088bf3c0b90f48925823889342589f7dbfa9f",
+    "wolfi-relay-http-tests.log": "f2876eac10acef42a393a07f5682213ca3625edd8ccbb2dddae9b397cc757fbd",
+    "decoder-archive-supply-chain-tests.log": "316d72d1d266e6d5ed038056b5bd91fdce6f4156570248ef1acfacc6b67eb25e",
+    "decoder-relay-build.log": "ecf50ec91aebff3484ea8143420af009be4d98e6de9d73ce491ad5f9f4c333df",
+    "decoder-relay-scan.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "decoder-relay-receipt.log": "d373ff48968acc566308f583e7789a1ad485e70907bea81ff4f335470b5707ac"
   }
 }

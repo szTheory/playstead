@@ -340,6 +340,14 @@ jobs:
         working-directory: .
         run: |
           set -euo pipefail
+          test -s scripts/tests/test_wolfi_repo_proxy.py
+          set +e
+          relay_output="$(python3 -m unittest discover -s scripts/tests -p 'test_wolfi_repo_proxy.py' -v 2>&1)"
+          relay_status=$?
+          set -e
+          printf '%s\n' "$relay_output"
+          test "$relay_status" -eq 0
+          printf '%s\n' "$relay_output" | grep -Eq '^Ran [1-9][0-9]* tests?'
           test -s scripts/tests/test_media_decoder_supply_chain.py
           set +e
           contract_output="$(python3 -m unittest discover -s scripts/tests -p 'test_media_decoder_supply_chain.py' -v 2>&1)"

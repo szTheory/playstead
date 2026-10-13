@@ -1,0 +1,40 @@
+{
+  "human_judgment": false,
+  "recorded_at": "2026-10-13T18:00:17.732784+00:00",
+  "hosted_failure_run": 38440427241,
+  "cause": "Relay cached GET omitted ETag while HEAD returned a remote version",
+  "fix": "One complete cached version and strong content ETag for HEAD/GET, including concurrent cold requests",
+  "http_tests": {
+    "executed": 5,
+    "failures": 0
+  },
+  "archive_scan_contract_tests": {
+    "executed": 12,
+    "failures": 0
+  },
+  "docker_build": "genuine build from unchanged qualified signed APKs and current corrected context",
+  "image_id": "sha256:7aa28a5944542a0f9df9f2d380942612c897c129b8493990f7c4f6202ff7ce37",
+  "context_sha256": "01a98f589effe152705c4bec951afb653a5c1ee39f04292a9c6ecc4123acd221",
+  "scan": {
+    "fixable_high_critical": 0,
+    "high_critical": 0,
+    "license_policy": "passed",
+    "prohibited_licenses": 0,
+    "runtime_packages": 22,
+    "status": "passed",
+    "subject_sha256": "01a98f589effe152705c4bec951afb653a5c1ee39f04292a9c6ecc4123acd221",
+    "targets_discovered": 3,
+    "unfixed_high_critical": 0
+  },
+  "scanner": "Trivy 0.75.0, exported actual Docker image archive",
+  "scan_report_sha256": "cdf2c27e81209bba5500c4cbf9b35d90da8bc915b75008155704cd8397c4a3bd",
+  "receipt_sha256": "e36139001c9a56118e8b8910f5ebb5931975bc1376aa7c4f80f019b427b72c21",
+  "runtime_delta": "none; Docker build emitted the same immutable image ID",
+  "source_compilation_lineage": "Retain signed APK/source/tool provenance because package recipes and runtime inputs are unchanged; hosted x86_64 build remains its own pending qualification",
+  "automatic_review_rejection": "Socket-mounted third-party scanner rejected for broad host control; safely resolved through archive input",
+  "not_claimed": [
+    "new native UI or live journey",
+    "hosted x86_64 build success",
+    "additional independent review"
+  ]
+}

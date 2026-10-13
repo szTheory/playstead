@@ -37,12 +37,15 @@ IMAGE_ID="$(cat "$RAW_DIR/image-id")"
 [[ "$IMAGE_ID" =~ ^sha256:[0-9a-f]{64}$ ]]
 test "$(docker image inspect --format '{{.Id}}' "$IMAGE_TAG")" = "$IMAGE_ID"
 
+# Export only the selected image. The third-party scanner receives no Docker
+# socket and cannot control unrelated host containers or images.
+docker image save --output "$RAW_DIR/decoder-image.tar" "$IMAGE_ID"
 docker run --rm \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v "$REPO_ROOT:/work:ro" -v "$RAW_DIR:/raw" -v "$TRIVY_CACHE:/root/.cache/" \
-  "$TRIVY_IMAGE" image --config /work/scripts/ci/trivy.yaml \
+  -v "$REPO_ROOT/scripts/ci/trivy.yaml:/trivy-config.yaml:ro" \
+  -v "$RAW_DIR:/raw" -v "$TRIVY_CACHE:/root/.cache/" \
+  "$TRIVY_IMAGE" image --config /trivy-config.yaml \
   --scanners vuln,license --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL \
-  --format json --output /raw/decoder-trivy.json "$IMAGE_ID"
+  --input /raw/decoder-image.tar --format json --output /raw/decoder-trivy.json
 
 python3 scripts/ci/media-decoder-evidence.py create \
   --report "$RAW_DIR/decoder-trivy.json" --output "$OUTPUT_DIR" \

@@ -22,35 +22,42 @@ class Handler(BaseHTTPRequestHandler):
         rel = path.removeprefix(prefix)
         cache_file = Path(self.server.cache_dir) / hashlib.sha256(rel.encode()).hexdigest()
         try:
-            if method == "GET" and cache_file.is_file():
-                size = cache_file.stat().st_size
+            if not cache_file.is_file():
+                # Materialize one complete response before exposing its identity.
+                # HEAD and GET must describe the same cached bytes even when the
+                # public repository index changes between package builds.
+                req = Request(UPSTREAM + "/" + rel, method="GET",
+                              headers={"User-Agent": "playstead-media-decoder-build/1"})
+                with urlopen(req, timeout=60) as response:
+                    fd, temporary = tempfile.mkstemp(dir=self.server.cache_dir, prefix=".fetch-")
+                    try:
+                        with os.fdopen(fd, "wb") as target:
+                            while block := response.read(1024 * 1024):
+                                target.write(block)
+                        try:
+                            # Concurrent cold requests publish only the first
+                            # complete version; never replace bytes described
+                            # by another request's HEAD response.
+                            os.link(temporary, cache_file)
+                        except FileExistsError:
+                            pass
+                    finally:
+                        if os.path.exists(temporary):
+                            os.unlink(temporary)
+            # This relay is its own HTTP origin. A strong content ETag also
+            # supports legacy cached files whose upstream headers were lost.
+            digest = hashlib.sha256()
+            with cache_file.open("rb") as source:
+                while block := source.read(1024 * 1024):
+                    digest.update(block)
                 self.send_response(200)
-                self.send_header("Content-Length", str(size))
+                self.send_header("Content-Length", str(os.fstat(source.fileno()).st_size))
+                self.send_header("ETag", '"' + digest.hexdigest() + '"')
                 self.end_headers()
-                with cache_file.open("rb") as source:
+                if method == "GET":
+                    source.seek(0)
                     while block := source.read(1024 * 1024):
                         self.wfile.write(block)
-                return
-            req = Request(UPSTREAM + "/" + rel, method=method,
-                          headers={"User-Agent": "playstead-media-decoder-build/1"})
-            with urlopen(req, timeout=60) as response:
-                self.send_response(response.status)
-                for name in ("Content-Type", "ETag", "Last-Modified", "Cache-Control", "Content-Length"):
-                    if name in response.headers:
-                        self.send_header(name, response.headers[name])
-                self.end_headers()
-                if method == "HEAD":
-                    return
-                fd, temporary = tempfile.mkstemp(dir=self.server.cache_dir, prefix=".fetch-")
-                try:
-                    with os.fdopen(fd, "wb") as target:
-                        while block := response.read(1024 * 1024):
-                            target.write(block)
-                            self.wfile.write(block)
-                    os.replace(temporary, cache_file)
-                finally:
-                    if os.path.exists(temporary):
-                        os.unlink(temporary)
         except HTTPError as error:
             self.send_error(error.code)
         except (URLError, TimeoutError, OSError) as error:

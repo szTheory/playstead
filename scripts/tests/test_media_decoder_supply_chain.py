@@ -105,6 +105,13 @@ class DecoderSupplyChainTests(unittest.TestCase):
             out / "decoder-scan-receipt.json", out / "decoder-trivy.json", self.context, self.image_id
         )["image_id"])
 
+    def test_scanner_reads_only_the_exported_selected_image(self):
+        source = (ROOT / "scripts/ci/media-decoder-supply-chain.sh").read_text()
+        self.assertNotIn("/var/run/docker.sock", source)
+        self.assertIn('docker image save --output "$RAW_DIR/decoder-image.tar" "$IMAGE_ID"', source)
+        self.assertIn("--input /raw/decoder-image.tar", source)
+        self.assertNotIn('-v "$REPO_ROOT:/work', source)
+
     def test_production_compose_requires_verified_immutable_image_reference(self):
         compose = (ROOT / "playstead-server/docker-compose.yml").read_text()
         decoder_service = compose.split("  media-decoder:\n", 1)[1].split("\n  caddy:", 1)[0]
