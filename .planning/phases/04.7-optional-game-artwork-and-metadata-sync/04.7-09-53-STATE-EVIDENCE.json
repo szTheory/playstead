@@ -1,0 +1,52 @@
+{
+  "recorded_at": "2026-10-13T12:44:38.062144+00:00",
+  "human_judgment": false,
+  "status": "passed",
+  "states": 53,
+  "required_test_identities": 2,
+  "executed_once_per_identity": true,
+  "skips": 0,
+  "settings": {
+    "identity": "PlaysteadUITests.MetadataConsentUITests/testAllFortyFiveMetadataSettingsStatesExposeTheirOwnMeaningAndUsableAction",
+    "states": 45,
+    "result": "passed",
+    "seconds": 122.61957895755768,
+    "run": "selected-ui.ih0sGQ",
+    "receipt": "04.7-09-SETTINGS-PASS-CORRECTION-ATTEMPT.json",
+    "unchanged_relevant_source_verified": true
+  },
+  "correction": {
+    "run": "selected-ui.ACBya9",
+    "identity": "PlaysteadUITests.MetadataCorrectionUITests/testAllEightCorrectionStatesRenderProvenanceConflictsAndEnabledActions",
+    "states": 8,
+    "result": "passed",
+    "required": 1,
+    "executed": 1,
+    "failures": 0,
+    "skips": 0,
+    "seconds": 48.052667021751404,
+    "oracle": "Native source/action predicates across8states; real first title save leaves description provenance unchanged; second description save renders exact Second correction text and user provenance"
+  },
+  "source_sha256": {
+    "playstead-mac/Playstead/Settings/MetadataSettingsView.swift": "aefbbdffc6b69efd52bc8ad2f10cec881b9c2e1a7b65ec999eb146631861a49a",
+    "playstead-mac/PlaysteadUITests/MetadataConsentUITests.swift": "e4dbd4e6bd9ac58ac2fd73632e9475f976266421c9deac3a92c063063f94242f",
+    "playstead-mac/PlaysteadUITests/MetadataCorrectionUITests.swift": "610a6fd2682fc296d3dc64c7c7a7aeca2a66df79c211f96a75be7295f8b58b05",
+    "playstead-mac/Playstead/Library/MetadataCorrectionView.swift": "d278f0823f9a42ccb320fc18744024aaad4134975100f1235ea33f087b92640c",
+    "playstead-mac/Playstead/Library/GameDetailView.swift": "c6d3d10dd611bd3938c3384a5004c60930bb3654619fd1061e58affa4871a8e8",
+    "playstead-mac/Playstead/UITesting/UITestBootstrap.swift": "e438221f2039cbd1a616620e2c55eaa489f621cd0463b597af42397a2a31f572",
+    "playstead-mac/Playstead/App/PlaysteadApp.swift": "db9852d283d8d60ac47fd1dade55448842bbac4d28509da863e97d0bf26830fd",
+    "playstead-mac/Playstead/Persistence/MetadataStore.swift": "da60246a309729ede8391e96fd42f7059f8a1335ebb77a96803aea317e35aa7f"
+  },
+  "correction_artifacts": {
+    "playstead-mac/.build/ci/selected-ui.ACBya9/raw/ui-tests.json": "55f6d50f9b39ec98bd7793d7c643f8b908905a4d9aaabad7af2a626b9ab7e7d9",
+    "playstead-mac/.build/ci/selected-ui.ACBya9/raw/ui.log": "c93c0aca1a3d508d3f1212da8ad353802fce9526082f229bb6265420d29b1fd7",
+    "playstead-mac/.build/ci/selected-ui.ACBya9/raw/verification.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "cleanup": "Exact task app and runner inventory empty after wrapper exit0; two-minute foreground window released within~75sec",
+  "remaining": [
+    "Live journey after qualified decoder",
+    "Rendering smoke replacement",
+    "Final phase gates"
+  ],
+  "next_command": "$gsd-execute-phase 4.7"
+}

@@ -5,6 +5,7 @@ import Foundation
 struct OutboxDrainResult: Equatable, Sendable {
     var sent = 0
     var rejected = 0
+    var conflicted = 0
     /// `true` once this pass hit a transport/5xx/409 failure and stopped
     /// rather than racing ahead of that entry — entries must always send
     /// in the creation order they were enqueued in.
@@ -46,6 +47,7 @@ struct OutboxDrainResult: Equatable, Sendable {
 actor OutboxWorker {
     private let apiClient: APIClient
     private let outbox: Outbox
+    private let metadataStore: MetadataStore?
     /// Called after a successful send, before the entry is deleted —
     /// `PlaySessionRecorder` (plan 03-08 task 3) uses this to mark its
     /// own `play_sessions_pending` row delivered, since that table is
@@ -64,11 +66,13 @@ actor OutboxWorker {
     init(
         apiClient: APIClient,
         outbox: Outbox,
+        metadataStore: MetadataStore? = nil,
         onEntryDelivered: (@Sendable (CurationIntent) -> Void)? = nil,
         onDestructiveRejection: (@Sendable () -> Void)? = nil
     ) {
         self.apiClient = apiClient
         self.outbox = outbox
+        self.metadataStore = metadataStore
         self.onEntryDelivered = onEntryDelivered
         self.onDestructiveRejection = onDestructiveRejection
     }
@@ -136,6 +140,22 @@ actor OutboxWorker {
                 try outbox.markDone(entry.id)
                 result.sent += 1
             } catch let error as APIClientError {
+                if case .server(let apiError) = error,
+                   let conflict = apiError.metadataConflict,
+                   case .metadataCorrection(let assetSetID, _, _, _) = intent,
+                   let metadataStore {
+                    do {
+                        try metadataStore.recordConflict(conflict, assetSetID: assetSetID)
+                        try outbox.markConflicted(entry.id)
+                    } catch {
+                        try? outbox.markPendingForRetry(entry, at: now)
+                        result.stoppedForRetry = true
+                        return result
+                    }
+                    result.conflicted += 1
+                    result.stoppedForRetry = true
+                    return result
+                }
                 if case .server(let apiError) = error, isPermanentRejection(apiError) {
                     do {
                         try outbox.markRejected(entry.id, intent: intent, code: apiError.code)

@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "phase": "04.7",
+  "plan": "09",
+  "human_judgment": false,
+  "status": "pass",
+  "run": "playstead-mac/.build/ci/selected-unit.ei0zSI",
+  "executed": 18,
+  "failed": 0,
+  "skipped": 0,
+  "identities": [
+    "MetadataAPIContractTests/testConsentSendsOnlyDisclosedTitleAndSystemAndRevocationSendsNoBody()",
+    "MetadataAPIContractTests/testPrivateMediaBoundsAndDecodeFailuresAreRejectedBeforeAnyRequest()",
+    "MetadataAPIContractTests/testProviderSearchRejectionIsPreservedAsServerConsentGate()",
+    "MetadataCoordinatorContractTests/testCoordinatorFieldSelectionAndProviderResetUpdateTheLocalMirrorByRevision()",
+    "MetadataCoordinatorContractTests/testCoordinatorPreparationEstimateJobsCacheAndReclaimUseServerState()",
+    "MetadataCoordinatorContractTests/testCoordinatorPreservesServerConsentRejectionWithoutCreatingCandidates()",
+    "MetadataCoordinatorContractTests/testCoordinatorRequiresPreviewConsentAndDecodesZeroOneAndManySuggestions()",
+    "MetadataCoordinatorContractTests/testHeldPreviewPublishesNoCompletedStateUntilAuthenticatedResponseArrives()",
+    "MetadataCoordinatorContractTests/testPreviewPublishesCredentialReadinessAndChangedDisclosureRevision()",
+    "MetadataJournalTests/testJournalMirrorRetainsSelectionsEvidenceConflictsAndTombstones()",
+    "MetadataMediaCacheTests/testCacheValidatesDigestBoundsOfflineHitExpiryAndPinnedCapacity()",
+    "MetadataOutboxTests/testJournalPageRollbackAndResetPreserveLocalCacheState()",
+    "MetadataOutboxTests/testMetadataCorrectionIsOptimisticDurableAndReplaysWithStableIdempotencyKey()",
+    "MetadataOutboxTests/testServerConflictKeepsBothAlternativesAndExplicitResolutionUsesCurrentRevision()",
+    "MetadataTracerTests/testDescriptionJournalAndCursorCommitTogetherAndReplayIsStable()",
+    "MetadataTracerTests/testMetadataAndCursorRollbackTogetherWhenPageApplyFails()",
+    "MetadataTracerTests/testSnapshotResetRebuildsMetadataAndLegacySnapshotMayOmitBranch()",
+    "MetadataTracerTests/testSQLiteTransactionNotificationDoesNotWaitForMainActor()"
+  ],
+  "result_sha256": "becbba8dedff4c2ee47f915507c6caa38f5b75e965a5fcd605b55dd86d039040",
+  "source_sha256": {
+    "playstead-mac/Playstead/App/PlaysteadApp.swift": "db9852d283d8d60ac47fd1dade55448842bbac4d28509da863e97d0bf26830fd",
+    "playstead-mac/Playstead/Persistence/MetadataStore.swift": "da60246a309729ede8391e96fd42f7059f8a1335ebb77a96803aea317e35aa7f",
+    "playstead-mac/Playstead/Metadata/MetadataCoordinator.swift": "586bd056f6a678cbccb812ffb1c8e38269ae6f511ebb798dbb7174bff425b616",
+    "playstead-mac/Playstead/Sync/MetadataAPI.swift": "37f211f5db6f8b0e98e63424852a85999a1d4507a65ffb534ed402d89311e96f",
+    "playstead-mac/Playstead/Sync/Outbox.swift": "388e14373040d06ffa40bad97074605a5a7219e7d16d40f17ef4675494dedfe3",
+    "playstead-mac/Playstead/Cache/MetadataMediaCache.swift": "ac73afa0aa6a9d55416c1b35cb2b6168b0dad987e220b9fbd82b8ccba11eb5ae"
+  },
+  "scope": "production metadata store/coordinator/API/outbox/cache; Settings AX changes after this run require packaged proof"
+}

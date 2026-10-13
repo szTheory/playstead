@@ -1,0 +1,10 @@
+{
+  "command": "cd playstead-server && PLAYSTEAD_EXUNIT_TAP_PATH=/private/tmp/04-7-05-red.tap mix test --trace --formatter Playstead.TestSupport.ExUnitTapFormatter test/playstead/metadata/enrichment_worker_test.exs",
+  "exitCode": 2,
+  "output": "TAP version 13\nnot ok 1 - Playstead.Metadata.EnrichmentWorkerTest::coalesces consented browse into one durable job and records its resumable state\n1..1\n",
+  "targetTest": "Playstead.Metadata.EnrichmentWorkerTest::coalesces consented browse into one durable job and records its resumable state",
+  "targetFile": "playstead-server/test/playstead/metadata/enrichment_worker_test.exs",
+  "expected": "A consented balanced browse returns one persisted enrichment job and a repeated request coalesces to that same job.",
+  "actual": "The target assertion failed because EnrichmentWorker.enqueue/3 returned {:error, :not_implemented}.",
+  "semanticAssessment": "RED is valid: ExUnit discovered and executed the named test, and its planned match assertion failed on the intentional scaffold result. No load, syntax, fixture, or unrelated test failure occurred."
+}

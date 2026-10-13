@@ -105,12 +105,22 @@ defmodule Playstead.Export.BagitWriter do
     set_entries =
       Enum.flat_map(sets, fn set_plan ->
         Enum.map(set_plan.members, &write_member!(target_dir, &1)) ++
-          write_saves_payload!(target_dir, set_plan)
+          write_saves_payload!(target_dir, set_plan) ++
+          write_private_media!(target_dir, set_plan)
       end)
 
     quarantine_entries = Enum.map(quarantine, &write_quarantine_member!(target_dir, &1))
 
     (set_entries ++ quarantine_entries) |> Enum.sort_by(& &1.relative)
+  end
+
+  defp write_private_media!(target_dir, set_plan) do
+    Enum.map(Map.get(set_plan, :private_media, []), fn media ->
+      relative = Path.join("data", media.relative)
+      {:ok, full_path} = Sanitize.safe_join(target_dir, relative)
+      write_payload!(full_path, media.sha256)
+      %{relative: relative, sha256: media.sha256, size_bytes: media.size_bytes}
+    end)
   end
 
   # D-61: a revision whose bytes never uploaded is written into the

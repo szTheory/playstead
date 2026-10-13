@@ -16,6 +16,7 @@ enum OutboxEntryState: String, Equatable {
     case pending
     case inFlight = "in_flight"
     case rejected
+    case conflicted
     /// Retried `Outbox.maxAttempts` times with no success and no
     /// permanent rejection either — a poison message (P4-CR-003).
     /// Excluded from `listPending()` so it stops being retried
@@ -69,6 +70,7 @@ class Outbox {
 
     private let localStore: LocalStore
     private let curationStore: CurationStore
+    private let metadataStore: MetadataStore?
 
     /// Invoked (on the caller's thread) immediately after a successful
     /// `enqueue` commits. The composition root (`AppEnvironment`) wires
@@ -80,9 +82,10 @@ class Outbox {
     /// shipped app in the first place.
     var onEnqueue: (@Sendable () -> Void)?
 
-    init(localStore: LocalStore, curationStore: CurationStore) {
+    init(localStore: LocalStore, curationStore: CurationStore, metadataStore: MetadataStore? = nil) {
         self.localStore = localStore
         self.curationStore = curationStore
+        self.metadataStore = metadataStore
     }
 
     /// Exponential backoff for the `attempt`th retry (1-indexed), capped
@@ -120,7 +123,14 @@ class Outbox {
 
         var enqueueSequence: Int?
         try localStore.transaction {
-            try intent.applyOptimistically(to: self.curationStore, at: now)
+            try intent.applyOptimistically(to: self.curationStore, metadataStore: self.metadataStore, at: now)
+
+            if case .metadataCorrection(let assetSetID, let field, _, _) = intent {
+                try self.localStore.connection.execute(
+                    "UPDATE outbox_entries SET state = 'rejected', last_error_code = 'explicitly_resolved' WHERE state = 'conflicted' AND kind = ? AND json_extract(payload_json, '$.asset_set_id') = ? AND json_extract(payload_json, '$.metadata_field') = ?;",
+                    params: [CurationIntentKind.metadataCorrection.rawValue, assetSetID, field]
+                )
+            }
 
             // WR-05 (plan 03-16 gap closure): for a kind whose
             // `supersedesPending` is true, any row of that same kind
@@ -185,6 +195,19 @@ class Outbox {
             state: .pending, attemptCount: 0, createdAt: createdAt, lastErrorCode: nil, nextRetryAt: nil,
             enqueueSequence: enqueueSequence
         )
+    }
+
+    /// Starts or explicitly resolves an owner metadata correction. The
+    /// field revision is captured from the local server mirror and the same
+    /// transaction persists both the optimistic value and durable intent.
+    @discardableResult
+    func setMetadata(assetSetID: String, field: String, value: JSONValue, at now: Date = Date()) throws -> OutboxEntry {
+        guard let metadataStore else { throw MetadataStoreError.invalidSelection }
+        let current = metadataStore.selection(for: assetSetID)
+        let baseRevision = current?.revision(forField: field) ?? 0
+        return try enqueue(.metadataCorrection(
+            assetSetID: assetSetID, field: field, value: value, baseRevision: baseRevision
+        ), at: now)
     }
 
     /// Every `pending` entry that is actually due to send — oldest-created
@@ -462,12 +485,19 @@ class Outbox {
     /// it can be surfaced to the user rather than silently discarded.
     func markRejected(_ entryID: String, intent: CurationIntent, code: String) throws {
         try localStore.transaction {
-            try intent.revertOptimistic(from: self.curationStore)
+            try intent.revertOptimistic(from: self.curationStore, metadataStore: self.metadataStore)
             try self.localStore.connection.execute(
                 "UPDATE outbox_entries SET state = 'rejected', last_error_code = ?, next_retry_at = NULL WHERE id = ?;",
                 params: [code, entryID]
             )
         }
+    }
+
+    func markConflicted(_ entryID: String) throws {
+        try localStore.connection.execute(
+            "UPDATE outbox_entries SET state = 'conflicted', last_error_code = 'metadata_conflict', next_retry_at = NULL WHERE id = ?;",
+            params: [entryID]
+        )
     }
 
     /// The generic transactional shape `enqueue` above hard-codes for

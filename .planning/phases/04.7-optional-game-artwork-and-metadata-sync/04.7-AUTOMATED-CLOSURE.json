@@ -1,0 +1,29 @@
+{
+  "phase": "4.7",
+  "recorded_at": "2026-10-13T14:23:12.193610+00:00",
+  "status": "complete",
+  "human_judgment": false,
+  "plans": "10/10",
+  "verification": "38/38passed; CLIverification.statuspassed",
+  "requirement": "META-01 promotedtoapprovedv1scope andregistered Phase4.7/Complete",
+  "phase_complete_cli": "completed4.7; next3 routing corrected to$gsd-ship under ownerparked-lane rule; table0/0 corrected10/10",
+  "parser_warnings": "Summarycommands, monorepo-relativepaths andbracepathshorthand were reportedasmissingfiles. Actualsource/targets verified bygoalverifier andrequiredCIguards; these areformatter/parserlimitations, not missingproductionartifacts. No summaryproof was rewritten or testfabricated.",
+  "advisories": {
+    "code": "WR02inheritedCASpublicationcrashboundary deferred",
+    "ui": "six advisoryfindings,17/24score,0blockers",
+    "legacy_summary_guard": "fourunrelatedlegacydocs lackYAML; thisphase10/10classifiable"
+  },
+  "cleanup": {
+    "task_apps_and_runners": 0,
+    "native_decoder_containers": 0,
+    "native_decoder_networks": 0,
+    "native_services_root_exists": false,
+    "foreground_windows": "released",
+    "test_databases": "Exact root-owned18470\u201318482dropped/absent; fullLivewrapperisolatednativeDB removed",
+    "profiles_and_credentials": "Livewrapperteardown plus04.7-09-INTERRUPTED-PROFILE-CLEANUP.json; no personal-profilelaunch counted",
+    "intentional_retention": "Qualified immutabledecoderimage/generatedpublicsourceinputs andexistingignoredDerivedData/SwiftPM caches; no globalprune"
+  },
+  "next_command": "$gsd-ship",
+  "parked_lanes_unchanged": true,
+  "global_tracking_staging": "Commit onlyphase-ownedsnapshot/hunks; retain other ownerglobal edits in workingtree."
+}

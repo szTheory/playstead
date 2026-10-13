@@ -8,6 +8,8 @@ defmodule Playstead.Export.Verifier do
   to do about it.
   """
 
+  alias Playstead.Export.{Sanitize, Sidecar}
+
   @chunk_size 1_048_576
 
   @doc """
@@ -31,12 +33,53 @@ defmodule Playstead.Export.Verifier do
       end)
       |> Enum.map(& &1.relative)
 
+    media_mismatches = verify_private_media(target_dir)
+    mismatches = Enum.uniq(mismatches ++ media_mismatches)
+
     if mismatches == [] do
       {:ok, %{checked: length(entries)}}
     else
       {:error, {:mismatches, mismatches}}
     end
   end
+
+  defp verify_private_media(target_dir) do
+    target_dir
+    |> Path.join("tags/**/playstead-set.json")
+    |> Path.wildcard()
+    |> Enum.flat_map(fn sidecar_path ->
+      case File.read(sidecar_path) do
+        {:ok, content} ->
+          case Sidecar.parse(content) do
+            {:ok, sidecar} ->
+              Enum.map(Map.get(sidecar, "media", []), &verify_media_entry(target_dir, &1))
+
+            :ignore ->
+              []
+          end
+
+        {:error, _} ->
+          []
+      end
+    end)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp verify_media_entry(target_dir, %{"path" => path, "sha256" => sha, "size_bytes" => size})
+       when is_binary(path) and is_binary(sha) and is_integer(size) and size >= 0 do
+    safe? = Path.type(path) == :relative and not Enum.member?(Path.split(path), "..")
+
+    with true <- safe?,
+         {:ok, full_path} <- Sanitize.safe_join(target_dir, path),
+         {:ok, %{size: ^size}} <- File.stat(full_path),
+         true <- matches?(full_path, sha) do
+      nil
+    else
+      _ -> "invalid-private-media:#{path}"
+    end
+  end
+
+  defp verify_media_entry(_target_dir, _entry), do: "invalid-private-media-entry"
 
   defp manifest_entries(target_dir, manifest_name) do
     path = Path.join(target_dir, manifest_name)

@@ -27,6 +27,7 @@ enum SyncState: Equatable {
 private struct SnapshotEnvelope: Decodable {
     let catalogue: [CatalogueEntry]
     let curation: [JSONValue]
+    let metadata: [JSONValue]
     /// D-17: the mandatory `save:` branch -- an empty array (never a
     /// missing key) is what a user with no saves sends; decoded as a
     /// default-empty list here too, so an older server pin (predating
@@ -37,7 +38,7 @@ private struct SnapshotEnvelope: Decodable {
     let nextAfterID: String?
 
     private enum CodingKeys: String, CodingKey {
-        case catalogue, curation, save, cursor
+        case catalogue, curation, save, metadata, cursor
         case hasMore = "has_more"
         case nextAfterID = "next_after_id"
     }
@@ -47,6 +48,7 @@ private struct SnapshotEnvelope: Decodable {
         catalogue = try container.decode([CatalogueEntry].self, forKey: .catalogue)
         curation = try container.decode([JSONValue].self, forKey: .curation)
         save = try container.decodeIfPresent([JSONValue].self, forKey: .save) ?? []
+        metadata = try container.decodeIfPresent([JSONValue].self, forKey: .metadata) ?? []
         cursor = try container.decode(String.self, forKey: .cursor)
         hasMore = try container.decode(Bool.self, forKey: .hasMore)
         nextAfterID = try container.decodeIfPresent(String.self, forKey: .nextAfterID)
@@ -67,6 +69,7 @@ actor SyncEngine {
     private let catalogueStore: CatalogueStore
     private let curationStore: CurationStore
     private let saveStore: SaveStore
+    private let metadataStore: MetadataStore
     private let journalApplier: JournalApplier
 
     private(set) var state: SyncState = .neverSynced
@@ -83,6 +86,7 @@ actor SyncEngine {
         self.catalogueStore = CatalogueStore(localStore: localStore)
         self.curationStore = CurationStore(localStore: localStore)
         self.saveStore = SaveStore(localStore: localStore)
+        self.metadataStore = MetadataStore(localStore: localStore)
         self.journalApplier = JournalApplier(
             catalogueStore: catalogueStore,
             curationStore: curationStore,
@@ -90,7 +94,8 @@ actor SyncEngine {
             saveBytesPrefetcher: CacheObjectsSaveBytesPrefetcher(
                 localStore: localStore,
                 onPrefetchNeeded: onSaveBytesPrefetch
-            )
+            ),
+            metadataStore: metadataStore
         )
     }
 
@@ -187,10 +192,9 @@ actor SyncEngine {
 
             try localStore.transaction {
                 self.journalApplier.apply(page.entries)
+                try self.cursorStore.store(OpaqueCursor(rawValue: page.cursor), syncedAt: Date())
             }
-
             let newCursor = OpaqueCursor(rawValue: page.cursor)
-            try cursorStore.store(newCursor, syncedAt: Date())
             current = newCursor
 
             if !page.hasMore { break }
@@ -216,6 +220,7 @@ actor SyncEngine {
         // snapshot could know about, so wiping local save state on a
         // reset would destroy exactly the bytes D-06 exists to protect.
         var saveAccum: [JournalEntry] = []
+        var metadataAccum: [JournalEntry] = []
         var pinnedCursor: String?
         var afterID: String?
         var finalCursor = ""
@@ -228,6 +233,7 @@ actor SyncEngine {
             catalogueAccum.append(contentsOf: page.catalogue)
             curationAccum.append(contentsOf: page.curation.compactMap(Self.synthesizedCurationEntry(from:)))
             saveAccum.append(contentsOf: page.save.compactMap(Self.synthesizedSaveEntry(from:)))
+            metadataAccum.append(contentsOf: MetadataAPI.snapshotSelections(from: page.metadata))
 
             if page.hasMore, let next = page.nextAfterID {
                 afterID = next
@@ -239,14 +245,15 @@ actor SyncEngine {
         try localStore.transaction {
             try self.catalogueStore.clearAll()
             try self.curationStore.clearAll()
+            try self.metadataStore.clearAll()
             for entry in catalogueAccum {
                 try self.catalogueStore.upsert(entry)
             }
             self.journalApplier.apply(curationAccum)
             self.journalApplier.apply(saveAccum)
+            self.journalApplier.apply(metadataAccum)
+            try self.cursorStore.store(OpaqueCursor(rawValue: finalCursor), syncedAt: Date())
         }
-
-        try cursorStore.store(OpaqueCursor(rawValue: finalCursor), syncedAt: Date())
     }
 
     private func fetchSnapshotEnvelope(cursor: String?, afterID: String?) async throws -> SnapshotEnvelope {

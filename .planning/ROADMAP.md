@@ -17,7 +17,7 @@ This MVP proves one trustworthy Mac-to-server custody and continuity journey: de
 - [x] **Phase 3.5: Mac Verification Automation** - Stand up macOS CI and a UI-test harness so Mac client behavior is machine-verified instead of hand-checked. (completed 2026-09-03)
 - [x] **Phase 4: Persistent Save Continuity** - Preserve compatible progress through offline queues, immutable revisions, restore, and conflict recovery. (completed 2026-09-09)
 - [x] **Phase 4.5: Mac Pairing Ceremony** - Ship the client half of pairing so a human can actually pair a Mac, unblocking every checkpoint that needs a paired device. (completed 2026-09-10)
-- [x] **Phase 4.6: Game Boy and Game Boy Color play and persistent saves** (INSERTED) - Extend the pinned adapter with cartridge-qualified battery/RTC continuity and automated fresh-profile restore proof. (completed 2026-10-12)
+- [x] **Phase 4.7: Optional game artwork and metadata sync** (INSERTED) - Enrich the private library with truthful artwork, descriptions and screenshots through optional bounded sync that preserves offline play. (completed 2026-10-13)
 - [ ] **Phase 5: Recovery and Release Proof** - Demonstrate independently backed-up recovery, safe updates, diagnostics, and release-quality operations.
 - [x] **Phase 5.1: Digest-bound Supply-chain Verification** - Advance recurring scanner, parser-fixture, SBOM, and artifact-attestation evidence without waiting for retained-game restore. (completed 2026-10-10)
 - [ ] **Phase 6: Recovery Proof CI and E2E Pipeline** - Turn repeatable recovery evidence into fixture-driven automated proof, including a scoped deterministic continuation spike.
@@ -148,7 +148,7 @@ Plans:
   5. A user can connect, test, assign, remap, reset, and recover a controller while retaining keyboard, pointer, screen-reader, focus, and reduced-motion fallbacks; from a signed/notarized build they can launch, exit, and relaunch one legally testable game after app or server restart.
 
 **Research / spike flags**: Required Mac adapter gate before commitment: empirically choose the first system/emulator and direct-notarized versus sandboxed distribution posture using legal homebrew content. Demonstrate Keychain, external-process launch/recovery, controller recovery, BIOS handling, and safe persistent-save location/flush; do not promise the current GBA/mGBA hypothesis until this passes.
-**Plans**: 30/31 have summaries. Plan 03-30 is held at the owner-directed Apple approval/provisioning gate; Plan 03-31 is complete. Phase verification remains `gaps_found` (4/5 roadmap truths), with physical PLAY-04 evidence still open.
+**Plans**: 19/24 plans executed (17 complete, 1 halted on the owner-directed Virtual HID wait, 6 pending)
 
 Plans:
 **Wave 1**
@@ -194,37 +194,30 @@ Plans:
 - [x] 03-15-PLAN.md — LIBR-02 real signal: missing_dependency computed from catalogue membership, CAS presence, download-queue rows, and the pin flag, proved through buildEntries and through the real HTTP endpoint with one shared report fixture
 - [x] 03-16-PLAN.md — WR-04's 422 shape guard, WR-05's newest-wins outbox supersede, and the LIBR-02 requirement flip gated on the Mac-client-driven tests
 
-**Virtual HID remains a separate OS-level evidence gate.** The latest hosted attempt stopped before UI launch because the runner lacked a provisioning profile; it did not establish an Apple rejection or HID runtime result. Completed 03-25 provides a finite UI_TESTING-only source on the ordinary no-HID lane. Plans 03-18 and 03-23 now use that source for packaged app recovery and mapping; 03-21 records saved app-level and objective accessibility evidence, but leaves G-03-8/9/10, PLAY-04, and Phase 03 open. The 03-17 entitled hosted run and paired-DualSense visible-navigation walkthrough are separate evidence lanes. Simulated results cannot establish GameController enumeration, entitlement qualification, or physical behavior. See [the owner-use and Virtual HID note](../notes/2026-09-24-first-adopter-and-virtual-hid-wait.md).
+**Owner-directed external wait — Virtual HID:** the test-only virtual-device entitlement and hosted runner are still unqualified. Do not poll Apple or assume approval; resume only when the owner reports Apple's response. This wait applies to virtual-HID qualification/recovery (03-17/03-18) and the virtual-device mapping lifecycle portion (03-23), not to the production GameController input bridge or first-adopter library navigation. Owner priority is to execute 03-22 and then 03-19 using deterministic input-source tests plus a real DualSense walkthrough in GSD Verify. Fake-source tests must never be credited as physical-hardware proof. See [the owner-use and Virtual HID note](../notes/2026-09-24-first-adopter-and-virtual-hid-wait.md). This does not complete PLAY-04 or Phase 03.
 
 **Wave 5 — production controller input bridge** *(independent of the Apple Virtual HID wait)*
 
 - [x] 03-22-PLAN.md — Production GameController input bridge and live test, covered by deterministic source tests; DualSense confirmation is recorded in Verify
 
-**Wave 6 — first-adopter navigation and no-HID controller test enablement**
+**Wave 6 — first-adopter library navigation and separately gated mapping lifecycle**
 
 - [x] 03-19-PLAN.md — D-pad/arrow parity across Library browse and curation destinations, including Collections list/detail and system/availability filters; Cross/Circle behavior and owner DualSense Verify. Manage screens, text entry, and collection editing remain separate.
-- [x] 03-25-PLAN.md — Finite UI_TESTING-only controller source and mandatory packaged no-HID recovery/input evidence; app-level enabling seam only
+- [ ] 03-23-PLAN.md — Assign, remap, reset, AdapterHost refresh, persistence, and relaunch proof; its virtual-device journey remains gated on 03-17
 
 **Wave 7 — independent BIOS work and accessibility contract**
 
-- [x] 03-20-PLAN.md — Lawful BIOS acceptance seam: explicit production references, one fixed synthetic packaged-app accept path, discriminator controls, and Release-hook exclusion
-- [x] 03-24-PLAN.md — Machine-observable accessibility acceptance, explicit VoiceOver non-claims, and mutation-tested contract guards
+- [ ] 03-20-PLAN.md — Lawful BIOS acceptance seam: explicit production references, one fixed synthetic packaged-app accept path, discriminator controls, and Release-hook exclusion
+- [ ] 03-24-PLAN.md — Machine-observable accessibility acceptance, explicit VoiceOver non-claims, and mutation-tested contract guards
 
-**Wave 7 — app-level recovery**
+**Wave 8 — evidence reconciliation** *(03-21 requires all phase evidence, including the owner DualSense result and the separately gated virtual-HID outcomes.)*
 
-- [x] 03-18-PLAN.md — Production non-modal recovery banner plus simulated disconnect/reconnect and keyboard/pointer fallback; focused UI evidence and fail-closed registration passed, OS discovery remains open
+- [ ] 03-21-PLAN.md — Fail-closed evidence policy, complete four-layer run, UAT/verification/validation reconciliation, and PLAY-04 completion only after each automated and human gate is honestly resolved
 
-**Wave 8 — app-level mapping lifecycle**
+**Deferred behind Apple Virtual HID approval — do not execute or poll**
 
-- [x] 03-23-PLAN.md — Shipped mapping callbacks, committed AdapterHost refresh, and one-controller simulated relaunch proof; OS/physical evidence remains separate
-
-**Wave 9 — bounded app-level evidence reconciliation** *(03-21 records no-HID results and retains the distinct 03-17/DualSense gates.)*
-
-- [ ] 03-21-PLAN.md — Fail-closed partial evidence policy, ordinary four-layer run, UAT/validation sub-records, and continued PLAY-04 Pending status
-
-**Separate OS-level capability proof — do not poll Apple**
-
-- [x] 03-17-PLAN.md — Shared virtual-HID tracer: entitled test-only IOHIDUserDevice, stable mapping identity, and fail-closed hosted qualification; current hosted attempt stopped at runner provisioning before UI launch, so the entitlement remains unqualified
+- [x] 03-17-PLAN.md — Shared virtual-HID tracer: entitled test-only IOHIDUserDevice, stable mapping identity, and fail-closed hosted qualification
+- [ ] 03-18-PLAN.md — Production non-modal recovery banner plus virtual-HID detach/reconnect and keyboard/pointer fallback evidence
 
 **UI hint**: yes
 
@@ -244,7 +237,7 @@ Plans:
   6. Each Phase 3 UAT checkpoint this phase closes is re-recorded in `03-UAT.md` as `source: automated` with its covering test named.
 
 **Research / spike flags**: Runner choice is decided — GitHub-hosted `macos-*`. That deliberately leaves three classes out of scope, and they stay `blocked` in 03-UAT.md rather than being faked: physical controller hardware (checkpoints 8, 9), a real emulator install plus real game bytes (checkpoint 7), and a Developer ID certificate for signing/notarization (checkpoints 14, 15). Revisit a self-hosted runner only if those become recurring blockers. Watch Xcode-version drift on hosted runners and snapshot-test flakiness across macOS releases — pin both.
-**Plans**: 10/10 have summaries. Phase execution is complete; its verification report is stale because covered source files changed after the last report. Refresh only against reviewed exact-head hosted evidence for the relevant source revision.
+**Plans**: 9/10 plans executed
 
 Plans:
 **Wave 0**
@@ -402,36 +395,50 @@ Plans:
 
 - [x] 04.5-06-PLAN.md — the captured anchor wired into `APIClient` at both real construction sites, one `AppPaths`-derived pinned path, a live-object key-link test, and a `PinningDelegate` unit test proving pinned-vs-default trust divergence (criterion 5)
 
-### Phase 4.6: Game Boy and Game Boy Color play and persistent saves (INSERTED)
+### Phase 4.7: Optional game artwork and metadata sync (INSERTED)
 
-**Goal**: A player can import, cache and play qualified Game Boy and Game Boy Color games through the existing pinned mGBA installation, preserve complete cartridge-specific battery/RTC progress, and restore it into a fresh paired Mac profile with verified in-game continuity.
-**Rationale**: The three completed GB/GBC spikes qualify emulator feasibility and identify production catalog, save-identity and independent-restore gaps. Register their implementation slice without another feasibility or owner-UAT loop.
-**Depends on**: Phase 4 (completed save foundation); reuse completed Phase 2 import and Phase 4.5 pairing, plus implemented Phase 3 client software. Parked Apple/HID qualification is not a prerequisite for this software slice.
-**Requirements**: PLAY-01, PLAY-02, SAVE-01, SAVE-02, SAVE-03 (additional GB/GBC acceptance; existing GBA completion remains recorded)
+**Goal**: A player can enrich their private library with truthful covers, descriptions and screenshot galleries, keep chosen metadata and media synchronized between their server and Mac, and continue browsing and playing offline when enrichment is absent or unavailable.
+**Rationale**: The owner renewed this product direction after the qualified Mac continuity path. Make common browsing and Play/Continue actions pleasant while keeping provider choice, collection privacy, source attribution and user corrections understandable.
+**Depends on**: Phase 4; reuse completed Phase 2 import/export and Phase 4.5 pairing, the implemented Mac client, and Phase 4.6's qualified GBA/GB/GBC boundaries. Apple/HID qualification is a separate parked lane.
+**Requirements**: META-01
 **Success Criteria** (what must be TRUE):
 
-  1. One managed, pinned mGBA 0.10.5 installation exposes explicit GBA, GB and GBC system descriptors, truthful BIOS/save capabilities and supported-system readiness; verified local games remain playable without optional network services.
-  2. Bounded cartridge/header qualification distinguishes the tested MBC1 8 KiB SRAM, MBC5 32 KiB SRAM and MBC3 32 KiB SRAM plus 48-byte RTC artifact. Unknown or unsupported system/cartridge/layout combinations fail closed with a recoverable explanation, instead of inheriting GBA byte-size medium labels.
-  3. The production capture, queue, immutable upload/download and restore composition preserves each complete qualified battery artifact, including RTC bytes, and presents accurate revision states. Existing GBA save behavior stays covered.
-  4. Restore expectations come independently from the target ROM/cartridge and declared adapter contract. Wrong ROM, system, layout, medium or byte bindings and undeclared/unknown combinations are rejected before writing; revision metadata cannot certify itself.
-  5. The three authored GB/GBC layouts pass production import → verified cache/offline launch → game progress → capture/upload → fresh-profile restore → actual game readback, alongside an established GBA regression. New recurring unit, seam, server, packaged no-HID and save E2E checks use existing CI lanes and fail on missing, skipped or zero-discovery evidence; no repeated manual UAT is required for observable outcomes.
+  1. A player can browse truthful covers and descriptions and open a per-game screenshot gallery through the native Mac library/detail experience, with honest placeholders when media is absent and direct Play/Continue actions still accessible by keyboard, controller and accessibility APIs.
+  2. A player can explicitly choose optional provider enrichment or supported private local media, see which collection information would be disclosed before any provider request, and inspect source, version, match evidence/confidence, attribution and relevant usage/cache/redistribution terms. Provider choice and permissions are resolved during planning; this insertion authorizes no external lookup.
+  3. Metadata and media selections converge through the server/client protocol with traceable provenance and durable user corrections that survive later refreshes. Catalogue screenshots remain distinct from any player-progress captures; derived enrichment never changes imported ROM bytes or save identity/custody.
+  4. Enrichment uses bounded on-demand/background work with request coalescing, quota/backoff and visible partial/error outcomes, plus explicit cache limits and eviction. Cached media remains useful offline under its terms, and unavailable providers or removable caches cannot block local play or delete canonical games, saves or private user-supplied assets.
+  5. Current-source automated evidence covers absent/offline/error media, untrusted assets, correction preservation, bounded work/cache behavior and server/Mac convergence through production composition. Recurring checks use existing appropriate CI lanes and require exact nonzero discovery/execution with no skips; machine-observable criteria close without owner UAT.
 
-**Planning inputs**: [.codex/skills/spike-findings-playstead/SKILL.md](../.codex/skills/spike-findings-playstead/SKILL.md), [GB/GBC report](spikes/GB-GBC-REPORT.md), [wrap-up](spikes/WRAP-UP-SUMMARY.md), and [SEED-035](seeds/SEED-035-game-boy-and-color-support.md). Reuse final authored fixture registry hashes and sufficient recorded feasibility evidence; the historical gap probe is not a desired-behavior CI test.
-**Qualification boundary**: Phase4.6 qualifies the declared mGBA0.10.5 GB/GBC cartridge matrix and complete persistent saves through production fresh-profile continuity. Hosted Accessibility runtime, OS enumeration, physical controllers, distribution, broader mapper/RTC cases, power-loss durability and the whole milestone remain outside this proof. Owner originals and existing imports are preserved.
-**Plans**: 4/4 plans complete in 4 sequential waves — final goal verification passed64/64; all three GB/GBC game journeys and bounded GBA regression passed. See04.6-VERIFICATION.md and04.6-COMPLETION.json.
+**Scope lineage**: SEED-037 is the primary direction; SEED-008 supplies delivery-policy/manual-provider research and SEED-006 supplies the per-game-hub distinction between catalogue imagery and progress captures. Covers/descriptions and still-image galleries come first. Video previews, manuals, pause overlays and save-progress capture remain explicit follow-on scope choices after the baseline, with their own bandwidth, rights and adapter constraints.
+**Research / design flags**: Evaluate provider API stability, licensing/attribution, privacy and legitimate offline/cache terms before selecting or contacting a provider. Define provider versus private local import, sync/provenance/correction contracts, media limits and native UI states during planning; reuse the existing design system and automation. Preserve the separate Phoenix console UX milestone and parked qualification lanes.
+**Plans**: 10/10 plans complete — goal verification passed38/38; automated closure2026-10-13.
 
 Plans:
 **Wave 1**
-- [x] 04.6-01-PLAN.md — GB MBC1 production tracer: verified cache/offline play, source-qualified capture, fresh paired restore and actual game readback
+- [x] 04.7-00-PLAN.md
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [x] 04.6-02-PLAN.md — GBC SRAM/RTC layouts, independent restore rejection, persisted format and complete-byte live-server custody
+- [x] 04.7-01-PLAN.md
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [x] 04.6-03-PLAN.md — All 33 approved native library/readiness/history/Details/action/status state criteria
+- [x] 04.7-02-PLAN.md
 
 **Wave 4** *(blocked on Wave 3 completion)*
-- [x] 04.6-04-PLAN.md — Three GB/GBC game oracles, bounded established AerevenAdvance GBA regression, exact recurring CI and cleanup guards
+- [x] 04.7-03-PLAN.md
+- [x] 04.7-04-PLAN.md
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [x] 04.7-05-PLAN.md
+- [x] 04.7-06-PLAN.md
+
+**Wave 6** *(blocked on Wave 5 completion)*
+- [x] 04.7-07-PLAN.md
+
+**Wave 7** *(blocked on Wave 6 completion)*
+- [x] 04.7-08-PLAN.md
+
+**Wave 8** *(blocked on Wave 7 completion)*
+- [x] 04.7-09-PLAN.md
 
 ### Phase 5: Recovery and Release Proof
 
@@ -448,7 +455,7 @@ Plans:
   5. A maintainer can run automated release checks for code quality, contracts, integration, enabled-parser adversarial fixtures, dependencies/licenses, container/SBOM security, and production smoke behavior; failed operations expose privacy-safe correlation IDs and an on-demand diagnostic bundle without leaking sensitive game data or credentials.
 
 **Research / spike flags**: Recovery gate: clean-environment restore, mount/permission failure, migration rollback, and post-upgrade relaunch are mandatory evidence. Do not count a started container or a single repository volume as successful recovery.
-**Plans**: 12/14 have summaries. Plan 05-05 is halted at the retained-restore and named in-game-observation gate; Plans 05-04 and 05-07 depend on it and are not runnable yet.
+**Plans**: 14 plans
 
 Plans:
 **Wave 1**
@@ -493,7 +500,7 @@ Plans:
 
 **Wave 10** *(blocked on Wave 9 completion)*
 
-- [ ] 05-07-PLAN.md — Consume Phase 05.1 supply-chain evidence and add the duplicate-save regression
+- [ ] 05-07-PLAN.md — Concrete scanner, parser, SBOM/attestation, and save-failure regression evidence
 
 ### Phase 05.1: Digest-bound supply-chain verification (INSERTED)
 
@@ -514,74 +521,18 @@ Plans:
 Plans:
 - [x] 05.1-01-PLAN.md — Scan and attest the tested artifact; enforce parser fixtures and strict privacy-safe evidence
 
-### Phase 6: Recovery proof CI and E2E pipeline
-
-**Goal**: Turn repeatable recovery evidence into a fixture-driven CI/E2E pipeline: fresh restore provisioning, database readiness, storage ownership, multi-chunk import, journal convergence, local-CA pairing, cache/preflight, and save transport.
-**Rationale**: Recovery confidence must be reproducible rather than depend on a long, manual, environment-sensitive runbook. A controlled legal fixture can extend that evidence to a deterministic in-game continuation proof without overstating support for other games.
-**Depends on**: Phase 5
-**Requirements**: PORT-04, QUAL-02
-**Success Criteria** (what must be TRUE):
-
-  1. CI can provision a clean isolated restore target and prove the database, object store, migration and ownership readiness gates before exercising recovery.
-  2. CI can prove import, change-journal convergence, private-CA pairing, offline cache/preflight, and save transport against a controlled fixture without recording owner identity, local paths, credentials, or fixture bytes in Git.
-  3. A scoped spike determines whether recorded legal-fixture inputs, SRAM/save-byte evidence, a fresh emulator process, and a game-visible resumed-state assertion can provide deterministic continuation evidence. Its result makes no claim about arbitrary games.
-
-**Research / spike flags**: The in-game assertion must verify a loaded resumed state in a newly launched emulator; an SRAM diff alone is insufficient. Fixture acquisition/distribution remains outside the repository.
-**Plans:** 21/21 have summaries; 06-08 and 06-10 remain halted, and 06-13 records a blocked-capability outcome. Verification is `gaps_found`: 38/42 UAT checks pass and four are blocked on the recorded private-fixture, Apple HID, and reviewed exact-head prerequisites.
-
-Plans:
-**Wave 1**
-- [x] 06-01-PLAN.md — Isolated Linux recovery fixture and privacy-safe CI evidence
-- [x] 06-06-PLAN.md — Reviewed Mac visual-baseline reconciliation
-- [x] 06-07-PLAN.md — Browser-session and remaining server regression repair
-- [x] 06-11-PLAN.md — Independent no-HID Mac tests and explicit virtual-HID gate
-- [x] 06-13-PLAN.md — Checksum-pinned private mGBA candidate qualification (blocked-capability recorded; no fixture access)
-- [x] 06-14-PLAN.md — Ordinary Mac reachability and required storage rendering repair
-- [x] 06-15-PLAN.md — Ordinary no-HID library, curation, search, and save-front-door UI repair
-- [x] 06-17-PLAN.md — Isolated LiveServer startup and private-CA pairing without passwordless sudo
-
-**Wave 2** *(blocked on Wave 1 completion)*
-- [x] 06-02-PLAN.md — Merge-blocking macOS native recovery-fixture coverage
-- [x] 06-08-PLAN.md — Regression rerun; server passed, Mac halted at virtual-HID provisioning
-- [x] 06-12-PLAN.md — Bounded reliability reproduction and save refusal classification
-- [x] 06-16-PLAN.md — Storage interaction and adapter accessibility UI repair
-
-**Wave 3** *(blocked on Wave 2 completion)*
-- [x] 06-03-PLAN.md — Same-host retained-restore-to-clean-Mac coordinator
-- [x] 06-18-PLAN.md — Repaired ordinary Mac gate and separate evidence handoff
-
-**Wave 4** *(blocked on Wave 3 completion)*
-- [x] 06-04-PLAN.md — Private continuation-environment checkpoint
-- [x] 06-09-PLAN.md — Current hosted Linux and ordinary native Mac evidence, with separate entitlement status
-
-**Wave 5** *(blocked on Wave 4 completion)*
-- [x] 06-05-PLAN.md — Capability-gated fixture-specific continuation spike
-
-**Wave 6** *(blocked on Wave 5 completion)*
-- [x] 06-10-PLAN.md — Continuation qualification halted before fixture access on mGBA 0.10.5
-
-**Initial Phase 06 verification checkpoint (before Plan 06-11):** Same-host recovery passed unattended. The bounded server suite passed; the Mac aggregate stopped at virtual-HID provisioning before test execution. Actual continuation remains `qualification / blocked-capability`. Hosted evidence and the full regression gate remain open; see `06-VERIFICATION.md`, `06-REGRESSION-GATE.md`, and `06-CONTINUATION-QUALIFICATION.md`.
-
-**Plan 06-11 update (2026-09-30):** Plan 06-18's complete current-fingerprint ordinary no-HID gate passed and resolves the local ordinary failures recorded on 2026-09-28. The entitled lane remains `blocked/not-configured`; hosted, reliability, and continuation evidence remain independent. Plan 06-11 is complete for its local ordinary lane split and CI selection deliverables. See `06-11-SUMMARY.md` and `06-REGRESSION-GATE.md`.
-
-**Plan 06-12 update (2026-10-01):** APFS passed 20/20, Wallaby passed 20/20, and the live save refusal-classification run passed 10/10 on fingerprint `e6285b97a342f7161baf19a1689c55ddb43f27c3162a6eab0ca9247c1a0e47bd`. Earlier process-cleanup and app-not-running failures remain classified in `06-RELIABILITY-EVIDENCE.md`; only the final complete run is counted. At that update, Plan 06-09 was the only incomplete non-halted plan and still needed hosted evidence; the following update records its completion.
-
-**Plan 06-09 update (2026-10-01):** Draft PR #6's reviewed SHA `631edf9665ace49c91a02bdebcbd49dbc0f0e6ba` passed hosted Linux recovery, server precommit, Docker cold-start, and ordinary Mac verification in workflow [36910091796](https://github.com/szTheory/playstead/actions/runs/36910091796). The entitled virtual-gamepad job was skipped/not configured and remains a separate open gate. See `06-09-SUMMARY.md` and `06-HOSTED-EVIDENCE.md`; Phase 06, `PORT-04`, and `QUAL-02` remain open.
-
 ## Progress
 
-| Phase | Plan Summaries | Status | Completed |
+| Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Private Custody and Durable Protocol | 8/8 | Complete    | 2026-08-28 |
 | 2. Explainable Import and Exact Export | 10/10 | Complete    | 2026-08-30 |
-| 3. Mac Offline Play Vertical Slice | 30/31 | In Progress — Apple HID and physical PLAY-04 evidence remain open |  |
-| 3.5 Mac Verification Automation | 10/10 | Executed — verification stale pending reviewed exact-head hosted evidence |  |
-| 4. Persistent Save Continuity | 25/25 | Complete | 2026-09-08 |
-| 4.5 Mac Pairing Ceremony | 6/6 | Complete |  |
-| 4.6 Game Boy and Game Boy Color play and persistent saves | 4/4 | Complete    | 2026-10-12 |
-| 5. Recovery and Release Proof | 12/14 | In Progress — no runnable plans until 05-05's retained-restore and named-observation gate |  |
+| 3. Mac Offline Play Vertical Slice | 19/24 | In Progress|  |
+| 4. Persistent Save Continuity | 25/25 | In Progress|  |
+| 4.7 Optional game artwork and metadata sync | 10/10 | Complete    | 2026-10-13 |
+| 5. Recovery and Release Proof | 0/TBD | Not started | - |
 | 5.1 Digest-bound Supply-chain Verification | 1/1 | Complete    | 2026-10-10 |
-| 6. Recovery Proof CI and E2E Pipeline | 21/21 | In Progress — verification gaps; 38/42 UAT checks pass, four blocked |  |
+| 6. Recovery Proof CI and E2E Pipeline | 0/0 | Not started | - |
 
 ## Backlog
 
@@ -594,3 +545,26 @@ Plans:
 Plans:
 
 - [ ] TBD (promote with $gsd-review-backlog when ready)
+
+### Phase 6: Recovery proof CI and E2E pipeline
+
+**Goal**: Turn repeatable recovery evidence into a fixture-driven CI/E2E pipeline: fresh restore provisioning, database readiness, storage ownership, multi-chunk import, journal convergence, local-CA pairing, cache/preflight, and save transport.
+**Rationale**: Recovery confidence must be reproducible rather than depend on a long, manual, environment-sensitive runbook. A controlled legal fixture can extend that evidence to a deterministic in-game continuation proof without overstating support for other games.
+**Depends on**: Phase 5
+**Requirements**: TBD
+**Success Criteria** (what must be TRUE):
+
+  1. CI can provision a clean isolated restore target and prove the database, object store, migration and ownership readiness gates before exercising recovery.
+  2. CI can prove import, change-journal convergence, private-CA pairing, offline cache/preflight, and save transport against a controlled fixture without recording owner identity, local paths, credentials, or fixture bytes in Git.
+  3. A scoped spike determines whether recorded legal-fixture inputs, SRAM/save-byte evidence, a fresh emulator process, and a game-visible resumed-state assertion can provide deterministic continuation evidence. Its result makes no claim about arbitrary games.
+
+**Research / spike flags**: The in-game assertion must verify a loaded resumed state in a newly launched emulator; an SRAM diff alone is insufficient. Fixture acquisition/distribution remains outside the repository.
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] 06-01-PLAN.md — Isolated Linux recovery fixture and privacy-safe CI evidence
+- [ ] 06-02-PLAN.md — Merge-blocking macOS native recovery-fixture coverage
+- [ ] 06-03-PLAN.md — Same-host retained-restore-to-clean-Mac coordinator
+- [ ] 06-04-PLAN.md — Private continuation-environment checkpoint
+- [ ] 06-05-PLAN.md — Capability-gated fixture-specific continuation spike

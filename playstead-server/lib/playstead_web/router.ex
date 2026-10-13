@@ -132,6 +132,7 @@ defmodule PlaysteadWeb.Router do
     pipe_through :api
 
     get "/capabilities", CapabilitiesController, :show
+    get "/openapi.json", MetadataController, :openapi
   end
 
   # D-07, D-08: unauthenticated pairing-ceremony endpoints. The client has
@@ -140,6 +141,66 @@ defmodule PlaysteadWeb.Router do
     pipe_through [:api, :throttle_pairing_request]
 
     post "/requests", PairingController, :create
+  end
+
+  # Phase 4.7: selected metadata is owner-scoped; writes also require the
+  # durable Idempotency-Key receipt while reads remain plain authenticated GETs.
+  scope "/api/v1/metadata", PlaysteadWeb.Api.V1 do
+    pipe_through [:api, :device_auth, :idempotency]
+
+    post "/:asset_set_id", MetadataController, :create
+    post "/:asset_set_id/reset-provider", MetadataController, :reset_provider
+  end
+
+  scope "/api/v1/metadata", PlaysteadWeb.Api.V1 do
+    pipe_through [:api, :device_auth]
+
+    post "/provider/enrichment/estimate", EnrichmentController, :estimate
+    get "/provider/cache", EnrichmentController, :cache_usage
+    get "/provider/enrichment/:job_id", EnrichmentController, :show
+    get "/:asset_set_id/provider/media/:object_id", EnrichmentController, :media
+  end
+
+  scope "/api/v1/metadata", PlaysteadWeb.Api.V1 do
+    pipe_through [:api, :device_auth, :idempotency]
+
+    post "/:asset_set_id/provider/enrichment", EnrichmentController, :create
+    post "/provider/cache/reclaim", EnrichmentController, :cache_reclaim
+    delete "/provider/enrichment/:job_id", EnrichmentController, :cancel
+  end
+
+  scope "/api/v1/metadata", PlaysteadWeb.Api.V1 do
+    pipe_through [:api, :device_auth, :repr_digest]
+
+    post "/:asset_set_id/media", MetadataMediaController, :create
+  end
+
+  scope "/api/v1/metadata", PlaysteadWeb.Api.V1 do
+    pipe_through [:api, :device_auth, :idempotency]
+
+    delete "/:asset_set_id/media/:media_id/derived", MetadataMediaController, :delete_derived
+  end
+
+  scope "/api/v1/metadata", PlaysteadWeb.Api.V1 do
+    pipe_through [:api, :device_auth]
+
+    get "/:asset_set_id/provider", MetadataController, :provider
+  end
+
+  scope "/api/v1/metadata", PlaysteadWeb.Api.V1 do
+    pipe_through [:api, :device_auth, :idempotency]
+
+    post "/:asset_set_id/provider/consent", MetadataController, :consent
+    delete "/:asset_set_id/provider/consent", MetadataController, :revoke
+    post "/:asset_set_id/provider/search", MetadataController, :provider_search
+  end
+
+  scope "/api/v1/metadata", PlaysteadWeb.Api.V1 do
+    pipe_through [:api, :device_auth]
+
+    get "/:asset_set_id", MetadataController, :show
+    get "/:asset_set_id/media/:media_id/original", MetadataMediaController, :show_original
+    get "/:asset_set_id/media/:media_id/derived", MetadataMediaController, :show_derived
   end
 
   scope "/api/v1/device-pairing", PlaysteadWeb.Api.V1 do

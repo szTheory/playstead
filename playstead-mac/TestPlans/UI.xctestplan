@@ -49,7 +49,16 @@
         "ZeroNetworkPlayFlowTests",
         "GBGBCUIStateTests/testLibraryReadinessDetailsStates()",
         "GBGBCUIStateTests/testSaveHistoryAndStatusStates()",
-        "ReadinessRemedyNavigationTests"
+        "ReadinessRemedyNavigationTests",
+        "MetadataGalleryUITests/testGameDetailsKeepPlayAndReturnToSelectedGame()",
+        "MetadataGalleryUITests/testEmptyGalleryReturnsToSelectedGameDetails()",
+        "MetadataGalleryUITests/testControllerBReleaseClosesGalleryAndRestoresSelectedGame()",
+        "MetadataConsentUITests/testAllFortyFiveMetadataSettingsStatesExposeTheirOwnMeaningAndUsableAction()",
+        "MetadataConsentUITests/testMetadataSettingsRemainInsideSettingsAndShowIndependentCacheBudget()",
+        "MetadataConsentUITests/testConsentPreviewRequiresASelectedGameAndUnpairedProfileNeverEnablesProvider()",
+        "MetadataCorrectionUITests/testAllEightCorrectionStatesRenderProvenanceConflictsAndEnabledActions()",
+        "MetadataCorrectionUITests/testCorrectionFormShowsPerFieldSourceAndOnlyExplicitSaveAction()",
+        "MetadataCorrectionUITests/testSavingCorrectionUpdatesTheLocalMirrorBeforeServerDelivery()"
       ],
       "target" : {
         "containerPath" : "container:Playstead.xcodeproj",

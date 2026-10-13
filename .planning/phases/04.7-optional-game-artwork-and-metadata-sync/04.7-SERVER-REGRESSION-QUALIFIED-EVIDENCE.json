@@ -1,0 +1,32 @@
+{
+  "recorded_at": "2026-10-13T12:55:37.625545+00:00",
+  "human_judgment": false,
+  "status": "passed",
+  "command": "PLAYSTEAD_MEDIA_DECODER_EVIDENCE_DIR=$PWD/_build/media-decoder-evidence PLAYSTEAD_MEDIA_DECODER_IMAGE=sha256:7aa28a5944542a0f9df9f2d380942612c897c129b8493990f7c4f6202ff7ce37 PATH=$PWD/_build/chrome-for-testing-04.7/chromedriver-mac-arm64:$PATH MIX_TEST_PARTITION=18480 mix precommit",
+  "partition": 18480,
+  "tests": 1205,
+  "features": 192,
+  "properties": 13,
+  "failures": 0,
+  "seconds": 144.1,
+  "exit_code": 0,
+  "log": "/private/tmp/playstead-04.7-server-precommit-qualified-18480.log",
+  "log_sha256": "bdbe74d8c32ceea8542dee49294c83307350559e253f5533d347b4292e2c3d3a",
+  "source_sha256": {
+    "playstead-server/lib/playstead/metadata.ex": "244594a494f11bd2f93e54f67330d7d5075ec9285abfaafd4b39aee09513600a",
+    "playstead-server/lib/playstead/metadata/private_media.ex": "83e5902fff59b02a79e7295887bf9e0cb027a09b921414101ed33efe949ab50f",
+    "playstead-server/lib/playstead/metadata/provider_media_cache.ex": "306a8bf03ad552e7c77a30d3c34e82202057b41857953f2ad54335efd9322c59",
+    "playstead-server/lib/playstead/metadata/consent.ex": "b26c7d24bc31f97b03931459cef257b6f4d1650ae83feb52843fa96308a8e01c",
+    "playstead-server/lib/playstead_web/controllers/api/v1/metadata_controller.ex": "cf67bde6de83cccacb7c378d82d104912a5dccf49c02def3ea0f448d1ef82846",
+    "playstead-server/ops/media-decoder/server.py": "63f7ac79e346d84be597953c2773a1deb0863613f407da1a042aa8d9c144fc32",
+    "playstead-server/test/playstead/metadata/media_decoder_test.exs": "a188aad870284cf7f34279a4a8166e28c0e747089209980befa473f0da4dd561",
+    "playstead-server/priv/repo/migrations/20261013000100_add_metadata_conflict_resolution_actor.exs": "6974daeb52d0067bc8369bed20d3ce21f8cc9694272352678b30df8b891c08b3"
+  },
+  "decoder_scan_receipt": "04.7-DECODER-SUPPLY-CHAIN-EVIDENCE.json",
+  "cleanup": {
+    "database": "zero active connections, exact18480dropped, absentconfirmed",
+    "decoder_test_containers": 0,
+    "decoder_test_volumes": 0
+  },
+  "next_command": "$gsd-execute-phase 4.7"
+}

@@ -1,0 +1,12 @@
+{
+  "command": "cd playstead-server && MIX_ENV=test elixir -r /private/tmp/PlaysteadGSDTapFormatter.ex -S mix run --no-start -e 'Mix.shell(Mix.Shell.Quiet); Mix.Tasks.Test.run([\"--trace\", \"--formatter\", \"Playstead.GSDTapFormatter\", \"test/playstead/metadata_test.exs\"])'",
+  "exitCode": 2,
+  "output": "TAP version 13\nok 1 - PlaysteadWeb.Api.V1.MetadataControllerTest::test another owner cannot read or replace the selected description\nnot ok 2 - PlaysteadWeb.Api.V1.MetadataControllerTest::test same idempotency key replays one durable revision and journal entry\nnot ok 3 - PlaysteadWeb.Api.V1.MetadataControllerTest::test snapshot reset reconstructs metadata at the advertised cursor\nnot ok 4 - PlaysteadWeb.Api.V1.MetadataControllerTest::test authenticated owner persists a private description and reads it back\nnot ok 5 - PlaysteadWeb.Api.V1.MetadataControllerTest::test capability negotiates metadata as an optional additive kind\nok 6 - PlaysteadWeb.Api.V1.MetadataControllerTest::test metadata selection leaves game and save identities unchanged\n1..6\n",
+  "targetTest": "PlaysteadWeb.Api.V1.MetadataControllerTest::test authenticated owner persists a private description and reads it back",
+  "targetFile": "playstead-server/test/playstead/metadata_test.exs",
+  "expected": "authenticated POST returns 201 with the durable revision and GET returns the selected description",
+  "actual": "the exact target executed once and failed its POST status assertion: expected 201, got 404 because the metadata route does not exist yet",
+  "semanticAssessment": "valid TAP reporter output contains six completed cases; target identity failed once on the planned response-status assertion; two unrelated invariant cases pass; this is the intended pre-implementation RED",
+  "reportFormat": "TAP 13 from the temporary ExUnit formatter",
+  "separateConsoleStderr": "warning: Looks like you're trying to run Wallaby with a mismatched version of Chrome: 154.0.8037 and chromedriver: 152.0.7977.\nChrome and chromedriver must match to a major, minor, and build version.\n\n  (wallaby 0.31.0) lib/wallaby/chrome.ex:288: Wallaby.Chrome.version_compare/2\n  (wallaby 0.31.0) lib/wallaby.ex:31: Wallaby.start/2\n  (kernel 10.6.1) application_master.erl:299: :application_master.start_it_old/4\n\n"
+}

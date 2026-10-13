@@ -90,6 +90,10 @@ tests = (
     "ControllerNoHIDIntegrationTests/testRecoveryNoticeKeyboardDismissalPreservesFocusAndBrowsing()",
     "ControllerNoHIDIntegrationTests/testRecoveryNoticeControllerNavigationDismissesAndReturnsToBrowsing()",
     "ControllerNoHIDIntegrationTests/testRecoveryNoticeAccessibilityContractAndDismissalPreservesState()",
+    "MetadataConsentUITests/testMetadataSettingsRemainInsideSettingsAndShowIndependentCacheBudget()",
+    "MetadataConsentUITests/testConsentPreviewRequiresASelectedGameAndUnpairedProfileNeverEnablesProvider()",
+    "MetadataCorrectionUITests/testCorrectionFormShowsPerFieldSourceAndOnlyExplicitSaveAction()",
+    "MetadataCorrectionUITests/testSavingCorrectionUpdatesTheLocalMirrorBeforeServerDelivery()",
 
 )
 ordinary = source[source.index("run_four_layer_verification() {"):source.index("\nrun_snapshot_candidates() {", source.index("run_four_layer_verification() {"))]
@@ -135,6 +139,18 @@ for test in tests:
         if selected_exactly_once(json.loads((fixture / "TestPlans/UI.xctestplan").read_text(encoding="utf-8")), test):
             raise SystemExit(f"ordinary UI contract accepted {name} mutant: {test}")
     print(f"exact ordinary selection contract: passed — {test_class}")
+
+live_test = "MetadataPrivateMediaJourneyTests/testPrivateMediaExportAndProviderDisclosureUsePairedProductionRoutes()"
+live_plan = json.loads((root / "TestPlans/LiveServer.xctestplan").read_text(encoding="utf-8"))
+live_call_start = ordinary.index("run_test_layer live-server LiveServer")
+live_call_end = ordinary.index('\n  [ "$LAYER_STATUS"', live_call_start)
+live_call = ordinary[live_call_start:live_call_end]
+live_required = "PlaysteadUITests." + live_test.removesuffix("()")
+if live_call.count("--required-test " + live_required) != 1:
+    raise SystemExit(f"LiveServer evidence does not require the exact private-media selector: {live_test}")
+if not selected_exactly_once(live_plan, live_test):
+    raise SystemExit(f"LiveServer plan does not select the exact private-media selector once: {live_test}")
+print("exact LiveServer selection contract: passed — MetadataPrivateMediaJourneyTests")
 PY
 
 # The result verifier must reject evidence with no executed regression case even
@@ -150,6 +166,11 @@ identifiers = (
     "ControllerNoHIDIntegrationTests/testRecoveryNoticeKeyboardDismissalPreservesFocusAndBrowsing()",
     "ControllerNoHIDIntegrationTests/testRecoveryNoticeControllerNavigationDismissesAndReturnsToBrowsing()",
     "ControllerNoHIDIntegrationTests/testRecoveryNoticeAccessibilityContractAndDismissalPreservesState()",
+    "MetadataConsentUITests/testMetadataSettingsRemainInsideSettingsAndShowIndependentCacheBudget()",
+    "MetadataConsentUITests/testConsentPreviewRequiresASelectedGameAndUnpairedProfileNeverEnablesProvider()",
+    "MetadataCorrectionUITests/testCorrectionFormShowsPerFieldSourceAndOnlyExplicitSaveAction()",
+    "MetadataCorrectionUITests/testSavingCorrectionUpdatesTheLocalMirrorBeforeServerDelivery()",
+    "MetadataPrivateMediaJourneyTests/testPrivateMediaExportAndProviderDisclosureUsePairedProductionRoutes()",
 
 )
 def check(name, nodes, expected):

@@ -1,0 +1,93 @@
+{
+  "phase": "04.7-optional-game-artwork-and-metadata-sync",
+  "review": ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-REVIEW.md",
+  "verification_environment": "main_checkout",
+  "fixed_at": "2026-10-13T02:50:25Z",
+  "base_source_sha256": {
+    "playstead-server/lib/playstead/metadata.ex": "a02310f143c8296b69984b67d98a9da97343d113983e3046232f0c590ea2dc27",
+    "playstead-server/lib/playstead/metadata/private_media.ex": "0b25b14f5aea4c645f80e9debca75394c2cef55902684b76575f9b1054da1a90",
+    "playstead-server/lib/playstead/metadata/provider_media_cache.ex": "02afe3ab6986d71ff3af2cd263fee58cb6a7c50e064505b60aae994a551b9427",
+    "playstead-server/test/playstead/metadata/selection_test.exs": "e37d00c1296a708c282100526c7d6ae25dbefb1a4e058845c32dab6855bfa89e",
+    "playstead-server/test/playstead/metadata/private_media_test.exs": "a44fe651b5e057c2deedcf4ec186d8744185b09bb6eac6455bc89f8277ad1093",
+    "playstead-server/test/playstead/metadata/provider_media_cache_test.exs": "5e4406831ef140749e947cd7f082fd07312a72e8c36113265379905e8db24e65",
+    "playstead-server/lib/playstead/metadata/consent.ex": "1337036a367fee2174545657368ab34ca1c20a11a698a97ade03881fa210bc76",
+    "playstead-server/lib/playstead_web/controllers/api/v1/metadata_controller.ex": "c54d51e5184210109bc45e00ba77f30533c7b55b92962fe257ea3bedf45f4e1b",
+    "playstead-server/test/playstead/metadata/consent_test.exs": "bd74ce211a70ce3fd572b7e39eee00207483917ac5206b8dab288e90dd3fdff4"
+  },
+  "final_source_sha256": {
+    "playstead-server/lib/playstead/metadata.ex": "763d4d74ce7e65a102011bef2a358b3ca2a195230a6f1e86a6a51044adf6235a",
+    "playstead-server/lib/playstead/metadata/private_media.ex": "83e5902fff59b02a79e7295887bf9e0cb027a09b921414101ed33efe949ab50f",
+    "playstead-server/lib/playstead/metadata/provider_media_cache.ex": "306a8bf03ad552e7c77a30d3c34e82202057b41857953f2ad54335efd9322c59",
+    "playstead-server/lib/playstead/metadata/consent.ex": "b26c7d24bc31f97b03931459cef257b6f4d1650ae83feb52843fa96308a8e01c",
+    "playstead-server/lib/playstead_web/controllers/api/v1/metadata_controller.ex": "543847cb458322495ab10d49a767d581f66cb57f2e79e56a15c2e8f35d0815f1",
+    "playstead-server/test/playstead/metadata/selection_test.exs": "6298ff0d167e45485a6bcb1f90b0141dd77f7e4e37d2fb342b8ab7ea8dada3a1",
+    "playstead-server/test/playstead/metadata/private_media_test.exs": "7ff4eb81501d083a8d2e637a755a3f03637468d4a6c4d66deb3ff9bf94fed99e",
+    "playstead-server/test/playstead/metadata/provider_media_cache_test.exs": "e543c06920a6c977d20027fe6fa3b1202ea4477b3882fc96c0bc38231bcb6792",
+    "playstead-server/test/playstead/metadata/consent_test.exs": "a4191608b302c8c46b9702e23a6d5c3edc39fa0d7569483cadf1702a0d5c9a40"
+  },
+  "pre_edit_copies": {
+    "initial_owned_files": "/tmp/04.7-review-fix-pre",
+    "consent_follow_up_files": "/tmp/04.7-review-fix-pre-extra",
+    "cr02_publication_follow_up": "/tmp/04.7-cr02-publication-pre",
+    "cr02_publication_follow_up_sha256": {
+      "playstead-server/lib/playstead/metadata/private_media.ex": "b17a8a80eef3d35661aaa1433eccb3d7c5983343172edc56e60d421d25117d18",
+      "playstead-server/test/playstead/metadata/private_media_test.exs": "5fda10c4c7db5e4c6bc64bc095ffd1c4aa14c1a5a324815fa26411f5338d5fc7",
+      "playstead-server/scripts/ci/phase-04-7-exunit-manifest.tsv": "6b0a3ce5a5490f268076d91bee22f5483f3b77dfc8827722c8dfd7cdd6a3d8c2"
+    }
+  },
+  "commits": {
+    "CR-01": "efd02f4",
+    "CR-02": ["d102294", "ba3a26e4c5b973ac6140fb45af9eab6bb23dc4db", "ff8a05192dc242b93a9a9949376607d5d7e9aa93"],
+    "WR-01": ["a8fc4bc", "77300d1", "3cb12f4"]
+  },
+  "test_runs": [
+    {
+      "target": "playstead-server/test/playstead/metadata/selection_test.exs",
+      "partition": "playstead_test18471",
+      "exact_identities": 5,
+      "executed": 5,
+      "failures": 0,
+      "result": "passed"
+    },
+    {
+      "target": "playstead-server/test/playstead/metadata/private_media_test.exs",
+      "partition": "playstead_test18471",
+      "exact_identities": 7,
+      "executed": 7,
+      "failures": 0,
+      "result": "passed",
+      "added_regression": "rejected metadata_media insert publishes no CAS file or blob row"
+    },
+    {
+      "target": "playstead-server/test/playstead/metadata/provider_media_cache_test.exs",
+      "partition": "playstead_test18471",
+      "exact_identities": 6,
+      "executed": 6,
+      "failures": 0,
+      "result": "passed"
+    },
+    {
+      "target": "playstead-server/test/playstead/metadata/consent_test.exs",
+      "partition": "playstead_test18471",
+      "exact_identities": 3,
+      "executed": 4,
+      "failures": 0,
+      "result": "passed"
+    }
+  ],
+  "compile": "MIX_TEST_PARTITION=18471 mix compile --warnings-as-errors passed after CR-02 publication-order follow-up",
+  "format": "MIX_TEST_PARTITION=18471 mix format --check-formatted on CR-02 follow-up files passed",
+  "exunit_manifest_sha256": "00e6a5612cbd176863672fdd22b5a05e1fa2c0e621e34ce3e396b0d4f3d0ea3b",
+  "manifest_commit_scope_note": "ff8a051 registers the new CR-02 identity and also captured six concurrently pending root-owned identities (four SelectionTest and two SyncContractTest rows), plus the already-tested WR-01 provider-cache identity owned in this fixer task. These rows were retained as phase-required context; no rollback or history rewrite was attempted.",
+  "cleanup": {
+    "database_created_after_absence_check": "playstead_test18471",
+    "active_connections_before_drop": 0,
+    "database_dropped": true,
+    "mac_builds_or_app_launches": 0,
+    "external_services": 0
+  },
+  "unresolved_gaps": [
+    "CR-02 deterministic admission, validation, and rejected-manifest SQL paths are closed. The shared LocalDisk CAS boundary still publishes canonical bytes before the enclosing database transaction commits, so an unexpected CAS failure after an earlier publication, transaction-commit failure, or process crash can leave unreferenced bytes. The importer uses the same CAS publication path. Store.delete only accepts tmp paths; safely closing this shared infrastructure gap requires durable staged publication/recovery or reference-aware collection beyond this phase's scope.",
+    "Two new exact test identity rows are present in the shared, root-modified phase test manifest but remain uncommitted for root-owned disposition."
+  ]
+}

@@ -80,7 +80,7 @@ enum DeterministicProfile: String, CaseIterable {
     }
 
     var uiTestingControllerInputSource: ControllerInputSource? {
-        self == .controllerRecovery || self == .gbcIncompatibleRestore || self == .saveRestorable
+        self == .controllerRecovery || self == .gbcIncompatibleRestore || self == .saveRestorable || self == .gbMBC1Qualified
             ? UITestControllerInputSource()
             : nil
     }

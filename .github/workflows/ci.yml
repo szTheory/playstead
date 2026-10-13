@@ -53,6 +53,15 @@ jobs:
         working-directory: .
         run: bash scripts/check-uat-tally.sh
 
+      - name: Phase 04.7 summary coverage is classifiable
+        working-directory: .
+        run: |
+          set -euo pipefail
+          coverage_output="$(python3 -m unittest discover -s scripts/tests -p 'test_phase_summary_coverage.py' -v 2>&1)"
+          printf '%s\n' "$coverage_output"
+          printf '%s\n' "$coverage_output" | grep -Eq '^Ran [1-9][0-9]* tests?'
+          python3 scripts/check-phase-summary-coverage.py --root .planning/phases/04.7-optional-game-artwork-and-metadata-sync
+
       - name: Server workflow contract (must discover tests)
         working-directory: .
         run: |
@@ -86,6 +95,16 @@ jobs:
 
       - run: mix deps.get
       - run: mix assets.setup
+
+      - name: Phase 04.7 metadata protocol and exact ExUnit guard
+        working-directory: playstead-server
+        run: |
+          set -euo pipefail
+          scripts/tests/require-exunit-target-test.sh
+          node scripts/ci/validate-metadata-protocol-decision.js --self-test
+          scripts/ci/require-exunit-target.sh test/playstead/metadata_test.exs
+          scripts/ci/require-exunit-target.sh test/playstead_web/controllers/api/v1/capabilities_controller_test.exs
+
 
       - name: Verify browser prerequisites and discovery
         env:
@@ -299,6 +318,15 @@ jobs:
           printf '%s\n' "$contract_output"
           printf '%s\n' "$contract_output" | grep -Eq '^Ran [1-9][0-9]* tests?'
 
+      - name: Decoder scan receipt contract (must discover tests)
+        working-directory: .
+        run: |
+          set -euo pipefail
+          test -s scripts/tests/test_media_decoder_supply_chain.py
+          contract_output="$(python3 -m unittest discover -s scripts/tests -p 'test_media_decoder_supply_chain.py' -v 2>&1)"
+          printf '%s\n' "$contract_output"
+          printf '%s\n' "$contract_output" | grep -Eq '^Ran [1-9][0-9]* tests?'
+
       - id: changes
         uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad  # v3.0.4
         with:
@@ -319,6 +347,28 @@ jobs:
         with:
           driver-opts: |
             image=public.ecr.aws/xqdo/hub/moby/buildkit@sha256:751921dc37d2f842de38c9387f891fe6ae7d80f03d050ea98f780d7e0874ba00
+
+      - name: Build and scan the isolated media decoder before Compose activation
+        working-directory: .
+        env:
+          PLAYSTEAD_MEDIA_DECODER_EVIDENCE_DIR: ${{ runner.temp }}/playstead-media-decoder-evidence
+        run: |
+          set -euo pipefail
+          decoder_image="$(bash playstead-server/scripts/prepare-media-decoder-image.sh)"
+          printf 'PLAYSTEAD_MEDIA_DECODER_IMAGE=%s\n' "$decoder_image" >> "$GITHUB_ENV"
+          printf 'PLAYSTEAD_MEDIA_DECODER_EVIDENCE_DIR=%s\n' "$PLAYSTEAD_MEDIA_DECODER_EVIDENCE_DIR" >> "$GITHUB_ENV"
+
+      - name: Preserve decoder scan result, including policy failures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: media-decoder-scan-evidence
+          path: |
+            ${{ runner.temp }}/playstead-media-decoder-evidence/decoder-scan-result.json
+            ${{ runner.temp }}/playstead-media-decoder-evidence/decoder-trivy.json
+            ${{ runner.temp }}/playstead-media-decoder-evidence/decoder-scan-receipt.json
+          if-no-files-found: ignore
+          retention-days: 14
 
       - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8  # v6.19.2
         with:
@@ -380,6 +430,9 @@ jobs:
             ${{ runner.temp }}/playstead-release-evidence/evidence.json
             ${{ runner.temp }}/playstead-release-evidence/scan-reports.json
             ${{ runner.temp }}/playstead-release-evidence/sbom.cdx.json
+            ${{ runner.temp }}/playstead-media-decoder-evidence/decoder-scan-receipt.json
+            ${{ runner.temp }}/playstead-media-decoder-evidence/decoder-trivy.json
+            ${{ runner.temp }}/playstead-media-decoder-evidence/decoder-scan-result.json
           if-no-files-found: error
           retention-days: 14
 

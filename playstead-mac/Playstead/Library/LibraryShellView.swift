@@ -31,6 +31,8 @@ struct LibraryShellView: View {
     /// since been deleted.
     @State private var librarySort: LibrarySortOption = .title
     @State private var selectedListEntryID: String?
+    @State private var selectedGameDetails: CatalogueEntry?
+    @State private var lastDetailsAssetSetID: String?
     @State private var downloadCommand: LibraryDownloadCommand?
     @State private var downloadCommandSequence = 0
     @FocusState private var focusedSheetDismissal: Bool
@@ -67,6 +69,7 @@ struct LibraryShellView: View {
         case storage
         case emulator
         case controller
+        case metadata
 
         var id: String { rawValue }
         var accessibilityIdentifier: String {
@@ -74,6 +77,7 @@ struct LibraryShellView: View {
             case .storage: AccessibilityIdentifiers.Control.openStorage
             case .emulator: AccessibilityIdentifiers.Control.openAdapter
             case .controller: AccessibilityIdentifiers.Control.openControllerSettings
+            case .metadata: "playstead.settings.open.metadata"
             }
         }
         var title: String {
@@ -81,6 +85,7 @@ struct LibraryShellView: View {
             case .storage: "Storage"
             case .emulator: "Emulator"
             case .controller: "Controller"
+            case .metadata: "Metadata"
             }
         }
     }
@@ -301,6 +306,16 @@ struct LibraryShellView: View {
             .onAppear { placeInitialSheetFocus() }
             .onExitCommand { presentedSurface = nil }
         }
+        .sheet(item: $selectedGameDetails, onDismiss: {
+            environment.requestDetailsTriggerFocus(assetSetID: lastDetailsAssetSetID)
+        }) { entry in
+            GameDetailView(
+                entry: entry,
+                onPlay: { sendControllerCommand(for: entry.id, action: .activate) },
+                onShowReadiness: { sendControllerCommand(for: entry.id, action: .readiness) }
+            )
+            .environment(environment)
+        }
         .task {
             // The window renders from the local mirror first (LIBR-01's
             // browse-before-download contract); the network pass is a
@@ -328,7 +343,7 @@ struct LibraryShellView: View {
         }
         .onChange(of: environment.controllerHost.liveInputs) { previous, current in
             guard let controllerID = environment.controllerHost.assignedControllerID else { return }
-            let navigationIsBlocked = presentedSurface != nil || showsControllerTest
+            let navigationIsBlocked = presentedSurface != nil || showsControllerTest || selectedGameDetails != nil
             for input in previous.subtracting(current).sorted() {
                 _ = navigationDispatcher.receive(
                     inputName: input, active: false,
@@ -549,12 +564,23 @@ struct LibraryShellView: View {
                         AdapterSetupView()
                     case .controller:
                         controllerSettings
+                    case .metadata:
+#if UI_TESTING
+                        MetadataSettingsView(
+                            games: environment.uiTestingMetadataFixture?.settings?.testGames ?? library.catalogue,
+                            fixture: environment.uiTestingMetadataFixture?.settings
+                        )
+                        .id(environment.uiTestingMetadataFixture?.identity)
+#else
+                        MetadataSettingsView(games: library.catalogue)
+#endif
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, DesignTokens.Spacing.md)
                 .padding(.bottom, DesignTokens.Spacing.lg)
             }
+            .accessibilityIdentifier("playstead.settings.content")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .accessibilityElement(children: .contain)
@@ -633,6 +659,7 @@ struct LibraryShellView: View {
                 onReclaim: { environment.reclaim(gameIDs: $0); storageRevision += 1 },
                 onRemoveQuarantined: { environment.removeQuarantinedPartial(atPath: $0); storageRevision += 1 },
                 onlyOnThisMacCounts: snapshot.onlyOnThisMacCounts,
+                metadataMediaUsageBytes: snapshot.metadataMediaUsageBytes,
                 onExportOnlyCopy: { ids in
                     Task { await environment.openConsoleSavesExport(forAssetSetIDs: ids) }
                 }
@@ -819,7 +846,8 @@ struct LibraryShellView: View {
                     downloadCommand: downloadCommand,
                     isSelected: selectedListEntryID == entry.id,
                     isControllerFocused: controllerFocusedAssetSetID == entry.id,
-                    controllerCommand: controllerCommand
+                    controllerCommand: controllerCommand,
+                    onOpenDetails: { selectedGameDetails = $0; lastDetailsAssetSetID = $0.id }
                 )
                     .tag(entry.id)
             }
@@ -867,7 +895,8 @@ struct LibraryShellView: View {
                             entry: entry,
                             presentation: .card,
                             isControllerFocused: controllerFocusedAssetSetID == entry.id,
-                            controllerCommand: controllerCommand
+                            controllerCommand: controllerCommand,
+                            onOpenDetails: { selectedGameDetails = $0; lastDetailsAssetSetID = $0.id }
                         )
                     }
                 }

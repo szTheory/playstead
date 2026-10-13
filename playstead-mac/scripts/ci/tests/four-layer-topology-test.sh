@@ -156,6 +156,8 @@ if live_environment != expected_live_environment:
 # b8960d1 and this set was not updated alongside it -- the drift went unseen
 # because CI last ran 2026-09-08, before that commit.
 expected_live = {
+    "MetadataDescriptionJourneyTests/testPrivateDescriptionSurvivesChangeAndReset()",
+    "MetadataPrivateMediaJourneyTests/testPrivateMediaExportAndProviderDisclosureUsePairedProductionRoutes()",
     "HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner()",
     "LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch()",
     "PairingCeremonyTests/testAHumanCanPairAFreshMacEntirelyFromInsideTheAppAgainstTheRealServer()",

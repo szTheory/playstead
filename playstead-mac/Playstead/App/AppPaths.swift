@@ -15,6 +15,7 @@ struct AppPaths {
     let launch: URL
     let emulators: URL
     let bios: URL
+    let metadataMedia: URL
     let databaseURL: URL
     /// The trust-on-first-use pairing anchor `PairingCoordinator.redeem()`
     /// writes on a successful pairing and `APIClient` evaluates server
@@ -41,6 +42,7 @@ struct AppPaths {
         self.launch = root.appendingPathComponent("launch", isDirectory: true)
         self.emulators = root.appendingPathComponent("emulators", isDirectory: true)
         self.bios = root.appendingPathComponent("bios", isDirectory: true)
+        self.metadataMedia = root.appendingPathComponent("metadata-media", isDirectory: true)
         self.databaseURL = root.appendingPathComponent("playstead.sqlite3", isDirectory: false)
         self.pinnedCertificate = Self.pinnedCertificateURL(under: root)
 
@@ -54,12 +56,12 @@ struct AppPaths {
     }
 
     private func createDirectoriesIfNeeded(fileManager: FileManager) {
-        for dir in [root, objects, partials, launch, emulators, bios] {
+        for dir in [root, objects, partials, launch, emulators, bios, metadataMedia] {
             try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
         }
     }
 
-    /// Sets `isExcludedFromBackup = true` on exactly the five
+    /// Sets `isExcludedFromBackup = true` on exactly the six
     /// reconstructable cache directories — never on `root`, and never on
     /// `saves/`. Cache objects are re-derivable from the server and must
     /// never occupy a user's backup budget or be represented in Time
@@ -70,7 +72,7 @@ struct AppPaths {
     /// only bytes on the machine that cannot be re-derived from the
     /// server (D-63).
     private func excludeReconstructableDirectoriesFromBackup(fileManager: FileManager) {
-        for dir in [objects, partials, launch, emulators, bios] {
+        for dir in [objects, partials, launch, emulators, bios, metadataMedia] {
             var mutableDir = dir
             var resourceValues = URLResourceValues()
             resourceValues.isExcludedFromBackup = true

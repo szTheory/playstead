@@ -1,0 +1,62 @@
+{
+  "verdict": "issues_found",
+  "blockers": 5,
+  "warnings": 1,
+  "issues": [
+    {
+      "plan": "04.7-01",
+      "dimension": "key_link_completeness",
+      "severity": "blocker",
+      "required_property": "Every tracer's claimed production key links are implemented by that task or guaranteed by declared prior dependencies",
+      "description": "Plan01 Task2 omits actual server snapshot/entity/capability files and Mac persistence/journal/SyncEngine/AppEnvironment/current library route; these appear only in later plans.",
+      "task": 2,
+      "fix_hint": "Move the minimal actual server/Mac snapshot and live native private-description composition into Plan01; later plans extend it. Include a focused packaged/live-server description journey before expansion."
+    },
+    {
+      "plan": "04.7-01",
+      "dimension": "verification_quality",
+      "severity": "blocker",
+      "required_property": "A blocking decision checkpoint's verify must fail for missing or incomplete decision fields",
+      "description": "test -s proves only nonempty, not resolved wire shape/version/compatibility/reset named by acceptance/fails_when.",
+      "task": 1,
+      "fix_hint": "Use a concrete structured decision format and read-only validator that asserts required fields/values and supported compatibility rules."
+    },
+    {
+      "plan": "04.7-01..06",
+      "dimension": "validation_coverage",
+      "severity": "blocker",
+      "required_property": "Each new focused ExUnit target fails closed on absent, zero, or skipped execution",
+      "description": "Focused commands are plain mix test files without an executable discovery/count/skip guard; prose is not enforcement.",
+      "fix_hint": "Reuse current server test-result/required-identity formatter or extend existing lane with exact phase selector manifest and a meaningful absent/zero/skipped/duplicate mutation control. Name owned files and invoke it in commands."
+    },
+    {
+      "plan": "04.7-02",
+      "dimension": "key_link_completeness",
+      "severity": "blocker",
+      "required_property": "Untrusted image decode executes inside an actually launched resource-limited Linux boundary",
+      "description": "Decoder Dockerfile is declared but no production runtime wiring launches/restricts it or supplies actual memory/CPU/time/filesystem/network limits.",
+      "task": 1,
+      "fix_hint": "Declare actual production worker/runner/release/Compose wiring using existing repository isolation precedent, with effective hard caps and runtime hostile negative tests; no unbounded BEAM decode."
+    },
+    {
+      "plan": "04.7-09",
+      "dimension": "key_link_completeness",
+      "severity": "blocker",
+      "required_property": "Native provider, privacy, preparation and correction controls invoke real server APIs through app composition",
+      "description": "Views/UI tests do not own API client/model/viewmodel/AppEnvironment service wiring; live-server private media/correction journey omits consent/enrichment/preparation routes.",
+      "task": 1,
+      "fix_hint": "Assign real MetadataAPI/coordinator/models/environment integration and package a live-server local-provider-stub journey exercising all these controls through production routes."
+    },
+    {
+      "plan": "04.7-06",
+      "dimension": "artifact_ownership",
+      "severity": "warning",
+      "required_property": "Every promised API contract artifact is owned by a task",
+      "description": "Action promises OpenAPI schemas/examples but files omit their outputs.",
+      "task": 2,
+      "fix_hint": "Add current official OpenAPI/source-contract/fixture paths owned by compatible producer tasks, verify schema/examples as executable contract."
+    }
+  ],
+  "human_judgment": false,
+  "implementation_tests_run": false
+}

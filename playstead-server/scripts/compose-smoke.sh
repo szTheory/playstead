@@ -41,6 +41,11 @@ if [ "$FRESH" = "1" ] && [ "${CI:-}" != "true" ] && [ "${SMOKE_ALLOW_FRESH:-}" !
   exit 2
 fi
 
+# Compose cannot build or select an unscanned decoder implicitly. Reuse only a
+# receipt that still matches this source context and the exact local image.
+PLAYSTEAD_MEDIA_DECODER_IMAGE="$(bash scripts/prepare-media-decoder-image.sh)"
+export PLAYSTEAD_MEDIA_DECODER_IMAGE
+
 if [ "${CI:-}" = "true" ]; then
   trap 'status=$?; if [ $status -ne 0 ]; then docker compose logs --no-color || true; fi; docker compose down --remove-orphans || true' EXIT
 fi

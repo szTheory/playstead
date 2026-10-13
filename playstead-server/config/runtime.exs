@@ -89,6 +89,33 @@ config :playstead,
   max_upload_bytes: parse_integer_env.("PLAYSTEAD_MAX_UPLOAD_BYTES", 8_589_934_592),
   max_session_files: parse_integer_env.("PLAYSTEAD_MAX_SESSION_FILES", 250_000)
 
+mac_ci_decoder_port =
+  if config_env() == :mac_ci do
+    case Integer.parse(System.get_env("PLAYSTEAD_MAC_CI_MEDIA_DECODER_PORT", "")) do
+      {port, ""} when port in 1..65_535 -> {:mac_ci_tcp, port}
+      _ -> nil
+    end
+  end
+
+config :playstead,
+  media_decoder_socket: mac_ci_decoder_port || System.get_env("PLAYSTEAD_MEDIA_DECODER_SOCKET")
+
+# Optional metadata lookup remains unavailable until the self-host owner
+# configures credentials. Values are never exposed to API responses.
+config :playstead,
+  igdb_client_id: System.get_env("PLAYSTEAD_IGDB_CLIENT_ID"),
+  igdb_access_token: System.get_env("PLAYSTEAD_IGDB_ACCESS_TOKEN"),
+  igdb_private_image_terms_revision: System.get_env("PLAYSTEAD_IGDB_PRIVATE_IMAGE_TERMS_REVISION")
+
+if config_env() == :prod and System.get_env("PLAYSTEAD_MEDIA_DECODER_REQUIRED") == "true" do
+  decoder_socket = System.get_env("PLAYSTEAD_MEDIA_DECODER_SOCKET")
+
+  unless :os.type() == {:unix, :linux} and is_binary(decoder_socket) and
+           match?({:ok, %File.Stat{type: :other}}, File.lstat(decoder_socket)) do
+    raise "required isolated Linux media decoder socket is absent; refusing in-process fallback"
+  end
+end
+
 config :playstead, Playstead.Blobs, store: Playstead.Blobs.Store.LocalDisk
 
 config :playstead, PlaysteadWeb.Endpoint,

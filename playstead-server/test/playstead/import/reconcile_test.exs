@@ -63,15 +63,25 @@ defmodule Playstead.Import.ReconcileTest do
   end
 
   test "a change in size triggers a re-hash", %{root: root, user: user} do
-    File.write!(Path.join(root, "a.bin"), "content")
+    original = "reconcile-size-#{System.unique_integer([:positive, :monotonic])}"
+    changed = original <> "-changed-size"
+    original_sha = sha256(original)
+    changed_sha = sha256(changed)
+
+    File.write!(Path.join(root, "a.bin"), original)
     {:ok, first} = Staging.stage(user.id, root, "reconcile-size-first")
     :ok = run_to_completion(first.id)
 
-    File.write!(Path.join(root, "a.bin"), "different content, different size")
+    File.write!(Path.join(root, "a.bin"), changed)
     {:ok, second} = Staging.stage(user.id, root, "reconcile-size-second")
     :ok = run_to_completion(second.id)
 
-    assert Repo.aggregate(Playstead.Blobs.Blob, :count) == 2
+    assert Repo.aggregate(
+             from(blob in Playstead.Blobs.Blob,
+               where: blob.sha256 in ^[original_sha, changed_sha]
+             ),
+             :count
+           ) == 2
   end
 
   test "a change in mtime alone triggers a re-hash", %{root: root, user: user} do
@@ -103,7 +113,10 @@ defmodule Playstead.Import.ReconcileTest do
     root: root,
     user: user
   } do
-    File.write!(Path.join(root, "a.bin"), "content")
+    bytes = "reconcile-full-verify-#{System.unique_integer([:positive, :monotonic])}"
+    digest = sha256(bytes)
+
+    File.write!(Path.join(root, "a.bin"), bytes)
     {:ok, first} = Staging.stage(user.id, root, "reconcile-full-verify-first")
     :ok = run_to_completion(first.id)
 
@@ -120,7 +133,10 @@ defmodule Playstead.Import.ReconcileTest do
     assert row.staging_state == "completed"
     # Genuinely re-hashed (not the reconcile-skip path) -- same content, so
     # no new blob is created, but the row still went through hash_and_commit.
-    assert Repo.aggregate(Playstead.Blobs.Blob, :count) == 1
+    assert Repo.aggregate(
+             from(blob in Playstead.Blobs.Blob, where: blob.sha256 == ^digest),
+             :count
+           ) == 1
   end
 
   test "staging and running the same folder twice creates zero new blobs and no duplicate asset_sets",
@@ -140,4 +156,6 @@ defmodule Playstead.Import.ReconcileTest do
     assert Repo.aggregate(Playstead.Blobs.Blob, :count) == blob_count
     assert Repo.aggregate(Playstead.Catalogue.AssetSet, :count) == asset_set_count
   end
+
+  defp sha256(bytes), do: :crypto.hash(:sha256, bytes) |> Base.encode16(case: :lower)
 end

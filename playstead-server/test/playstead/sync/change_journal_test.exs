@@ -9,7 +9,7 @@ defmodule Playstead.Sync.ChangeJournalTest do
   alias Playstead.Sync.{ChangeJournal, EntityKind, Entry}
 
   describe "EntityKind.all/0" do
-    test "returns the six original kinds plus curation (D-08)" do
+    test "returns the registered entity kinds including optional metadata" do
       assert EntityKind.all() == [
                :device,
                :pairing,
@@ -17,7 +17,8 @@ defmodule Playstead.Sync.ChangeJournalTest do
                :job,
                :transfer,
                :save,
-               :curation
+               :curation,
+               :metadata
              ]
     end
 

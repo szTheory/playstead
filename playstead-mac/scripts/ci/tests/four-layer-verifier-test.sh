@@ -624,6 +624,12 @@ printf '%s\n' '{"testPlanConfigurations":[],"devices":[],"testNodes":[{"nodeType
 expect_fail missing verify_fixture "$missing"
 expect_fail malformed verify_fixture /dev/null
 expect_fail no_allowlist "$VERIFIER" --verify-layer-result "$valid" unit "$TMP_ROOT/no-allowlist.json"
+expect_fail four_segment_selector "$VERIFIER" --layers rendering --only-testing \
+  PlaysteadTests/Group/ArtworkContractSnapshotTests/testAccidentalFourSegmentSelector
+rg -q 'malformed --only-testing selector' "$TMP_ROOT/four_segment_selector.err"
+expect_fail wrong_layer_selector "$VERIFIER" --layers rendering --only-testing \
+  PlaysteadUITests/MetadataConsentUITests
+rg -q 'malformed --only-testing selector' "$TMP_ROOT/wrong_layer_selector.err"
 
 if [ "$FAIL_COUNT" -ne 0 ]; then
   printf 'four-layer result verifier: %d check(s) failed\n' "$FAIL_COUNT" >&2

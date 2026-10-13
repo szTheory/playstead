@@ -1,0 +1,101 @@
+package:
+  name: python-3.15
+  dependencies:
+    runtime:
+    - ${{package.name}}-base=${{package.full-version}}
+  version: "3.15.0_git20261010"
+  epoch: 0
+  description: CPython 3.15.0 from pinned Wolfi source with unnecessary optional modules omitted
+  copyright:
+  - license: PSF-2.0
+  resources:
+    cpu: 2
+    memory: 8Gi
+environment:
+  contents:
+    packages:
+    - autoconf
+    - automake
+    - build-base
+    - busybox
+    - ca-certificates-bundle
+    - expat-dev
+    - glibc-2.44-dev
+    - libtool
+    - zlib-dev
+    repositories:
+    - packages
+    - https://packages.wolfi.dev/os
+    keyring:
+    - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+pipeline:
+- uses: git-checkout
+  with:
+    branch: 3.15
+    expected-commit: 626fb7612218cf10fbcf0525fce6b37c8a60d4be
+    repository: https://github.com/python/cpython
+- name: Drop branch development marker from version string
+  runs: |
+    sed -i 's/^\(#define PY_VERSION[[:space:]]*"3.15.0\)+[a-z]*"/\1"/' Include/patchlevel.h
+    grep -q '^#define PY_VERSION[[:space:]]*"3.15.0"' Include/patchlevel.h
+- name: Apply current Wolfi Python 3.15 patchset
+  uses: patch
+  with:
+    patches: |
+      python-3.15/0006-Allow-HelloRetryRequest-in-test_ssl-servername-callb.patch
+      python-3.15/0007-Always-provide-PROTOCOL_TLSv1-and-fix-HAS_TLSv1_2-wi.patch
+      python-3.15/gh-127301.patch
+      python-3.15/0010-hashlib-do-not-fail-import-without-EVP_MAC-HMAC.patch
+- name: Force use of system expat and omit optional extension build headers
+  runs: |
+    rm -rf Modules/expat Modules/_ctypes/darwin* Modules/_ctypes/libffi*
+- uses: autoconf/configure
+  with:
+    opts: --enable-ipv6 --enable-shared --with-system-expat --without-ensurepip --with-builtin-hashlib-hashes=blake2
+- name: Compile with exactly two jobs
+  runs: make -j2 V=1
+- name: Install and remove development/test payloads
+  runs: |
+    make install DESTDIR="${{targets.destdir}}" V=1
+    root="${{targets.destdir}}"
+    test -x "$root/usr/bin/python3.15"
+    ln -sfn python3.15 "$root/usr/bin/python3"
+    ln -sfn python3.15 "$root/usr/bin/python"
+    rm -rf "$root/usr/include" "$root/usr/share/man" "$root/usr/share/doc" "$root/usr/share/info"
+    rm -rf "$root/usr/lib/python3.15/test" "$root/usr/lib/python3.15/tests" "$root/usr/lib/python3.15/idle_test"
+    rm -rf "$root/usr/lib/python3.15/idlelib" "$root/usr/lib/python3.15/tkinter" "$root/usr/lib/python3.15/turtledemo"
+    rm -rf "$root/usr/lib/python3.15/ensurepip"
+    find "$root/usr/lib" -type f -name 'libpython*.a' -delete
+    rm -f "$root"/usr/bin/idle3* "$root"/usr/bin/2to3* "$root"/usr/bin/pydoc3* "$root/usr/bin/python3-config"
+    mkdir -p "$root/usr/share/licenses/python-3.15"
+    cp LICENSE "$root/usr/share/licenses/python-3.15/LICENSE"
+    printf '%s  %s\n' 'b0e25a78cffb43f4d92de8b61ccfa1f1f98ecbc22330b54b5251e7b6ba010231' "$root/usr/share/licenses/python-3.15/LICENSE" | sha256sum -c -
+- uses: strip
+test:
+  pipeline:
+  - name: Verify Python helper runtime modules and excluded optional modules
+    runs: |
+      python3 - <<'PY'
+      import concurrent.futures, importlib.util, resource, signal, socket, struct, subprocess, tempfile, threading, time, zlib
+      import xml.etree.ElementTree
+      assert zlib.decompress(zlib.compress(b"decoder-runtime")) == b"decoder-runtime"
+      assert socket.AF_UNIX
+      assert importlib.util.find_spec("pyexpat")
+      for module in ("_gdbm", "_sqlite3", "_ssl", "_bz2", "_lzma", "_tkinter"):
+          assert importlib.util.find_spec(module) is None, module
+      print("python3 helper runtime contract passed")
+      PY
+update:
+  enabled: false
+
+subpackages:
+- name: "${{package.name}}-base"
+  description: "${{package.name}} payload built from the current Wolfi source and patch set"
+  pipeline:
+  - name: Move interpreter runtime into the official Wolfi base split
+    runs: |
+      mkdir -p "${{targets.subpkgdir}}/usr/bin" "${{targets.subpkgdir}}/usr/lib" "${{targets.subpkgdir}}/usr/share/licenses"
+      mv "${{targets.destdir}}/usr/bin/python3.15" "${{targets.subpkgdir}}/usr/bin/"
+      mv "${{targets.destdir}}/usr/lib/python3.15" "${{targets.subpkgdir}}/usr/lib/"
+      mv "${{targets.destdir}}/usr/lib/libpython3.15.so."* "${{targets.subpkgdir}}/usr/lib/"
+      mv "${{targets.destdir}}/usr/share/licenses/python-3.15" "${{targets.subpkgdir}}/usr/share/licenses/"

@@ -1,0 +1,25 @@
+{
+  "verdict": "issues_found",
+  "blockers": 2,
+  "warnings": 0,
+  "issues": [
+    {
+      "plan": "04.7-08;04.7-09",
+      "dimension": "verification_derivation",
+      "severity": "blocker",
+      "required_property": "Every planned UI state has an executable behavior-bearing oracle in a plan task",
+      "description": "Broad truths and SOURCE-AUDIT identity-to-suite mapping do not preserve91element/category applications as observable predicates/fixtures/interaction assertions in executable PLAN content.",
+      "fix_hint": "Lift grouped91identities into must_haves truths by element+suite, and add exact statefixtures/observable assertions to task actions; deduplicate predicate text but preserve allapplications."
+    },
+    {
+      "plan": "04.7-01",
+      "dimension": "scope_sanity",
+      "severity": "blocker",
+      "required_property": "Each plan stays within the per-plan15modified-file budget",
+      "description": "Plan01 declares29files and27in tracer task, above15blocker threshold.",
+      "fix_hint": "Split cohesive prerequisite verification/contract/API groundwork into a minimal prerequisite plan, and retain early production server->native tracer before feature expansion; every plan <=15files."
+    }
+  ],
+  "human_judgment": false,
+  "implementation_tests_run": false
+}

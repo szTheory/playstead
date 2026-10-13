@@ -52,8 +52,15 @@ with its own internal, locally-trusted certificate authority.
 ## 2. Start the stack
 
 ```bash
-docker compose up -d
+scripts/verified-compose.sh up -d
 ```
+
+The supported start command builds the isolated media decoder, scans that
+exact image with the pinned Trivy policy, and records a receipt bound to the
+decoder build-context hash and immutable image ID. It reuses the receipt only
+when the source, report, policy result, and locally available image still
+match. A missing or failed scan stops startup before Compose can activate the
+decoder.
 
 This starts three services: `db` (Postgres), `app` (the Phoenix
 release), and `caddy` (TLS termination and reverse proxy). Only

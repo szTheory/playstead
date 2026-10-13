@@ -72,6 +72,9 @@ config :playstead, PlaysteadWeb.Endpoint,
 
 config :playstead, :sql_sandbox, false
 config :playstead, :trust_proxy_headers, false
+# A fixed in-process IGDB transport for packaged UI acceptance. It reports
+# provider readiness without real credentials and can never contact IGDB.
+config :playstead, :metadata_provider_test_stub, true
 config :playstead, Playstead.Sync.Snapshot, set_isolation: true
 # mac_ci-only, run-owned control files used by the live save reliability
 # fixture. No equivalent control root is configured in test/dev/prod.

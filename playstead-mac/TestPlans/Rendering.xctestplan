@@ -42,6 +42,8 @@
         "DeterministicProfileTests",
         "IdentityAndFocusPrimitiveTests",
         "LibraryContractSnapshotTests",
+        "ArtworkContractSnapshotTests",
+        "MetadataStateRenderingTests/testAllFiftyThreeMetadataControlFixturesMountAndRender()",
         "OnlyCopyContractSnapshotTests",
         "SaveHistoryContractSnapshotTests",
         "SnapshotHarnessCanaryTests/testIntentionalMismatchProducesReviewableTriplet()",

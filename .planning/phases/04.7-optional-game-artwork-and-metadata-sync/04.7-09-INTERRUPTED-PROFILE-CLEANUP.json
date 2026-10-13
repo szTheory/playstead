@@ -1,0 +1,19 @@
+{
+  "recorded_at": "2026-10-13T04:22:33.938515+00:00",
+  "human_judgment": false,
+  "exact_task_executable_inventory_empty": true,
+  "profiles": [
+    {
+      "directory": "/var/folders/f3/f0clj9rd2zb85n2c849wcsrc0000gn/T/playstead-metadata-media-012b59ab-ed4f-455f-aa33-b9d256632b2d",
+      "validated_authored_fixture": true,
+      "isolated_keychain_deleted": true,
+      "profile_absent_after": true
+    },
+    {
+      "directory": "/var/folders/f3/f0clj9rd2zb85n2c849wcsrc0000gn/T/playstead-metadata-media-76d08798-0b67-46a0-9aaf-79810d0e85f4",
+      "validated_authored_fixture": true,
+      "isolated_keychain_deleted": true,
+      "profile_absent_after": true
+    }
+  ]
+}

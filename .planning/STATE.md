@@ -1,20 +1,23 @@
 ---
 gsd_state_version: "1.0"
 milestone: v1.0
-current_phase: 03
-current_phase_name: Mac Offline Play Vertical Slice
-status: executing
-stopped_at: Completed 03-16-PLAN.md
-last_updated: "2026-10-10T04:52:00Z"
-last_activity: 2026-10-10
-last_activity_desc: "Completed quick task 261009-uoo: Add privacy-safe per-attempt Save E2E failure diagnostics"
-state_head: 2ce16775154f2a32bd4257a534a675920316cab6
+current_phase: "4.7"
+current_phase_name: Optional game artwork and metadata sync
+status: complete
+stopped_at: Phase4.7 complete38/38; next $gsd-ship
+last_updated: "2026-10-13T14:19:14.189Z"
+last_activity: 2026-10-13
+last_activity_desc: Phase4.7 automated closure complete; prepare reviewed delivery with $gsd-ship; parked qualifications remain separate
+state_head: 8380a085ffe113669395b5fea5152809b62c23b2
 progress:
-  total_phases: 7
+  total_phases: 11
   completed_phases: 5
-  total_plans: 75
-  completed_plans: 75
+  total_plans: 140
+  completed_plans: 137
+total_phases: 11
+total_plans_in_phase: 10
 milestone_name: milestone
+current_plan: null
 ---
 
 # Project State
@@ -24,14 +27,60 @@ milestone_name: milestone
 See: `.planning/PROJECT.md` (updated 2026-08-30)
 
 **Core value:** A locally available game and its progress remain effortless to play, safe, understandable, synchronized, and fully under the user's control.
-**Current focus:** Phase 03 — Mac Offline Play Vertical Slice
+**Current focus:** Phase4.7 is complete. Next: `$gsd-ship` for reviewed delivery preparation. Apple/HID and retained recovery qualifications remain independently parked.
 
 ## Current Position
 
-Phase: 03 (Mac Offline Play Vertical Slice) — EXECUTING (all 16 plans complete; awaiting independent re-verification)
-Plan: 16 of 16
-Status: Ready for re-verification
-Last activity: 2026-10-10 — Completed quick task 261009-uoo: Add privacy-safe per-attempt Save E2E failure diagnostics
+**Phase04.7 complete (2026-10-13):** All ten plans complete; goal verification passed38/38 with current covered-input fingerprint. Fullserver1206/0;53packaged control states, liveOwYAws1/1 and finalexpiry unit/render1/1 each passed. Security11/11closed; UI17/24 with six advisory findings; inherited sharedCAS crash-boundary warning is deferred without a crash-atomicity claim. Taskapps/runner/services closed; no human UAT remains. Exact next command: `$gsd-ship`.
+
+**GB/GBC spike and wrap-up (2026-10-11):** Spikes 001/002 VALIDATED within tested cases; 003 PARTIAL. Gameplay, complete SRAM/RTC artifacts and recorded clock/readback proof are packaged in [the project skill](../.codex/skills/spike-findings-playstead/SKILL.md). Eleven verbatim source copies, processed metadata, routing and exact continuation are verified; see [wrap-up](./spikes/WRAP-UP-SUMMARY.md). Next: `$gsd-phase --insert 4 Game Boy and Game Boy Color play and persistent saves`. No production support or numbered roadmap phase completed.
+
+**Quick task 261010-v63 (2026-10-10):** Complete, 5/5 truths. Four new presentation/live/render tests plus eighteen existing host regressions pass; missing/skip/zero controls fail. One sandbox-enabled production Release preview passes signature/helper/hook/source checks. Source `5ddc2fe2c593b50958dfb5f4bb4fe999a8d30c17` is a local checkpoint only; owner edits preserved. See [verification](./quick/261010-v63-polish-controller-button-labels-and-prep/261010-v63-VERIFICATION.md). Then-next command was the GB/GBC spike, now complete above. Older dated routing notes below are historical; this record and HANDOFF.json supersede their active-next recommendations.
+
+**Snapshot debug resume (2026-10-10):** Resolved automatically under owner-delegated closure. Run 38089347989 at 3afc53e passes all required PR jobs, 835 native executions and all 104 required identities once/unskipped, including the four recurring regressions and unchanged original snapshot workflow. Causal/mutation/source-tree/cleanup evidence is sufficient; no repeat or human checkbox remains. See [resolved session](./debug/resolved/live-server-initial-row.md) and [verification](./debug/live-server-initial-row/VERIFICATION.md). Next exact command: `$gsd-debug continue release-evidence-revalidation`.
+
+**Release debug resume (2026-10-10):** Resolved automatically. Owner-approved merge 36c7c86 has reviewed 3afc53e tree; main run 38093171114 passes server/Compose/protected-main release proof, exact-source provenance/CycloneDX and byte-identical finalization. Whole CI failed Mac Save E2E: unit 668/0, Rendering 46/0, UI 116/0, live server 5/1; original snapshot passes. Pass-local 409/server_refusal/other has unknown exact subcode/route. Existing save session reopened, complete Mac proof unclaimed. Phase 05.1 D3 is integration/pass/human_judgment=false; completion bookkeeping deferred. Next exact command: `$gsd-debug continue save-e2e-upload-server-refused`. See [release proof](./debug/release-evidence-revalidation/ACTUAL-MAIN.json) and [failure receipt](./debug/release-evidence-revalidation/MAIN-MAC-FAILURE.json).
+
+**Quick task 261010-maq (2026-10-10):** Complete and verified 3/3. Current 40-selector guard, 90 acceptance-marker removal controls, six identity/skip controls, three recurring selector removal controls and seven discovered/executed/unskipped gate tests pass in working and freshly exported committed compositions. Existing CI discovery precedes native build; missing/nonexecutable/failing required guards are fatal. Source checkpoint `61ff159` on local `checkpoint/plan-05-surface-261010-maq` owns exactly three code paths and descends from tested ire `6b169fe`. Specific deferred failure resolved with original history preserved; no native/app/service/hosted run. Owner-branch source integration/publication remains separate. See [verification](./quick/261010-maq-repair-and-register-the-plan-05-surface-/261010-maq-VERIFICATION.md). Next exact command: `$gsd-audit-uat`.
+
+**Forensic progress audit (2026-10-10):** Seven checks completed: five warning categories, two pass. Counts are 123/126 plan summaries and 4/9 qualified phases; raw debt is 52 WINDOWS open and 25 UAT record entries, with six pending todos. Saved report separates stale/fixed records from live missing proof. The original notice todo stays pending for keyboard/controller/VoiceOver dismissal criteria. Current Plan 05 static surface guard fails on granular selector identity; this is the next local repair. See [quick 261010-lvl report](./quick/261010-lvl-reconcile-forensic-progress-metadata-and/261010-lvl-REPORT.md). Next exact command: `$gsd-quick --validate Repair and register the Plan 05 surface-contract guard for current UI selectors while preserving fail-closed coverage checks`. No app/build/hosted run launched.
+
+**Quick task 261010-ire (2026-10-10):** Complete. BIOS, controller settings/test, healthy save history and conflict comparison use bounded destinations with visible return paths. Fifteen distinct focused UI selectors have passing evidence. The final geometry/BIOS selectors passed sequentially after restart in selected-ui.lDoW9b and selected-ui.Pknurc; each discovered/executed one unskipped passing test. Four geometry cases, 16 frame comparisons and both BIOS appearances passed, and captures were reviewed. Source checkpoint `6b169fe` is already applied; all ten owned paths match. The readiness todo is done and exact task processes are closed. The older clz lifecycle is now complete; see its closeout record below. See [the completion continuation](./quick/261010-ire-complete-bounded-readiness-navigation-fo/continue.md).
+
+**Readiness restart verification (2026-10-10):** Kernel pressure recovered to level 1 with zero swap; Activity Monitor showed green pressure. The prelaunch exact app/runner/Xcode inventory was empty. Both cached, sequential no-HID wrapper commands exited 0 and their required-result guards passed. The final test-only diagnostic edit compiled. Final exact-path inventory is empty; no unrelated process was stopped and no emulator was launched.
+
+**Quick task 261010-if3 (2026-10-10):** Complete. The adapter readiness remedy now opens bounded native setup with pinned actions and a visible return path; initial/return keyboard focus and both appearances are verified. Five required selectors passed (4 UI / 1 Unit), both sheet captures were reviewed, and task processes are closed. Source checkpoint `f6034fb` on local `checkpoint/ui-readiness-261010-if3` descends from cleanup `b20fac0`; four task-owned source files preserve earlier work. Remaining BIOS/controller/history/conflict navigation stays in the existing UI todo. See [the completion record](./quick/261010-if3-make-readiness-remedies-explicit-bounded/continue.md).
+
+**Quick task 261010-faz (2026-10-10):** Complete. Impeccable init, Mac cleanup, 29 passing required selectors (5 Unit / 11 Rendering / 13 UI), reviewed rendering and normal/slow/reduced native motion samples are recorded. Thirty-two Swift files parse; lightweight contracts pass; 334 unrelated original dirty files checked are unchanged. Source checkpoint `b20fac0` on local `checkpoint/ui-cleanup-261010-faz` has a separate pre-cleanup context parent and matches all 393 captured composition files. The owner branch and earlier work are preserved. See [the completed continuation](./quick/261010-faz-initialize-impeccable-product-context-an/continue.md). Broader qualification stays separate; the older clz lifecycle is now complete.
+
+**Quick task 261010-clz source closeout (2026-10-10):** Complete. Both captured production/fixture baselines equal stored 0c37b46 context; current source matches tested b20fac0/6b169fe. The fresh audit revalidated two exact selector passes, four capture hashes, 16 numeric frame comparisons and seven source paths. Geometry passed in selected-ui.lDoW9b; detach passed in selected-ui.kfUdUD while its two other failed selectors remain recorded. Resource guidance and task records are closed without replaying source or running another build. See [the complete continuation](./quick/261010-clz-fix-the-controller-disconnect-notice-so-/continue.md). Next: `$gsd-progress`; the authorized cleanup chain has no remaining task, and external prerequisites stay parked.
+
+Phase: 4.7 (Optional game artwork and metadata sync) — COMPLETE
+Current GSD pointer: $gsd-ship
+Last GSD action: Phase4.7 goal verification passed38/38 and all ten plans completed automatically; independent qualifications remain parked.
+Last activity: 2026-10-13 — Phase4.7 complete; exact independent next command $gsd-ship
+
+**Local resource cleanup (2026-10-10):** `docker ps | wc -l` fell from 118 to 49 and Docker volume storage from 24.92 GB to 18.84 GB. Only `playstead-server` remains running among Playstead projects. Its teardown is intentionally left for the owner to decide. See [quick task 261010-d83](./quick/261010-d83-resource-cleanup-for-stale-playstead-doc/).
+
+**Phase 03 GSD routing update (2026-10-08):** Plans 03-01 through 03-29 have summaries; Plan 03-30 remains incomplete. Its earlier self-hosted runner design is superseded by Phase 06 Plan 06-19 and quick task 261008-q7i: the public PR workflow has no self-hosted execution path. The absence of registered runners and local profiles is not a cue to register a machine. Any future qualification workflow must be separately reviewed, run only for trusted pushes to protected `main` on a fresh GitHub-hosted `macos-26` runner, use a matching Apple Development profile from narrowly scoped protected GitHub Environment configuration, and never check out or execute PR code/artifacts. No hosted run was dispatched and no OS HID result is claimed. After that workflow and profile exist, run `$gsd-execute-phase 03 --gaps-only`; after hosted evidence is qualified, run `$gsd-verify-work 03`. Do not poll Apple or repeat already confirmed owner checks. See [the current Phase 03 handoff](./phases/03-mac-offline-play-vertical-slice/.continue-here.md).
+
+**Phase 03 verification refresh (2026-10-09):** Plan 03-31 is complete. Its same-SDL input bridge, private mGBA child config, one-session attestation, prelaunch gate, exact 15/15 Unit selectors, self-contract, and signed helper checks pass; `03-UAT.md` and `03-VERIFICATION.md` now record this separately from physical claims. The packaged helper snapshot saw zero controllers, and the established AerevenAdvance ROM/backup/restore sources are absent, so actual gameplay remains unknown. Phase 03 still has PLAY-04 and hosted HID gaps. Do not run another `$gsd-plan-phase 03 --gaps` for completed 03-31 or retry the parked HID lane. Resume the physical 03-31 checkpoint only after the intended controller and established fixture return; resume 03-30 only after the owner reports HID approval and matching provisioning exists. Continue independent GSD work meanwhile. See [the refreshed Phase 03 handoff](./phases/03-mac-offline-play-vertical-slice/.continue-here.md).
+
+**Virtual HID capability note — do not poll Apple:** the earlier hosted attempt stopped before UI launch because no provisioning profile was present; this was not an Apple rejection and yielded no HID runtime result. There is no public entitled HID CI lane. Qualification remains blocked until a separately reviewed workflow runs only trusted pushes to protected `main` on a fresh GitHub-hosted `macos-26` runner, uses a protected GitHub Environment for the matching Apple Development profile, and never checks out or executes PR code/artifacts. The CI isolation contract and hosted-evidence validator are recurring no-launch checks only. Keep this separate from physical evidence: on 2026-10-08 the owner confirmed DualSense button indicators respond, Bluetooth disconnect/reconnect restores live input, basic controller navigation works, and D-pad Up lights and clears while the Controller Test sheet stays open. Physical assignment/remap/reset and the full controller/navigation/fallback walkthrough remain open. Do not claim OS enumeration from these observations.
+
+**Virtual HID approval wait — quick task 261008-sa8 (2026-10-08):** `.github/workflows/virtual-hid-qualification.yml` and its signing/evidence checks now exist in the local checkout, pending review and merge; no GitHub Environment secrets were configured and the workflow was not dispatched. Apple's existing team-level HID Virtual Device request remains Submitted, with no profile or OS enumeration result. Wait for the owner to report Apple's approval email. Do not poll Apple, send reminders, request setup, dispatch the workflow, retry qualification, or repeat already-recorded controller checks before that owner signal and matching provisioning. This parks only the OS-level HID qualification; continue unrelated development. After the owner reports approval, request the explicit UI-test App ID, matching non-expired Apple Development profile with the HID entitlement, and matching `playstead-hid` Environment secrets together once. Keep Phase 03 draft and PLAY-04 unchanged. After review/merge and provisioning, resume with `$gsd-execute-phase 03 --gaps-only`, then run `$gsd-verify-work 03` after hosted qualification. Static workflow checks, simulated input, saved physical DualSense observations, and hosted OS HID evidence remain separate claims.
+
+**Phase 06 verification state (2026-10-09):** `06-UAT.md` and `06-VERIFICATION.md` reflect 38 passed and four blocked checks. Exact-head hosted Linux, ordinary Mac, Docker, and server precommit all passed in run 36991945519 on reviewed PR #6 head `0a81341b595aa8b31e18003b4a2a61728764b0b5`; earlier failures are superseded. The remaining evidence categories are private-fixture continuation, Apple entitlement, and hosted CI for the current shared-workspace edits. Do not repeat completed evidence, poll Apple, or retry HID before the owner reports approval and matching provisioning exists. Do not claim `PORT-04` or `QUAL-02` complete.
+
+**Reusable local setup:** `playstead-mac/.local/test-fixtures/aerevenadvance.json` selects the existing verified ROM, battery save, published backup and retained restore. `playstead-mac/.local/run-recovery.sh` is the ignored persistent one-command launcher; it refreshes stale restores, prepares trust/test identity, reads ignored `.env.local` signing configuration, and performs authorized exact-request approval. No ROM/save selection, upload, personal login, Team ID discovery, or repeated pairing consent is needed. `AGENTS.md` and `playstead-mac/docs/TEST-FIXTURES.md` record these lessons. Keep private inputs local. Virtual HID remains a separate blocked qualification requiring the protected hosted workflow and Apple profile described above; do not poll Apple.
+
+**GSD routing (2026-10-10):** Phase 03 remains the earliest unfinished v1.0 phase, but its unchanged Apple and physical-fixture prerequisites are parked. Its remaining PLAY-04 gaps already have checkpoints in 03-30/03-31, so do not run `$gsd-plan-phase 03 --gaps` again without new evidence. Phase 05.1-01 and all Phase 06 plans already have summaries; do not rerun them. Phase 05.1 PR scan has passed at 77c858c; protected-main 162f664 failed evidence revalidation before attestation. Resume `$gsd-debug continue release-evidence-revalidation`, verify the canonicalization fix locally, then obtain successful same-archive hosted evidence before `$gsd-verify-work 05.1`. After owner-reported Apple approval, matching provisioning, and workflow review/merge, resume the HID plan once with `$gsd-execute-phase 03 --gaps-only`, then `$gsd-verify-work 03` after hosted qualification. For physical gameplay, resume `$gsd-verify-work 03` only after the existing AerevenAdvance source/restore route and intended controller are available and the owner signals readiness. Phase 03.5 needs reviewed exact-head hosted evidence; Phase 05-04/05-07 remain dependent on halted 05-05; Phase 06's fixture, HID, and exact-head gates remain parked. No new local GSD execution plan is ready today.
+
+**Phase 06 Plan 06-03:** Complete; see `06-03-SUMMARY.md`. The earlier synthetic-target fixture request was erroneous and is superseded by the verified existing AerevenAdvance registry. Test-only primary-member matching, download completion, sidebar navigation and canonical process-path issues were corrected and the actual journey passed. The restored console’s plain-HTTP label remains a separate reporting defect; independent HTTPS/trust validation succeeds. No canonical/first-adopter data was mutated.
+
+**Pending human controller verification:** The owner has already confirmed live DualSense button indicators, basic controller navigation, Bluetooth reconnect input, and that D-pad Up lights and clears without dismissing the Controller Test sheet. Still needed if the refreshed verifier requests the full PLAY-04 walk: physical assignment/remap/reset, sidebar destinations, All Games grid movement, Recently Played, Collections list/member/back hierarchy, system/availability filters, Cross, Circle, Options, shoulder cycling, and keyboard/pointer fallback. The passing no-HID UI tests cover simulated app behavior only. Keep OS enumeration and physical-device claims separate, and do not poll Apple. Gameplay entry for the restored-save issue was not observed and is not claimed. See [the durable routing note](./notes/2026-09-24-first-adopter-and-virtual-hid-wait.md) and [controller scope D-24–D-26](./phases/03-mac-offline-play-vertical-slice/03-CONTEXT.md).
+
+**Repeatable controller hardware check:** Before launching a rebuilt Playstead app, inventory current instances by full executable path and close stale builds so the owner sees only the intended build. Bind UI checks to that exact build. Get an explicit Ready before sampling; keep Playstead foregrounded through the timed button hold and ask for a reply only after release. A missed timing window is inconclusive, not a failed input check. Record simulated tests, OS visibility, and physical-button observations separately. The runtime has one lazily created production `AppEnvironment` so SwiftUI view reconstruction cannot replace or clear the GameController callbacks. While the Controller Test sheet is open, D-pad presses must update the live tile without driving background sidebar navigation; re-entering Settings starts at Storage. The dedicated no-HID D-pad UI test passed before extraction to `ControllerDpadRegressionTests.swift`, and that extracted test passed in quick 261010-faz; do not repeat it without a relevant change. There is no public entitled virtual-gamepad CI lane; future qualification requires a separately reviewed workflow restricted to trusted pushes to protected `main`, using a fresh GitHub-hosted `macos-26` runner and matching Apple Development profile. See the [controller regression quick task](./quick/261008-frs-investigate-and-fix-a-dualsense-controll/261008-frs-SUMMARY.md).
 
 **03-16-PLAN.md is COMPLETE.** Closed the two robustness findings the
 03-15 re-verification recorded alongside LIBR-02: `AvailabilityController
@@ -89,7 +138,16 @@ transport-independent, and filed at
 intentionally left unmarked in REQUIREMENTS.md — that belongs to 04.5-05.
 Only 04.5-05-PLAN.md remains in this phase.
 
-Progress: [█████████░] 90% (Phase 03.5)
+Progress:137/140 plan summaries (CLI phase-completion count); Phase4.7 passed38/38. Whole milestone/HID/distribution qualification remains separate.
+
+## Blockers
+
+- Latest main save test: run 38011046324 fails SaveEndToEnd at the upload-server-refused assertion, distinct from the older diagnosed mirror mismatch; refusal classification is unknown. Preserve saved artifact/source evidence and investigate under the existing save-e2e-hosted-failure session.
+- Notice todo: placement/pointer recovery passes, but keyboard/controller dismissal and a complete VoiceOver journey remain unproven; broader controller-first and DualSense printed-label criteria stay open.
+- Parked Phase 03: wait for owner-reported Apple approval and matching provisioning; separate physical/gameplay verification needs existing fixture/controller prerequisites and owner Ready. Do not poll or repeat confirmed checks.
+- Hosted qualification: Phase 03.5 remains stale. PR #9 scan passed, but protected-main 38011046324 failed release-evidence revalidation before attestations; resume the existing diagnosis before another hosted run. Phase 06 retains its current-source hosted and fixture/HID gates.
+- Parked Phase 05: 05-04/05-07 depend on the existing halted 05-05 retained-restore/named-observation checkpoint; no new local execution plan is ready.
+- Source/debt lifecycle: preserve mixed dirty files and local tested checkpoint branches. UAT audit reconciled nine Phase 04 gaps, both guard deferrals and WINDOWS #97; WINDOWS #48/#95 and five old quick-record lifecycles retain narrowed obligations before publication or asking for repeated verification.
 
 ## Performance Metrics
 
@@ -179,6 +237,11 @@ Progress: [█████████░] 90% (Phase 03.5)
 | Phase 03 P14 | 95min | 3 tasks | 12 files |
 | Phase 03 P15 | 40min | 2 tasks | 5 files |
 | Phase 03 P16 | 22min | 3 tasks | 7 files |
+| Phase 03 P19 | 22 min | 1 tasks | 11 files |
+| Phase 06 P06 | 27min | 2 tasks | 15 files |
+| Phase 03 P18 | 106 min (halted; bounded XCUITest retry and static contracts) | 1 tasks | 5 files |
+| Phase 03 P18 | 106 min | 2 tasks | 5 files |
+| Phase 261010-b5t P01 | 21min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -320,10 +383,22 @@ Progress: [█████████░] 90% (Phase 03.5)
 - [Phase 03]: [Phase 03] 03-15: Task 2 (transport proof) required no production code change -- Task 1's computed predicate already produced the exact facts the shared fixture and Elixir end-to-end test assert against
 - [Phase 03]: LIBR-02 flipped Complete only after judging every clause of UAT item 4 against a named test, with the availability/readiness clause specifically required to be proved by a test that drives the Mac client or the real HTTP endpoint, never a seeded server read model.
 - [Phase 03]: Supersede-on-enqueue (delete inside Outbox.enqueue's transaction) chosen over a newest-wins filter inside listPending, since listPending is a generic read shared by OutboxWorker and the rejected-intents surface.
+- [Phase 03]: Personal first-adopter use is isolated in the fixed playstead-first-adopter Compose project with a private external env file and distinct external data paths; existing QA and recovery resources stay untouched.
+- [Phase 03]: First-adopter setup uses a private nested config path and refuses existing data roots; static and live QA are redacted and read-only. Current-Mac TLS trust is verified; owner-observed Mac app pairing, personal import, offline play, and save capture remain. Single-Mac use is sufficient for the current trial; second-device convergence is optional.
+- [Phase 03]: Share directional focus transitions between assigned DualSense input and non-editing arrow keys; preserve the one-level Collections navigation hierarchy and visible target focus.
+- [Phase 06]: Updated only individually reviewed Mac snapshot references to match the documented adaptive appearance while preserving semantic and reduced-motion assertions.
+- [Phase 261010-b5t]: Keep the production safeAreaInset layout; real-shell notice geometry and hittability passed at checked content sizes and appearances.
+- [Phase 261010-b5t]: Place geometry coverage in a standalone synchronized test file because the named recovery test file was pre-existing untracked shared work.
 
 ### Pending Todos
 
-None yet.
+- [2026-09-22] [ui] Redesign readiness remedy navigation — [todo file](.planning/todos/pending/2026-09-22-redesign-readiness-remedy-navigation.md)
+- [2026-09-25] [ui] Implement controller-first navigation throughout the Mac library — [todo file](.planning/todos/pending/2026-09-25-controller-first-library-navigation.md)
+- [2026-10-08] [ui] Show familiar button names for supported controllers — [todo file](.planning/todos/pending/2026-10-08-use-familiar-controller-button-labels.md)
+- [2026-10-08] [general] Validate DualSense gameplay mapping — [todo file](.planning/todos/pending/2026-10-08-validate-dualsense-gameplay-mapping.md)
+- [2026-10-09] [ui] Keep controller disconnect notice out of library content — [todo file](.planning/todos/pending/2026-10-09-keep-controller-disconnect-notice-out-of-library-content.md)
+- [2026-09-09] [general] Untitled — [todo file](.planning/todos/pending/save-e2e-duplicate-revision-409.md)
+- [2026-09-03] [general] Untitled — [todo file](.planning/todos/pending/suite-nondeterminism-under-load.md)
 
 ### Blockers/Concerns
 
@@ -336,14 +411,55 @@ None yet.
 - ⚠️ [Phase 03.5] Plan 03.5-09 Task 3 is gated on one green hosted run. All four Mac layers plus both Linux jobs must pass; as of 18413b1 only live-server had ever failed.
 - ⚠️ [Phase 03.5] Two local gates are dormant and unreachable from CI: wave-0-topology-test.sh (stale `server: true` literal, superseded by plan 08) and plan-05-surface-contract-test.sh (identity drift from plan 09 plus launch-env drift from plans 06/07). Neither has protected anything since ~plan 06. Fix and wire into the mac job after 03.5 closes.
 - ⚠️ [Phase 03.5] ci.yml uses `concurrency: ci-${{ github.ref }}` with cancel-in-progress. Any push — including a docs-only commit — cancels a run in flight. Commit locally and push after the run you need has landed.
+- Phase 06 Plan 06-03: Completed after the dedicated Recovery test-plan and foreground-state fixes; actual local journey passed. Signing remains in ignored `.env.local`, and handoff/fixture/account values remain private. Earlier handoff, signing, chooser and game-assets blockers are superseded.
+- Phase 06 plan 06-10: installed mGBA 0.10.5 lacks the advertised deterministic-input script interface; qualification stopped before ROM/save replay and the visible-state oracle.
+- Historical Phase 03 controller notes above this route predate the completed 03-23 and 03-21 summaries and the 2026-10-08 regression repair. Do not resume their old plan/test sequence. The current route is to refresh stale phase verification with `$gsd-execute-phase 03`; then complete any remaining physical UAT requested by the regenerated report. The owner has already verified live DualSense input, Bluetooth reconnect, basic navigation, and D-pad input staying inside Controller Test. Assignment/remap/reset and full-surface fallback navigation remain open. Keep the separate Virtual HID qualification unclaimed.
 
 ### Quick Tasks Completed
 
 | # | Description | Date | Commit | Status | Directory |
-|---|-------------|------|--------|--------|-----------|
+| --- | --- | --- | --- | --- | --- |
+| 261010-if3 | Make adapter readiness setup bounded with pinned actions and keyboard return | 2026-10-10 | f6034fb (local review branch) | — | [261010-if3-make-readiness-remedies-explicit-bounded](./quick/261010-if3-make-readiness-remedies-explicit-bounded/) |
+| 261010-faz | Initialize Impeccable and complete Mac UI cleanup with native status motion review | 2026-10-10 | b20fac0 (local review branch) | — | [261010-faz-initialize-impeccable-product-context-an](./quick/261010-faz-initialize-impeccable-product-context-an/) |
 | 260826-tqx | Adopt Playstead as the project identity, update the planning corpus, establish workspace subproject folders, and rename the parent workspace | 2026-08-26 | 1fd0dbe | — | [260826-tqx-adopt-playstead-as-the-project-identity-](./quick/260826-tqx-adopt-playstead-as-the-project-identity-/) |
-| 261009-fxc | Fix PR CI SBOM privacy-validator regression and make focused PR gates converge | 2026-10-09 | f7e6aac | — | [261009-fxc-fix-pr-ci-sbom-privacy-validator-regress](./quick/261009-fxc-fix-pr-ci-sbom-privacy-validator-regress/) |
-| 261009-uoo | Add privacy-safe per-attempt Save E2E failure diagnostics | 2026-10-09 | 2ce1677 | — | [261009-uoo-add-privacy-safe-per-attempt-save-e2e-fa](./quick/261009-uoo-add-privacy-safe-per-attempt-save-e2e-fa/) |
+| 260919-eui | Fix Phase 03 security blocker T-03-12-03 by routing notarization output through the evidence sanitizer and testing the fail-closed path | 2026-09-19 | 6c80db3 | — | [260919-eui-fix-phase-03-security-blocker-t-03-12-03](./quick/260919-eui-fix-phase-03-security-blocker-t-03-12-03/) |
+| 260924-m5w | Configure local Apple Development signing and verify a signed Playstead app build | 2026-09-24 | — | — | [260924-m5w-configure-local-apple-development-signin](./quick/260924-m5w-configure-local-apple-development-signin/) |
+| 4 | Record Apple Virtual HID external wait and first-adopter readiness posture | 2026-09-24 | — | — | 260924-mc3-record-the-apple-virtual-hid-approval-as |
+| 260924-nln | Prepare isolated first-adopter server profile and LAN runbook; owner deployment/two-Mac verification pending | 2026-09-24 | — | — | [260924-nln-create-a-dedicated-clearly-named-first-a](./quick/260924-nln-create-a-dedicated-clearly-named-first-a/) |
+| 260924-sqo | Automate private first-adopter setup and redacted read-only QA with isolated tests and owner runbook | 2026-09-24 | — | — | [260924-sqo-automate-first-adopter-local-setup-and-s](./quick/260924-sqo-automate-first-adopter-local-setup-and-s/) |
+| 260924-v64 | Record single-Mac local-first trial and future personal client priorities | 2026-09-24 | — | — | [260924-v64-record-single-mac-local-first-first-adop](./quick/260924-v64-record-single-mac-local-first-first-adop/) |
+| 260924-vhb | Automate macOS Keychain trust verification in first-adopter live QA | 2026-09-24 | — | — | [260924-vhb-automate-macos-keychain-trust-verificati](./quick/260924-vhb-automate-macos-keychain-trust-verificati/) |
+| 260925-ij4 | Smooth native sidebar transition by moving status I/O out of library view updates | 2026-09-25 | — | — | [260925-ij4-smooth-native-sidebar-transition-by-movi](./quick/260925-ij4-smooth-native-sidebar-transition-by-movi/) |
+| 260925-j6g | Remove competing card reflow animation during native sidebar resize | 2026-09-25 | — | — | [260925-j6g-smooth-library-card-reflow-at-the-native](./quick/260925-j6g-smooth-library-card-reflow-at-the-native/) |
+| 260925-kob | Polish the Mac library browsing surface with native macOS conventions | 2026-09-25 | — | — | [260925-kob-polish-the-mac-library-browsing-surface](./quick/260925-kob-polish-the-mac-library-browsing-surface-/) |
+| 260925-lqb | Polish Mac library cards, status actions, spacing, and list alignment | 2026-09-25 | — | — | [260925-lqb-polish-mac-library-cards-status-actions-](./quick/260925-lqb-polish-mac-library-cards-status-actions-/) |
+| 260925-mbe | Keep Mac library controls stable across Cards and List | 2026-09-25 | — | — | [260925-mbe-keep-mac-library-controls-stable-across-](./quick/260925-mbe-keep-mac-library-controls-stable-across-/) |
+| 260925-mx7 | Polish native Mac sidebar, library rows, storage language, and readiness sheet | 2026-09-25 | — | — | [260925-mx7-polish-native-mac-sidebar-library-row-se](./quick/260925-mx7-polish-native-mac-sidebar-library-row-se/) |
+| 260925-oaw | Make frequent game actions visible and readiness issue-driven | 2026-09-25 | — | — | [260925-oaw-visible-frequent-game-actions-and-issue-](./quick/260925-oaw-visible-frequent-game-actions-and-issue-/) |
+| 260925-oyg | Establish cross-client semantic design tokens, parity checks, and exception policy; install the fresh Mac build | 2026-09-25 | — | — | [260925-oyg-establish-cross-client-design-tokens-par](./quick/260925-oyg-establish-cross-client-design-tokens-par/) |
+| 260925-ta3 | Group Downloads and Settings under Manage in the Mac sidebar | 2026-09-25 | — | — | [260925-ta3-group-downloads-and-settings-under-manag](./quick/260925-ta3-group-downloads-and-settings-under-manag/) |
+| 260925-ter | Place the Manage group below Systems in the Mac sidebar | 2026-09-25 | — | — | [260925-ter-place-the-manage-group-below-systems-in-](./quick/260925-ter-place-the-manage-group-below-systems-in-/) |
+| 260925-tt4 | Record controller-first library navigation and prevent duplicate Favorites reconciliation | 2026-09-25 | — | — | [260925-tt4-record-controller-first-library-navigati](./quick/260925-tt4-record-controller-first-library-navigati/) |
+| 260930-pxk | Improve Mac library List title width, hide ordinary recovery readouts, compact Pairing, and fix selected-row text contrast | 2026-09-30 | — | — | [260930-pxk-improve-the-mac-library-list-row-so-game](./quick/260930-pxk-improve-the-mac-library-list-row-so-game/) |
+| 261004-g3b | Reconcile the stale Phase 03 continuation handoff | 2026-10-04 | 34d1005 | — | [261004-g3b-reconcile-the-stale-phase-03-continue-he](./quick/261004-g3b-reconcile-the-stale-phase-03-continue-he/) |
+| 261005-ead | Serialize curation outbox drain triggers so queued passes cannot be lost, and align the deterministic controller-recovery profile test | 2026-10-05 | fac3e90 | — | [261005-ead-serialize-curation-outbox-drain-triggers](./quick/261005-ead-serialize-curation-outbox-drain-triggers/) |
+| 261008-frs | Restore live DualSense input and keep controller-test D-pad navigation inside the sheet | 2026-10-08 | — | — | [261008-frs-investigate-and-fix-a-dualsense-controll](./quick/261008-frs-investigate-and-fix-a-dualsense-controll/) |
+| 261008-q7i | Harden Actions trust boundaries and make split Mac evidence checks truthful; record remaining CI automation gaps for follow-up | 2026-10-08 | 9350d2c | — | [261008-q7i-harden-actions-trust-boundaries-and-make](./quick/261008-q7i-harden-actions-trust-boundaries-and-make/) |
+| 261008-sa8 | Add protected-main GitHub-hosted Virtual HID qualification, signing cleanup, run-bound evidence, and event-based Apple approval handoff | 2026-10-08 | — | — | [261008-sa8-harden-the-dedicated-protected-main-maco](./quick/261008-sa8-harden-the-dedicated-protected-main-maco/) |
+| 261009-cjn | Fix T-05.1-04: reject embedded local paths in release evidence and add regression coverage | 2026-10-09 | 6a9603d | — | [261009-cjn-fix-t-05-1-04-reject-local-paths-embedde](./quick/261009-cjn-fix-t-05-1-04-reject-local-paths-embedde/) |
+| 261009-cu7 | Fix T-05.1-04 embedded Windows parent-traversal detection after descriptive text | 2026-10-09 | 90a7a81 | — | [261009-cu7-fix-t-05-1-04-embedded-windows-parent-tr](./quick/261009-cu7-fix-t-05-1-04-embedded-windows-parent-tr/) |
+| 261009-de7 | Wire parser inventory schema regression into existing CI contract suite | 2026-10-09 | 8bc8205 | — | [261009-de7-wire-parser-inventory-schema-regression-](./quick/261009-de7-wire-parser-inventory-schema-regression-/) |
+| 261010-bwj | Add accessible Clear filters recovery to Mac library empty states; document standing no-HID test scope | 2026-10-10 | — | — | [261010-bwj-add-a-clear-filter-recovery-action-to-ma](./quick/261010-bwj-add-a-clear-filter-recovery-action-to-ma/) |
+| 261010-d83 | Resource cleanup for stale Playstead Docker stacks and restore teardown | 2026-10-10 | — | — | [261010-d83-resource-cleanup-for-stale-playstead-doc](./quick/261010-d83-resource-cleanup-for-stale-playstead-doc/) |
+| 261010-ire | Complete bounded readiness navigation; source 6b169fe, final geometry and BIOS regressions passed | 2026-10-10 | 613d249 | — | [261010-ire-complete-bounded-readiness-navigation-fo](./quick/261010-ire-complete-bounded-readiness-navigation-fo/) |
+| 261010-clz | Keep populated Recently Played clear of disconnect notice; source custody 0c37b46/6b169fe and exact geometry/detach evidence reconciled | 2026-10-10 | 3d9f095 | — | [261010-clz-fix-the-controller-disconnect-notice-so-](./quick/261010-clz-fix-the-controller-disconnect-notice-so-/) |
+| 261010-lvl | Audit seven forensic checks; correct progress/blocker metadata and retain current guard failure plus unresolved cross-modal scope | 2026-10-10 | 3cfe6af | — | [261010-lvl-reconcile-forensic-progress-metadata-and](./quick/261010-lvl-reconcile-forensic-progress-metadata-and/) |
+| 261010-maq | Repair current Plan 05 surface inventory and enforce fail-closed recurring coverage; source checkpoint 61ff159 | 2026-10-10 | 800aec8 | — | [261010-maq-repair-and-register-the-plan-05-surface-](./quick/261010-maq-repair-and-register-the-plan-05-surface-/) |
+| 261010-v63 | Polish controller labels/vectors and build verified local gaming preview; source 5ddc2fe, 22 passing tests and independent queue | 2026-10-10 | f6675c0 | passed | [261010-v63-polish-controller-button-labels-and-prep](./quick/261010-v63-polish-controller-button-labels-and-prep/) |
+
+### Roadmap Evolution
+
+- Phase 05.1 inserted after Phase 5: Split the recurring digest-bound scanner, license, SBOM/attestation, and parser-fixture inventory from Phase 05 Plan 05-07 so this automation can advance without the retained-game restore checkpoint; Plan 05-07 keeps final certification and the save-failure evidence. (URGENT)
 
 ## Deferred Items
 
@@ -355,6 +471,10 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-10T00:18:12.000Z
-Stopped at: Completed quick task 261009-fxc; PR #9 exact-head CI passed on f7e6aac
-Resume file: None
+Last session: 2026-10-13T14:48:31.609484+00:00
+Stopped at: Phase 4.7 complete, ready to plan Phase 3
+Resume file: .planning/phases/04.7-optional-game-artwork-and-metadata-sync/continue.md
+
+## UAT audit — 2026-10-10
+
+Cross-phase record reconciliation is complete: 25 raw entries became 14 outstanding record-level entries across three phases, with zero parse gaps and no immediately runnable phase human checkpoint. Saved evidence closed nine historical Phase 04 gaps and both static-guard deferrals. WINDOWS #97 is fixed in the working ledger; #48/#95 stay open with narrower obligations. Hosted PR 38008516483 passed at 77c858c, while main 38011046324 at 162f664 failed release revalidation and a distinct save-upload refusal. No numbered phase was completed. See [the prioritized audit and conditional human plan](audits/2026-10-10-uat/REPORT.md). Exact next command: `$gsd-debug continue release-evidence-revalidation`.

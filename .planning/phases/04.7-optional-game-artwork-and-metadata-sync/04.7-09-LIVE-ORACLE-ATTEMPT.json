@@ -1,0 +1,37 @@
+{
+  "recorded_at": "2026-10-13T13:20:44.201014+00:00",
+  "human_judgment": false,
+  "status": "failed_test_oracles; excluded from whole-selectorpass",
+  "run": "selected-live-server.gyJnRk",
+  "required": 1,
+  "executed": 1,
+  "failures": 2,
+  "skips": 0,
+  "seconds": 102.129,
+  "failed_oracles": [
+    "pre-click estimate isHittable assertion; actual click advanced and produced real1gameestimate",
+    "ArtworkLoaded predicatecheckedvalue; capturednativeOtherAXlabel contains exactArtworkLoaded"
+  ],
+  "successful_postconditions": [
+    "3private PNG/JPEG/TXT uploads andbyte-exactexportSHA",
+    "Preview/consent/providertextselection/preparationenqueue/cancel",
+    "Twoofflinefieldcorrections durableoutbox",
+    "Concurrenttitle alternatives visiblyretained; explicitKeepmyedit serverconvergence/emptyconflicts",
+    "Cursorreset reloadstitles andstablecatalogue/saveIDs",
+    "ActualcoverandlibraryrowAXlabelArtworkLoaded"
+  ],
+  "cover_ax_attachment": {
+    "path": "/private/tmp/playstead-04.7-live-gy-cover-ax.txt",
+    "sha256": "237ef97f8d8f96a38001d5c195605bcad41a8f3e4c65e516451a87204a6fedf2",
+    "exactlabel": "Game cover for Offline privately corrected title. Artwork loaded"
+  },
+  "artifacts": {
+    "playstead-mac/.build/ci/selected-live-server.gyJnRk/raw/live-server-tests.json": "feaa2fe2c978f697db46e66924a917f4bb7a54a0c2196f6e19ee4d73b9c89669",
+    "playstead-mac/.build/ci/selected-live-server.gyJnRk/raw/live-server.log": "811c9be4bb8a7262db567889a1f705bc3c94921e74af43e6b11444a86367b659"
+  },
+  "cleanup": "Exacttaskapp/runnerclosed; nativeroot/container/network absent; privatefixture/Keychainteardownperformed",
+  "foreground_window": "releasedwithin3minutes",
+  "corrected_test_source_sha256": "85b8f332ab7b1ab5959ea81a829041e71619f1d1ffc024cf63ad24cf86e6984c",
+  "retry": "CorrectedactualestimateclickandAXvalueORexactlabel; frozenbuildpassed; fresh2minReadyrequested",
+  "next_command": "$gsd-execute-phase 4.7"
+}

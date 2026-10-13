@@ -60,10 +60,19 @@ defmodule Playstead.Sync.Snapshot do
   }
 
   alias Playstead.Import.Session
+  alias Playstead.Metadata.Selection
   alias Playstead.Repo
   alias Playstead.Pairing.Device
   alias Playstead.Saves.{Revision, Save}
-  alias Playstead.Sync.{ChangeJournal, Cursor, CurationPayload, SavePayload}
+
+  alias Playstead.Sync.{
+    ChangeJournal,
+    Cursor,
+    CurationPayload,
+    Entry,
+    MetadataPayload,
+    SavePayload
+  }
 
   @default_page_size 200
 
@@ -118,7 +127,8 @@ defmodule Playstead.Sync.Snapshot do
           catalogue: fetch_catalogue(user_id, as_of_time),
           job: fetch_jobs(user_id, as_of_time),
           curation: fetch_curation(user_id, as_of_time),
-          save: fetch_saves(user_id, as_of_time)
+          save: fetch_saves(user_id, as_of_time),
+          metadata: fetch_metadata(user_id, as_of_seq, as_of_time)
         }
       end)
 
@@ -252,6 +262,36 @@ defmodule Playstead.Sync.Snapshot do
         save -> [SavePayload.build(revision, save)]
       end
     end)
+  end
+
+  # Phase 4.7: selected private descriptions are a separate optional
+  # branch. The game catalogue payload remains frozen and unmodified.
+  defp fetch_metadata(user_id, as_of_seq, as_of_time) do
+    journal_state =
+      from(e in Entry,
+        where: e.user_id == ^user_id and e.entity_kind == "metadata" and e.seq <= ^as_of_seq,
+        order_by: [asc: e.seq]
+      )
+      |> Repo.all()
+      |> Enum.reduce(%{}, fn entry, acc -> Map.put(acc, entry.entity_id, entry.payload) end)
+
+    journal_ids = Map.keys(journal_state)
+
+    legacy =
+      from(s in Selection,
+        where: s.user_id == ^user_id,
+        where: s.updated_at <= ^as_of_time,
+        where: s.asset_set_id not in ^journal_ids,
+        order_by: [asc: s.asset_set_id]
+      )
+      |> Repo.all()
+      |> Enum.map(&MetadataPayload.build/1)
+      |> Map.new(&{&1.asset_set_id, &1})
+
+    journal_state
+    |> Map.merge(legacy)
+    |> Enum.sort_by(fn {asset_set_id, _payload} -> asset_set_id end)
+    |> Enum.map(fn {_asset_set_id, payload} -> payload end)
   end
 
   defp fetch_favorites(user_id, as_of_time) do

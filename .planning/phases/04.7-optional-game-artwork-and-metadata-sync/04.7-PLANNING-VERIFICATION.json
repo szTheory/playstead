@@ -1,0 +1,167 @@
+{
+  "phase": "04.7",
+  "kind": "planning_verification",
+  "status": "passed",
+  "human_judgment": false,
+  "implementation_executed": false,
+  "independent_checker": "/root/final_check_04_7",
+  "revision_iterations": 2,
+  "blockers": 0,
+  "warnings": 0,
+  "plans": [
+    {
+      "plan": "04.7-00-PLAN.md",
+      "wave": 1,
+      "files": 15,
+      "valid": true,
+      "tasks": 3
+    },
+    {
+      "plan": "04.7-01-PLAN.md",
+      "wave": 2,
+      "files": 15,
+      "valid": true,
+      "tasks": 2
+    },
+    {
+      "plan": "04.7-02-PLAN.md",
+      "wave": 3,
+      "files": 13,
+      "valid": true,
+      "tasks": 2
+    },
+    {
+      "plan": "04.7-03-PLAN.md",
+      "wave": 4,
+      "files": 6,
+      "valid": true,
+      "tasks": 2
+    },
+    {
+      "plan": "04.7-04-PLAN.md",
+      "wave": 4,
+      "files": 9,
+      "valid": true,
+      "tasks": 2
+    },
+    {
+      "plan": "04.7-05-PLAN.md",
+      "wave": 5,
+      "files": 8,
+      "valid": true,
+      "tasks": 2
+    },
+    {
+      "plan": "04.7-06-PLAN.md",
+      "wave": 5,
+      "files": 10,
+      "valid": true,
+      "tasks": 2
+    },
+    {
+      "plan": "04.7-07-PLAN.md",
+      "wave": 6,
+      "files": 12,
+      "valid": true,
+      "tasks": 2
+    },
+    {
+      "plan": "04.7-08-PLAN.md",
+      "wave": 7,
+      "files": 10,
+      "valid": true,
+      "tasks": 2
+    },
+    {
+      "plan": "04.7-09-PLAN.md",
+      "wave": 8,
+      "files": 13,
+      "valid": true,
+      "tasks": 2
+    }
+  ],
+  "waves": {
+    "1": [
+      "04.7-00-PLAN.md"
+    ],
+    "2": [
+      "04.7-01-PLAN.md"
+    ],
+    "3": [
+      "04.7-02-PLAN.md"
+    ],
+    "4": [
+      "04.7-03-PLAN.md",
+      "04.7-04-PLAN.md"
+    ],
+    "5": [
+      "04.7-05-PLAN.md",
+      "04.7-06-PLAN.md"
+    ],
+    "6": [
+      "04.7-07-PLAN.md"
+    ],
+    "7": [
+      "04.7-08-PLAN.md"
+    ],
+    "8": [
+      "04.7-09-PLAN.md"
+    ]
+  },
+  "decision_coverage": {
+    "covered": 16,
+    "total": 16
+  },
+  "ui_state_coverage": {
+    "covered": 91,
+    "total": 91
+  },
+  "verify_commands": 21,
+  "api_surface": 89,
+  "unrelated_preserved_files": 510,
+  "authorized_projection": ".planning/state.json",
+  "baseline_head": "8a14c13f78ebbde69e17495bc17c5051ae1b784a",
+  "baseline_branch": "feat/dev-standup-and-uat7-closure",
+  "source_hashes": {
+    "04.7-00-PLAN.md": "effc28a36466de04aaa46b97ff371d74555dc1b3d942f6f5e958b1745ec4bc7b",
+    "04.7-01-PLAN.md": "78f4ef44095c25e73696cff7a01f7ec850b1d9207951a31558da6598cd5febe9",
+    "04.7-02-PLAN.md": "4f148aac7b7123e2186d71e76cf261b04b843c95f63e086665740e801229d381",
+    "04.7-03-PLAN.md": "cac2d5db925b6f490f40b4176916c295ae3c8fc27371b4c21d46b53010ffff53",
+    "04.7-04-PLAN.md": "2570ef82459f70f61c18f4c8d108d71ff4514e9d189cbe60a544af2c00273f4f",
+    "04.7-05-PLAN.md": "03ce2079946334e4254592887bde93e334b8319054e96a019ce28483c085e39f",
+    "04.7-06-PLAN.md": "619407750b25c42b11ad65a1d65debdea2eee26c7f7b74645689f18899584496",
+    "04.7-07-PLAN.md": "9b7686c527e25c8fe6cfe21d6cba4c978aeb724c90fb0edfbbc81d4eabfe81e2",
+    "04.7-08-PLAN.md": "4cbdb2ffc3de04db3ccd6dae01350b0adec20974510d02ad7ac2803f01a75270",
+    "04.7-09-PLAN.md": "afff03f2ba7057c8d11172f647a3ed33ef1c2d70eea0f2ba64c6a78aa87f4408"
+  },
+  "advisories": [
+    {
+      "tool": "gap-analysis.plan-post",
+      "issue": "META-01 reported absent because plain v2 bullet is not parsed",
+      "disposition": "false_positive",
+      "evidence": ".planning/REQUIREMENTS.md:95; exact text preserved; all plans requirements contain META-01"
+    },
+    {
+      "tool": "edge-probe",
+      "issue": "META-01 unclassified",
+      "disposition": "flagged in plans/source audit; concrete domain predicates planned; no fake pass"
+    },
+    {
+      "tool": "ui-checker",
+      "issue": "Retry CTA advisory",
+      "disposition": "operation-specific retry labels planned; UI approved"
+    }
+  ],
+  "next_command": "$gsd-execute-phase 4.7",
+  "conditional_prerequisites": {
+    "live_igdb_images": "Record applicable exact private-serving rights evidence before enabling live image bytes; no account/provider requests made. Software/private originals/metadata tests independent."
+  },
+  "process_ownership": {
+    "apps": [],
+    "emulators": [],
+    "builds": [],
+    "services": [],
+    "docker_projects": [],
+    "cleanup_pending": []
+  }
+}

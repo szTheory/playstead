@@ -536,11 +536,41 @@ for layer in layers:
             raise SystemExit(f"required test did not execute exactly once and pass: {layer['layer']}")
 
 required_exact = {
+    "unit": [
+        "PlaysteadTests.MetadataTracerTests/testSQLiteTransactionNotificationDoesNotWaitForMainActor",
+        "PlaysteadTests.MetadataTracerTests/testDescriptionJournalAndCursorCommitTogetherAndReplayIsStable",
+        "PlaysteadTests.MetadataTracerTests/testMetadataAndCursorRollbackTogetherWhenPageApplyFails",
+        "PlaysteadTests.MetadataTracerTests/testSnapshotResetRebuildsMetadataAndLegacySnapshotMayOmitBranch",
+        "PlaysteadTests.MetadataJournalTests/testJournalMirrorRetainsSelectionsEvidenceConflictsAndTombstones",
+        "PlaysteadTests.MetadataOutboxTests/testMetadataPageAndCursorRollbackTogetherAndResetKeepsLocalCacheState",
+        "PlaysteadTests.MetadataMediaCacheTests/testCacheValidatesDigestBoundsOfflineHitExpiryAndPinnedCapacity",
+        "PlaysteadTests.MetadataAPIContractTests/testConsentSendsOnlyDisclosedTitleAndSystemAndRevocationSendsNoBody",
+        "PlaysteadTests.MetadataAPIContractTests/testProviderSearchRejectionIsPreservedAsServerConsentGate",
+        "PlaysteadTests.MetadataAPIContractTests/testPrivateMediaBoundsAndDecodeFailuresAreRejectedBeforeAnyRequest",
+        "PlaysteadTests.MetadataCoordinatorContractTests/testCoordinatorRequiresPreviewConsentAndDecodesZeroOneAndManySuggestions",
+        "PlaysteadTests.MetadataCoordinatorContractTests/testCoordinatorPreparationEstimateJobsCacheAndReclaimUseServerState",
+        "PlaysteadTests.MetadataCoordinatorContractTests/testCoordinatorFieldSelectionAndProviderResetUpdateTheLocalMirrorByRevision",
+        "PlaysteadTests.MetadataCoordinatorContractTests/testPreviewPublishesCredentialReadinessAndChangedDisclosureRevision",
+        "PlaysteadTests.MetadataCoordinatorContractTests/testHeldPreviewPublishesNoCompletedStateUntilAuthenticatedResponseArrives",
+        "PlaysteadTests.MetadataCoordinatorContractTests/testCoordinatorPreservesServerConsentRejectionWithoutCreatingCandidates",
+    ],
+    "rendering": [
+        "PlaysteadTests.ArtworkContractSnapshotTests/testArtworkSlotsPreserveTheLockedCardListAndDestinationGeometry",
+        "PlaysteadTests.ArtworkContractSnapshotTests/testOnlyDigestBoundSelectedMediaCanBecomeGalleryArtwork",
+        "PlaysteadTests.ArtworkContractSnapshotTests/testProductionGameDetailsRenderFromTheLocalMetadataMirror",
+        "PlaysteadTests.ArtworkContractSnapshotTests/testThirtyEightProductionArtworkStateFixturesRender",
+        "PlaysteadTests.MetadataStateRenderingTests/testAllFiftyThreeMetadataControlFixturesMountAndRender",
+    ],
     "ui": [
         "PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit",
+        "PlaysteadUITests.MetadataGalleryUITests/testGameDetailsKeepPlayAndReturnToSelectedGame",
+        "PlaysteadUITests.MetadataGalleryUITests/testEmptyGalleryReturnsToSelectedGameDetails",
+        "PlaysteadUITests.MetadataGalleryUITests/testControllerBReleaseClosesGalleryAndRestoresSelectedGame",
         "PlaysteadUITests.ControllerHardwareIntegrationTests/testEntitledVirtualGamepadEnumeratesDetachesAndReconnectsWithoutRelaunch",
     ],
     "live-server": [
+        "PlaysteadUITests.MetadataDescriptionJourneyTests/testPrivateDescriptionSurvivesChangeAndReset",
+        "PlaysteadUITests.MetadataPrivateMediaJourneyTests/testPrivateMediaExportAndProviderDisclosureUsePairedProductionRoutes",
         "PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch",
         "PlaysteadUITests.PairingCeremonyTests/testAHumanCanPairAFreshMacEntirelyFromInsideTheAppAgainstTheRealServer",
         "PlaysteadUITests.RecoveryKnownPlayableTests/testRecoveryHarnessRefusesSyntheticFixtureWithoutAnIsolatedTarget",
@@ -1631,6 +1661,22 @@ PY
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
 
   run_test_layer unit Unit 900 \
+    --required-test PlaysteadTests.MetadataTracerTests/testSQLiteTransactionNotificationDoesNotWaitForMainActor \
+    --required-test PlaysteadTests.MetadataTracerTests/testDescriptionJournalAndCursorCommitTogetherAndReplayIsStable \
+    --required-test PlaysteadTests.MetadataTracerTests/testMetadataAndCursorRollbackTogetherWhenPageApplyFails \
+    --required-test PlaysteadTests.MetadataTracerTests/testSnapshotResetRebuildsMetadataAndLegacySnapshotMayOmitBranch \
+    --required-test PlaysteadTests.MetadataJournalTests/testJournalMirrorRetainsSelectionsEvidenceConflictsAndTombstones \
+    --required-test PlaysteadTests.MetadataOutboxTests/testMetadataPageAndCursorRollbackTogetherAndResetKeepsLocalCacheState \
+    --required-test PlaysteadTests.MetadataMediaCacheTests/testCacheValidatesDigestBoundsOfflineHitExpiryAndPinnedCapacity \
+    --required-test PlaysteadTests.MetadataAPIContractTests/testConsentSendsOnlyDisclosedTitleAndSystemAndRevocationSendsNoBody \
+    --required-test PlaysteadTests.MetadataAPIContractTests/testProviderSearchRejectionIsPreservedAsServerConsentGate \
+    --required-test PlaysteadTests.MetadataAPIContractTests/testPrivateMediaBoundsAndDecodeFailuresAreRejectedBeforeAnyRequest \
+    --required-test PlaysteadTests.MetadataCoordinatorContractTests/testCoordinatorRequiresPreviewConsentAndDecodesZeroOneAndManySuggestions \
+    --required-test PlaysteadTests.MetadataCoordinatorContractTests/testCoordinatorPreparationEstimateJobsCacheAndReclaimUseServerState \
+    --required-test PlaysteadTests.MetadataCoordinatorContractTests/testCoordinatorFieldSelectionAndProviderResetUpdateTheLocalMirrorByRevision \
+    --required-test PlaysteadTests.MetadataCoordinatorContractTests/testPreviewPublishesCredentialReadinessAndChangedDisclosureRevision \
+    --required-test PlaysteadTests.MetadataCoordinatorContractTests/testHeldPreviewPublishesNoCompletedStateUntilAuthenticatedResponseArrives \
+    --required-test PlaysteadTests.MetadataCoordinatorContractTests/testCoordinatorPreservesServerConsentRejectionWithoutCreatingCandidates \
     --required-test PlaysteadTests.CartridgeQualificationTests/testQualifiedMBC5MBC3AndDualModeBlock \
     --required-test PlaysteadTests.LaunchSaveContextBuilderTests/testThreeQualifiedTargetBindings \
     --required-test PlaysteadTests.SaveCompatibilityGateTests/testQualifiedFormatConfidenceRemainsProvenanceOnly \
@@ -1725,7 +1771,12 @@ PY
     --required-test PlaysteadTests.LibraryContractSnapshotTests/testSemanticContractOracles \
     --required-test PlaysteadTests.LibraryContractSnapshotTests/testFiveCurationShelfVisualContract \
     --required-test PlaysteadTests.StorageContractSnapshotTests/testDownloadsQuotaReclaimAndStorageVisualContract \
-    --required-test PlaysteadTests.StorageContractSnapshotTests/testStorageMotionAndReducedMotionContract
+    --required-test PlaysteadTests.StorageContractSnapshotTests/testStorageMotionAndReducedMotionContract \
+    --required-test PlaysteadTests.ArtworkContractSnapshotTests/testArtworkSlotsPreserveTheLockedCardListAndDestinationGeometry \
+    --required-test PlaysteadTests.ArtworkContractSnapshotTests/testOnlyDigestBoundSelectedMediaCanBecomeGalleryArtwork \
+    --required-test PlaysteadTests.ArtworkContractSnapshotTests/testProductionGameDetailsRenderFromTheLocalMetadataMirror \
+    --required-test PlaysteadTests.ArtworkContractSnapshotTests/testThirtyEightProductionArtworkStateFixturesRender \
+    --required-test PlaysteadTests.MetadataStateRenderingTests/testAllFiftyThreeMetadataControlFixturesMountAndRender
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
 
   # 2700s, not 1800s: the last green hosted run spent 1631s in this layer
@@ -1815,6 +1866,15 @@ PY
     --required-test PlaysteadUITests.LibraryEmptyStateTests/testClearSearchControlIsReachableAndRestoresTheLibrary \
     --required-test PlaysteadUITests.GBGBCUIStateTests/testLibraryReadinessDetailsStates \
     --required-test PlaysteadUITests.GBGBCUIStateTests/testSaveHistoryAndStatusStates \
+    --required-test PlaysteadUITests.MetadataGalleryUITests/testGameDetailsKeepPlayAndReturnToSelectedGame \
+    --required-test PlaysteadUITests.MetadataGalleryUITests/testEmptyGalleryReturnsToSelectedGameDetails \
+    --required-test PlaysteadUITests.MetadataGalleryUITests/testControllerBReleaseClosesGalleryAndRestoresSelectedGame \
+    --required-test PlaysteadUITests.MetadataConsentUITests/testAllFortyFiveMetadataSettingsStatesExposeTheirOwnMeaningAndUsableAction \
+    --required-test PlaysteadUITests.MetadataConsentUITests/testMetadataSettingsRemainInsideSettingsAndShowIndependentCacheBudget \
+    --required-test PlaysteadUITests.MetadataConsentUITests/testConsentPreviewRequiresASelectedGameAndUnpairedProfileNeverEnablesProvider \
+    --required-test PlaysteadUITests.MetadataCorrectionUITests/testAllEightCorrectionStatesRenderProvenanceConflictsAndEnabledActions \
+    --required-test PlaysteadUITests.MetadataCorrectionUITests/testCorrectionFormShowsPerFieldSourceAndOnlyExplicitSaveAction \
+    --required-test PlaysteadUITests.MetadataCorrectionUITests/testSavingCorrectionUpdatesTheLocalMirrorBeforeServerDelivery \
     --required-test PlaysteadUITests.ZeroNetworkPlayFlowTests/testWholePlayFlowRecordsZeroHTTPRequests
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
 
@@ -1827,6 +1887,8 @@ PY
   materialize_live_server_runtime_config
   materialize_live_server_xctestrun
   run_test_layer live-server LiveServer 900 \
+    --required-test PlaysteadUITests.MetadataDescriptionJourneyTests/testPrivateDescriptionSurvivesChangeAndReset \
+    --required-test PlaysteadUITests.MetadataPrivateMediaJourneyTests/testPrivateMediaExportAndProviderDisclosureUsePairedProductionRoutes \
     --required-test PlaysteadUITests.HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner \
     --required-test PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch \
     --required-test PlaysteadUITests.SaveRestoreProofTests/testCapturedRevisionRestoresToByteIdenticalArtifactInLaunchDir \
@@ -1946,6 +2008,49 @@ NATIVE_ROOT=""
 PG_CTL=""
 PGDATA=""
 PHOENIX_PID=""
+MEDIA_DECODER_CONTAINER=""
+MEDIA_DECODER_NETWORK=""
+
+start_native_media_decoder() {
+  command -v docker >/dev/null || die "Docker is required for the isolated native media decoder"
+  docker info >/dev/null 2>&1 || die "Docker must be running for the isolated native media decoder"
+  local image
+  image="$(PLAYSTEAD_MEDIA_DECODER_EVIDENCE_DIR="$MAC_ROOT/.build/ci/media-decoder-supply-chain" \
+    bash "$REPO_ROOT/playstead-server/scripts/prepare-media-decoder-image.sh" \
+    2>"$NATIVE_ROOT/media-decoder-build.log")" || die "isolated native media decoder scan gate failed"
+  [[ "$image" =~ ^sha256:[0-9a-f]{64}$ ]] || die "isolated native decoder image identity is invalid"
+
+  local token port
+  token="$(python3 -c 'import secrets; print(secrets.token_hex(6))')"
+  port="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')"
+  MEDIA_DECODER_NETWORK="playstead-mac-ci-decoder-$token"
+  MEDIA_DECODER_CONTAINER="playstead-mac-ci-decoder-$token"
+  # Docker Desktop does not publish host ports from an --internal network.
+  # This throwaway network carries only the decoder, has no secrets mounted,
+  # and publishes the protocol solely on host loopback.
+  docker network create "$MEDIA_DECODER_NETWORK" >/dev/null || die "isolated decoder network creation failed"
+  docker run --rm -d --name "$MEDIA_DECODER_CONTAINER" \
+    --network "$MEDIA_DECODER_NETWORK" -p "127.0.0.1:$port:4011" \
+    --read-only --user 11001:11001 --cap-drop ALL \
+    --security-opt no-new-privileges:true \
+    --security-opt "seccomp=$REPO_ROOT/playstead-server/ops/media-decoder/seccomp.json" \
+    --pids-limit 32 --memory 512m --memory-swap 512m --cpus 1.0 \
+    --tmpfs /tmp/decoder:rw,noexec,nosuid,nodev,size=64m,mode=1777 \
+    --tmpfs /run/playstead-media:rw,nosuid,nodev,size=1m,mode=0700 \
+    -e MEDIA_DECODER_MAC_CI_TCP_PORT=4011 "$image" >/dev/null || die "isolated native media decoder did not start"
+  local ready=false
+  for _ in $(seq 1 30); do
+    if python3 - "$port" <<'PY'
+import socket, sys
+with socket.create_connection(("127.0.0.1", int(sys.argv[1])), timeout=1):
+    pass
+PY
+    then ready=true; break; fi
+    sleep 1
+  done
+  [ "$ready" = true ] || die "isolated native media decoder did not become reachable"
+  export PLAYSTEAD_MAC_CI_MEDIA_DECODER_PORT="$port"
+}
 
 cleanup_native_services() {
   trap - EXIT
@@ -1955,6 +2060,12 @@ cleanup_native_services() {
   if [ -n "$PHOENIX_PID" ] && kill -0 "$PHOENIX_PID" 2>/dev/null; then
     kill "$PHOENIX_PID" 2>/dev/null || cleanup_ok=false
     wait "$PHOENIX_PID" 2>/dev/null || true
+  fi
+  if [ -n "$MEDIA_DECODER_CONTAINER" ] && docker container inspect "$MEDIA_DECODER_CONTAINER" >/dev/null 2>&1; then
+    docker rm -f "$MEDIA_DECODER_CONTAINER" >/dev/null 2>&1 || cleanup_ok=false
+  fi
+  if [ -n "$MEDIA_DECODER_NETWORK" ] && docker network inspect "$MEDIA_DECODER_NETWORK" >/dev/null 2>&1; then
+    docker network rm "$MEDIA_DECODER_NETWORK" >/dev/null 2>&1 || cleanup_ok=false
   fi
   if [ -n "$PG_CTL" ] && [ -n "$PGDATA" ] && [ -d "$PGDATA" ] && \
       [ -f "$PGDATA/postmaster.pid" ]; then
@@ -2008,6 +2119,7 @@ start_native_services() {
   mkdir -p "$server_root/inbox" "$server_root/blobs" "$server_root/exports" \
     "$server_root/mac-client-control"
   chmod 0700 "$NATIVE_ROOT" "$server_root" "$server_root/mac-client-control"
+  start_native_media_decoder
 
   # Provision this run's own TLS material before Phoenix binds 4010. The app
   # receives the CA only for the isolated LiveServer pairing test.
@@ -2341,12 +2453,26 @@ base_manifest = {
     "native_health": {"postgresql_major": 17, "phoenix_healthy": True, "loopback_only": True, "cleanup_complete": True},
     "linux_jobs": {"test": "success", "compose_smoke": "success"},
     "layers": [
-        {"layer": "unit", "executed_test_count": 1, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadTests.PlaySessionTests/test_launchSucceedsIndependentlyOfPlaySessionRecording")]},
-        {"layer": "rendering", "executed_test_count": 1, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadTests.LibraryContractSnapshotTests/testCardAndStatusVisualContract")]},
-        {"layer": "ui", "executed_test_count": 2, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit"), required("PlaysteadUITests.ControllerHardwareIntegrationTests/testEntitledVirtualGamepadEnumeratesDetachesAndReconnectsWithoutRelaunch")]},
-        {"layer": "live-server", "executed_test_count": 3, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch"), required("PlaysteadUITests.PairingCeremonyTests/testAHumanCanPairAFreshMacEntirelyFromInsideTheAppAgainstTheRealServer"), required("PlaysteadUITests.RecoveryKnownPlayableTests/testRecoveryHarnessRefusesSyntheticFixtureWithoutAnIsolatedTarget")]},
+        {"layer": "unit", "executed_test_count": 7, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadTests.MetadataTracerTests/testDescriptionJournalAndCursorCommitTogetherAndReplayIsStable"), required("PlaysteadTests.MetadataTracerTests/testMetadataAndCursorRollbackTogetherWhenPageApplyFails"), required("PlaysteadTests.MetadataTracerTests/testSnapshotResetRebuildsMetadataAndLegacySnapshotMayOmitBranch"), required("PlaysteadTests.MetadataJournalTests/testJournalMirrorRetainsSelectionsEvidenceConflictsAndTombstones"), required("PlaysteadTests.MetadataOutboxTests/testMetadataPageAndCursorRollbackTogetherAndResetKeepsLocalCacheState"), required("PlaysteadTests.MetadataMediaCacheTests/testCacheValidatesDigestBoundsOfflineHitExpiryAndPinnedCapacity"), required("PlaysteadTests.PlaySessionTests/test_launchSucceedsIndependentlyOfPlaySessionRecording")]},
+        {"layer": "rendering", "executed_test_count": 4, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadTests.LibraryContractSnapshotTests/testCardAndStatusVisualContract"), required("PlaysteadTests.ArtworkContractSnapshotTests/testArtworkSlotsPreserveTheLockedCardListAndDestinationGeometry"), required("PlaysteadTests.ArtworkContractSnapshotTests/testOnlyDigestBoundSelectedMediaCanBecomeGalleryArtwork"), required("PlaysteadTests.ArtworkContractSnapshotTests/testProductionGameDetailsRenderFromTheLocalMetadataMirror")]},
+        {"layer": "ui", "executed_test_count": 4, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit"), required("PlaysteadUITests.MetadataGalleryUITests/testGameDetailsKeepPlayAndReturnToSelectedGame"), required("PlaysteadUITests.MetadataGalleryUITests/testEmptyGalleryReturnsToSelectedGameDetails"), required("PlaysteadUITests.ControllerHardwareIntegrationTests/testEntitledVirtualGamepadEnumeratesDetachesAndReconnectsWithoutRelaunch")]},
+        {"layer": "live-server", "executed_test_count": 4, "failed_test_count": 0, "audit_issue_count": 0, "required_tests": [required("PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch"), required("PlaysteadUITests.MetadataDescriptionJourneyTests/testPrivateDescriptionSurvivesChangeAndReset"), required("PlaysteadUITests.PairingCeremonyTests/testAHumanCanPairAFreshMacEntirelyFromInsideTheAppAgainstTheRealServer"), required("PlaysteadUITests.RecoveryKnownPlayableTests/testRecoveryHarnessRefusesSyntheticFixtureWithoutAnIsolatedTarget")]},
     ],
 }
+
+# Build the valid fixture from the literal production exact-test contract.
+# Mutation cases below still reject absent/skipped/failed identities explicitly.
+import ast, re
+contract_match = re.search(r"(?ms)^required_exact = (\{.*?^\})", runner.read_text())
+if contract_match is None:
+    raise SystemExit("complete evidence exact-test contract is missing")
+contract = ast.literal_eval(contract_match.group(1))
+for layer in base_manifest["layers"]:
+    present = {row["identifier"] for row in layer["required_tests"]}
+    for identifier in contract[layer["layer"]]:
+        if identifier not in present:
+            layer["required_tests"].append(required(identifier))
+    layer["executed_test_count"] = len(layer["required_tests"])
 
 def execute(root, record, view, manifest, malformed=False):
     paths = [root / name for name in ("record.json", "view.json", "manifest.json")]
@@ -2402,10 +2528,31 @@ required = [
     "PlaysteadTests.LibraryContractSnapshotTests/testFiveCurationShelfVisualContract",
     "PlaysteadTests.StorageContractSnapshotTests/testDownloadsQuotaReclaimAndStorageVisualContract",
     "PlaysteadTests.StorageContractSnapshotTests/testStorageMotionAndReducedMotionContract",
+    "PlaysteadTests.ArtworkContractSnapshotTests/testArtworkSlotsPreserveTheLockedCardListAndDestinationGeometry",
+    "PlaysteadTests.ArtworkContractSnapshotTests/testOnlyDigestBoundSelectedMediaCanBecomeGalleryArtwork",
+    "PlaysteadTests.ArtworkContractSnapshotTests/testProductionGameDetailsRenderFromTheLocalMetadataMirror",
+    "PlaysteadTests.ArtworkContractSnapshotTests/testThirtyEightProductionArtworkStateFixturesRender",
+    "PlaysteadTests.MetadataStateRenderingTests/testAllFiftyThreeMetadataControlFixturesMountAndRender",
     "PlaysteadTests.PlaySessionTests/test_launchSucceedsIndependentlyOfPlaySessionRecording",
     "PlaysteadTests.PlaySessionTests/test_offlineSession_isDeliveredAfterReachabilityReturns",
     "PlaysteadTests.PlaySessionTests/test_sameSessionIdentifierPostedTwice_resultsInOneServerSideEffect",
     "PlaysteadTests.PlaySessionTests/test_userDeletion_enqueuesDeleteIntentAndRemovesFromRecent",
+    "PlaysteadTests.MetadataTracerTests/testSQLiteTransactionNotificationDoesNotWaitForMainActor",
+    "PlaysteadTests.MetadataTracerTests/testDescriptionJournalAndCursorCommitTogetherAndReplayIsStable",
+    "PlaysteadTests.MetadataTracerTests/testMetadataAndCursorRollbackTogetherWhenPageApplyFails",
+    "PlaysteadTests.MetadataTracerTests/testSnapshotResetRebuildsMetadataAndLegacySnapshotMayOmitBranch",
+    "PlaysteadTests.MetadataJournalTests/testJournalMirrorRetainsSelectionsEvidenceConflictsAndTombstones",
+    "PlaysteadTests.MetadataOutboxTests/testMetadataPageAndCursorRollbackTogetherAndResetKeepsLocalCacheState",
+    "PlaysteadTests.MetadataMediaCacheTests/testCacheValidatesDigestBoundsOfflineHitExpiryAndPinnedCapacity",
+    "PlaysteadTests.MetadataAPIContractTests/testConsentSendsOnlyDisclosedTitleAndSystemAndRevocationSendsNoBody",
+    "PlaysteadTests.MetadataAPIContractTests/testProviderSearchRejectionIsPreservedAsServerConsentGate",
+    "PlaysteadTests.MetadataAPIContractTests/testPrivateMediaBoundsAndDecodeFailuresAreRejectedBeforeAnyRequest",
+    "PlaysteadTests.MetadataCoordinatorContractTests/testCoordinatorRequiresPreviewConsentAndDecodesZeroOneAndManySuggestions",
+    "PlaysteadTests.MetadataCoordinatorContractTests/testCoordinatorPreparationEstimateJobsCacheAndReclaimUseServerState",
+    "PlaysteadTests.MetadataCoordinatorContractTests/testCoordinatorFieldSelectionAndProviderResetUpdateTheLocalMirrorByRevision",
+    "PlaysteadTests.MetadataCoordinatorContractTests/testPreviewPublishesCredentialReadinessAndChangedDisclosureRevision",
+    "PlaysteadTests.MetadataCoordinatorContractTests/testHeldPreviewPublishesNoCompletedStateUntilAuthenticatedResponseArrives",
+    "PlaysteadTests.MetadataCoordinatorContractTests/testCoordinatorPreservesServerConsentRejectionWithoutCreatingCandidates",
     "PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit",
     "PlaysteadTests.DeterministicProfileTests/testRootReconstructionBootstrapsOneSessionAndUploadLane",
     "PlaysteadTests.DeterministicProfileTests/testCatalogueTransitionControlRejectsInvalidSelectorsAndNonPrivateRoots",
@@ -2413,6 +2560,10 @@ required = [
     "PlaysteadUITests.SurfaceAccessibilityTests/testInitialCatalogueRefreshKeepsListPointerTarget",
     "PlaysteadUITests.SurfaceAccessibilityTests/testEarlyListActivationSurvivesInitialCatalogueRefresh",
     "PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch",
+    "PlaysteadUITests.MetadataDescriptionJourneyTests/testPrivateDescriptionSurvivesChangeAndReset",
+    "PlaysteadUITests.MetadataGalleryUITests/testGameDetailsKeepPlayAndReturnToSelectedGame",
+    "PlaysteadUITests.MetadataGalleryUITests/testEmptyGalleryReturnsToSelectedGameDetails",
+    "PlaysteadUITests.MetadataGalleryUITests/testControllerBReleaseClosesGalleryAndRestoresSelectedGame",
     "PlaysteadUITests.PairingCeremonyTests/testAHumanCanPairAFreshMacEntirelyFromInsideTheAppAgainstTheRealServer",
 ]
 missing = [identifier for identifier in required if f"--required-test {identifier}" not in source]
@@ -2591,7 +2742,8 @@ run_selected_layer_tests() {
   if [ "${1:-}" = "--build-only" ]; then
     build_only=true
     shift
-    [ "$layer" = "recovery" ] || die "--build-only is supported only for the recovery layer"
+    [ "$layer" = "recovery" ] || [ "$layer" = "live-server" ] || \
+      die "--build-only is supported only for the recovery or live-server layer"
   elif [ "${1:-}" = "--test-without-building" ]; then
     test_without_building=true
     shift
@@ -2606,13 +2758,6 @@ run_selected_layer_tests() {
   [ "$layer" != "ui" ] || test_plan="UI"
   [ "$layer" != "live-server" ] || test_plan="LiveServer"
   [ "$layer" != "recovery" ] || test_plan="Recovery"
-  if [ "$build_only" = false ] && [ "$layer" != "rendering" ] && [ "$layer" != "unit" ]; then
-    assert_local_app_launch_authorized
-  fi
-  if [ "$layer" = "ui" ]; then
-    arm_keyboard_mode_cleanup
-    capture_keyboard_mode
-  fi
   local only_testing=()
   local required_tests=()
   local requires_virtual_hid=false
@@ -2623,6 +2768,11 @@ run_selected_layer_tests() {
     esac
     local selector="$1"
     local required_identifier
+    local expected_target="PlaysteadUITests"
+    if [ "$layer" = "unit" ] || [ "$layer" = "rendering" ]; then expected_target="PlaysteadTests"; fi
+    if [[ ! "$selector" =~ ^${expected_target}/[A-Za-z_][A-Za-z0-9_]*(/[A-Za-z_][A-Za-z0-9_]*){0,1}$ ]]; then
+      die "malformed --only-testing selector for $layer: $selector (expected $expected_target/Class[/method] or $expected_target/Group/Class)"
+    fi
     local slash_count="${selector//[^\/]/}"
     if [ "${#slash_count}" -eq 2 ] && [[ "${selector##*/}" == *Tests ]]; then
       # Accept the repository-relative test file form used by GSD plans
@@ -2641,6 +2791,13 @@ run_selected_layer_tests() {
     required_tests+=(--required-test "$required_identifier")
     shift
   done
+  if [ "$build_only" = false ] && [ "$layer" != "rendering" ] && [ "$layer" != "unit" ]; then
+    assert_local_app_launch_authorized
+  fi
+  if [ "$layer" = "ui" ]; then
+    arm_keyboard_mode_cleanup
+    capture_keyboard_mode
+  fi
   configure_ci_signing
   local signing=("${CI_SIGNING_ARGS[@]}")
   if [ "$requires_virtual_hid" = true ] && [ "${PLAYSTEAD_MAC_CI_SIGNING_MODE:-adhoc}" = "development" ]; then
@@ -2655,7 +2812,7 @@ run_selected_layer_tests() {
   local selected_root
   selected_root="$(mktemp -d "${BUILD_ROOT}/selected-${layer}.XXXXXX")"
   local gb_gbc_profile_root="${PLAYSTEAD_GB_GBC_SAVE_E2E_PROFILE_ROOT:-}"
-  if [ "$layer" = "live-server" ]; then
+  if [ "$layer" = "live-server" ] && [ "$build_only" = false ]; then
     gb_gbc_profile_root="$(mktemp -d "${selected_root}/playstead-gb-save-e2e.XXXXXX")"
     chmod 0700 "$gb_gbc_profile_root"
     GB_GBC_LIVE_PROFILE_ROOT="$gb_gbc_profile_root"
@@ -2686,10 +2843,10 @@ run_selected_layer_tests() {
         "${package_settings[@]}" -destination 'platform=macOS' -derivedDataPath "$DERIVED_DATA" \
         "${signing[@]}" "${only_testing[@]}" -skip-testing:PlaysteadTests || build_status=$?
     if [ "$build_status" -ne 0 ]; then
-      printf '%s\n' "recovery build-only: FAILED (xcode=$build_status; log=${selected_raw}/recovery-build.log)" >&2
+      printf '%s\n' "$layer build-only: FAILED (xcode=$build_status; log=${selected_raw}/recovery-build.log)" >&2
       return 1
     fi
-    printf '%s\n' "recovery build-only: PASSED; frozen test products under ${DERIVED_DATA}/Build/Products"
+    printf '%s\n' "$layer build-only: PASSED; frozen test products under ${DERIVED_DATA}/Build/Products"
     return 0
   fi
   local layer_settings=()

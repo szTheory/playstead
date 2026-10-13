@@ -70,11 +70,11 @@ PY
 blocked_log="$(mktemp)"
 trap 'rm -f "$blocked_log"' EXIT
 if env -u GITHUB_ACTIONS -u PLAYSTEAD_HUMAN_APPROVED_LOCAL_APP_LAUNCH \
-  "$RUNNER" --layers ui --only-testing NeverLaunches >"$blocked_log" 2>&1; then
+  "$RUNNER" --layers ui --only-testing PlaysteadUITests/HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner >"$blocked_log" 2>&1; then
   printf 'local UI layer unexpectedly passed its launch preflight\n' >&2
   exit 1
 fi
-grep -F 'local UI/LiveServer verification is disabled' "$blocked_log" >/dev/null
+grep -E 'local UI/LiveServer verification is disabled|local app launch approval is required|launch authorization' "$blocked_log" >/dev/null
 if grep -F 'xcodebuild' "$blocked_log" >/dev/null; then
   printf 'local UI guard reached xcodebuild\n' >&2
   exit 1

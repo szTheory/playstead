@@ -43,6 +43,15 @@ final class UITestControllerInputSource: ControllerInputSource {
         emit(input: "buttonA", active: false)
     }
 
+    func pressB() {
+        emit(input: "buttonB", active: true)
+    }
+
+    func releaseB() {
+        emit(input: "buttonB", active: false)
+    }
+
+
     func pressUp() {
         emit(input: "dpadUp", active: true)
     }

@@ -1,0 +1,544 @@
+{
+  "iteration": 2,
+  "human_judgment": false,
+  "kind": "planning-only",
+  "probes": {
+    "paths": {
+      "exit_code": 0,
+      "result": {
+        "status": "ok",
+        "commands": [
+          {
+            "command": "cd playstead-server && scripts/tests/require-exunit-target-test.sh && node scripts/ci/validate-metadata-protocol-decision.js --self-test",
+            "status": "ok",
+            "severity": "none",
+            "reason": null,
+            "form": "cd",
+            "rawTarget": "playstead-server",
+            "target": "/Users/jon/projects/playstead/playstead-server",
+            "manifest": null,
+            "script": null,
+            "sentinel": false,
+            "base": "/Users/jon/projects/playstead",
+            "plan": "04.7-00-PLAN.md",
+            "task": "Install rejecting wire-decision and exact ExUnit guards"
+          },
+          {
+            "command": "cd playstead-server && node scripts/ci/validate-metadata-protocol-decision.js",
+            "status": "ok",
+            "severity": "none",
+            "reason": null,
+            "form": "cd",
+            "rawTarget": "playstead-server",
+            "target": "/Users/jon/projects/playstead/playstead-server",
+            "manifest": null,
+            "script": null,
+            "sentinel": false,
+            "base": "/Users/jon/projects/playstead",
+            "plan": "04.7-00-PLAN.md",
+            "task": "Approve additive metadata representation before public contract changes"
+          },
+          {
+            "command": "cd playstead-server && scripts/ci/require-exunit-target.sh test/playstead/metadata_test.exs",
+            "status": "ok",
+            "severity": "none",
+            "reason": null,
+            "form": "cd",
+            "rawTarget": "playstead-server",
+            "target": "/Users/jon/projects/playstead/playstead-server",
+            "manifest": null,
+            "script": null,
+            "sentinel": false,
+            "base": "/Users/jon/projects/playstead",
+            "plan": "04.7-00-PLAN.md",
+            "task": "Persist and serve one authenticated private description through the versioned metadata path"
+          },
+          {
+            "command": "cd playstead-mac && scripts/ci/run-mac-verification.sh --layers unit --only-testing PlaysteadTests/MetadataTracerTests",
+            "status": "ok",
+            "severity": "none",
+            "reason": null,
+            "form": "cd",
+            "rawTarget": "playstead-mac",
+            "target": "/Users/jon/projects/playstead/playstead-mac",
+            "manifest": null,
+            "script": null,
+            "sentinel": false,
+            "base": "/Users/jon/projects/playstead",
+            "plan": "04.7-01-PLAN.md",
+            "task": "Carry Plan00's private description from live server to current Mac game row"
+          },
+          {
+            "command": "cd playstead-mac && PLAYSTEAD_HUMAN_APPROVED_LOCAL_APP_LAUNCH=1 scripts/ci/run-mac-verification.sh --layers live-server --only-testing PlaysteadUITests/MetadataDescriptionJourneyTests/testPrivateDescriptionSurvivesChangeAndReset",
+            "status": "ok",
+            "severity": "none",
+            "reason": null,
+            "form": "cd",
+            "rawTarget": "playstead-mac",
+            "target": "/Users/jon/projects/playstead/playstead-mac",
+            "manifest": null,
+            "script": null,
+            "sentinel": false,
+            "base": "/Users/jon/projects/playstead",
+            "plan": "04.7-01-PLAN.md",
+            "task": "Prove private description in packaged Mac against live server before expansion"
+          },
+          {
+            "command": "cd playstead-server && scripts/ci/require-exunit-target.sh test/playstead/metadata/media_decoder_test.exs",
+            "status": "ok",
+            "severity": "none",
+            "reason": null,
+            "form": "cd",
+            "rawTarget": "playstead-server",
+            "target": "/Users/jon/projects/playstead/playstead-server",
+            "manifest": null,
+            "script": null,
+            "sentinel": false,
+            "base": "/Users/jon/projects/playstead",
+            "plan": "04.7-02-PLAN.md",
+            "task": "Package isolated Linux PNG/JPEG decoder"
+          },
+          {
+            "command": "cd playstead-server && scripts/ci/require-exunit-target.sh test/playstead/metadata/private_media_test.exs",
+            "status": "ok",
+            "severity": "none",
+            "reason": null,
+            "form": "cd",
+            "rawTarget": "playstead-server",
+            "target": "/Users/jon/projects/playstead/playstead-server",
+            "manifest": null,
+            "script": null,
+            "sentinel": false,
+            "base": "/Users/jon/projects/playstead",
+            "plan": "04.7-02-PLAN.md",
+            "task": "Commit validated private originals with exact custody"
+          },
+          {
+            "command": "cd playstead-server && scripts/ci/require-exunit-target.sh test/playstead/metadata/custody_round_trip_test.exs",
+            "status": "ok",
+            "severity": "none",
+            "reason": null,
+            "form": "cd",
+            "rawTarget": "playstead-server",
+            "target": "/Users/jon/projects/playstead/playstead-server",
+            "manifest": null,
+            "script": null,
+            "sentinel": false,
+            "base": "/Users/jon/projects/playstead",
+            "plan": "04.7-03-PLAN.md",
+            "task": "Export and reimport canonical private media"
+          },
+          {
+            "command": "cd playstead-server && scripts/ci/require-exunit-target.sh test/playstead/metadata/backup_inventory_test.exs",
+            "status": "ok",
+            "severity": "none",
+            "reason": null,
+            "form": "cd",
+            "rawTarget": "playstead-server",
+            "target": "/Users/jon/projects/playstead/playstead-server",
+            "manifest": null,
+            "script": null,
+            "sentinel": false,
+            "base": "/Users/jon/projects/playstead",
+            "plan": "04.7-03-PLAN.md",
+            "task": "Include originals in canonical backup inventory"
+          },
+          {
+            "command": "cd playstead-server && scripts/ci/require-exunit-target.sh test/playstead/metadata/igdb_test.exs",
+            "status": "ok",
+            "severity": "none",
+            "reason": null,
+            "form": "cd",
+            "rawTarget": "playstead-server",
+            "target": "/Users/jon/projects/playstead/playstead-server",
+            "manifest": null,
+            "script": null,
+            "sentinel": false,
+            "base": "/Users/jon/projects/playstead",
+            "plan": "04.7-04-PLAN.md",
+            "task": "Build fixed-host IGDB title/system adapter and evidence"
+          },
+          {
+            "command": "cd playstead-server && scripts/ci/require-exunit-target.sh test/playstead/metadata/consent_test.exs",
+            "status": "ok",
+            "severity": "none",
+            "reason": null,
+            "form": "cd",
+            "rawTarget": "playstead-server",
+            "target": "/Users/jon/projects/playstead/playstead-server",
+            "manifest": null,
+            "script": null,
+            "sentinel": false,
+            "base": "/Users/jon/projects/playstead",
+            "plan": "04.7-04-PLAN.md",
+            "task": "Persist revocable disclosure consent and fail-closed image policy"
+          },
+          {
+            "command": "cd playstead-server && scripts/ci/require-exunit-target.sh test/playstead/metadata/enrichment_worker_test.exs",
+            "status": "ok",
+            "severity": "none",
+            "reason": null,
+            "form": "cd",
+            "rawTarget": "playstead-server",
+            "target": "/Users/jon/projects/playstead/playstead-server",
+            "manifest": null,
+            "script": null,
+            "sentinel": false,
+            "base": "/Users/jon/projects/playstead",
+            "plan": "04.7-05-PLAN.md",
+            "task": "Build coalesced durable enrichment and finite request budget"
+          },
+          {
+            "command": "cd playstead-server && scripts/ci/require-exunit-target.sh test/playstead/metadata/provider_media_cache_test.exs",
+            "status": "ok",
+            "severity": "none",
+            "reason": null,
+            "form": "cd",
+            "rawTarget": "playstead-server",
+            "target": "/Users/jon/projects/playstead/playstead-server",
+            "manifest": null,
+            "script": null,
+            "sentinel": false,
+            "base": "/Users/jon/projects/playstead",
+            "plan": "04.7-05-PLAN.md",
+            "task": "Enforce provider-media rights, cache budget and safe reclaim"
+          },
+          {
+            "command": "cd playstead-server && scripts/ci/require-exunit-target.sh test/playstead/metadata/selection_test.exs",
+            "status": "ok",
+            "severity": "none",
+            "reason": null,
+            "form": "cd",
+            "rawTarget": "playstead-server",
+            "target": "/Users/jon/projects/playstead/playstead-server",
+            "manifest": null,
+            "script": null,
+            "sentinel": false,
+            "base": "/Users/jon/projects/playstead",
+            "plan": "04.7-06-PLAN.md",
+            "task": "Persist separate evidence, selections and conflict alternatives"
+          },
+          {
+            "command": "cd playstead-server && scripts/ci/require-exunit-target.sh test/playstead/metadata/sync_contract_test.exs",
+            "status": "ok",
+            "severity": "none",
+            "reason": null,
+            "form": "cd",
+            "rawTarget": "playstead-server",
+            "target": "/Users/jon/projects/playstead/playstead-server",
+            "manifest": null,
+            "script": null,
+            "sentinel": false,
+            "base": "/Users/jon/projects/playstead",
+            "plan": "04.7-06-PLAN.md",
+            "task": "Publish additive compatible metadata journal/snapshot/API contract"
+          },
+          {
+            "command": "cd playstead-mac && scripts/ci/run-mac-verification.sh --layers unit --only-testing PlaysteadTests/MetadataJournalTests --only-testing PlaysteadTests/MetadataOutboxTests",
+            "status": "ok",
+            "severity": "none",
+            "reason": null,
+            "form": "cd",
+            "rawTarget": "playstead-mac",
+            "target": "/Users/jon/projects/playstead/playstead-mac",
+            "manifest": null,
+            "script": null,
+            "sentinel": false,
+            "base": "/Users/jon/projects/playstead",
+            "plan": "04.7-07-PLAN.md",
+            "task": "Mirror metadata atomically and queue offline correction intents"
+          },
+          {
+            "command": "cd playstead-mac && scripts/ci/run-mac-verification.sh --layers unit --only-testing PlaysteadTests/MetadataMediaCacheTests",
+            "status": "ok",
+            "severity": "none",
+            "reason": null,
+            "form": "cd",
+            "rawTarget": "playstead-mac",
+            "target": "/Users/jon/projects/playstead/playstead-mac",
+            "manifest": null,
+            "script": null,
+            "sentinel": false,
+            "base": "/Users/jon/projects/playstead",
+            "plan": "04.7-07-PLAN.md",
+            "task": "Bound native media cache and decode off main actor"
+          },
+          {
+            "command": "cd playstead-mac && scripts/ci/run-mac-verification.sh --layers rendering --only-testing PlaysteadTests/ArtworkContractSnapshotTests",
+            "status": "ok",
+            "severity": "none",
+            "reason": null,
+            "form": "cd",
+            "rawTarget": "playstead-mac",
+            "target": "/Users/jon/projects/playstead/playstead-mac",
+            "manifest": null,
+            "script": null,
+            "sentinel": false,
+            "base": "/Users/jon/projects/playstead",
+            "plan": "04.7-08-PLAN.md",
+            "task": "Integrate truthful cover and detail destination"
+          },
+          {
+            "command": "cd playstead-mac && PLAYSTEAD_HUMAN_APPROVED_LOCAL_APP_LAUNCH=1 scripts/ci/run-mac-verification.sh --layers ui --only-testing PlaysteadUITests/MetadataGalleryUITests",
+            "status": "ok",
+            "severity": "none",
+            "reason": null,
+            "form": "cd",
+            "rawTarget": "playstead-mac",
+            "target": "/Users/jon/projects/playstead/playstead-mac",
+            "manifest": null,
+            "script": null,
+            "sentinel": false,
+            "base": "/Users/jon/projects/playstead",
+            "plan": "04.7-08-PLAN.md",
+            "task": "Add accessible still gallery and bounded return"
+          },
+          {
+            "command": "cd playstead-mac && PLAYSTEAD_HUMAN_APPROVED_LOCAL_APP_LAUNCH=1 scripts/ci/run-mac-verification.sh --layers ui --only-testing PlaysteadUITests/MetadataConsentUITests --only-testing PlaysteadUITests/MetadataCorrectionUITests",
+            "status": "ok",
+            "severity": "none",
+            "reason": null,
+            "form": "cd",
+            "rawTarget": "playstead-mac",
+            "target": "/Users/jon/projects/playstead/playstead-mac",
+            "manifest": null,
+            "script": null,
+            "sentinel": false,
+            "base": "/Users/jon/projects/playstead",
+            "plan": "04.7-09-PLAN.md",
+            "task": "Deliver consent, preparation, cache and correction UI"
+          },
+          {
+            "command": "cd playstead-mac && PLAYSTEAD_HUMAN_APPROVED_LOCAL_APP_LAUNCH=1 scripts/ci/run-mac-verification.sh --layers live-server --only-testing PlaysteadUITests/MetadataPrivateMediaJourneyTests",
+            "status": "ok",
+            "severity": "none",
+            "reason": null,
+            "form": "cd",
+            "rawTarget": "playstead-mac",
+            "target": "/Users/jon/projects/playstead/playstead-mac",
+            "manifest": null,
+            "script": null,
+            "sentinel": false,
+            "base": "/Users/jon/projects/playstead",
+            "plan": "04.7-09-PLAN.md",
+            "task": "Prove private media and correction through live server + packaged Mac"
+          }
+        ],
+        "counts": {
+          "blocker": 0,
+          "warning": 0,
+          "total": 21
+        },
+        "readError": null
+      }
+    },
+    "failures": {
+      "exit_code": 0,
+      "result": {
+        "status": "ok",
+        "commands": [
+          {
+            "command": "cd playstead-server && scripts/tests/require-exunit-target-test.sh && node scripts/ci/validate-metadata-protocol-decision.js --self-test",
+            "statement": "Nonzero exit from either guard; an absent, zero, skipped or duplicate execution fixture is accepted; an incomplete or unresolved protocol-decision fixture is accepted.",
+            "status": "ok",
+            "severity": "none",
+            "plan": "04.7-00-PLAN.md",
+            "task": "Install rejecting wire-decision and exact ExUnit guards"
+          },
+          {
+            "command": "cd playstead-server && node scripts/ci/validate-metadata-protocol-decision.js",
+            "statement": "Nonzero exit; decision file missing; required wire version, identity, compatibility or reset field missing; unresolved representation; unknown or contradictory contract value.",
+            "status": "ok",
+            "severity": "none",
+            "plan": "04.7-00-PLAN.md",
+            "task": "Approve additive metadata representation before public contract changes"
+          },
+          {
+            "command": "cd playstead-server && scripts/ci/require-exunit-target.sh test/playstead/metadata_test.exs",
+            "statement": "Nonzero exit; exact target missing, zero, skipped or duplicated; cross-owner request succeeds; durable description or snapshot/journal revision differs from the committed selection; game/save identity changes.",
+            "status": "ok",
+            "severity": "none",
+            "plan": "04.7-00-PLAN.md",
+            "task": "Persist and serve one authenticated private description through the versioned metadata path"
+          },
+          {
+            "command": "cd playstead-mac && scripts/ci/run-mac-verification.sh --layers unit --only-testing PlaysteadTests/MetadataTracerTests",
+            "statement": "Nonzero exit; required selector missing, skipped, duplicated or zero execution; production mirror/rendering or atomic cursor/reset assertion fails; game/save identity changes.",
+            "status": "ok",
+            "severity": "none",
+            "plan": "04.7-01-PLAN.md",
+            "task": "Carry Plan00's private description from live server to current Mac game row"
+          },
+          {
+            "command": "cd playstead-mac && PLAYSTEAD_HUMAN_APPROVED_LOCAL_APP_LAUNCH=1 scripts/ci/run-mac-verification.sh --layers live-server --only-testing PlaysteadUITests/MetadataDescriptionJourneyTests/testPrivateDescriptionSurvivesChangeAndReset",
+            "statement": "Nonzero exit; exact journey not discovered and executed once unskipped; current packaged app does not render the committed live-server description after snapshot/change/reset; task-owned app, runner or disposable stack remains after cleanup.",
+            "status": "ok",
+            "severity": "none",
+            "plan": "04.7-01-PLAN.md",
+            "task": "Prove private description in packaged Mac against live server before expansion"
+          },
+          {
+            "command": "cd playstead-server && scripts/ci/require-exunit-target.sh test/playstead/metadata/media_decoder_test.exs",
+            "statement": "Exact target absent/zero/skipped/duplicate, packaged sidecar absent, unsupported image accepted, resource escape, or more than two global decodes.",
+            "status": "ok",
+            "severity": "none",
+            "plan": "04.7-02-PLAN.md",
+            "task": "Package isolated Linux PNG/JPEG decoder"
+          },
+          {
+            "command": "cd playstead-server && scripts/ci/require-exunit-target.sh test/playstead/metadata/private_media_test.exs",
+            "statement": "Exact target absent/zero/skipped/duplicate; failed image leaves committed blob; original digest differs; cross-owner read succeeds.",
+            "status": "ok",
+            "severity": "none",
+            "plan": "04.7-02-PLAN.md",
+            "task": "Commit validated private originals with exact custody"
+          },
+          {
+            "command": "cd playstead-server && scripts/ci/require-exunit-target.sh test/playstead/metadata/custody_round_trip_test.exs",
+            "statement": "Exact target absent/zero/skipped/duplicate; exported or restored original differs; provider derived bytes treated as canonical; game/save identity changes.",
+            "status": "ok",
+            "severity": "none",
+            "plan": "04.7-03-PLAN.md",
+            "task": "Export and reimport canonical private media"
+          },
+          {
+            "command": "cd playstead-server && scripts/ci/require-exunit-target.sh test/playstead/metadata/backup_inventory_test.exs",
+            "statement": "Exact target absent/zero/skipped/duplicate; original omitted from backup; derived reclaim removes canonical blob; restore fails digest check.",
+            "status": "ok",
+            "severity": "none",
+            "plan": "04.7-03-PLAN.md",
+            "task": "Include originals in canonical backup inventory"
+          },
+          {
+            "command": "cd playstead-server && scripts/ci/require-exunit-target.sh test/playstead/metadata/igdb_test.exs",
+            "statement": "Exact target absent/zero/skipped/duplicate; unexpected host/redirect/query disclosure; similar title becomes exact ROM match.",
+            "status": "ok",
+            "severity": "none",
+            "plan": "04.7-04-PLAN.md",
+            "task": "Build fixed-host IGDB title/system adapter and evidence"
+          },
+          {
+            "command": "cd playstead-server && scripts/ci/require-exunit-target.sh test/playstead/metadata/consent_test.exs",
+            "statement": "Exact target absent/zero/skipped/duplicate; disabled/stale consent emits outbound call; unknown image rights allow fetch; private media deleted on disable.",
+            "status": "ok",
+            "severity": "none",
+            "plan": "04.7-04-PLAN.md",
+            "task": "Persist revocable disclosure consent and fail-closed image policy"
+          },
+          {
+            "command": "cd playstead-server && scripts/ci/require-exunit-target.sh test/playstead/metadata/enrichment_worker_test.exs",
+            "statement": "Exact target absent/zero/skipped/duplicate; duplicate jobs, more than caps, request after consent revoke, retry permanent 4xx, or lost partial state.",
+            "status": "ok",
+            "severity": "none",
+            "plan": "04.7-05-PLAN.md",
+            "task": "Build coalesced durable enrichment and finite request budget"
+          },
+          {
+            "command": "cd playstead-server && scripts/ci/require-exunit-target.sh test/playstead/metadata/provider_media_cache_test.exs",
+            "statement": "Exact target absent/zero/skipped/duplicate; unknown rights fetch; redirect/host escape; cap overflow; pinned or canonical bytes reclaimed.",
+            "status": "ok",
+            "severity": "none",
+            "plan": "04.7-05-PLAN.md",
+            "task": "Enforce provider-media rights, cache budget and safe reclaim"
+          },
+          {
+            "command": "cd playstead-server && scripts/ci/require-exunit-target.sh test/playstead/metadata/selection_test.exs",
+            "statement": "Exact target absent/zero/skipped/duplicate; refresh overwrites correction; concurrent alternative discarded; metadata changes game/save identity.",
+            "status": "ok",
+            "severity": "none",
+            "plan": "04.7-06-PLAN.md",
+            "task": "Persist separate evidence, selections and conflict alternatives"
+          },
+          {
+            "command": "cd playstead-server && scripts/ci/require-exunit-target.sh test/playstead/metadata/sync_contract_test.exs",
+            "statement": "Exact target absent/zero/skipped/duplicate; cursor advances without selection; reset loses conflict; OpenAPI example mismatches real response; secret/cache path leaks; old contract breaks.",
+            "status": "ok",
+            "severity": "none",
+            "plan": "04.7-06-PLAN.md",
+            "task": "Publish additive compatible metadata journal/snapshot/API contract"
+          },
+          {
+            "command": "cd playstead-mac && scripts/ci/run-mac-verification.sh --layers unit --only-testing PlaysteadTests/MetadataJournalTests --only-testing PlaysteadTests/MetadataOutboxTests",
+            "statement": "Selector absent/duplicate/skip/zero; cursor advances despite rollback; conflict overwritten; local availability synced.",
+            "status": "ok",
+            "severity": "none",
+            "plan": "04.7-07-PLAN.md",
+            "task": "Mirror metadata atomically and queue offline correction intents"
+          },
+          {
+            "command": "cd playstead-mac && scripts/ci/run-mac-verification.sh --layers unit --only-testing PlaysteadTests/MetadataMediaCacheTests",
+            "statement": "Selector absent/duplicate/skip/zero; corrupt bytes displayed; main actor decode; canonical item evicted.",
+            "status": "ok",
+            "severity": "none",
+            "plan": "04.7-07-PLAN.md",
+            "task": "Bound native media cache and decode off main actor"
+          },
+          {
+            "command": "cd playstead-mac && scripts/ci/run-mac-verification.sh --layers rendering --only-testing PlaysteadTests/ArtworkContractSnapshotTests",
+            "statement": "Selector absent/duplicate/skip/zero; artwork shifts Play; missing state lacks title; screenshot claims player progress.",
+            "status": "ok",
+            "severity": "none",
+            "plan": "04.7-08-PLAN.md",
+            "task": "Integrate truthful cover and detail destination"
+          },
+          {
+            "command": "cd playstead-mac && PLAYSTEAD_HUMAN_APPROVED_LOCAL_APP_LAUNCH=1 scripts/ci/run-mac-verification.sh --layers ui --only-testing PlaysteadUITests/MetadataGalleryUITests",
+            "statement": "Selector absent/duplicate/skip/zero; gallery traps focus; controller/AX exit fails; selected game changes.",
+            "status": "ok",
+            "severity": "none",
+            "plan": "04.7-08-PLAN.md",
+            "task": "Add accessible still gallery and bounded return"
+          },
+          {
+            "command": "cd playstead-mac && PLAYSTEAD_HUMAN_APPROVED_LOCAL_APP_LAUNCH=1 scripts/ci/run-mac-verification.sh --layers ui --only-testing PlaysteadUITests/MetadataConsentUITests --only-testing PlaysteadUITests/MetadataCorrectionUITests",
+            "statement": "Selectors absent/duplicate/skip/zero; query hidden before consent; ambiguous result auto-selected; conflict alternative lost.",
+            "status": "ok",
+            "severity": "none",
+            "plan": "04.7-09-PLAN.md",
+            "task": "Deliver consent, preparation, cache and correction UI"
+          },
+          {
+            "command": "cd playstead-mac && PLAYSTEAD_HUMAN_APPROVED_LOCAL_APP_LAUNCH=1 scripts/ci/run-mac-verification.sh --layers live-server --only-testing PlaysteadUITests/MetadataPrivateMediaJourneyTests",
+            "statement": "Selector absent/duplicate/skip/zero; server/app path faked; export mismatch; offline edit lost; task-owned process left running.",
+            "status": "ok",
+            "severity": "none",
+            "plan": "04.7-09-PLAN.md",
+            "task": "Prove private media and correction through live server + packaged Mac"
+          }
+        ],
+        "counts": {
+          "blocker": 0,
+          "warning": 0,
+          "total": 21
+        },
+        "readError": null
+      }
+    },
+    "decisions": {
+      "exit_code": 0,
+      "result": {
+        "passed": true,
+        "skipped": false,
+        "total": 16,
+        "covered": 16,
+        "uncovered": [],
+        "message": "All trackable CONTEXT.md decisions are covered by plans."
+      }
+    },
+    "api": {
+      "exit_code": 0,
+      "result": {
+        "block": false,
+        "passed": true,
+        "coverage_present": true,
+        "matrix": "COVERAGE.md",
+        "counts": {
+          "surface": 89,
+          "integrate": 7,
+          "optout": 82
+        },
+        "message": "api-coverage: matrix present (89 capabilities, 82 opt-out)"
+      }
+    }
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "phase": "04.7",
+  "recorded_at": "2026-10-13T14:12:35.481437+00:00",
+  "human_judgment": false,
+  "source_commit": "ed8710d",
+  "wave_post": {
+    "verify.schema-drift": {
+      "block": false,
+      "schema_files": [],
+      "limitation": "Generic detector found no ORM schema; migration-backed fullserver/contract tests are authoritative."
+    },
+    "verify.codebase-drift": {
+      "block": false,
+      "skipped": true,
+      "reason": "no-structure-md"
+    },
+    "ui.safety-gate": {
+      "block": false,
+      "frontend": true,
+      "hasUiFiles": false,
+      "hasUiSpec": true,
+      "limitation": "Generic UI detector omits native Swift; actual nativeUIaudit, rendering and packagedaction evidence are authoritative."
+    }
+  },
+  "verify_post": {
+    "validate-phase": "10/10 task summaries and explicit behavior map reconciled; no human verification.",
+    "secure-phase": "11/11 planned threats closed,0open; targeted expiry clock re-audit confirmed.",
+    "ui-review": "17/24;0blockers;6advisory warnings retained."
+  },
+  "execute_post": {
+    "code-review": "0critical;WR03expiry cancellation fixed;1warning WR02foundationCAS crashboundary deferred; dispositions0open."
+  },
+  "regression_gate": {
+    "status": "passed affected/current-source composition",
+    "server": "1206tests192features13properties0fail after finalserverchangef4e98ac, receipt04.7-SERVER-REGRESSION-RACE-FINAL-EVIDENCE.json",
+    "native": "18affected metadata unitidentities plus53packaged controls/all53rendering, existinggalleryactions and fullLiveOwYAws; newexpiry unitOQFSEa/render3auTsq supersede affectedcache/artwork paths.",
+    "reuse_reason": "Owner requires reusing sufficient unchanged evidence and existingcachedDerivedData; broadconfiguredgsd-gate roots would duplicate Xcodebuild and unrelated unchangedtests. No source change/newfailure justifies that rerun.",
+    "skipped_or_zero_accepted": false
+  },
+  "registration_checks": {
+    "test-plan-registration-test.sh": "passed exactrequiredselector/result/mutation controls",
+    "test_surface_contract_registration.py": "7/7passed",
+    "phase_summary_coverage": "10summaries/10classifiableblocks",
+    "repository_summary_coverage": "failed4unrelatedlegacydocuments missingYAML; outsidephase; notclaimedpass"
+  },
+  "next_command": "$gsd-execute-phase 4.7"
+}

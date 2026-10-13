@@ -66,6 +66,8 @@
       "selectedTests": [
         "HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner()",
         "LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch()",
+        "MetadataDescriptionJourneyTests/testPrivateDescriptionSurvivesChangeAndReset()",
+        "MetadataPrivateMediaJourneyTests/testPrivateMediaExportAndProviderDisclosureUsePairedProductionRoutes()",
         "PairingCeremonyTests/testAHumanCanPairAFreshMacEntirelyFromInsideTheAppAgainstTheRealServer()",
         "RecoveryKnownPlayableTests/testRecoveryHarnessRefusesSyntheticFixtureWithoutAnIsolatedTarget()",
         "SaveEndToEndTests/testOneSaveRoundTripsCaptureUploadAndJournalReturn()",

@@ -55,6 +55,8 @@ defmodule Playstead.Export.Sidecar do
       "provenance" => Map.get(set_plan, :provenance, %{}),
       "recognition" => Map.get(set_plan, :recognition, %{}),
       "saves" => saves_sidecar(Map.get(set_plan, :saves_plan, SavesPlan.plan([]))),
+      "metadata_selection" => selection_sidecar(Map.get(set_plan, :metadata_selection)),
+      "media" => Enum.map(Map.get(set_plan, :private_media, []), &media_sidecar/1),
       "members" =>
         Enum.map(set_plan.members, fn m ->
           %{
@@ -68,6 +70,27 @@ defmodule Playstead.Export.Sidecar do
             "required" => m.required
           }
         end)
+    }
+  end
+
+  defp selection_sidecar(nil), do: nil
+
+  defp selection_sidecar(selection) do
+    %{
+      "description" => selection.description,
+      "revision" => selection.revision,
+      "provenance" => %{"source" => "owner_selection", "field" => "description"}
+    }
+  end
+
+  defp media_sidecar(media) do
+    %{
+      "id" => media.id,
+      "path" => Path.join("data", media.relative),
+      "sha256" => media.sha256,
+      "size_bytes" => media.size_bytes,
+      "mime" => media.mime,
+      "provenance" => media.provenance
     }
   end
 
