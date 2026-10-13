@@ -3,7 +3,7 @@
   "scope": "isolated delivery composition re-audit",
   "human_judgment": false,
   "base_pr": 12,
-  "base_commit": "7733382a6e4f341273485b753078d8cd6b70c522",
+  "base_commit": "1294bf67ab540e7ceb5d3ee3a333585f47d73b37",
   "original_verdict": "38/38; 04.7-VERIFICATION.md original2026-10-13T14:18:26Z",
   "automated_reaudit": {
     "result": "38/38 retained",
@@ -43,7 +43,7 @@
     "live IGDB image rights grant"
   ],
   "source_sha256": {
-    ".github/workflows/ci.yml": "4d1db81c2979837cfd39e763659fa246ee42321439569d6036853303ea4a4234",
+    ".github/workflows/ci.yml": "ac7578bc0dc1bf0b15c93385526f71b9b424d124c43bca46ffbd8b2630e30bc9",
     ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-00-PLAN.md": "effc28a36466de04aaa46b97ff371d74555dc1b3d942f6f5e958b1745ec4bc7b",
     ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-00-SUMMARY.md": "7ae6eae22a176981f065ff93e253b0b7c136895e98a9161585718114f264e051",
     ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-01-PLAN.md": "78f4ef44095c25e73696cff7a01f7ec850b1d9207951a31558da6598cd5febe9",
@@ -99,7 +99,7 @@
     "playstead-mac/TestPlans/Rendering.xctestplan": "25b0ca2a697e63d5983719552643a71e8554a36a502d044ef8ba2d1ea5c23afe",
     "playstead-mac/TestPlans/UI.xctestplan": "69d82983e5b4aef8330bef60816f2c9d2f4a3e7a91a29ea3154138dca6b22018",
     "playstead-mac/TestPlans/Unit.xctestplan": "8efadd22721044529031fc9e5c8bee951deef22f6885b8ac55f6f9553da87d23",
-    "playstead-mac/scripts/ci/run-mac-verification.sh": "99a1d4e2e5907b10b9d07ec489c4709771267cb6da4930cfde6c18c98b45a302",
+    "playstead-mac/scripts/ci/run-mac-verification.sh": "fce0b58a4636821aa6140c694915ed9fa33df5b26d4b9feeabe2f41cfc0250e7",
     "playstead-server/config/config.exs": "b41477e174df58892947933399a5d5263e6d4b54fe63c7bfd4c662368e34b828",
     "playstead-server/config/runtime.exs": "eb0e9ddca6d6dc789914c142956dd23a4a1cb0d617b63e7cfc0916eda1b5c893",
     "playstead-server/docker-compose.ci.yml": "555a7405e10553d9e0f6a34b93e61bcf1c67fd470fadeba80865deabdb2c4290",
@@ -160,7 +160,7 @@
     "playstead-mac/scripts/ci/tests/live-server-env-detector.py": "438ceecf452a78f84907734c36bf65f57814d3115c52c4a7d595ff82405f38ac",
     "playstead-mac/scripts/ci/tests/recovery-build-only-test.sh": "d5e8abd63cf95b569a262ddabaa5481e7136d03999506709b6a541eeec4fadc5",
     "playstead-mac/scripts/ci/tests/test_cleanup_gb_gbc_save_children.py": "f1f550df21c70cacfa930985a84bf7d9870adfa98091add303253876b632912d",
-    "playstead-mac/scripts/ci/tests/test_server_workflow_contract.py": "48dd04ee50c3e1b4862e90bf75c76b1e80e2c2c7b809c01acb3c6e7c88aaa6ec",
+    "playstead-mac/scripts/ci/tests/test_server_workflow_contract.py": "3b4a56271f6b4385410424b00019694ed7286e1c89f56fd473d5898b4f68d2d0",
     "playstead-mac/scripts/ci/tests/test_virtual_hid_workflow_contract.py": "d3dd65e7b91382b97dc74320ef302c37d4b17a49a5e3aa88f11aeb98eee20906",
     "playstead-server/lib/mix/tasks/playstead.restore.ex": "d6e65163f35f0ea6e3d63e6b2fdd7af0df1565c4fd4ab40e7cded5757e207b97",
     "playstead-server/lib/playstead/recovery/restore.ex": "e08d875e1a200545d417596e96eacd42263dd1471f2dbd238a592bae1ffe0d6c",
@@ -174,7 +174,11 @@
     ".gitignore": "83e13d32331ee717cb14540cd58e5cfb4c20fee17da512220fdff7cbe3e607b2",
     "playstead-server/.dockerignore": "6efbe1a1f95044b19c6cc7ea90176da99a0375e42bd94996ec9cd9329b7c6deb",
     "scripts/ci/release-supply-chain.sh": "a7bd88bc004c9df470adfb633b55c6322ef81193e96bbe92467e699f088eb99c",
-    "scripts/tests/test_release_evidence.py": "e36297ba7fd113ec9a6f28b7d1b745480e00964c105d1f831cc6eda372599a55"
+    "scripts/tests/test_release_evidence.py": "e36297ba7fd113ec9a6f28b7d1b745480e00964c105d1f831cc6eda372599a55",
+    "playstead-mac/PlaysteadTests/SnapshotTests/DeterministicProfileTests.swift": "82ae432bf06effa4fb2569625e74e58b681ac763806e815a90d64ddd42f0be51",
+    "playstead-mac/PlaysteadUITests/SurfaceAccessibilityTests.swift": "1a501332191de7e800400d5655429ba6c16df06e9894ababf52a9a9f7bf610b4",
+    "playstead-mac/scripts/ci/configure-test-display.swift": "00d62c47af9f4ff28f0f1961bdf793e6a64c5e3bb76a9b9189c39884016eba61",
+    "playstead-mac/scripts/ci/tests/test_live_server_xctestrun_environment.py": "7c7ef59e9dd9d8edf126e9e554480a15e99aae9c380c086e8f69bd0c78e88265"
   },
   "logs_sha256": {
     "phase-final-build.log": "aa87117cef03c791bad48eefddbc85dc994ff6639bf7427b75b3ff32810f005f",
@@ -232,9 +236,21 @@
     "hosted_mac_setup": "install and validate ripgrep before static guards; composed positive/negative contract passes",
     "relay_qualification": "04.7-SHIP-RELAY-QUALIFICATION.json",
     "relay_http_tests": 5,
-    "source_scan_qualification": "04.7-SHIP-SOURCE-SCAN-QUALIFICATION.json"
+    "source_scan_qualification": "04.7-SHIP-SOURCE-SCAN-QUALIFICATION.json",
+    "native_prerequisites": {
+      "rendering_run": "oYwjYI",
+      "executed": 3,
+      "failed": 0,
+      "skipped": 0,
+      "static_validator_tests": 92,
+      "named_ca_stamp_test": 1,
+      "ci_setup_contracts": 2,
+      "display_typecheck": "passed",
+      "production_ui_delta": "none; existing segmented radio picker retained",
+      "hosted_geometry_pointer_live": "pending"
+    }
   },
-  "covered_digest": "v3:sha256:189cb614d640c928a0e45e886d081b575ec6aaeb0b97e06a94cdfc79e57f4b95",
+  "covered_digest": "v3:sha256:3e22c3d7680aafabaa239410e8d94e361b090ceaee51668a0abc851e3102746a",
   "log_sha256": {
     "phase-ci-repairs-static.log": "a9c213cd5c89461d2f17ff53cfa2e8a89ccc1d8b98deb964a9186341735995a3",
     "phase-ci-repairs-compile.log": "7f95425152a32b6e0c48d184d776fd2373280f0144e38b8deb759977dc69f574",
