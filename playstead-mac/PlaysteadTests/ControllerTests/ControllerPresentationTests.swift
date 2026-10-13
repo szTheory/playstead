@@ -25,13 +25,15 @@ final class ControllerPresentationTests: XCTestCase {
         let decoded = try JSONDecoder().decode(ControllerDescriptor.self, from: legacy)
         XCTAssertNil(decoded.buttonStyle, "A display name alone must never select branded presentation")
         let mapping = ControllerMapping.defaultMapping(controllerProductID: "pad")
-        let before = try JSONEncoder().encode(mapping)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        let before = try encoder.encode(mapping)
         let descriptor = ControllerDescriptor(id: "pad", name: "Pad", availableInputs: ControllerDescriptor.extendedInputs, buttonStyle: .dualSense)
         XCTAssertEqual(try JSONDecoder().decode(ControllerDescriptor.self, from: JSONEncoder().encode(descriptor)), descriptor)
         XCTAssertEqual(ControllerMapping.defaultControllerInputs, ControllerDescriptor.defaultInputs)
         XCTAssertEqual(ControllerMapping.defaultControllerInputs.count, 10)
         XCTAssertFalse(ControllerMapping.defaultControllerInputs.contains("buttonX"))
-        XCTAssertEqual(try JSONEncoder().encode(mapping), before)
+        XCTAssertEqual(try encoder.encode(mapping), before)
     }
 
     func testAllFourFaceButtonsUseAssignedLiveStateAndDetachClearsIt() {

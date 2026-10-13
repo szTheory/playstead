@@ -205,7 +205,7 @@
     "playstead-mac/PlaysteadTests/SyncTests/SyncEngineTests.swift": "a0c7096886c82d0950f04ef8c742f8408aa98fe3ca9e7a2981ffd9135f1f77d5",
     "playstead-mac/PlaysteadUITests/BiosRejectionCopyTests.swift": "021b5ebc58d0cb8c524a849804a5ca8bb935e56bd4bf6f2a262ff642d1e7f945",
     "playstead-mac/PlaysteadUITests/CurationInteractionTests.swift": "107b292528dd39296c9c6588146de4695f334581663b907810d0b07a118fd0ae",
-    "playstead-mac/PlaysteadUITests/LiveServerSnapshotTests.swift": "86de8149c8b6fdb8b8ce5185bc50e442553e29f58cba36fbfdbddd9d12ad6445",
+    "playstead-mac/PlaysteadUITests/LiveServerSnapshotTests.swift": "78ae332c293233babc2ce67bb505acb28d2018c8f8894d756bf4e8298201e2d1",
     "playstead-mac/PlaysteadUITests/OnlyCopyInterruptionTests.swift": "9b95adfeb82db1b466ed5fc42e97a1c8cac2c75cefc23aff9a50382e559a22fe",
     "playstead-mac/PlaysteadUITests/PairingCeremonyTests.swift": "5da92955143cba81848a57f7d4a2b4b6237ec7f846258cf1cf5a0e0445075f58",
     "playstead-mac/PlaysteadUITests/PlaysteadUITests.entitlements": "1f67c240359529a09f033ec3d1a7678c02b22d6cf18275b15b095845256b47fb",
@@ -216,18 +216,18 @@
     "playstead-mac/PlaysteadUITests/SurfaceAccessibilityTests.swift": "1a501332191de7e800400d5655429ba6c16df06e9894ababf52a9a9f7bf610b4",
     "playstead-mac/PlaysteadUITests/ZeroNetworkPlayFlowTests.swift": "c44c245d7fb6d1bed1caaa683386f402203dd8789fc46cd4be1464e12d4a3806",
     "playstead-mac/README.md": "ee265b47ffef2ea9d25c274e8a3d54a4a9f926b84fe236d3a6daeaa9a9209150",
-    "playstead-mac/TestPlans/LiveServer.xctestplan": "eb2ebab5794d8754a1342c6e1acf92a6a9d92c8060f2746186337fa70c070833",
+    "playstead-mac/TestPlans/LiveServer.xctestplan": "761ea0e60dbf2f6bf382c7e3d081842cc6b4a2440d2fc7fbaf1d50a38f3301f9",
     "playstead-mac/TestPlans/UI.xctestplan": "cdfb0d398758663e5503105e310669315ef00d20a6d0b5a395d730645127d9c5",
     "playstead-mac/docs/ACCESSIBILITY.md": "922eb5e8cdadeff59ef35d72a66e6b6c7fd0e26558cf1fa3cb214213a42ffac3",
     "playstead-mac/docs/LOCAL-DEV.md": "c6b791e0db5e819ed731cc01c2241e6bc480ce33a994ebe2511c247df7a89bf8",
     "playstead-mac/docs/RELEASE.md": "9da57aa372f58c45b4d80dea6f3eba86ab7ceff0c81850333bc25a544b949c99",
-    "playstead-mac/scripts/ci/live-server.sh": "2634847287308a334f42106fef330636df386f92b59a430243de7badaf0502f3",
+    "playstead-mac/scripts/ci/live-server.sh": "8d527b3c5b2caea52dc2420e7a54d78e9f87e5e89365e3ebeee3e15aff35ac64",
     "playstead-mac/scripts/ci/reachability-allowlist.txt": "370ea0096addb56498c7dc7a789532ead8a2acb9c645b3a11e8d003b109091ab",
     "playstead-mac/scripts/ci/run-mac-verification.sh": "6a32ea64a7a7391132f736b52ab6f47d8790e8e8e76667ca9bb3d6a0f4d0d83b",
     "playstead-mac/scripts/ci/sanitize-evidence.sh": "6ee656e29fa5bd078dde5fa551ad617c8deef447a96a5dd2c8e1ac5b27c3589e",
     "playstead-mac/scripts/ci/tests/ax-value-detector.py": "8b7e4cd5f892338042bfdc236cb4284e6ff45746df9e32ce25ddcdd3608d8517",
     "playstead-mac/scripts/ci/tests/ax-value-semantics-test.sh": "bf62b0dccf547b871dc6249a4c3ef13af6c10400dfbe57299debc6b60c6e85e7",
-    "playstead-mac/scripts/ci/tests/four-layer-topology-test.sh": "5c1247b8de6186ab1b2e54941dc3fdd0297a66fbbdf27b0b156f7a75d666f705",
+    "playstead-mac/scripts/ci/tests/four-layer-topology-test.sh": "eb63217f9c1b912b88fc820521822700e690b1cdf916e9a8ed6dabfdde2727ae",
     "playstead-mac/scripts/ci/tests/four-layer-verifier-test.sh": "8f1bafb9df04254355c1d9ea549a24e8341d957be16a787217bc7c465ab2c14a",
     "playstead-mac/scripts/ci/tests/keychain-prompt-safety-test.sh": "d296185609327a787afdf8dd9a3d2f07b283e12ff9a1fd13c025dcc184ca695c",
     "playstead-mac/scripts/ci/tests/live-server-env-detector.py": "649647af03670faf7e5d56221a97afc814a7862ebdb96d0c915e95513eb2beff",
@@ -348,7 +348,7 @@
     "playstead-mac/PlaysteadTests/AdapterTests/StandInExecutable.swift": "241e2475426f17addfc87b0adc813c446771c372e6ec96da8035891073ee218f",
     "playstead-mac/PlaysteadTests/CacheTests/StubURLProtocolIsolationTests.swift": "eeb9f722fa9bdbebf0e3d4edf5ad4d501879fcf0b9d6fa0e891a0f67baa6196b",
     "playstead-mac/PlaysteadTests/ControllerTests/ControllerNavigationTests.swift": "e394451e976cf333430e0621cebd4158ce87a6ece722a07b6442a8c46cf2d785",
-    "playstead-mac/PlaysteadTests/ControllerTests/ControllerPresentationTests.swift": "15535c1f4bf540b71d0f6fc86b850536e257e0c28f218ba670e264c0d8bfb3aa",
+    "playstead-mac/PlaysteadTests/ControllerTests/ControllerPresentationTests.swift": "d774757ba6a7c15551ccecbc60da5d563393eb49b48d4af6a06bdf9d042abef4",
     "playstead-mac/PlaysteadTests/LibraryTests/LibrarySortTests.swift": "65a684da0ccde32fe73c809beb1b8df5f5bda599409a51dc6e9015ffe3ec75b4",
     "playstead-mac/PlaysteadTests/LibraryTests/LibraryStatusWiringTests.swift": "7772ce2f88beeeda9665d46e55c75e3f322f2250a3002511083c506a091f1277",
     "playstead-mac/PlaysteadTests/PairingTests/D16PairingCorrelationPropagationTests.swift": "8d325d84d7afb0a3ce1adac0248b1ab3205d8de858afb12dce899ba66955863a",
@@ -357,11 +357,11 @@
     "playstead-mac/PlaysteadTests/SyncTests/OutboxStrandedInFlightTests.swift": "2cdc62eb81fe32167524a6f2abc8ad0acb42326dd31c16f9fc6ad2661a429692",
     "playstead-mac/PlaysteadTests/SyncTests/OutboxWatermarkMigrationTests.swift": "c6dea8476d5d61c071322be99c45883f3da99f51f7fbb3faa67a683ed4fa93de",
     "playstead-mac/PlaysteadUITests/BiosAcceptanceSeamTests.swift": "410e6d0d6687d23636fa8fa578b23ca6c14887e3854c1c96d8c2931ddd28a66c",
-    "playstead-mac/PlaysteadUITests/ControllerDpadRegressionTests.swift": "7d8779a1305b5d8bb835a0f45adc301598c944d3fd226c524cc564bcbb57d6e1",
+    "playstead-mac/PlaysteadUITests/ControllerDpadRegressionTests.swift": "e7295695dd827eefc42b5caef814e9715d1e4c3d58ba2d59dc09f516687a2c81",
     "playstead-mac/PlaysteadUITests/ControllerHardwareIntegrationTests.swift": "5f09caa381984fb87e5a76100facaa19a1c0e40dd0a95d90b7f9b2412bff9090",
     "playstead-mac/PlaysteadUITests/ControllerNoHIDIntegrationTests.swift": "0a1fc437347de63c1591adef2a44f097573d3bf34bfe526ab4000c6753721f2c",
-    "playstead-mac/PlaysteadUITests/ControllerRecoveryBannerGeometryTests.swift": "407a1ab0c4f935d69a6846095e8ce712597172534aef7e55b4e5a5d031571eba",
-    "playstead-mac/PlaysteadUITests/GBGBCSaveContinuityTests.swift": "c1b54d07a1c3249b7e52029eaa118d9270f3ff754060a200799dee996d5bac34",
+    "playstead-mac/PlaysteadUITests/ControllerRecoveryBannerGeometryTests.swift": "12acc10ccee416dc51ece8615018bcced95bd5f358da248154c5a6eb159ffa52",
+    "playstead-mac/PlaysteadUITests/GBGBCSaveContinuityTests.swift": "d33a14e376b7271012b51d451cf269aad782241d0a5b50fd15efe30005cb9dc5",
     "playstead-mac/PlaysteadUITests/GBGBCUIStateTests.swift": "4c7010e92f9f7b9bdc595bcd3e92bd83b42cecf1ff76f4362053d72c6ed0075a",
     "playstead-mac/PlaysteadUITests/LibraryEmptyStateTests.swift": "7a66d939d5fad65ab517c724d25d3aaffe8ff8a3ba48a545fdc3de8f66ad69bc",
     "playstead-mac/PlaysteadUITests/PlaysteadUITests.no-hid.entitlements": "fe830829e66b89b2ecdb37568464bffc1785e7e4b71db40d16bf230aac6064ef",
@@ -403,7 +403,7 @@
     "playstead-mac/scripts/ci/tests/continuation-process-double-test.py": "c61e37e535319c1f37b41a29b6ea9c238e61b81944d93df5730599027d49b474",
     "playstead-mac/scripts/ci/tests/continuation-spike-test.sh": "6669b2997628a6e5cf9f76e66ae40338e4fa7eb06317cc56c5bb33d611196f73",
     "playstead-mac/scripts/ci/tests/entitled-runner-isolation-test.sh": "61752c8be3d53eecdaa8dad3ed477520bbb5f62616087bfb8dd382b9be763bcb",
-    "playstead-mac/scripts/ci/tests/live-server-verification-test.sh": "3bf9123e99be6dc1ea9d132968d3e4ddd24b0f6b8b371638efde8ff6235c2054",
+    "playstead-mac/scripts/ci/tests/live-server-verification-test.sh": "561811941f423a8afa843c67cc70862f51261e7c24f687da145f125c1effe937",
     "playstead-mac/scripts/ci/tests/mgba-input-bridge-contract-test.sh": "00f98bde028d9e1e8217ebe5143e1e054c2d96c033dbbac0e8b674d0c9d78e90",
     "playstead-mac/scripts/ci/tests/migration-column-declaration-detector.py": "e8c36be8da1dc63ff3557cb5849adacef290f45014f8a640d846cc6e83ff56e8",
     "playstead-mac/scripts/ci/tests/migration-column-declaration-test.sh": "8cf9d0612532bc3db0067c5bfb09c01f7ed4da8ec62a8e298971bebe29a407e0",
@@ -418,7 +418,7 @@
     "playstead-mac/scripts/ci/tests/recovery-test-owner-test.sh": "09f304db9644bd30d8daf70edf147502d0c13d39a21d6d065233a9dc774205bf",
     "playstead-mac/scripts/ci/tests/reliability-load-process-group-test.sh": "61ae1747c0bd38a81fd59a2c4dcde367f08ec90dbe5d863a7bf500322123058a",
     "playstead-mac/scripts/ci/tests/save-reliability-signing-mode-test.sh": "6e95e2c28014cceb1011b55494773375ea38b8ffc260c5d34e533721862f864a",
-    "playstead-mac/scripts/ci/tests/test-gb-gbc-fixture-registry.sh": "02dac4b8de0724173aff0c50bae1f7bf547105e321462d0e945f7c9b7ac42001",
+    "playstead-mac/scripts/ci/tests/test-gb-gbc-fixture-registry.sh": "c08a04c32686e0f333fb9792b0c26b9a8c3665365581009e690138cd0ce2219d",
     "playstead-mac/scripts/ci/tests/test-gb-gbc-save-wrapper-cleanup.sh": "e8dfce3df18ce2cc99849f46280c2e2d4e6a0be6ee9db55deb6ff65cf292dd16",
     "playstead-mac/scripts/ci/tests/test_cleanup_gb_gbc_save_children.py": "f1f550df21c70cacfa930985a84bf7d9870adfa98091add303253876b632912d",
     "playstead-mac/scripts/ci/tests/test_layout_evidence.py": "bfbb3676aacc3f46fc54861f2cdf47d68e8b83157e667e1e59e9263550a7aa43",
@@ -491,7 +491,8 @@
     "scripts/uat7-status.sh": "ba5477e34aee4f9da082d94f28d9e115e007c6461fc21628603a6c6f86eb99aa",
     "design-system/shared-tokens.json": "07598e86c15b068a69403896f70f9c6af4941cadc99b1ed6920c630e96e3e688",
     "playstead-mac/scripts/ci/configure-test-display.swift": "00d62c47af9f4ff28f0f1961bdf793e6a64c5e3bb76a9b9189c39884016eba61",
-    "playstead-mac/scripts/ci/tests/test_live_server_xctestrun_environment.py": "7c7ef59e9dd9d8edf126e9e554480a15e99aae9c380c086e8f69bd0c78e88265"
+    "playstead-mac/scripts/ci/tests/test_live_server_xctestrun_environment.py": "7c7ef59e9dd9d8edf126e9e554480a15e99aae9c380c086e8f69bd0c78e88265",
+    ".planning/spikes/001-bios-free-gameplay/verify_pixels.py": "88a3ef41c6dca4ee4046f798856031cc5f2e77fbe864f8901a61a1521754447b"
   },
   "logs_sha256": {
     "prerequisite-build-5.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -666,5 +667,88 @@
     },
     "cleanup": "exact task app and runner inventory empty after focused UI; no local service stack launched",
     "new_list_reference_sha256": "3db607b851657c0c96fff309429fbe46864d4f23fb9008f115a56b22a2459e09"
+  },
+  "hosted_native_order_followup": {
+    "recorded_at": "2026-10-13T23:34:45.029720+00:00",
+    "human_judgment": false,
+    "input_head": "cd1c01a577874bc10741fab2b00f1843c9b05ef8",
+    "hosted_run": 38473210188,
+    "hosted_result": {
+      "unit": {
+        "executed": 823,
+        "failed": 0
+      },
+      "rendering": {
+        "executed": 54,
+        "failed": 0
+      },
+      "ui": {
+        "executed": 146,
+        "failed": 1
+      },
+      "live": {
+        "executed": 10,
+        "failed": 5
+      }
+    },
+    "repairs": [
+      "Capture a per-test request offset and exact pre-existing server catalogue; preserve earlier imports and reject any in-window blob request or mirror mismatch",
+      "Restore the verbatim authored pixel verifier and qualify its transitive clean-checkout inputs",
+      "Bridge the owned GB/GBC profile root in the focused test plan",
+      "Reveal scrolled Favorites and D-pad release controls before pointer activation",
+      "Compare mapping JSON with sorted keys",
+      "Close only selector-owned emulator children at teardown; fail early on missing runner Accessibility trust"
+    ],
+    "source_hashes": {
+      "playstead-mac/PlaysteadTests/ControllerTests/ControllerPresentationTests.swift": "d774757ba6a7c15551ccecbc60da5d563393eb49b48d4af6a06bdf9d042abef4",
+      "playstead-mac/PlaysteadUITests/ControllerDpadRegressionTests.swift": "e7295695dd827eefc42b5caef814e9715d1e4c3d58ba2d59dc09f516687a2c81",
+      "playstead-mac/PlaysteadUITests/ControllerRecoveryBannerGeometryTests.swift": "12acc10ccee416dc51ece8615018bcced95bd5f358da248154c5a6eb159ffa52",
+      "playstead-mac/PlaysteadUITests/GBGBCSaveContinuityTests.swift": "d33a14e376b7271012b51d451cf269aad782241d0a5b50fd15efe30005cb9dc5",
+      "playstead-mac/PlaysteadUITests/LiveServerSnapshotTests.swift": "78ae332c293233babc2ce67bb505acb28d2018c8f8894d756bf4e8298201e2d1",
+      "playstead-mac/TestPlans/LiveServer.xctestplan": "761ea0e60dbf2f6bf382c7e3d081842cc6b4a2440d2fc7fbaf1d50a38f3301f9",
+      "playstead-mac/scripts/ci/live-server.sh": "8d527b3c5b2caea52dc2420e7a54d78e9f87e5e89365e3ebeee3e15aff35ac64",
+      "playstead-mac/scripts/ci/tests/four-layer-topology-test.sh": "eb63217f9c1b912b88fc820521822700e690b1cdf916e9a8ed6dabfdde2727ae",
+      "playstead-mac/scripts/ci/tests/live-server-verification-test.sh": "561811941f423a8afa843c67cc70862f51261e7c24f687da145f125c1effe937",
+      "playstead-mac/scripts/ci/tests/test-gb-gbc-fixture-registry.sh": "c08a04c32686e0f333fb9792b0c26b9a8c3665365581009e690138cd0ce2219d",
+      ".planning/spikes/001-bios-free-gameplay/verify_pixels.py": "88a3ef41c6dca4ee4046f798856031cc5f2e77fbe864f8901a61a1521754447b"
+    },
+    "qualification": {
+      "request_and_catalogue_contract": "10 checks passed",
+      "pixel_verifier": "6 digest-pinned original PNGs passed; wrong-counter and corrupt CRC rejected",
+      "geometry": {
+        "run": "selected-ui.s85xjB",
+        "executed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "window_theme_cases": 4
+      },
+      "dpad": {
+        "run": "selected-ui.vhwc5J",
+        "executed": 1,
+        "failed": 0,
+        "skipped": 0
+      },
+      "mapping": {
+        "run": "selected-unit.aCByfC",
+        "executed": 1,
+        "failed": 0,
+        "skipped": 0
+      },
+      "live_after_game_downloads": {
+        "run": "selected-live-server.2e7l7V",
+        "selected_passed": [
+          "LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch",
+          "SaveEndToEndTests/testOneSaveRoundTripsCaptureUploadAndJournalReturn"
+        ],
+        "whole_run": "failed: three game readback selectors lacked runner raw Accessibility trust; no readback qualification claimed"
+      },
+      "static": "92 validator cases/all guards passed; final topology, registry/transitive-input, and request-window guards rechecked after later edits",
+      "gb_gbc_readback": "unknown; local runner Accessibility trust unavailable, current hosted retry required"
+    },
+    "cleanup": {
+      "task_apps": "exact executable inventory empty",
+      "owned_native_service_root_removed": true,
+      "emulators": "selector-owned children closed, production wrapper verified empty inventories before deleting their profiles"
+    }
   }
 }

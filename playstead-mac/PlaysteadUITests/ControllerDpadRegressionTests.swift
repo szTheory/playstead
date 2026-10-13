@@ -48,7 +48,9 @@ final class ControllerDpadRegressionTests: XCTestCase {
         XCTAssertTrue(settings.exists, "D-pad Up must not navigate away from Settings")
         XCTAssertTrue(controllerSettings.exists, "D-pad Up must not remove the controller settings page")
 
-        harness.element("playstead.controller.test.release-up", type: .button).clickWhenHittable()
+        let releaseUp = harness.element("playstead.controller.test.release-up", type: .button)
+        for _ in 0..<6 where !releaseUp.isHittable { testSurface.swipeUp() }
+        releaseUp.clickWhenHittable()
         XCTAssertEqual(upInput.readableText, "D-pad Up, not pressed", "D-pad Up release did not clear the live input tile")
         XCTAssertTrue(testSurface.exists, "releasing D-pad Up must leave the controller test open")
         harness.element("playstead.controller.test.done", type: .button).clickWhenHittable()

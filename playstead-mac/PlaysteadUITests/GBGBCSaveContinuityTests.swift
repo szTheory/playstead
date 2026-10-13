@@ -14,11 +14,22 @@ import Vision
 final class GBGBCSaveContinuityTests: XCTestCase {
     private var app: XCUIApplication?
     private var oracleFiles: [URL] = []
+    private var ownedProfiles: [URL] = []
     private let oracleToolsRoot = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
     override func tearDownWithError() throws {
         app?.terminate()
+        // A failed console/oracle assertion must not leave this selector's
+        // child running while the next selector attaches to the same bundle.
+        for profile in ownedProfiles {
+            _ = try runPython(arguments: [
+                oracleToolsRoot.appendingPathComponent("playstead-mac/scripts/ci/cleanup-gb-gbc-save-children.py").path,
+                "--executable", managedPinnedExecutableURL.path,
+                "--profile-root", profile.path
+            ])
+        }
+        ownedProfiles.removeAll()
         for file in oracleFiles { try? FileManager.default.removeItem(at: file) }
         try super.tearDownWithError()
     }
@@ -86,6 +97,7 @@ final class GBGBCSaveContinuityTests: XCTestCase {
         let sourceRoot = runRoot.appendingPathComponent("source-profile", isDirectory: true)
         try FileManager.default.createDirectory(at: sourceRoot, withIntermediateDirectories: true,
                                                 attributes: [.posixPermissions: 0o700])
+        ownedProfiles.append(sourceRoot)
         let sourceKeychain = sourceRoot.appendingPathComponent("source.keychain-db")
         let sourceCA = sourceRoot.appendingPathComponent("server-ca.der")
         try FileManager.default.copyItem(at: URL(fileURLWithPath: caPath), to: sourceCA)
@@ -153,6 +165,7 @@ final class GBGBCSaveContinuityTests: XCTestCase {
         let targetRoot = runRoot.appendingPathComponent("target-profile", isDirectory: true)
         try FileManager.default.createDirectory(at: targetRoot, withIntermediateDirectories: true,
                                                 attributes: [.posixPermissions: 0o700])
+        ownedProfiles.append(targetRoot)
         let targetKeychain = targetRoot.appendingPathComponent("target.keychain-db")
         let targetCA = targetRoot.appendingPathComponent("server-ca.der")
         try FileManager.default.copyItem(at: URL(fileURLWithPath: caPath), to: targetCA)
@@ -270,6 +283,17 @@ final class GBGBCSaveContinuityTests: XCTestCase {
     }
 
     private func runFreshProfileGameReadback(fixtureName: String) throws {
+        guard AXIsProcessTrusted() else {
+            return XCTFail("gb-save-e2e=runner-accessibility-trust-required")
+        }
+        guard FileManager.default.isReadableFile(atPath: oracleToolsRoot.appendingPathComponent(
+            ".planning/spikes/002-persistent-battery-saves/oracle_command.py").path) else {
+            return XCTFail("gb-save-e2e=oracle-generator-missing")
+        }
+        guard FileManager.default.isReadableFile(atPath: oracleToolsRoot.appendingPathComponent(
+            ".planning/spikes/001-bios-free-gameplay/verify_pixels.py").path) else {
+            return XCTFail("gb-save-e2e=pixel-verifier-missing")
+        }
         guard let fixtureSpec = GBFixtureSpec.named(fixtureName) else {
             return XCTFail("gb-save-e2e=unsupported-fixture")
         }
@@ -301,6 +325,7 @@ final class GBGBCSaveContinuityTests: XCTestCase {
 
         let sourceRoot = runRoot.appendingPathComponent("source-profile", isDirectory: true)
         try FileManager.default.createDirectory(at: sourceRoot, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        ownedProfiles.append(sourceRoot)
         let keychainURL = sourceRoot.appendingPathComponent("source.keychain-db")
         let caURL = sourceRoot.appendingPathComponent("server-ca.der")
         try FileManager.default.copyItem(at: URL(fileURLWithPath: caPath), to: caURL)
@@ -492,6 +517,7 @@ final class GBGBCSaveContinuityTests: XCTestCase {
         // save planner before the observe-only game readback.
         let targetRoot = runRoot.appendingPathComponent("target-profile", isDirectory: true)
         try FileManager.default.createDirectory(at: targetRoot, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        ownedProfiles.append(targetRoot)
         let targetKeychain = targetRoot.appendingPathComponent("target.keychain-db")
         let targetCA = targetRoot.appendingPathComponent("server-ca.der")
         try FileManager.default.copyItem(at: URL(fileURLWithPath: caPath), to: targetCA)

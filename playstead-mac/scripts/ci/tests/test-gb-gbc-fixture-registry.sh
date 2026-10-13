@@ -55,17 +55,35 @@ print("generated GB/GBC registry aliases, exact byte digests, and importer roots
 PY
 
 python3 - "$REPO_ROOT" "$temporary_root" <<'PY'
-import json, pathlib, shutil, stat, subprocess, sys
+import importlib.util, json, pathlib, shutil, stat, subprocess, sys
+sys.dont_write_bytecode = True
 repo, scratch = map(pathlib.Path, sys.argv[1:])
+plan = json.loads((repo / "playstead-mac/TestPlans/LiveServer.xctestplan").read_text())
+variables = {row["key"]: row["value"] for row in plan["defaultOptions"]["environmentVariableEntries"]}
+assert variables["PLAYSTEAD_GB_GBC_SAVE_E2E_PROFILE_ROOT"] == "$(PLAYSTEAD_GB_GBC_SAVE_E2E_PROFILE_ROOT)"
 workspace = scratch / "clean-checkout"
 mac = workspace / "playstead-mac"
 mac.mkdir(parents=True)
 for directory, filename in (("001-bios-free-gameplay", "build_fixture.py"),
+                            ("001-bios-free-gameplay", "verify_pixels.py"),
                             ("002-persistent-battery-saves", "oracle_command.py")):
     relative = pathlib.Path(".planning/spikes") / directory / filename
     destination = workspace / relative
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(repo / relative, destination)
+# Loading the real pixel verifier also loads its sibling font/fixture module.
+# A missing transitive input must fail here before the costly native journey.
+verifier_path = workspace / ".planning/spikes/001-bios-free-gameplay/verify_pixels.py"
+spec = importlib.util.spec_from_file_location("clean_pixel_verifier", verifier_path)
+verifier = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(verifier)
+assert callable(verifier.verify)
+try:
+    verifier.verify(scratch / "missing-screen.png", "gb", 0)
+except FileNotFoundError:
+    pass
+else:
+    raise AssertionError("pixel verifier accepted a missing screenshot")
 lines = (repo / ".github/workflows/ci.yml").read_text().splitlines()
 start = lines.index("      - name: Generate pinned self-authored GB/GBC fixtures")
 run = next(i for i in range(start + 1, len(lines)) if lines[i].startswith("        run:"))
