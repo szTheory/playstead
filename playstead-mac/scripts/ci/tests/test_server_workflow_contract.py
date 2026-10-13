@@ -31,7 +31,7 @@ def validate(source):
     dump_setup = test_job.find("- name: Match PostgreSQL dump client to the test service")
     if dump_setup < 0 or dump_setup >= precommit:
         raise AssertionError("matching dump client must be selected before mix precommit")
-    for required in ("postgres:17.2", "postgresql-client-17", "/usr/lib/postgresql/17/bin/pg_dump --version", 'echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"'):
+    for required in ("postgres:17.2", "postgresql-client-17", "https://www.postgresql.org/media/keys/ACCC4CF8.asc", "Suites: noble-pgdg", "/usr/lib/postgresql/17/bin/pg_dump --version", 'echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"'):
         if required not in test_job:
             raise AssertionError(f"matching dump client guard missing: {required}")
     if "wallaby_screenshots" in source or "name: wallaby-screenshots" in source:
@@ -43,6 +43,7 @@ class ServerWorkflowContractTest(unittest.TestCase):
         source = WORKFLOW.read_text(encoding="utf-8")
         validate(source)
         mutations = (
+            source.replace("Suites: noble-pgdg", "Suites: wrong-pgdg", 1),
             source.replace("postgresql-client-17", "postgresql-client-16", 1),
             source.replace('echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"', "true", 1),
             source.replace('test -x "$WALLABY_CHROME_BINARY"', "true", 1),
