@@ -191,6 +191,25 @@ handoff_path.write_text(json.dumps(handoff), encoding="utf-8")
 os.chmod(handoff_path, 0o600)
 request_path.unlink()
 code_path.unlink()
+# Read the existing catalogue before the app launches; preserve prior imports.
+snapshot_request = urllib.request.Request(
+    "https://127.0.0.1:4010/api/v1/snapshot",
+    headers={"Authorization": "Bearer " + redeemed["credential"]})
+with urllib.request.urlopen(snapshot_request, timeout=10, context=context) as response:
+    snapshot = json.loads(response.read(1024 * 1024 + 1))
+catalogue = snapshot["catalogue"]
+if snapshot["has_more"] or not isinstance(catalogue, list) or len(catalogue) > 200:
+    raise SystemExit("fixture catalogue exceeded the finite test bound")
+baseline_catalogue = {entry["id"]: entry["display_title"] for entry in catalogue}
+first = json.loads((handoff_path.parent / "control/first-sentinel.json").read_text())["sentinel"]
+if baseline_catalogue.get(first["asset_set_id"]) != first["title"]:
+    raise SystemExit("fixture snapshot did not contain its authored sentinel")
+log = pathlib.Path(os.environ["PLAYSTEAD_MAC_CI_ROOT"]).parent / "phoenix.log"
+stat = log.stat()
+baseline_path = handoff_path.parent / "control/request-baseline.json"
+baseline_path.write_text(json.dumps({"device": stat.st_dev, "inode": stat.st_ino,
+    "offset": stat.st_size, "catalogue": baseline_catalogue}), encoding="utf-8")
+baseline_path.chmod(0o600)
 PY
     ;;
   pair-provision)
@@ -244,15 +263,9 @@ PY
     ;;
   verify)
     enter_stage "verify-evidence"
-    # The snapshot-request count is a CUMULATIVE read of a phoenix.log shared
-    # by every test in the LiveServer layer, so it is the calling test's
-    # claim, never a property of the mirror. Hard-coding "exactly two" here
-    # made it LiveServerSnapshotTests' proof silently binding on every other
-    # caller: 04.5-01 added PairingCeremonyTests, which performs a third
-    # snapshot, and SaveEndToEndTests -- which never asserted anything about
-    # snapshot counts -- started failing on someone else's invariant.
-    #
-    # So every caller must now state its own position, and there is
+    # prepare captures a request offset and existing catalogue before app
+    # launch. Earlier tests' downloads/snapshots must not affect this proof.
+    # Every caller must state its own snapshot expectation, and there is
     # deliberately no default: an omitted or malformed argument dies here
     # rather than quietly skipping the check, because a silent skip is how a
     # guard rots into a pass (see reachability-allowlist.txt's header on the
@@ -271,7 +284,7 @@ PY
       *) die ;;
     esac
     python3 - "$root" "$(dirname "$PLAYSTEAD_MAC_CI_ROOT")/phoenix.log" "$expected_snapshots" "$expected_sentinel_set" <<'PY'
-import pathlib, sqlite3, sys
+import json, pathlib, sqlite3, sys
 root, log_path = map(pathlib.Path, sys.argv[1:3])
 expected_snapshots, expected_sentinel_set = sys.argv[3:5]
 result_marker = root / "live-server-verify-result"
@@ -281,7 +294,25 @@ if not root.is_dir() or not log_path.is_file():
     result_marker.write_text("verification-input-missing", encoding="ascii")
     raise SystemExit("live-server verification inputs are missing")
 
-lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+baseline_path = root / "control/request-baseline.json"
+if not baseline_path.is_file() or baseline_path.is_symlink():
+    result_marker.write_text("verification-input-missing", encoding="ascii")
+    raise SystemExit("request baseline is missing")
+baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
+stat = log_path.stat()
+offset = baseline.get("offset")
+if type(offset) is not int or not 0 <= offset <= stat.st_size or (
+    baseline.get("device"), baseline.get("inode")
+) != (stat.st_dev, stat.st_ino):
+    result_marker.write_text("verification-input-missing", encoding="ascii")
+    raise SystemExit("request log no longer matches the captured baseline")
+expected_catalogue = baseline["catalogue"]
+if expected_sentinel_set == "both":
+    second = json.loads((root / "control/second-sentinel.json").read_text())["sentinel"]
+    expected_catalogue[second["asset_set_id"]] = second["title"]
+with log_path.open("rb") as log:
+    log.seek(offset)
+    lines = log.read().decode("utf-8", errors="replace").splitlines()
 snapshot_success = 0
 pending_snapshot = False
 blob_requests = 0
@@ -317,7 +348,8 @@ database_error = None
 try:
     with sqlite3.connect(database) as connection:
         cursor = connection.execute("SELECT cursor FROM sync_cursor WHERE id = 1").fetchone()
-        titles = {row[0] for row in connection.execute("SELECT display_title FROM catalogue_entries")}
+        catalogue = dict(connection.execute("SELECT id, display_title FROM catalogue_entries"))
+        titles = set(catalogue.values())
 except sqlite3.Error as error:
     database_error = f"{type(error).__name__}: {error}"
 
@@ -363,10 +395,8 @@ if blob_requests != 0:
     fail("blob-request-observed", f"expected zero blob requests, got {blob_requests}")
 if not cursor or not cursor[0]:
     fail("snapshot-cursor-empty", "stored snapshot cursor is empty")
-expected_titles = {"Playstead CI Sentinel One"}
-if expected_sentinel_set == "both":
-    expected_titles.add("Playstead CI Sentinel Two")
-if titles != expected_titles:
+expected_titles = set(expected_catalogue.values())
+if catalogue != expected_catalogue:
     first = "present" if "Playstead CI Sentinel One" in titles else "absent"
     second = "present" if "Playstead CI Sentinel Two" in titles else "absent"
     fail("sentinel-set-mismatch",

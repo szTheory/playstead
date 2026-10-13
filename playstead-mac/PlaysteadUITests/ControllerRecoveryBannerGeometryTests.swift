@@ -52,7 +52,11 @@ final class ControllerRecoveryBannerGeometryTests: XCTestCase {
                 )
 
                 let sidebar = harness.element("playstead.surface.sidebar")
-                harness.element("playstead.sidebar.favorites", type: .staticText).clickWhenHittable()
+                let favorites = harness.element("playstead.sidebar.favorites", type: .staticText)
+                // Visiting Settings can leave the finite-height source list
+                // scrolled to Manage. Reveal the destination before clicking.
+                for _ in 0..<6 where !favorites.isHittable { sidebar.swipeDown() }
+                favorites.clickWhenHittable()
                 XCTAssertTrue(harness.element("playstead.surface.shelf.favorites").awaitExistence(timeout: 5))
                 sidebar.typeKey(.upArrow, modifierFlags: [])
                 let recentShelf = harness.element("playstead.surface.shelf.continue")

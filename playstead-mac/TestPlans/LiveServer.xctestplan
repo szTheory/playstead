@@ -52,6 +52,10 @@
       {
         "key": "PLAYSTEAD_GB_GBC_FIXTURE_REGISTRY",
         "value": "$(PLAYSTEAD_GB_GBC_FIXTURE_REGISTRY)"
+      },
+      {
+        "key": "PLAYSTEAD_GB_GBC_SAVE_E2E_PROFILE_ROOT",
+        "value": "$(PLAYSTEAD_GB_GBC_SAVE_E2E_PROFILE_ROOT)"
       }
     ],
     "targetForVariableExpansion": {

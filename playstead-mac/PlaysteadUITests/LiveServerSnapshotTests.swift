@@ -117,10 +117,8 @@ final class LiveServerSnapshotTests: XCTestCase {
         try assertNoGameBytes(root: runRoot)
         // This test is the one that owns the two-snapshot claim: one render
         // of the fresh mirror before any blob download, one more after the
-        // Keychain-backed relaunch. The count is cumulative over the layer's
-        // shared phoenix.log, so it is only sound while this runs first --
-        // stated explicitly here so a future reordering fails loudly instead
-        // of drifting into some other test's failure.
+        // Keychain-backed relaunch. The fixture counts only requests after
+        // this test's prepare action, independently of prior test ordering.
         guard try runFixture("verify", root: runRoot, extraArguments: ["2", "both"]) else {
             return XCTFail("live fixture stage 'verify' failed")
         }

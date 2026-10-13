@@ -132,7 +132,7 @@ expected_live_environment = {
         "PLAYSTEAD_LIVE_SERVER_STAGE_FILE", "MAC_CI_DATABASE_URL", "MIX_ENV", "PORT",
         "PLAYSTEAD_TEST_LIVE_SERVER_CA_DER", "PLAYSTEAD_TEST_LIVE_SERVER_CA_SHA256",
         "PLAYSTEAD_TEST_LIVE_SERVER_RUNTIME_CONFIG", "PLAYSTEAD_SAVE_RELIABILITY_EVIDENCE_PATH",
-        "PLAYSTEAD_GB_GBC_FIXTURE_REGISTRY",
+        "PLAYSTEAD_GB_GBC_FIXTURE_REGISTRY", "PLAYSTEAD_GB_GBC_SAVE_E2E_PROFILE_ROOT",
     )
 }
 if live_environment != expected_live_environment:
@@ -508,9 +508,9 @@ GUARD
 # Every caller of the shared `verify` stage must state its own snapshot
 # expectation, and the fixture must refuse to guess.
 #
-# The count is read cumulatively from a phoenix.log shared by the whole
-# LiveServer layer, so it is never a property of the mirror -- it is the
-# calling test's claim. While it was hardcoded as "exactly two",
+# The count is read after the calling test's captured request baseline,
+# independently of earlier tests in the shared LiveServer layer.
+# While it was hardcoded as "exactly two",
 # LiveServerSnapshotTests' proof was silently binding on every other
 # caller: 04.5-01 added PairingCeremonyTests, which snapshots a third
 # time, and run 34636187313 failed SaveEndToEndTests on an invariant it
