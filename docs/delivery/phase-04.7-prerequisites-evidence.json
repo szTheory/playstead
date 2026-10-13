@@ -464,7 +464,8 @@
     "scripts/ci/trivy.yaml": "f2b504d8e817c5a620c6bf85d9248bc63b6d191db466dff3bdfe726ff28cd7ad",
     "scripts/dev-up.sh": "976840650636c68f67109dbe6c44c67208403eda280d941f5e14d72b8b56a10c",
     "scripts/tests/test_release_evidence.py": "e81a2d062b901f5c5f6d02f399be22732d0c5592454bc7f3d4dd7647bec17532",
-    "scripts/uat7-status.sh": "ba5477e34aee4f9da082d94f28d9e115e007c6461fc21628603a6c6f86eb99aa"
+    "scripts/uat7-status.sh": "ba5477e34aee4f9da082d94f28d9e115e007c6461fc21628603a6c6f86eb99aa",
+    "design-system/shared-tokens.json": "07598e86c15b068a69403896f70f9c6af4941cadc99b1ed6920c630e96e3e688"
   },
   "logs_sha256": {
     "prerequisite-build-5.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -494,5 +495,12 @@
   "private_setup_index_audit": "local fixture symlink removed before any remote push; no private bytes staged",
   "phase_layer_boundary": "decoder activation calls in first-adopter up are held for Phase 4.7",
   "base_ref_correction": "local-clone origin/main was workspace local main24491a6; final delivery is parented to GitHub maine115899 and untouched upstream artifacts retained",
-  "dependency_pins": "retain GitHub main Mint1.11.0/HPAX1.1.0; prerequisite-server-compile-qualified.log previously passed these pins"
+  "dependency_pins": "retain GitHub main Mint1.11.0/HPAX1.1.0; prerequisite-server-compile-qualified.log previously passed these pins",
+  "hosted_attempt": {
+    "run_id": 38431765242,
+    "failed_job": "test",
+    "cause": "palette test compile missing shared-tokens.json",
+    "fix": "publish existing public token contract",
+    "success_claim": false
+  }
 }
