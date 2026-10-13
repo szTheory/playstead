@@ -60,10 +60,30 @@ class HostedDecoderRuntimeTests(unittest.TestCase):
         self.assertIn("hosted-decoder-runtime.sh cleanup", mac)
         self.assertIn('docker image save --output "$runtime_artifact/decoder-image.tar" "$PLAYSTEAD_MEDIA_DECODER_IMAGE"', workflow)
         self.assertIn("ops/media-decoder/build/generated/.", workflow)
+        self.assertLess(mac.index("Qualify the owned decoder runtime before native checks"),
+                        mac.index("Run no-HID ordinary native layers"))
+        self.assertIn("timeout-minutes: 15", mac)
+        self.assertIn("--mount none --ssh-config=false --activate=false", helper)
         runner = RUNNER.read_text()
         self.assertIn('hosted-decoder-runtime.sh" start', runner)
         for token in ["--read-only --user 11001:11001 --cap-drop ALL", "--pids-limit 32 --memory 512m", "--security-opt no-new-privileges:true"]:
             self.assertIn(token, runner)
+
+    def test_failed_setup_reports_only_its_finite_stage_and_keeps_exit(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            binaries = root / "bin"
+            binaries.mkdir()
+            (binaries / "uname").write_text("#!/bin/sh\nprintf 'arm64\\n'\n")
+            (binaries / "uname").chmod(0o755)
+            env = dict(os.environ, PATH=str(binaries) + ":" + os.environ["PATH"], RUNNER_TEMP=str(root),
+                       GITHUB_ACTIONS="true", RUNNER_OS="macOS", GITHUB_REPOSITORY="szTheory/playstead")
+            result = subprocess.run([str(HELPER), "start", str(root / "wrong-artifact")],
+                                    env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("hosted-decoder-stage=validate-action exit=2", result.stderr)
+            self.assertNotIn(str(root), result.stderr)
+            self.assertFalse((root / "playstead-media-runtime").exists())
 
     def test_native_setup_failure_stages_partial_evidence_without_losing_exit(self):
         source = RUNNER.read_text()

@@ -2,6 +2,13 @@ import XCTest
 
 @MainActor
 final class MetadataCorrectionUITests: XCTestCase {
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+    }
+    override func tearDownWithError() throws {
+        XCUIApplication().terminate()
+        try super.tearDownWithError()
+    }
     private let assetSetID = "00000000-0000-7000-8000-000000000097"
     private let fixtureKey = "PLAYSTEAD_UI_TEST_METADATA_FIXTURE"
     private let fixtures = [
@@ -14,11 +21,7 @@ final class MetadataCorrectionUITests: XCTestCase {
         let harness = UITestHarness(profile: .gbMBC1Qualified)
         let app = harness.app
         harness.launch(settledAt: "playstead.surface.library")
-        app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH %@", "More actions for ")).firstMatch.tap()
-        let details = app.descendants(matching: .any)["playstead.game.\(assetSetID).details.trigger"]
-        XCTAssertTrue(details.awaitExistence(timeout: 5))
-        details.tap()
-        app.buttons["playstead.game.\(assetSetID).metadata-correction.open"].tap()
+        openCorrection(in: harness)
         let form = app.descendants(matching: .any)["playstead.metadata.correction.form"]
         XCTAssertTrue(form.awaitExistence(timeout: 5))
         XCTAssertTrue(app.textFields["playstead.metadata.correction.title"].exists)
@@ -33,9 +36,7 @@ final class MetadataCorrectionUITests: XCTestCase {
         let harness = UITestHarness(profile: .gbMBC1Qualified)
         let app = harness.app
         harness.launch(settledAt: "playstead.surface.library")
-        app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH %@", "More actions for ")).firstMatch.tap()
-        app.descendants(matching: .any)["playstead.game.\(assetSetID).details.trigger"].tap()
-        app.buttons["playstead.game.\(assetSetID).metadata-correction.open"].tap()
+        openCorrection(in: harness)
 
         let title = app.textFields["playstead.metadata.correction.title"]
         XCTAssertTrue(title.awaitExistence(timeout: 5))
@@ -60,9 +61,7 @@ final class MetadataCorrectionUITests: XCTestCase {
         let harness = UITestHarness(profile: .gbMBC1Qualified, extraEnvironment: [fixtureKey: fixtures[0]])
         let app = harness.app
         harness.launch(settledAt: "playstead.surface.library")
-        app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH %@", "More actions for ")).firstMatch.tap()
-        app.descendants(matching: .any)["playstead.game.\(assetSetID).details.trigger"].tap()
-        app.buttons["playstead.game.\(assetSetID).metadata-correction.open"].tap()
+        openCorrection(in: harness)
         XCTAssertTrue(app.descendants(matching: .any)["playstead.metadata.correction.form"].awaitExistence(timeout: 5))
 
         for (index, identity) in fixtures.enumerated() {
@@ -148,6 +147,21 @@ final class MetadataCorrectionUITests: XCTestCase {
             expectation(for: predicate, evaluatedWith: app.staticTexts["playstead.metadata.fixture.identity"])
             waitForExpectations(timeout: 5)
         }
+    }
+    private func openCorrection(in harness: UITestHarness) {
+        let app = harness.app
+        let actions = app.descendants(matching: .menuButton)["playstead.game.\(assetSetID).actions"]
+        XCTAssertTrue(actions.awaitExistence(timeout: 5), "the imported game's actions menu must exist")
+        actions.clickWhenHittable()
+        let details = app.menuItems["playstead.game.\(assetSetID).details.trigger"]
+        XCTAssertTrue(details.awaitExistence(timeout: 5), "the actions menu must expose Game Details")
+        details.clickWhenHittable()
+        let correction = app.buttons["playstead.game.\(assetSetID).metadata-correction.open"]
+        XCTAssertTrue(correction.awaitExistence(timeout: 5))
+        let detailScroll = app.descendants(matching: .any)["playstead.game.\(assetSetID).details"]
+        for _ in 0..<6 where !correction.isHittable { detailScroll.swipeUp() }
+        correction.clickWhenHittable()
+        XCTAssertTrue(app.descendants(matching: .any)["playstead.metadata.correction.form"].awaitExistence(timeout: 5))
     }
 }
 

@@ -699,6 +699,7 @@ struct GameRowView: View {
         .menuStyle(.borderlessButton)
         .foregroundStyle(rowPrimaryForeground)
         .accessibilityLabel("More actions for \(entry.displayTitle)")
+        .accessibilityIdentifier("playstead.game.\(entry.id).actions")
         .focused($detailsTriggerHasFocus)
     }
 

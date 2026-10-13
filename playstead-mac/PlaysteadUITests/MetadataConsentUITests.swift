@@ -2,6 +2,13 @@ import XCTest
 
 @MainActor
 final class MetadataConsentUITests: XCTestCase {
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+    }
+    override func tearDownWithError() throws {
+        XCUIApplication().terminate()
+        try super.tearDownWithError()
+    }
     private let metadataFixtureKey = "PLAYSTEAD_UI_TEST_METADATA_FIXTURE"
     private let settingsFixtureIDs = [
         "provider-consent/disabled-unfilled", "provider-consent/loading", "provider-consent/rejection-error",
@@ -26,7 +33,7 @@ final class MetadataConsentUITests: XCTestCase {
         harness.launch(settledAt: "playstead.surface.library")
         harness.element("playstead.sidebar.settings").clickWhenHittable()
         XCTAssertTrue(app.descendants(matching: .any)["playstead.settings"].awaitExistence(timeout: 5))
-        harness.element("playstead.settings.open.metadata").clickWhenHittable()
+        harness.element("playstead.settings.open.metadata", type: .radioButton).clickWhenHittable()
         let metadata = app.descendants(matching: .any)["playstead.settings.metadata"]
         XCTAssertTrue(metadata.awaitExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Import a game before reviewing provider disclosure."].exists)

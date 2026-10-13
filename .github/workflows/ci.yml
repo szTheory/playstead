@@ -216,6 +216,12 @@ jobs:
           name: media-decoder-runtime
           path: ${{ runner.temp }}/playstead-media-decoder-runtime
 
+      - name: Qualify the owned decoder runtime before native checks
+        if: ${{ needs.compose-smoke.result == 'success' }}
+        timeout-minutes: 15
+        working-directory: playstead-mac
+        run: scripts/ci/hosted-decoder-runtime.sh start "$RUNNER_TEMP/playstead-media-decoder-runtime"
+
       - name: Run no-HID ordinary native layers
         working-directory: playstead-mac
         run: scripts/ci/run-mac-verification.sh --run-unprivileged-verification

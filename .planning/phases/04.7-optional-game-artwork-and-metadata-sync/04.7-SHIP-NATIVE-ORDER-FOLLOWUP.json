@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "phase": "4.7",
+  "recorded_at": "2026-10-13T23:49:24.380610+00:00",
+  "human_judgment": false,
+  "lineage": {
+    "failed_phase_head": "fe57d64d79f0b187bb9ac4023e5cd45aa062ec86",
+    "failed_phase_run": 38477073931,
+    "prerequisite_repair": "d7f19f94ee5fd03dd803ab05b96311c193542fa4",
+    "local_phase_merge": "5e783f5d6ec5967a2d3d537e838ed4177b1c85de"
+  },
+  "source_sha256": {
+    ".github/workflows/ci.yml": "345d1e8407dc2ad7b176539f2351b348bb1819d1ef68655a64d92d82913370bc",
+    ".planning/spikes/001-bios-free-gameplay/verify_pixels.py": "88a3ef41c6dca4ee4046f798856031cc5f2e77fbe864f8901a61a1521754447b",
+    "playstead-mac/Playstead/Library/GameRowView.swift": "7ce6bba22f75438bcb94ae49d7cc58a67c7394a97cb3a57f071f47a2b4696746",
+    "playstead-mac/PlaysteadTests/SnapshotTests/MetadataStateRenderingTests.swift": "17ba2f3e69164fc26383f460dd96ce22ef530cbe280f1f59732ab20858b81e50",
+    "playstead-mac/PlaysteadTests/SnapshotTests/__Snapshots__/LibraryContractSnapshotTests/library-list-row-width-adaptation.png": "67c9ef832bec3a06e67fed428281911fc2b3f6d9b831b5acb72a9315e60cf5d4",
+    "playstead-mac/PlaysteadUITests/MetadataConsentUITests.swift": "f2320a1c78b40fd89c0e091f01eab924827a2eb4a2d8f997e6e475582520305c",
+    "playstead-mac/PlaysteadUITests/MetadataCorrectionUITests.swift": "ec9833c423cae9d230a5be8e1ef001fd5aa45b5a1aa5e1c31322168d8c06c1db",
+    "playstead-mac/TestPlans/LiveServer.xctestplan": "b40b830bcbc0c35a59971f1c905057f4c23aa406ba7c51244e962320b496685d",
+    "playstead-mac/scripts/ci/hosted-decoder-runtime.sh": "3f0870bca7c52d7bdad4f92fb0ec386236416dc98458c4ad21af09c4a5b80c70",
+    "playstead-mac/scripts/ci/live-server.sh": "0474472949982cf30a2a7425924634857f34f0c15af4d4ee04b06a459e0383ba",
+    "playstead-mac/scripts/ci/run-mac-verification.sh": "042a8015b8ea74c31e8619fa68a09b07e0d959604743198513eddb0bcc7a0ab9",
+    "playstead-mac/scripts/ci/tests/test_hosted_decoder_runtime.py": "b9430fb3fdb0772f8b76a748319a3173cffdd77691144af8677f664dd89dc9c9"
+  },
+  "repairs": [
+    "Explicit Swift ownership for the rendering fixture window; avoid AppKit release on close",
+    "Phase-only library list reference includes inspected current artwork thumbnails and retained narrow-pane actions",
+    "Stable game actions menu identifier and exact native menu/control roles; finite scrolling reveals correction actions for the long imported title",
+    "Metadata UI selectors fail at their first violated predicate and terminate their owned app",
+    "Same-run decoder guest preflight now precedes expensive native checks; it emits a finite failure stage and preserves exit status; no host mounts, SSH-config edits or default Docker-context activation"
+  ],
+  "qualification": {
+    "rendering_fixture": {
+      "run": "selected-rendering.KT7u7O",
+      "passed_selector": "MetadataStateRenderingTests/testAllFiftyThreeMetadataControlFixturesMountAndRender",
+      "fixture_count": 53,
+      "skipped": 0,
+      "whole_run": "failed on old list reference, repaired separately"
+    },
+    "list_reference": {
+      "run": "selected-rendering.spqShY",
+      "executed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "visual_inspection": "both themes, wide/narrow panes; artwork fallback and all footer actions visible"
+    },
+    "ui_cohort": {
+      "run": "selected-ui.oAcDL7",
+      "executed": 8,
+      "selected_passed": 6,
+      "whole_run": "failed on two offscreen correction actions; repaired and requalified separately",
+      "passed_selectors": [
+        "ControllerDpadRegressionTests/testControllerTestDpadUpStaysInSettingsAndSettingsReopensAtStorage",
+        "ControllerRecoveryBannerGeometryTests/testRecoveryBannerGeometryAcrossWindowSizesAndAppearances",
+        "MetadataConsentUITests/testMetadataSettingsRemainInsideSettingsAndShowIndependentCacheBudget",
+        "MetadataCorrectionUITests/testAllEightCorrectionStatesRenderProvenanceConflictsAndEnabledActions",
+        "SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit",
+        "SurfaceAccessibilityTests/testReadinessRoutesReachBIOSAndControllerSettings"
+      ]
+    },
+    "correction_retry": {
+      "run": "selected-ui.N060uZ",
+      "executed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "in_test_seconds": 47.7,
+      "selectors": [
+        "MetadataCorrectionUITests/testCorrectionFormShowsPerFieldSourceAndOnlyExplicitSaveAction",
+        "MetadataCorrectionUITests/testSavingCorrectionUpdatesTheLocalMirrorBeforeServerDelivery"
+      ]
+    },
+    "static": "98 validator cases/all guards passed; final topology and six hosted-runtime contracts rechecked after the last edit",
+    "summary_coverage": "10/10 coverage blocks classifiable",
+    "downloaded_linux_decoder": {
+      "run": 38477073931,
+      "image_id": "sha256:5673cad7ed6218361873a824cd61b93e18ebfedd677aae0d51f954024468395d",
+      "receipt_verification_exit": 0,
+      "claim": "exact public generated context and report receipt validated against unchanged recipe; no local guest/container execution claimed"
+    },
+    "retained_phase_goal": "38 original truths, same acceptance identities and earlier source/run evidence; targeted shipping revalidation above"
+  },
+  "unknown": [
+    "Actual hosted guest startup failed in the old run without a detailed diagnostic; current finite-stage canary and full hosted regression are required",
+    "GB/GBC local runner lacks Accessibility trust; no current local game readback pass claimed; hosted continuation required"
+  ],
+  "cleanup": {
+    "task_app_runner": "exact executable inventory empty after final UI",
+    "native_services": "all local task native stacks torn down; no Docker guest was started locally",
+    "original_fixture_bytes": "preserved"
+  },
+  "primary_sources": [
+    "https://developer.apple.com/documentation/appkit/nswindow/isreleasedwhenclosed",
+    "https://raw.githubusercontent.com/abiosoft/colima/main/cmd/start.go",
+    "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepstimeout-minutes"
+  ]
+}
