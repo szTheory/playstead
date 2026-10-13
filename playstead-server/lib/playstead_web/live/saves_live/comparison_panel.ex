@@ -31,10 +31,10 @@ defmodule PlaysteadWeb.SavesLive.ComparisonPanel do
     ~H"""
     <div id="comparison-panel" data-role="comparison-panel" class="space-y-6">
       <div>
-        <h2 id="comparison-title" class="text-heading font-semibold text-[#F1F5F9]">
+        <h2 id="comparison-title" class="text-heading font-semibold text-app-text">
           Two versions of your progress
         </h2>
-        <p id="comparison-subtitle" class="mt-1 text-sm text-[#94A3B8]">
+        <p id="comparison-subtitle" class="mt-1 text-sm text-app-muted">
           {subtitle(@sides)}
         </p>
       </div>
@@ -43,7 +43,7 @@ defmodule PlaysteadWeb.SavesLive.ComparisonPanel do
         :if={@result_message}
         id="comparison-result"
         aria-live="polite"
-        class="rounded-md border border-[#334155] bg-[#1E293B] p-3 text-sm text-[#F1F5F9]"
+        class="rounded-md border border-app-border bg-app-surface p-3 text-sm text-app-text"
       >
         {@result_message}
       </p>
@@ -55,24 +55,24 @@ defmodule PlaysteadWeb.SavesLive.ComparisonPanel do
           data-role="comparison-side"
           role="group"
           aria-label={accessible_sentence(side)}
-          class="rounded-lg border border-[#334155] bg-[#1E293B] p-5"
+          class="rounded-lg border border-app-border bg-app-surface p-5"
         >
-          <h3 id={"side-#{side.id}-heading"} class="text-base font-semibold text-[#F1F5F9]">
+          <h3 id={"side-#{side.id}-heading"} class="text-base font-semibold text-app-text">
             {side.origin}
           </h3>
 
-          <p id={"side-#{side.id}-line1"} class="mt-2 text-sm text-[#94A3B8]">{side.last_saved}</p>
-          <p id={"side-#{side.id}-line2"} class="text-sm text-[#94A3B8]">
+          <p id={"side-#{side.id}-line1"} class="mt-2 text-sm text-app-muted">{side.last_saved}</p>
+          <p id={"side-#{side.id}-line2"} class="text-sm text-app-muted">
             No recorded play here since these split
           </p>
-          <p id={"side-#{side.id}-line3"} class="text-sm text-[#94A3B8]">
+          <p id={"side-#{side.id}-line3"} class="text-sm text-app-muted">
             {saves_since_split_text(side.since_split_count)}
           </p>
 
           <p
             :if={side.clock_caveat?}
             id={"side-#{side.id}-clock-caveat"}
-            class="mt-2 text-sm text-[#94A3B8]"
+            class="mt-2 text-sm text-app-muted"
           >
             {side.origin} reported a time that doesn't line up with when this version reached your server. Times from that Mac may be wrong.
           </p>
@@ -80,7 +80,7 @@ defmodule PlaysteadWeb.SavesLive.ComparisonPanel do
           <p
             :if={not side.downloaded?}
             id={"side-#{side.id}-not-downloaded"}
-            class="mt-2 text-sm text-[#94A3B8]"
+            class="mt-2 text-sm text-app-muted"
           >
             This isn't downloaded on this Mac. You can still choose and export.
           </p>
@@ -92,7 +92,7 @@ defmodule PlaysteadWeb.SavesLive.ComparisonPanel do
               id={"choose-#{side.id}"}
               phx-click="choose"
               phx-value-head_id={side.id}
-              class="h-9 rounded-md border border-[#334155] px-3 text-sm font-semibold text-[#F1F5F9] hover:border-[#38BDF8]"
+              class="h-9 rounded-md border border-app-border px-3 text-sm font-semibold text-app-text hover:border-app-accent"
             >
               Continue from this one
             </button>
@@ -100,7 +100,7 @@ defmodule PlaysteadWeb.SavesLive.ComparisonPanel do
             <p
               :if={side.chosen?}
               id={"chosen-#{side.id}"}
-              class="text-sm font-semibold text-[#F1F5F9]"
+              class="text-sm font-semibold text-app-text"
             >
               Currently continuing from this one
             </p>
@@ -110,18 +110,18 @@ defmodule PlaysteadWeb.SavesLive.ComparisonPanel do
               id={"export-#{side.id}"}
               phx-click="export-version"
               phx-value-head_id={side.id}
-              class="h-9 rounded-md border border-[#334155] px-3 text-sm font-semibold text-[#F1F5F9] hover:border-[#38BDF8]"
+              class="h-9 rounded-md border border-app-border px-3 text-sm font-semibold text-app-text hover:border-app-accent"
             >
               Export this version…
             </button>
 
             <details id={"details-#{side.id}"} class="w-full">
-              <summary class="cursor-pointer text-sm text-[#94A3B8] hover:text-[#F1F5F9]">
+              <summary class="cursor-pointer text-sm text-app-muted hover:text-app-text">
                 Details
               </summary>
               <p
                 id={"side-#{side.id}-digest"}
-                class="mt-1 break-all font-mono text-label text-[#94A3B8]"
+                class="mt-1 break-all font-mono text-label text-app-muted"
               >
                 {side.digest}
               </p>
@@ -130,16 +130,16 @@ defmodule PlaysteadWeb.SavesLive.ComparisonPanel do
         </div>
       </div>
 
-      <div class="border-t border-[#334155] pt-4">
+      <div class="border-t border-app-border pt-4">
         <button
           type="button"
           id="keep-both"
           phx-click="keep-both"
-          class="h-9 rounded-md border border-[#334155] px-3 text-sm font-semibold text-[#F1F5F9] hover:border-[#38BDF8]"
+          class="h-9 rounded-md border border-app-border px-3 text-sm font-semibold text-app-text hover:border-app-accent"
         >
           {keep_both_label(@sides)}
         </button>
-        <p class="mt-1 text-sm text-[#94A3B8]">
+        <p class="mt-1 text-sm text-app-muted">
           Both versions stay in your library. This Mac keeps playing the version it already has.
         </p>
       </div>

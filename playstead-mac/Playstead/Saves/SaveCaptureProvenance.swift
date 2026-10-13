@@ -33,14 +33,30 @@ struct SaveCaptureProvenance: Equatable, Sendable {
     let adapterID: String?
     /// The pinned emulator release, e.g. `"0.10.5"`.
     let adapterVersion: String?
+    let saveFormat: String?
+    let formatConfidence: String?
 
-    init(adapterID: String?, adapterVersion: String?) {
+    init(
+        adapterID: String?, adapterVersion: String?,
+        saveFormat: String? = nil, formatConfidence: String? = nil
+    ) {
         self.adapterID = adapterID
         self.adapterVersion = adapterVersion
+        self.saveFormat = saveFormat
+        self.formatConfidence = formatConfidence
     }
 
     init(pin: AdapterPin) {
         self.init(adapterID: pin.emulator, adapterVersion: pin.version)
+    }
+
+    func qualified(by cartridge: QualifiedCartridge) -> Self {
+        Self(
+            adapterID: adapterID,
+            adapterVersion: adapterVersion,
+            saveFormat: cartridge.saveFormat,
+            formatConfidence: "exact"
+        )
     }
 
     /// No pin could be loaded, so the app genuinely does not know which

@@ -38,10 +38,11 @@ final class OnlyCopyInterruptionTests: XCTestCase {
         static let neutralRoot = "playstead.harness.only-copy-neutral"
     }
 
-    private func launchHarness(context: String) -> XCUIApplication {
+    private func launchHarness(context: String, appearance: String? = nil) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
         app.launchEnvironment["PLAYSTEAD_UI_TEST_ONLY_COPY_INTERRUPTION"] = context
+        app.launchEnvironment["PLAYSTEAD_UI_TEST_APPEARANCE"] = appearance
         app.launch()
         self.app = app
         let root = app.descendants(matching: .any)["playstead.harness.only-copy-interruption"]
@@ -128,15 +129,22 @@ final class OnlyCopyInterruptionTests: XCTestCase {
     // MARK: - Locked copy, three buttons, default is the escape hatch
 
     func testModalRendersLockedTitleBodyAndThreeButtonsWithExportAsDefault() {
-        let app = launchHarness(context: "remove_local_copy")
-        XCTAssertEqual(app.staticTexts[ID.title].readableText, "This is the only copy of your progress.")
-        XCTAssertTrue(app.staticTexts[ID.body].readableText.contains("3 versions of Metroid Fusion are only on this Mac and nowhere else."))
-        XCTAssertTrue(app.buttons[ID.export].exists)
-        XCTAssertTrue(app.buttons[ID.cancel].exists)
-        XCTAssertTrue(app.buttons[ID.removeAnyway].exists)
-        // The default is focused at presentation (D-40's easiest button
-        // is the one that saves the user's progress).
-        assertExportOwnsFocus(app, "at presentation")
+        for appearance in ["light", "dark"] {
+            let app = launchHarness(context: "remove_local_copy", appearance: appearance)
+            XCTAssertEqual(app.staticTexts[ID.title].readableText, "This is the only copy of your progress.")
+            XCTAssertTrue(app.staticTexts[ID.body].readableText.contains("3 versions of Metroid Fusion are only on this Mac and nowhere else."))
+            XCTAssertTrue(app.buttons[ID.export].exists)
+            XCTAssertTrue(app.buttons[ID.cancel].exists)
+            XCTAssertTrue(app.buttons[ID.removeAnyway].exists)
+            // The default is focused at presentation (D-40's easiest button
+            // is the one that saves the user's progress).
+            assertExportOwnsFocus(app, "at presentation")
+            let image = XCTAttachment(screenshot: app.screenshot())
+            image.name = "Only-copy interruption — \(appearance)"
+            image.lifetime = .keepAlways
+            add(image)
+            app.terminate()
+        }
     }
 
     // MARK: - Activating the default does not perform the destructive action

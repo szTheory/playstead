@@ -6,6 +6,8 @@ DerivedData/
 .build/
 *.xcuserstate
 xcuserdata/
+.env.local
+.local/
 
 # Compiled Python artifacts (scripts/ci validator unit tests)
 __pycache__/

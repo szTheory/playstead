@@ -19,7 +19,18 @@ defmodule PlaysteadWeb.Api.V1.AvailabilityController do
   @doc "PUT /api/v1/devices/me/availability"
   def replace(conn, params) do
     entries = Map.get(params, "entries", [])
-    do_replace(conn, entries)
+
+    case Map.fetch(params, "report_sequence") do
+      :error ->
+        do_replace(conn, entries, nil)
+
+      {:ok, sequence} when is_integer(sequence) and sequence > 0 ->
+        do_replace(conn, entries, sequence)
+
+      {:ok, _sequence} ->
+        {:error,
+         {:validation_failed, "The \"report_sequence\" field must be a positive integer."}}
+    end
   end
 
   # WR-04 (03-16, gap closure): entries must be a list of maps before it
@@ -33,14 +44,14 @@ defmodule PlaysteadWeb.Api.V1.AvailabilityController do
   # action_fallback to render. An absent "entries" key is not matched
   # here at all — replace/2 defaults it to [] above, a valid empty full
   # replacement, exactly as it behaved before this guard existed.
-  defp do_replace(conn, entries) when is_list(entries) do
+  defp do_replace(conn, entries, report_sequence) when is_list(entries) do
     if Enum.all?(entries, &is_map/1) do
       device = conn.assigns.current_device
       key = conn.assigns.idempotency_key
       fingerprint = conn.assigns.idempotency_fingerprint
 
       effect_fun = fn ->
-        case Availability.replace_for_device(device, entries) do
+        case Availability.replace_for_device(device, entries, report_sequence) do
           {:ok, :replaced} -> {:ok, 200, %{}}
           {:error, reason} -> {:error, reason}
         end
@@ -77,7 +88,7 @@ defmodule PlaysteadWeb.Api.V1.AvailabilityController do
     end
   end
 
-  defp do_replace(_conn, _entries) do
+  defp do_replace(_conn, _entries, _report_sequence) do
     {:error, {:validation_failed, "The \"entries\" field must be a list."}}
   end
 end

@@ -1,0 +1,117 @@
+# Containerized LOCAL DEVELOPMENT stack. Driven by ../scripts/dev-up.sh.
+#
+# This is not docker-compose.yml and is not a deployment topology. Read
+# Dockerfile.dev's header for why the two are deliberately separate files.
+#
+# What this gives you that docker-compose.yml cannot:
+#
+#   - Plain HTTP on http://127.0.0.1:4000, which is the ONLY transport the Mac
+#     app can use locally. Info.plist carries an App Transport Security
+#     exception for localhost/127.0.0.1, and `APIClient` otherwise uses the
+#     platform's default trust evaluation with no pinned certificate to fall
+#     back on -- so Caddy's internal CA (docker-compose.yml) is rejected until
+#     its root is installed in the System keychain. See
+#     playstead-mac/docs/LOCAL-DEV.md, "A note on TLS".
+#   - No secrets to generate. config/dev.exs carries a hardcoded
+#     secret_key_base; the prod path requires SECRET_KEY_BASE and
+#     POSTGRES_PASSWORD in .env before anything boots.
+#   - Code reloading against the bind-mounted source.
+#
+# Its own volumes, deliberately: `playstead-dev_*`, never the `playstead_db` /
+# `playstead_blobs` volumes docker-compose.yml calls YOUR LIBRARY. Nothing here
+# can destroy those. The tradeoff is the reverse -- this stack's database is
+# development data, and `scripts/dev-up.sh --reset` drops it on purpose.
+
+name: playstead-dev
+
+services:
+  db:
+    image: postgres:17.2
+    environment:
+      # Matches config/dev.exs's non-URL fallback credentials so the two paths
+      # describe the same database by the same name.
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: playstead_dev
+    volumes:
+      - dev_db:/var/lib/postgresql/data
+    # No published port. Nothing on the host needs to reach this Postgres --
+    # the app container reaches it over the compose network as `db`, and
+    # publishing it would collide with the developer's own 5432.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    environment:
+      # See config/dev.exs for why this is not called DATABASE_URL.
+      PLAYSTEAD_DEV_DATABASE_URL: "ecto://postgres:postgres@db/playstead_dev"
+      # Required in a container: Phoenix must bind 0.0.0.0 for the published
+      # port below to forward to it. Host exposure stays loopback-only because
+      # that mapping is 127.0.0.1-scoped. config/dev.exs documents this.
+      PLAYSTEAD_DEV_BIND_ALL: "true"
+      PLAYSTEAD_INBOX_PATH: /app/inbox
+      PLAYSTEAD_EXPORT_PATH: /app/exports
+      # Explicit rather than relying on the /app/blobs default, so the path this
+      # container uses is stated in one place next to the volume that backs it.
+      PLAYSTEAD_BLOB_PATH: /app/blobs
+      # Adopted silently by Playstead.Setup.mint_token/0 when non-empty, which
+      # is better DX than scraping the banner out of `docker compose logs`:
+      # dev-up.sh generates this once, keeps it in .dev-setup-token (gitignored)
+      # and prints the /setup URL with it. Empty is fine -- the banner prints.
+      PLAYSTEAD_SETUP_TOKEN: "${PLAYSTEAD_DEV_SETUP_TOKEN:-}"
+      PGHOST: db
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: playstead_dev
+      PORT: "4000"
+    ports:
+      # 127.0.0.1-scoped on purpose: this server has a hardcoded dev secret and
+      # `check_origin: false`. It must not be reachable from the local network.
+      - "127.0.0.1:4000:4000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:4000/healthz"]
+      interval: 5s
+      timeout: 5s
+      # Generous: the FIRST start compiles every dependency from source inside
+      # the container, which takes minutes. Later starts reuse the dev_build and
+      # dev_deps volumes and are quick. A tight retry budget here would mark a
+      # perfectly healthy first boot as failed.
+      retries: 60
+      start_period: 30s
+    volumes:
+      # The repo itself, so edits on the host recompile in the container.
+      - .:/app
+      # _build and deps MUST be container-private volumes, not part of the bind
+      # mount. The host's _build holds macOS/darwin BEAM artifacts and the
+      # container's holds Linux ones; sharing one directory between them means
+      # each run invalidates the other's artifacts, and mixing compiled NIFs
+      # across platforms fails in ways that do not name their own cause.
+      - dev_build:/app/_build
+      - dev_deps:/app/deps
+      # Blob storage, and a named volume for the same reason _build is one: the
+      # `.:/app` bind mount above replaces the image's whole /app with the host
+      # checkout, and the checkout has no blobs/ directory -- so the image's own
+      # `mkdir /app/blobs` is shadowed away and Playstead.Readiness reports
+      # "/app/blobs is not writable: no such file or directory" on the setup
+      # wizard's last step. Found by walking that wizard; a /healthz probe cannot
+      # see it. A named volume also keeps library bytes out of the git checkout
+      # and survives `dev-up.sh --down`, mirroring what docker-compose.yml does
+      # with playstead_blobs in the deployment topology.
+      - dev_blobs:/app/blobs
+    restart: unless-stopped
+
+volumes:
+  dev_db:
+  dev_build:
+  dev_deps:
+  dev_blobs:

@@ -41,8 +41,6 @@ ControllerRecoveryBanner # Referenced only in ControllerHost's own doc comment (
 ControllerTestView # Referenced only in doc comments across Controller/ files -- never instantiated. Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
 FirstRunBanner # LibraryViewModel.dismissFirstRunBanner() exists and is presumably meant to dismiss this exact banner, but no view ever renders FirstRunBanner itself. Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
 ShowAllSystemsControl # LIBR-04's "show all systems" control; referenced only in LibraryViewModel's own doc comment, never instantiated by SidebarView or any other view. Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
-GameListView # Superseded: LibraryShellView.catalogueList builds its own inline List/GameRowView composition directly and never constructs GameListView. Left in place (not deleted by this plan) because AccessibilityAuditTests still exercises this file's GameListRow accessible-name contract; a future plan should either wire GameListView in or delete the whole file plus that test. Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
-NoMatchesView # Same file/finding as GameListView above. Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
 SnapshotClient # struct SnapshotClient is never constructed in production; SyncEngine's own doc comment explicitly distinguishes itself from "the plan 03-03 tracer's SnapshotClient", implying this type is superseded tracer-era code. Disclosed in 04-18-SUMMARY.md, WINDOWS.md.
 
 # --- (c) Cross-language contract anchors, unreachable by design ---------

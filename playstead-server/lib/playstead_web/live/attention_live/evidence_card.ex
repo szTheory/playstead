@@ -20,7 +20,7 @@ defmodule PlaysteadWeb.AttentionLive.EvidenceCard do
     <div
       id={"attention-item-#{@item.id}"}
       data-role="evidence-card"
-      class="rounded-lg border border-[#334155] bg-[#1E293B] p-6"
+      class="rounded-lg border border-app-border bg-app-surface p-6"
     >
       <div class="flex items-start gap-4">
         <input
@@ -35,23 +35,23 @@ defmodule PlaysteadWeb.AttentionLive.EvidenceCard do
           class="mt-1 size-4"
         />
         <div class="min-w-0 flex-1">
-          <p id={"attention-item-#{@item.id}-reason"} class="text-base font-semibold text-[#F1F5F9]">
+          <p id={"attention-item-#{@item.id}-reason"} class="text-base font-semibold text-app-text">
             {plain_language_reason(@item)}
           </p>
 
           <dl class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div :if={@item.evidence["sha256"] || sha256(@item)}>
-              <dt class="text-sm font-semibold text-[#94A3B8]">Hash (SHA-256)</dt>
+              <dt class="text-sm font-semibold text-app-muted">Hash (SHA-256)</dt>
               <dd
                 id={"attention-item-#{@item.id}-hash"}
-                class="mt-1 break-all font-mono text-label text-[#94A3B8]"
+                class="mt-1 break-all font-mono text-label text-app-muted"
               >
                 {sha256(@item)}
                 <button
                   type="button"
                   data-role="copy-hash"
                   data-clipboard-text={sha256(@item)}
-                  class="ml-2 text-sm font-semibold text-[#94A3B8] hover:text-[#F1F5F9]"
+                  class="ml-2 text-sm font-semibold text-app-muted hover:text-app-text"
                 >
                   Copy
                 </button>
@@ -59,32 +59,32 @@ defmodule PlaysteadWeb.AttentionLive.EvidenceCard do
             </div>
 
             <div :if={@item.evidence["size_bytes"]}>
-              <dt class="text-sm font-semibold text-[#94A3B8]">Size</dt>
-              <dd class="mt-1 text-sm text-[#F1F5F9]">{@item.evidence["size_bytes"]} bytes</dd>
+              <dt class="text-sm font-semibold text-app-muted">Size</dt>
+              <dd class="mt-1 text-sm text-app-text">{@item.evidence["size_bytes"]} bytes</dd>
             </div>
 
             <div :if={@item.evidence["format"]}>
-              <dt class="text-sm font-semibold text-[#94A3B8]">Format</dt>
-              <dd class="mt-1 text-sm text-[#F1F5F9]">{@item.evidence["format"]}</dd>
+              <dt class="text-sm font-semibold text-app-muted">Format</dt>
+              <dd class="mt-1 text-sm text-app-text">{@item.evidence["format"]}</dd>
             </div>
 
             <div :if={@item.evidence["extension"] && @item.evidence["header"]}>
-              <dt class="text-sm font-semibold text-[#94A3B8]">Readings</dt>
-              <dd id={"attention-item-#{@item.id}-confirm-detail"} class="mt-1 text-sm text-[#F1F5F9]">
+              <dt class="text-sm font-semibold text-app-muted">Readings</dt>
+              <dd id={"attention-item-#{@item.id}-confirm-detail"} class="mt-1 text-sm text-app-text">
                 Extension says {@item.evidence["extension"]}, header says {@item.evidence["header"]}
               </dd>
             </div>
 
             <div :if={@item.evidence["header_fields"]}>
-              <dt class="text-sm font-semibold text-[#94A3B8]">
+              <dt class="text-sm font-semibold text-app-muted">
                 Header fields (signature-validated)
               </dt>
-              <dd class="mt-1 text-sm text-[#F1F5F9]">{inspect(@item.evidence["header_fields"])}</dd>
+              <dd class="mt-1 text-sm text-app-text">{inspect(@item.evidence["header_fields"])}</dd>
             </div>
 
             <div :if={@item.evidence["missing_members"]}>
-              <dt class="text-sm font-semibold text-[#94A3B8]">Members</dt>
-              <dd class="mt-1 text-sm text-[#F1F5F9]">
+              <dt class="text-sm font-semibold text-app-muted">Members</dt>
+              <dd class="mt-1 text-sm text-app-text">
                 <span
                   :for={name <- @item.evidence["missing_members"]}
                   id={"attention-item-#{@item.id}-missing-#{name}"}
@@ -97,16 +97,16 @@ defmodule PlaysteadWeb.AttentionLive.EvidenceCard do
             </div>
 
             <div :if={@item.evidence["source_path"]}>
-              <dt class="text-sm font-semibold text-[#94A3B8]">
+              <dt class="text-sm font-semibold text-app-muted">
                 Source path (as reported by the client)
               </dt>
-              <dd class="mt-1 break-all text-sm text-[#94A3B8]">{@item.evidence["source_path"]}</dd>
+              <dd class="mt-1 break-all text-sm text-app-muted">{@item.evidence["source_path"]}</dd>
             </div>
           </dl>
 
           <details class="mt-4">
-            <summary class="cursor-pointer text-sm text-[#94A3B8]">Expert detail</summary>
-            <pre class="mt-2 whitespace-pre-wrap break-all font-mono text-label text-[#94A3B8]">{inspect(@item.evidence)}</pre>
+            <summary class="cursor-pointer text-sm text-app-muted">Expert detail</summary>
+            <pre class="mt-2 whitespace-pre-wrap break-all font-mono text-label text-app-muted">{inspect(@item.evidence)}</pre>
           </details>
         </div>
       </div>

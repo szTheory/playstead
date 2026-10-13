@@ -15,6 +15,7 @@ defmodule PlaysteadWeb.Api.V1.ImportsController do
   action_fallback PlaysteadWeb.Api.V1.FallbackController
 
   @chunk_size 1_048_576
+  @drained_conn_key :playstead_import_upload_drained_conn
 
   @doc """
   Streams the request body through the store, verifies the declared
@@ -48,10 +49,11 @@ defmodule PlaysteadWeb.Api.V1.ImportsController do
 
     case Idempotency.execute(device.id, key, fingerprint, effect_fun) do
       {:ok, status, body} ->
-        conn |> put_status(status) |> json(body)
+        conn |> drained_conn() |> put_status(status) |> json(body)
 
       {:error, :conflict} ->
         conn
+        |> drained_conn()
         |> put_resp_header("retry-after", "1")
         |> PlaysteadWeb.Problem.send_problem(
           409,
@@ -60,7 +62,9 @@ defmodule PlaysteadWeb.Api.V1.ImportsController do
         )
 
       {:error, reason} ->
-        PlaysteadWeb.Api.V1.FallbackController.call(conn, {:error, reason})
+        conn
+        |> drained_conn()
+        |> PlaysteadWeb.Api.V1.FallbackController.call({:error, reason})
     end
   end
 
@@ -80,11 +84,23 @@ defmodule PlaysteadWeb.Api.V1.ImportsController do
     end
   end
 
+  # `Plug.Conn` is immutable. `body_stream/1` advances it as it consumes
+  # request bytes, so every response after a streamed upload must use the
+  # advanced conn. Otherwise Bandit treats the keep-alive request body as
+  # unread and eventually raises its read timeout.
+  defp drained_conn(fallback) do
+    case Process.delete(@drained_conn_key) do
+      %Plug.Conn{} = conn -> conn
+      _ -> fallback
+    end
+  end
+
   defp body_stream(conn) do
     Stream.resource(
       fn -> {conn, :more} end,
       fn
-        {_conn, :done} ->
+        {conn, :done} ->
+          Process.put(@drained_conn_key, conn)
           {:halt, nil}
 
         {conn, :more} ->

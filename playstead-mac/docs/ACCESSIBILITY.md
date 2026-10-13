@@ -1,88 +1,55 @@
 # Accessibility
 
-What the Mac client actually delivers against the QUAL-01 accessibility
-floor (03-UI-SPEC.md), and its current, honestly stated limits.
+This document separates properties Playstead can verify mechanically from
+experiences that still require a person. It describes the current Mac client,
+not a claim of complete accessibility conformance.
 
-## What is delivered
+## Machine-observable evidence
 
-- **Machine-checked keyboard reachability on the currently inventoried
-  surfaces.** `SurfaceAccessibilityTests` independently declares the
-  library's cards/list/readiness controls and is configured to traverse them
-  in both directions, through wrap, and activate the focused control with
-  Space against a launched app. It also covers the contextual adapter,
-  readiness, BIOS, and controller-settings routes, including sheet
-  containment, Escape/Done dismissal, and opener-focus restoration. Plans 06
-  and 07 add curation and storage inventories before Plan 09 performs the
-  complete all-surface aggregation. A hosted run is required evidence before
-  a release can claim these live checks passed.
-- **A visible focus indicator that is never suppressed for keyboard
-  users.** `DesignTokens.focusRing` is the one focus-ring color token,
-  reused nowhere else (never for a system or a status color).
-- **A labeled name for every control and every status.** A card's and a
-  list row's accessible name combines the title, the system's display
-  name, and the status ladder's full-sentence accessible name — the same
-  three facts a sighted user reads, in the same order on both layouts.
-- **Every status distinguishable without color alone.** Each
-  `LibraryStatus` case exposes its own SF Symbol glyph identifier
-  (`LibraryStatus.glyphIdentifier`), and the list view additionally
-  shows a text label alongside the glyph — color is decoration, never
-  the only signal.
-- **A keyboard-and-pointer alternative to every drag interaction.** The
-  BIOS drop target accepts a drag, but also exposes a "Choose File…"
-  button opening a standard file chooser — a drop target that only
-  accepts a drag would exclude anyone who cannot perform one.
-- **Reduced motion never removes progress information.** `MotionPreference`
-  observes the system's reduce-motion setting and exposes exactly one
-  thing: a duration (`morphAndTransitionDuration`) that collapses to
-  zero — an instant change — for a completion morph, a directional focus
-  transition, or a status crossfade. The determinate download progress
-  fraction (`ProgressFillState`) is computed with **no** dependency on
-  motion preference at all, so it renders identically whether or not
-  reduced motion is on; removing it under reduced motion would trade one
-  accessibility need for the loss of the only signal a long download is
-  advancing.
-- **Full controller lifecycle with no stranding.** `ControllerHost`
-  publishes connect/disconnect/assignment state; disconnecting shows a
-  quiet, non-modal recovery banner that never disables any other control
-  and never blocks keyboard or pointer input to any surface
-  (`InputPathAvailability` reports keyboard and pointer as always
-  available, independent of controller state).
+The recurring Mac UI suite verifies the following against the launched app on
+the explicitly inventoried surfaces:
 
-## Current limits — stated honestly
+- Keyboard reachability and activation of the tested controls, including
+  contained-sheet dismissal and opener-focus restoration.
+- Accessibility roles, names, values, parent-child hierarchy, and finite
+  element frames for the declared semantic targets.
+- Non-color status communication: status symbols have descriptive labels,
+  and list rows pair status symbols with text.
+- The public macOS accessibility audit categories declared by
+  `SurfaceAccessibilityTests`, including contrast, element detection, hit
+  region, sufficient element description, action, and parent-child checks.
+- Production focus styling is exposed on keyboard-focusable controls; the
+  live-tree tests separately check focus movement and activation. They do not
+  treat the decorative focus ring as an accessibility-tree element.
 
-- **Controller text entry is filter chips only, in this release.**
-  `FilterChipRow` is the controller-reachable path to narrowing the
-  library by system/availability. Arbitrary free-text search
-  (`SearchField`) requires the keyboard — an on-screen keyboard for
-  controller text entry is explicitly out of scope for this phase (see
-  03-10-PLAN.md's `prohibitions`).
-- **The public accessibility audit is machine evidence, not experiential
-  VoiceOver review or certification.** `SurfaceAccessibilityTests` is
-  configured to launch a deterministic app profile and check stable roles,
-  labels, values, finite frames, exact focus behavior, and every supported
-  public audit category. Any audit
-  exclusion must name one stable identifier, one exact typed fingerprint, and
-  a rationale; unmatched issues fail closed. This does not establish speech
-  quality, rotor usefulness, navigation intuition, or usability with a human
-  VoiceOver workflow, and no third-party conformance certification is claimed.
-- **Hosted failure diagnostics remain source-bounded.** Sanitized per-layer
-  evidence may name a canonical failed test, a normalized XCTest assertion
-  kind, and a repository-relative Swift file and line only when the xcresult's
-  structured failure summary or modern `Failure Message` basename-and-line
-  prefix resolves to one unique checked-in source name. Runtime assertion
-  values, full paths, messages, attachments, environments, and raw xcresults
-  never cross the artifact boundary; unmatched diagnostics are omitted. When a
-  hosted layer fails, the job log prints only those same bounded fields (at
-  most 50 records, plus a numeric truncation notice), so diagnosis does not
-  depend on artifact-browser availability. A build that fails before producing
-  test results follows the same rule: stdout includes only normalized compiler
-  kind plus one uniquely resolved repository-relative Swift file and line,
-  capped at 50; compiler messages and their runtime values remain raw-only.
-- **Controller hardware itself remains unproven.** The plan 03-01 spike
-  recorded controller connect/disconnect recovery as
-  FAIL/unproven — no physical or paired game controller was available in
-  the execution environment (03-SPIKE-REPORT.md, probe 5). Every piece
-  of `ControllerHost`'s logic is exercised against an injectable
-  `ControllerInputSource` with full test coverage; whether real hardware
-  behaves exactly as the fake source simulates is a claim this project
-  has not yet verified on physical hardware.
+`SurfaceAccessibilityTests` is live UI evidence for those named properties.
+It does not cover every screen size, every macOS release, or every possible
+system appearance. Semantic AppKit colors follow the user's appearance and
+accent selection; automated results apply to the environment where that suite
+runs.
+
+`ControllerNavigationTests` proves deterministic controller-navigation state
+transitions and parity with arrow-key commands. It is unit evidence about the
+reducer, not a live focus, device-discovery, or physical-controller result.
+The keyboard/live-tree audit and the controller transition suite are separate
+evidence categories; neither stands in for the other. The owner-run paired
+DualSense walkthrough is the evidence for visible focus and activation from a
+physical controller.
+
+## Human review and limits
+
+Automation does not establish VoiceOver pronunciation, rotor usefulness,
+sentence quality, human comprehension, or navigation intuition. Those require
+human review with VoiceOver and are not claimed by this phase. The public
+accessibility audit is not a third-party conformance certification.
+
+Controller text entry is limited to the system and availability filter chips;
+free-text search still requires a keyboard. Downloads, Settings, and other
+out-of-scope destinations do not inherit a controller-support claim from the
+Library transition tests.
+
+Hosted failure diagnostics are source-bounded. They may report a canonical
+failed test, a normalized assertion kind, and a repository-relative Swift
+file and line only when structured test output resolves to one unique checked-
+in source name. Runtime values, full paths, messages, attachments,
+environments, and raw result bundles do not cross the artifact boundary.

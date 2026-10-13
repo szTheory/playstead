@@ -45,6 +45,25 @@ final class BiosProductionReferenceTests: XCTestCase {
         XCTAssertEqual(gba.knownSHA256Digests, Set(pin.knownSHA256Digests))
     }
 
+    @MainActor
+    func testAppEnvironmentProductionCompositionUsesPinnedReferences() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("playstead-bios-production-composition-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let paths = AppPaths(root: root)
+        let service = "dev.playstead.mac.bios-test.\(UUID().uuidString.lowercased())"
+        let keychain = KeychainStore(service: service)
+        let environment = AppEnvironment(
+            paths: paths,
+            apiClient: APIClient(keychain: keychain, pinnedCertificateURL: paths.pinnedCertificate),
+            reachability: Reachability(startOnline: false, monitorAutomatically: false),
+            pairingKeychain: keychain
+        )
+
+        let actualReferences = environment.biosStore.knownReferences
+        XCTAssertEqual(actualReferences, BiosReferences.production)
+    }
+
     // MARK: - A store built the way the composition root builds it reaches the digest comparison
 
     func testStoreBuiltFromProductionReferencesReachesTheDigestComparison() throws {

@@ -1,11 +1,63 @@
 import Foundation
 
+/// Presentation labels are separate from the stable input identifiers.
+/// Typed profiles choose physical labels without guessing from vendor names.
+enum ControllerButtonStyle: String, Codable {
+    case generic, dualSense, dualShock, xbox
+
+    var isPlayStation: Bool { self == .dualSense || self == .dualShock }
+}
+
+enum ControllerInputLabel {
+    static func displayName(for input: String, style: ControllerButtonStyle = .generic) -> String {
+        if style.isPlayStation {
+            switch input {
+            case "buttonA": return "Cross ×"
+            case "buttonB": return "Circle ○"
+            case "buttonX": return "Square □"
+            case "buttonY": return "Triangle △"
+            case "leftShoulder": return "L1 · Left shoulder"
+            case "rightShoulder": return "R1 · Right shoulder"
+            case "buttonMenu": return "Options"
+            case "buttonOptions": return style == .dualSense ? "Create" : "Share"
+            default: break
+            }
+        } else if style == .xbox {
+            switch input {
+            case "buttonA": return "A"
+            case "buttonB": return "B"
+            case "buttonX": return "X"
+            case "buttonY": return "Y"
+            case "leftShoulder": return "LB · Left bumper"
+            case "rightShoulder": return "RB · Right bumper"
+            case "buttonOptions": return "View"
+            default: break
+            }
+        }
+        return switch input {
+        case "dpadUp": "D-pad Up"
+        case "dpadDown": "D-pad Down"
+        case "dpadLeft": "D-pad Left"
+        case "dpadRight": "D-pad Right"
+        case "buttonA": "Lower face button"
+        case "buttonB": "Right face button"
+        case "buttonX": "Left face button"
+        case "buttonY": "Upper face button"
+        case "leftShoulder": "Left shoulder"
+        case "rightShoulder": "Right shoulder"
+        case "buttonMenu": "Menu"
+        case "buttonOptions": "Options"
+        default: input
+        }
+    }
+}
+
 /// One adapter input (named by this app's own fixed vocabulary — never
-/// the pin's literal CLI syntax, which `AdapterHost` alone renders)
+/// the emulator's literal SDL input configuration)
 /// mapped to one controller input element name (e.g. `"buttonA"`,
 /// `"dpadUp"`). `ControllerMapping` is built from these;
-/// `AdapterHost.renderedLaunchArguments` is what turns them into the
-/// actual configuration the emulator receives.
+/// A future SDL binding bridge must translate them to the numeric
+/// joystick codes that mGBA's input configuration consumes.
 struct MappedInput: Codable, Equatable {
     let adapterInput: String
     let controllerInput: String
@@ -13,9 +65,8 @@ struct MappedInput: Codable, Equatable {
 
 /// A controller's full button/axis mapping, keyed by that controller's
 /// own stable product identifier so a user's remap follows their
-/// physical controller — persisted by `ControllerMappingStore` and
-/// injected by `AdapterHost` at launch through the pin's
-/// `config_injection` mechanism (D-14).
+/// physical controller — persisted by `ControllerMappingStore`.
+/// The pinned mGBA adapter does not yet apply these values to gameplay.
 struct ControllerMapping: Codable, Equatable {
     let controllerProductID: String
     let mappings: [MappedInput]

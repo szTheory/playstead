@@ -14,7 +14,7 @@ defmodule PlaysteadWeb.Api.V1.SavesController do
 
   use PlaysteadWeb, :controller
 
-  alias Playstead.{Blobs, CommandId, Idempotency, RateLimiter, Saves}
+  alias Playstead.{Blobs, CommandId, Idempotency, Operations, RateLimiter, Saves}
 
   action_fallback PlaysteadWeb.Api.V1.FallbackController
 
@@ -124,15 +124,106 @@ defmodule PlaysteadWeb.Api.V1.SavesController do
     fingerprint = conn.assigns.idempotency_fingerprint
     id = params["id"] || Ecto.UUID.generate()
 
-    with :ok <- check_revision_rate_limit(device) do
-      effect_fun = fn ->
-        case Saves.commit_revision(device.user_id, device, Map.put(params, "id", id)) do
-          {:ok, revision} -> {:ok, 201, revision_json(revision)}
-          {:error, reason} -> {:error, reason}
-        end
-      end
+    case maybe_reliability_transient(conn) do
+      {:respond, response_conn} ->
+        response_conn
 
-      run_idempotent(conn, device, key, fingerprint, effect_fun)
+      :continue ->
+        with :ok <- check_revision_rate_limit(device) do
+          effect_fun = fn ->
+            with :ok <- maybe_hold_reliability_conflict(conn) do
+              case Saves.commit_revision(device.user_id, device, Map.put(params, "id", id)) do
+                {:ok, revision} -> {:ok, 201, revision_json(revision)}
+                {:error, reason} -> {:error, reason}
+              end
+            end
+          end
+
+          run_idempotent(conn, device, key, fingerprint, effect_fun)
+        end
+    end
+  end
+
+  # These controls exist only in the isolated mac_ci fixture. A transient
+  # request is consumed once before any idempotency receipt or save effect is
+  # created. The hold is placed inside the real idempotency transaction so a
+  # second matching POST exercises the database unique-index race below.
+  defp maybe_reliability_transient(conn) do
+    with root when is_binary(root) <-
+           Application.get_env(:playstead, :mac_ci_save_test_control_root),
+         [token] <- Plug.Conn.get_req_header(conn, "x-playstead-test-transient"),
+         {:ok, directory} <- reliability_control_directory(root, token),
+         {:ok, :created} <- create_reliability_marker(directory, "transient-consumed", token) do
+      {:respond,
+       PlaysteadWeb.Problem.send_problem(
+         conn,
+         503,
+         :service_unavailable,
+         "The test fixture is temporarily unavailable."
+       )}
+    else
+      _ -> :continue
+    end
+  end
+
+  defp maybe_hold_reliability_conflict(conn) do
+    with root when is_binary(root) <-
+           Application.get_env(:playstead, :mac_ci_save_test_control_root),
+         [token] <- Plug.Conn.get_req_header(conn, "x-playstead-test-hold"),
+         {:ok, directory} <- reliability_control_directory(root, token),
+         {:ok, :created} <- create_reliability_marker(directory, "hold-arrived", token) do
+      await_reliability_release(directory, token, System.monotonic_time(:millisecond) + 10_000)
+    else
+      _ -> :ok
+    end
+  end
+
+  defp await_reliability_release(directory, token, deadline) do
+    case File.read(Path.join(directory, "release")) do
+      {:ok, ^token} ->
+        :ok
+
+      _ ->
+        if System.monotonic_time(:millisecond) >= deadline do
+          {:error, :reliability_control_timeout}
+        else
+          Process.sleep(10)
+          await_reliability_release(directory, token, deadline)
+        end
+    end
+  end
+
+  defp reliability_control_directory(root, token) do
+    case Ecto.UUID.cast(token) do
+      {:ok, canonical} when canonical == token ->
+        directory = Path.join(root, "save-e2e-" <> canonical)
+
+        with {:ok, %File.Stat{type: :directory}} <- File.lstat(directory),
+             {:ok, ^token} <- File.read(Path.join(directory, "owner")) do
+          {:ok, directory}
+        else
+          _ -> {:error, :invalid_reliability_control}
+        end
+
+      _ ->
+        {:error, :invalid_reliability_control}
+    end
+  end
+
+  defp create_reliability_marker(directory, name, token) do
+    path = Path.join(directory, name)
+
+    case File.open(path, [:write, :exclusive]) do
+      {:ok, io} ->
+        result = IO.binwrite(io, token)
+        File.close(io)
+        if result == :ok, do: {:ok, :created}, else: {:error, :marker_write_failed}
+
+      {:error, :eexist} ->
+        {:error, :already_consumed}
+
+      error ->
+        error
     end
   end
 
@@ -206,6 +297,8 @@ defmodule PlaysteadWeb.Api.V1.SavesController do
         conn |> put_status(status) |> json(body)
 
       {:error, :conflict} ->
+        record_failure(conn, "save", "idempotency_key_conflict")
+
         conn
         |> put_resp_header("retry-after", "1")
         |> PlaysteadWeb.Problem.send_problem(
@@ -215,9 +308,17 @@ defmodule PlaysteadWeb.Api.V1.SavesController do
         )
 
       {:error, reason} ->
+        record_failure(conn, "save", save_failure_code(reason))
         PlaysteadWeb.Api.V1.FallbackController.call(conn, {:error, reason})
     end
   end
+
+  defp record_failure(conn, subsystem, code),
+    do: Operations.record_failure(conn.assigns.correlation_id, subsystem, code)
+
+  defp save_failure_code({code, _}) when is_atom(code), do: Atom.to_string(code)
+  defp save_failure_code(code) when is_atom(code), do: Atom.to_string(code)
+  defp save_failure_code(_), do: "save_reconciliation_failed"
 
   defp revision_json(revision) do
     %{

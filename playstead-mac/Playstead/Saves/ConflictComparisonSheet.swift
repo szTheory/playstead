@@ -67,7 +67,7 @@ struct ConflictComparisonSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-            Text(SaveVocabulary.compareSheetTitle)
+            Text(comparisonTitle)
                 .font(.psHeading)
                 .foregroundStyle(DesignTokens.textPrimary)
 
@@ -82,7 +82,7 @@ struct ConflictComparisonSheet: View {
                     .accessibilityIdentifier(Automation.result)
                     .padding(DesignTokens.Spacing.sm)
                     .background(DesignTokens.border.opacity(0.3))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.standard))
             }
 
             ScrollView {
@@ -111,9 +111,8 @@ struct ConflictComparisonSheet: View {
         .padding(DesignTokens.Spacing.lg)
         .frame(minWidth: 640, minHeight: 480)
         .background(DesignTokens.background.ignoresSafeArea())
-        .preferredColorScheme(.dark)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(SaveVocabulary.compareSheetTitle)
+        .accessibilityLabel(comparisonTitle)
         .accessibilityIdentifier(Automation.surface)
         .focusSection()
         .defaultFocus($doneHasFocus, true)
@@ -143,8 +142,15 @@ struct ConflictComparisonSheet: View {
             .replacingOccurrences(of: "{N}", with: "\(sides.count)")
     }
 
+    private var comparisonTitle: String {
+        isPlural ? "\(sides.count) versions of your progress" : SaveVocabulary.compareSheetTitle
+    }
+
     private var keepBothExplainer: String {
-        SaveVocabulary.compareKeepBothExplainer.replacingOccurrences(of: "{Origin}", with: thisDeviceOrigin)
+        let template = isPlural
+            ? "All \(sides.count) versions stay in your library. This Mac keeps playing the version from {Origin}."
+            : SaveVocabulary.compareKeepBothExplainer
+        return template.replacingOccurrences(of: "{Origin}", with: thisDeviceOrigin)
     }
 }
 
@@ -191,7 +197,7 @@ private struct ConflictSideView: View {
                     .accessibilityHidden(true)
             }
 
-            HStack(spacing: DesignTokens.Spacing.sm) {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
                 if side.isChosen {
                     Text(SaveVocabulary.compareChosenState)
                         .font(.psLabelEmphasized)
@@ -199,10 +205,12 @@ private struct ConflictSideView: View {
                         .accessibilityIdentifier(ConflictComparisonSheet.Automation.chosen(slot))
                 } else {
                     Button(SaveVocabulary.compareChooseAction) { onChoose(side.id) }
+                        .fixedSize()
                         .playsteadFocusable(identifier: ConflictComparisonSheet.Automation.choose(slot))
                 }
 
                 Button(SaveVocabulary.compareExportAction) { onExport(side.id) }
+                    .fixedSize()
                     .playsteadFocusable(identifier: ConflictComparisonSheet.Automation.export(slot))
             }
 
@@ -217,7 +225,7 @@ private struct ConflictSideView: View {
         .padding(DesignTokens.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(DesignTokens.border.opacity(0.2))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.standard))
         // `.contain`, not `.ignore`/`.combine`: the choose/export buttons
         // must stay individually reachable by keyboard/VoiceOver. The
         // label below is this side's one complete comparison sentence

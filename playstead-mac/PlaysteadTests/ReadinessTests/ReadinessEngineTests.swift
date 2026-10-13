@@ -10,6 +10,7 @@ final class ReadinessEngineTests: XCTestCase {
     private var downloadQueue: DownloadQueue!
     private var saveDir: URL!
 
+
     override func setUpWithError() throws {
         try super.setUpWithError()
         tempRoot = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -83,6 +84,26 @@ final class ReadinessEngineTests: XCTestCase {
         XCTAssertTrue(report.checks.allSatisfy { $0.outcome == .ready })
     }
 
+    func testReadinessProbePreservesExistingFiles() throws {
+        let target = saveDir.appendingPathComponent(".playstead-readiness-write-probe-target")
+        let battery = saveDir.appendingPathComponent("game.sav")
+        let targetBytes = Data("existing owner file".utf8)
+        let batteryBytes = Data(repeating: 0xA7, count: 8_192)
+        try targetBytes.write(to: target)
+        try batteryBytes.write(to: battery)
+        let namesBefore = try FileManager.default.contentsOfDirectory(atPath: saveDir.path).sorted()
+        let member = try seedVerifiedObject(seed: "preserve")
+        let engine = makeEngine()
+
+        for _ in 0..<2 {
+            let report = engine.evaluate(assetSetID: "g1", requiredMembers: [member])
+            XCTAssertEqual(check(report, .saveDirectory)?.outcome, .ready)
+            XCTAssertEqual(try? Data(contentsOf: target), targetBytes)
+            XCTAssertEqual(try Data(contentsOf: battery), batteryBytes)
+            XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: saveDir.path).sorted(), namesBefore)
+        }
+    }
+
     // MARK: - Missing required member
 
     func testMissingRequiredMemberBlocksNamesItAndOffersDownloadRemedy() throws {
@@ -120,6 +141,31 @@ final class ReadinessEngineTests: XCTestCase {
 
         XCTAssertTrue(oneReport.isReady)
         XCTAssertTrue(manyReport.isReady)
+    }
+
+    func testEveryRequiredMemberMustBeVerifiedBeforeOfflineLaunchIsReady() throws {
+        let first = try seedVerifiedObject(seed: "first")
+        let second = try seedVerifiedObject(seed: "second")
+        let bytes = Data(repeating: 0x5a, count: 321)
+        let missing = RequiredMember(sha256: sha256Hex(bytes), size: bytes.count)
+        let engine = makeEngine()
+
+        let partialReport = engine.evaluate(assetSetID: "required-members", requiredMembers: [first, second, missing])
+
+        XCTAssertFalse(partialReport.isReady)
+        XCTAssertTrue(check(partialReport, .gameAssets)?.outcome.isBlocking == true)
+        XCTAssertEqual(check(partialReport, .gameAssets)?.remedy?.action, .downloadMember(sha256: missing.sha256))
+
+        // Seed an object under the declared digest to model a completed,
+        // locally verified member without putting fixture bytes on a network.
+        let partial = try paths.partialURL(for: missing.sha256)
+        try FileManager.default.createDirectory(at: paths.partials, withIntermediateDirectories: true)
+        try bytes.write(to: partial)
+        try cas.commit(partialAt: partial, sha256: missing.sha256)
+
+        let completeReport = engine.evaluate(assetSetID: "required-members", requiredMembers: [first, second, missing])
+        XCTAssertTrue(completeReport.isReady)
+        XCTAssertTrue(completeReport.checks.allSatisfy { $0.outcome == .ready })
     }
 
     // MARK: - Missing adapter

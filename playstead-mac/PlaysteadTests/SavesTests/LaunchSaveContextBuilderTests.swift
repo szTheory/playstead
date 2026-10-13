@@ -36,6 +36,23 @@ final class LaunchSaveContextBuilderTests: XCTestCase {
         LaunchSaveContextBuilder(saveStore: saveStore, casManager: cas, saveContract: contract, systemID: "gba")
     }
 
+    private func gameBoyBuilder(
+        targetROM: URL,
+        digest: String,
+        systemID: String = "gb",
+        declarations: [CartridgeSupportDeclaration] = [CartridgeQualification.mbc1Declaration]
+    ) throws -> LaunchSaveContextBuilder {
+        LaunchSaveContextBuilder(
+            saveStore: saveStore,
+            casManager: cas,
+            saveContract: contract,
+            systemID: systemID,
+            targetROMURL: targetROM,
+            targetROMExpectedSHA256: digest,
+            declaredCartridges: declarations
+        )
+    }
+
     @discardableResult
     private func commitIntoCAS(_ data: Data) throws -> String {
         let digest = hex(of: data)
@@ -247,6 +264,98 @@ final class LaunchSaveContextBuilderTests: XCTestCase {
         XCTAssertEqual(context.heads.count, 2)
         XCTAssertTrue(context.ancestorDigests.isEmpty)
         XCTAssertNil(context.compatibilityVerdict)
+    }
+
+    func testTargetBindingIgnoresCandidateMetadata() throws {
+        var romBytes = Data(repeating: 0, count: 32 * 1024)
+        romBytes[0x143] = 0x00
+        romBytes[0x147] = 0x03
+        romBytes[0x149] = 0x02
+        romBytes[0x14D] = (0x134...0x14C).reduce(UInt8(0)) { $0 &- romBytes[$1] &- 1 }
+        let rom = tempRoot.appendingPathComponent("verified-target.gb")
+        try romBytes.write(to: rom)
+        let digest = hex(of: romBytes)
+        let line = try saveStore.resolveLine(contentKey: digest, saveKind: "battery", slot: "0", placeholderID: "gb-target")
+        try saveStore.insertRevision(SaveRevisionRow(
+            id: "gb-revision", saveLineID: line.id, parentRevisionID: nil,
+            blobSHA256: "revision-digest", sizeBytes: 8_192,
+            originDeviceID: "another-device", deviceCapturedAt: nil, recordedAt: "2026-01-01T00:00:00Z",
+            captureMethod: "emulator", adapterID: "candidate-only-adapter", adapterVersion: "candidate-only-version",
+            saveFormat: CartridgeQualification.mbc1Declaration.saveFormat, formatConfidence: "exact",
+            playSessionID: nil, durability: SaveDurability.uploaded.rawValue, localPath: nil
+        ))
+        let target = tempRoot.appendingPathComponent("saves/gb-game/game.sav")
+        try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+
+        let context = try gameBoyBuilder(targetROM: rom, digest: digest).buildContext(contentKey: digest, targetURL: target)
+        XCTAssertEqual(context.compatibilityVerdict, .exact)
+
+        let wrongDigestContext = try gameBoyBuilder(targetROM: rom, digest: String(repeating: "0", count: 64))
+            .buildContext(contentKey: digest, targetURL: target)
+        if case .incompatible(reason: "target_cartridge_unqualified") = wrongDigestContext.compatibilityVerdict {} else {
+            XCTFail("candidate metadata must not certify a target whose ROM digest fails qualification")
+        }
+    }
+
+    func testThreeQualifiedTargetBindings() throws {
+        let declarations = [
+            CartridgeQualification.mbc1Declaration,
+            CartridgeSupportDeclaration(
+                systemID: "gbc", cartridgeID: "mbc5", cgbFlag: 0xC0,
+                cartridgeType: 0x1B, ramSizeCode: 0x03, mediumID: "gbc_sram_32k",
+                artifactBytes: 32_768, saveFormat: "mgba-0.10.5-gbc-mbc5-sram-32k"
+            ),
+            CartridgeSupportDeclaration(
+                systemID: "gbc", cartridgeID: "mbc3-rtc", cgbFlag: 0xC0,
+                cartridgeType: 0x10, ramSizeCode: 0x03, mediumID: "gbc_sram_32k_rtc",
+                artifactBytes: 32_816, saveFormat: "mgba-0.10.5-gbc-mbc3-rtc-sram-32k-v1"
+            )
+        ]
+        let cases: [(UInt8, UInt8, UInt8, String, Int, String)] = [
+            (0x00, 0x03, 0x02, "gb", 8_192, declarations[0].saveFormat),
+            (0xC0, 0x1B, 0x03, "gbc", 32_768, declarations[1].saveFormat),
+            (0xC0, 0x10, 0x03, "gbc", 32_816, declarations[2].saveFormat)
+        ]
+
+        for (cgbFlag, cartridgeType, ramCode, systemID, artifactBytes, format) in cases {
+            var romBytes = Data(repeating: 0, count: 32 * 1024)
+            romBytes[0x143] = cgbFlag
+            romBytes[0x147] = cartridgeType
+            romBytes[0x149] = ramCode
+            romBytes[0x14D] = (0x134...0x14C).reduce(UInt8(0)) { $0 &- romBytes[$1] &- 1 }
+            let rom = tempRoot.appendingPathComponent("target-\(UUID().uuidString).gbc")
+            try romBytes.write(to: rom)
+            defer { try? FileManager.default.removeItem(at: rom) }
+            let romDigest = hex(of: romBytes)
+            let line = try saveStore.resolveLine(
+                contentKey: romDigest, saveKind: "battery", slot: "0", placeholderID: UUID().uuidString
+            )
+            let artifact = Data((0..<artifactBytes).map { UInt8(truncatingIfNeeded: $0 * 17 + 3) })
+            let artifactDigest = hex(of: artifact)
+            let localArtifact = tempRoot.appendingPathComponent("artifact-\(UUID().uuidString).sav")
+            try artifact.write(to: localArtifact)
+            try saveStore.insertRevision(SaveRevisionRow(
+                id: UUID().uuidString, saveLineID: line.id, parentRevisionID: nil,
+                blobSHA256: artifactDigest, sizeBytes: artifactBytes,
+                originDeviceID: "source-device", deviceCapturedAt: nil, recordedAt: "2026-01-01T00:00:00Z",
+                captureMethod: "session", adapterID: "mgba", adapterVersion: "0.10.5",
+                saveFormat: format, formatConfidence: "exact", playSessionID: "source-session",
+                durability: SaveDurability.uploaded.rawValue, localPath: localArtifact.path
+            ))
+            let target = tempRoot.appendingPathComponent("saves/\(UUID().uuidString)/game.sav")
+            try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let originalTarget = Data(repeating: 0xD7, count: 23)
+            try originalTarget.write(to: target)
+
+            let builder = try gameBoyBuilder(
+                targetROM: rom, digest: romDigest, systemID: systemID, declarations: declarations
+            )
+            let context = builder.buildContext(contentKey: romDigest, targetURL: target)
+            XCTAssertEqual(context.compatibilityVerdict, .exact, "the exact declared target tuple must bind")
+
+            XCTAssertEqual(try Data(contentsOf: target), originalTarget, "qualification must not mutate a target")
+            XCTAssertEqual(saveStore.fetchRevisions(saveLineID: line.id).count, 1, "qualification must retain revision history")
+        }
     }
 }
 

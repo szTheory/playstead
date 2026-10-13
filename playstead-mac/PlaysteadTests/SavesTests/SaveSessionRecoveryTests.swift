@@ -41,16 +41,96 @@ final class SaveSessionRecoveryTests: XCTestCase {
     /// Marks a session as "abandoned" by inserting exactly the staged
     /// row a real crashed session would have left behind, with no
     /// corresponding promoted row.
-    private func markSessionAbandoned(lineID: String, sessionID: String, digest: String) throws {
+    private func markSessionAbandoned(
+        lineID: String, sessionID: String, digest: String, sizeBytes: Int = 0,
+        adapterID: String? = nil, adapterVersion: String? = nil,
+        saveFormat: String? = nil, formatConfidence: String? = nil
+    ) throws {
         let row = SaveRevisionRow(
-            id: UUID().uuidString, saveLineID: lineID, parentRevisionID: nil, blobSHA256: digest, sizeBytes: 0,
-            originDeviceID: nil, deviceCapturedAt: nil, recordedAt: nil, captureMethod: "poll", adapterID: nil,
-            adapterVersion: nil, saveFormat: nil, formatConfidence: nil, playSessionID: sessionID,
+            id: UUID().uuidString, saveLineID: lineID, parentRevisionID: nil, blobSHA256: digest, sizeBytes: sizeBytes,
+            originDeviceID: nil, deviceCapturedAt: nil, recordedAt: nil, captureMethod: "poll", adapterID: adapterID,
+            adapterVersion: adapterVersion, saveFormat: saveFormat, formatConfidence: formatConfidence, playSessionID: sessionID,
             durability: SaveDurability.localOnly.rawValue, localPath: nil,
             tier: SaveCaptureTier.staged.rawValue, origin: SaveCaptureOrigin.session.rawValue,
             manifestDigest: nil, sessionID: sessionID, artifactSetJSON: nil
         )
         try saveStore.insertRevision(row)
+    }
+
+    func testReplayRetainsSourceFormat() async throws {
+        let lineID = try makeLine()
+        let sessionID = UUID().uuidString
+        var bytes = Data(repeating: 0x52, count: 32_816)
+        for index in 32_768..<32_816 { bytes[index] = UInt8(0xD0 + index - 32_768) }
+        let sha = digest(bytes)
+        let sourceFormat = CartridgeQualification.mbc3RTCDeclaration.saveFormat
+        try markSessionAbandoned(
+            lineID: lineID, sessionID: sessionID, digest: sha, sizeBytes: bytes.count,
+            adapterID: "mgba", adapterVersion: "0.10.5", saveFormat: sourceFormat, formatConfidence: "exact"
+        )
+        let artifactURL = try writeArtifact(bytes)
+        let recovery = SaveSessionRecovery(
+            saveStore: saveStore, casManager: casManager,
+            provenance: SaveCaptureProvenance(
+                adapterID: "different-target-adapter", adapterVersion: "99.0",
+                saveFormat: CartridgeQualification.mbc5Declaration.saveFormat, formatConfidence: "exact"
+            )
+        )
+        let session = AbandonedSaveSession(
+            saveLineID: lineID, sessionID: sessionID, artifactSource: FileSaveArtifactSource(url: artifactURL),
+            destinationDirectory: tempRoot.appendingPathComponent("dest-\(sessionID)"), artifactRelativePath: "save"
+        )
+
+        let replayed = try await recovery.replay(session, parentRevisionID: nil)
+        let promoted: SaveRevisionRow = try XCTUnwrap(replayed)
+        XCTAssertEqual(promoted.saveFormat, sourceFormat, "replay must retain the staged source format, not fallback target provenance")
+        XCTAssertEqual(promoted.formatConfidence, "exact")
+        XCTAssertEqual(promoted.sizeBytes, bytes.count)
+        XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: try XCTUnwrap(promoted.localPath))), bytes)
+    }
+
+    func testReplayDoesNotManufactureMissingSourceFormatFromTarget() async throws {
+        let lineID = try makeLine()
+        let sessionID = UUID().uuidString
+        let bytes = Data(repeating: 0x35, count: 32_816)
+        let sha = digest(bytes)
+        try markSessionAbandoned(lineID: lineID, sessionID: sessionID, digest: sha, sizeBytes: bytes.count)
+        let artifactURL = try writeArtifact(bytes)
+        let recovery = SaveSessionRecovery(
+            saveStore: saveStore, casManager: casManager,
+            provenance: SaveCaptureProvenance(
+                adapterID: "mgba", adapterVersion: "0.10.5",
+                saveFormat: CartridgeQualification.mbc3RTCDeclaration.saveFormat, formatConfidence: "exact"
+            )
+        )
+        let session = AbandonedSaveSession(
+            saveLineID: lineID, sessionID: sessionID, artifactSource: FileSaveArtifactSource(url: artifactURL),
+            destinationDirectory: tempRoot.appendingPathComponent("missing-format-\(sessionID)"), artifactRelativePath: "save"
+        )
+
+        let replayed = try await recovery.replay(session, parentRevisionID: nil)
+        let promoted = try XCTUnwrap(replayed)
+        XCTAssertNil(promoted.saveFormat, "target provenance cannot invent the missing source cartridge format")
+
+        let source = SaveBinding(
+            systemID: "gbc", saveKind: "battery", mediumID: "sram_32k+rtc", artifactBytes: bytes.count,
+            romSHA256: "same-rom", titleIdentity: nil, origin: "emulated",
+            provenance: SaveProvenance(
+                emulator: "mgba", emulatorVersion: "0.10.5", coreVersion: nil,
+                adapterPinSHA256: "pin", capturedAt: "test", deviceID: "device"
+            ), saveFormat: promoted.saveFormat, formatConfidence: promoted.formatConfidence
+        )
+        let targetDeclaration = CartridgeQualification.mbc3RTCDeclaration
+        let target = SaveBinding(
+            systemID: targetDeclaration.systemID, saveKind: "battery", mediumID: targetDeclaration.mediumID,
+            artifactBytes: targetDeclaration.artifactBytes, romSHA256: "same-rom", titleIdentity: nil,
+            origin: "emulated", provenance: source.provenance,
+            saveFormat: targetDeclaration.saveFormat, formatConfidence: "exact"
+        )
+        let declarations = Set(CartridgeQualification.supportedDeclarations.map(\.saveFormat))
+        let verdict = SaveCompatibilityGate(saveContract: try AdapterPin.load().saveContract, declaredSaveFormats: declarations)
+            .evaluate(candidate: source, target: target)
+        guard case .incompatible = verdict else { XCTFail("missing source format must block restore before write"); return }
     }
 
     private func recordPromotedRow(lineID: String, sessionID: String?, digest: String) throws {

@@ -29,7 +29,10 @@ enum AdapterExit: Equatable {
         return .unknown(status: status, reason: reasonString)
     }
 
-    private static func matches(_ signature: AdapterExitSignature, status: Int32, reason: String) -> Bool {
-        signature.terminationStatus == status && signature.terminationReason == reason
+    /// True when *any* of a category's signatures matches — a category
+    /// holds several because several real terminations can mean the same
+    /// thing (see `AdapterExitDetection`).
+    private static func matches(_ signatures: [AdapterExitSignature], status: Int32, reason: String) -> Bool {
+        signatures.contains { $0.terminationStatus == status && $0.terminationReason == reason }
     }
 }

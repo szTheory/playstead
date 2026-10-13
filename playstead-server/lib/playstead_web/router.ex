@@ -22,6 +22,7 @@ defmodule PlaysteadWeb.Router do
   pipeline :api do
     plug :accepts, ["json"]
     plug PlaysteadWeb.Plugs.ClientIp
+    plug PlaysteadWeb.Plugs.CorrelationId
   end
 
   # D-12: per-IP rate limit on pairing-request creation.
@@ -299,6 +300,7 @@ defmodule PlaysteadWeb.Router do
     pipe_through [:api, :device_auth, :idempotency]
 
     post "/saves/revisions", SavesController, :create_revision
+    post "/operations/diagnostic-bundles", OperationsController, :create_diagnostic_bundle
   end
 
   # D-14: read-only branch-head/history view, strictly user-scoped, no
@@ -486,6 +488,11 @@ defmodule PlaysteadWeb.Router do
   ## Needs Attention console (D-26, D-31).
   scope "/", PlaysteadWeb do
     pipe_through [:browser, :require_authenticated]
+
+    live_session :operations,
+      on_mount: [{PlaysteadWeb.UserAuth, :mount_current_scope}] do
+      live "/operations", OperationsLive, :index
+    end
 
     live_session :attention,
       on_mount: [{PlaysteadWeb.UserAuth, :mount_current_scope}] do

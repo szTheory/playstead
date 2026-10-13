@@ -14,10 +14,21 @@ enum DeterministicProfileError: Error, Equatable {
 /// credentials, or user data. Each case maps to fixed synthetic state below.
 enum DeterministicProfile: String, CaseIterable {
     case emptyLibrary = "empty-library"
+    case pairedEmptyLibrary = "paired-empty-library"
     case populatedCurationReorder = "populated-curation-reorder"
     case pausedActiveQueue = "paused-active-queue"
     case quotaBlockReclaim = "quota-block-reclaim"
     case storage = "storage"
+    /// Plan 03-20: one cached synthetic-system game whose BIOS requirement
+    /// and single compiled reference exercise the production acceptance
+    /// route without using a proprietary system or BIOS fixture.
+    case biosAcceptance = "bios-acceptance"
+    /// Keeps the existing no-reference rejection journey on the same real
+    /// readiness route without making a test-only reference available.
+    case biosNoReference = "bios-no-reference"
+    /// GSD 03-25: one synthetic game and one finite controller input source
+    /// exercise the packaged controller settings/test path without HID.
+    case controllerRecovery = "controller-recovery"
     /// 04-18 Journey 1 (SAVE-03): one game, its ROM cached, an empty
     /// local save directory, and one `uploaded` restorable revision
     /// committed for its content key -- a normal launch through the
@@ -32,6 +43,47 @@ enum DeterministicProfile: String, CaseIterable {
     /// undisposed heads on the same save line -- a genuine fork the
     /// card's badge and the readiness Save row must both report.
     case saveDiverged = "save-diverged"
+    case gbcUnsupportedHeader = "gbc-unsupported-header"
+    case gbcCorruptHeaderLongName = "gbc-corrupt-header-long-name"
+    case unknownSystem = "unknown-system"
+    case gbcMissingReadinessEvidence = "gbc-missing-readiness-evidence"
+    case gbMBC1Qualified = "gb-mbc1-qualified"
+    case gbcMBC5Qualified = "gbc-mbc5-qualified"
+    case gbcMBC3RTCQualified = "gbc-mbc3-rtc-qualified"
+    case gbcMBC3RTCQueuedOffline = "gbc-mbc3-rtc-queued-offline"
+    case gbcIncompatibleRestore = "gbc-incompatible-restore"
+    case gbcDownloadProgress = "gbc-download-progress"
+
+    static let syntheticBIOSSystem = "playstead-test-bios-lab"
+    static let syntheticBIOSCandidateBytes = Data([0x50, 0x4C, 0x41, 0x59, 0x53, 0x54, 0x45, 0x41, 0x44])
+
+    var uiTestingBiosReferences: [BiosStore.Reference] {
+        switch self {
+        case .biosAcceptance:
+            let digest = SHA256.hash(data: Self.syntheticBIOSCandidateBytes)
+                .map { String(format: "%02x", $0) }
+                .joined()
+            return [BiosStore.Reference(
+                system: Self.syntheticBIOSSystem,
+                expectedByteLength: Self.syntheticBIOSCandidateBytes.count,
+                knownSHA256Digests: [digest]
+            )]
+        case .biosNoReference:
+            return []
+        default:
+            return BiosReferences.production
+        }
+    }
+
+    var requiresBIOSForUITesting: Bool {
+        self == .biosAcceptance || self == .biosNoReference
+    }
+
+    var uiTestingControllerInputSource: ControllerInputSource? {
+        self == .controllerRecovery || self == .gbcIncompatibleRestore || self == .saveRestorable
+            ? UITestControllerInputSource()
+            : nil
+    }
 
     /// A real, offline, synthetic pairing credential this profile's
     /// world requires -- `nil` for every profile that has no reason to
@@ -45,10 +97,10 @@ enum DeterministicProfile: String, CaseIterable {
     /// `UI_TESTING`.
     var uiTestingCredential: PairingCredential? {
         switch self {
-        case .saveOnlyCopy:
+        case .saveOnlyCopy, .pairedEmptyLibrary, .gbcDownloadProgress:
             return PairingCredential(
                 deviceID: "ui-test-device",
-                baseURL: URL(string: "https://ui-test.invalid")!,
+                baseURL: URL(string: self == .gbcDownloadProgress ? "https://ui-test-download.invalid" : "https://ui-test.invalid")!,
                 token: "ui-test-token"
             )
         default:
@@ -157,7 +209,7 @@ final class DeterministicProfileFixture {
 
     var expected: DeterministicProfileExpectation {
         switch profile {
-        case .emptyLibrary:
+        case .emptyLibrary, .pairedEmptyLibrary:
             return expectation(catalogue: 0)
         case .populatedCurationReorder:
             return expectation(
@@ -185,12 +237,34 @@ final class DeterministicProfileFixture {
                 pinned: [Self.storageAssetID],
                 cached: 1
             )
+        case .biosAcceptance:
+            return expectation(
+                catalogue: 1,
+                pinned: [Self.storageAssetID],
+                cached: 1
+            )
+        case .biosNoReference:
+            return expectation(
+                catalogue: 1,
+                pinned: [Self.storageAssetID],
+                cached: 1
+            )
+        case .controllerRecovery:
+            return expectation(catalogue: 1, cached: 1)
         case .saveRestorable:
             return expectation(catalogue: 1, cached: 1)
         case .saveOnlyCopy:
             return expectation(catalogue: 1, cached: 1)
         case .saveDiverged:
             return expectation(catalogue: 1, cached: 1)
+        case .gbcUnsupportedHeader, .gbcCorruptHeaderLongName, .unknownSystem:
+            return expectation(catalogue: 1, cached: 1)
+        case .gbcMissingReadinessEvidence:
+            return expectation(catalogue: 1, cached: 0)
+        case .gbMBC1Qualified, .gbcMBC5Qualified, .gbcMBC3RTCQualified, .gbcMBC3RTCQueuedOffline, .gbcIncompatibleRestore:
+            return expectation(catalogue: 1, cached: 1)
+        case .gbcDownloadProgress:
+            return expectation(catalogue: 1, queue: 1, queueStates: [.waiting], cached: 0)
         }
     }
 
@@ -245,6 +319,15 @@ final class DeterministicProfileFixture {
             throw DeterministicProfileError.stateMismatch("\(profile.rawValue): expected \(expected), got \(actual)")
         }
 
+        if profile == .controllerRecovery {
+            let recent = curationStore.fetchRecent()
+            guard recent.count == 1,
+                  recent.first?.assetSetID == "00000000-0000-7000-8000-000000000094",
+                  recent.first?.lastPlayedAt == "2026-10-10T12:00:00Z" else {
+                throw DeterministicProfileError.stateMismatch("controller recovery profile must contain its fixed recent game row")
+            }
+        }
+
         let fileManager = FileManager.default
         guard fileManager.fileExists(atPath: paths.databaseURL.path),
               [paths.objects, paths.partials, paths.launch, paths.emulators, paths.bios]
@@ -273,13 +356,30 @@ final class DeterministicProfileFixture {
         }
     }
 
-    /// A persisted profile intentionally differs from its seed after a
-    /// reorder. Reopen validation therefore pins the invariant inventory
-    /// and content identities while allowing only order/outbox state to
-    /// carry across the process boundary.
+    /// SwiftUI may construct a session-backed root more than once during one
+    /// test launch. Reopen validation pins exact state for immutable profiles;
+    /// the curation profile separately allows its intended reorder to persist.
     func assertPersistentSessionState() throws {
+        if profile == .biosAcceptance || profile == .gbcIncompatibleRestore {
+            try assertExactState()
+            return
+        }
+        if profile == .controllerRecovery {
+            let entries = catalogueStore.fetchAll()
+            let rom = entries.first?.members.first(where: { $0.role == "rom" })
+            guard entries.count == 1,
+                  entries.first?.id == "00000000-0000-7000-8000-000000000094",
+                  rom?.size == 0,
+                  curationStore.fetchRecent().count == 1,
+                  curationStore.fetchRecent().first?.assetSetID == "00000000-0000-7000-8000-000000000094",
+                  curationStore.fetchRecent().first?.lastPlayedAt == "2026-10-10T12:00:00Z",
+                  UITestControllerInputSource.descriptor.id == "ui-test-controller" else {
+                throw DeterministicProfileError.stateMismatch("controller recovery profile's fixed synthetic catalogue or descriptor changed across relaunch")
+            }
+            return
+        }
         guard profile == .populatedCurationReorder else {
-            throw DeterministicProfileError.stateMismatch("only the curation profile supports relaunch")
+            throw DeterministicProfileError.stateMismatch("this UI-test profile does not support a persistent session")
         }
         let members = curationStore.fetchCollectionMembers()
         let digests = catalogueStore.fetchAll().flatMap(\.members).compactMap(\.sha256).sorted()
@@ -296,7 +396,7 @@ final class DeterministicProfileFixture {
 
     fileprivate func seed() throws {
         switch profile {
-        case .emptyLibrary:
+        case .emptyLibrary, .pairedEmptyLibrary:
             break
         case .populatedCurationReorder:
             let entries = Self.catalogueEntries(count: 3)
@@ -343,6 +443,34 @@ final class DeterministicProfileFixture {
             try catalogueStore.upsert(entry)
             try seedCachedObject(for: entry, bytes: 32, seed: 73)
             try pinStore.pin(assetSetID: entry.id)
+        case .biosAcceptance, .biosNoReference:
+            let entry = Self.entry(
+                id: Self.storageAssetID,
+                title: "Synthetic BIOS Acceptance Fixture",
+                seed: 73,
+                system: DeterministicProfile.syntheticBIOSSystem
+            )
+            try catalogueStore.upsert(entry)
+            try seedCachedObject(for: entry, bytes: 32, seed: 73)
+            try pinStore.pin(assetSetID: entry.id)
+        case .controllerRecovery:
+            let entry = Self.entry(
+                id: "00000000-0000-7000-8000-000000000094",
+                title: "Synthetic Controller Test",
+                seed: 94,
+                role: "rom",
+                bytes: 0
+            )
+            try catalogueStore.upsert(entry)
+            // A zero-length CAS object has a valid empty-content digest and
+            // lets the production readiness row expose the controller test
+            // route. It contains no ROM payload bytes; the missing adapter
+            // remains the visible readiness blocker.
+            try seedCachedObject(for: entry, bytes: 0, seed: 94)
+            try curationStore.upsertRecent(
+                assetSetID: entry.id,
+                lastPlayedAt: "2026-10-10T12:00:00Z"
+            )
         case .saveRestorable:
             // Journey 1 (SAVE-03): the ROM is cached (so readiness's
             // asset/cache checks are `.ready`) and the save directory
@@ -354,7 +482,9 @@ final class DeterministicProfileFixture {
             // `LaunchSavePlanner`/`SavePlanExecutor` rather than
             // stopping at the "adapter not installed" readiness check
             // first, which would prove nothing about SAVE-03.
-            let entry = Self.entry(id: Self.saveRestorableAssetID, title: "Synthetic Save Restore", seed: 91)
+            let entry = Self.entry(
+                id: Self.saveRestorableAssetID, title: "Synthetic Save Restore", seed: 91, system: "gba", role: "rom"
+            )
             try catalogueStore.upsert(entry)
             try seedCachedObject(for: entry, bytes: 32, seed: 91)
             let contentKey = try requiredDigest(of: entry)
@@ -387,7 +517,9 @@ final class DeterministicProfileFixture {
             // Journey 2 (D-40): a cached, evictable game whose one
             // committed revision is `localOnly` -- reclaiming it through
             // the real Storage surface must raise the interruptive modal.
-            let entry = Self.entry(id: Self.saveOnlyCopyAssetID, title: "Synthetic Only Copy Game", seed: 92)
+            let entry = Self.entry(
+                id: Self.saveOnlyCopyAssetID, title: "Synthetic Only Copy Game", seed: 92, system: "gba", role: "rom"
+            )
             try catalogueStore.upsert(entry)
             try seedCachedObject(for: entry, bytes: 32, seed: 92)
             let contentKey = try requiredDigest(of: entry)
@@ -419,7 +551,9 @@ final class DeterministicProfileFixture {
             // Journeys 3 and 4 (D-38/D-37): two undisposed heads on the
             // same line -- a genuine, unacknowledged fork. Neither head
             // is a parent of the other, so both remain current heads.
-            let entry = Self.entry(id: Self.saveDivergedAssetID, title: "Synthetic Diverged Game", seed: 93)
+            let entry = Self.entry(
+                id: Self.saveDivergedAssetID, title: "Synthetic Diverged Game", seed: 93, system: "gba", role: "rom"
+            )
             try catalogueStore.upsert(entry)
             try seedCachedObject(for: entry, bytes: 32, seed: 93)
             let contentKey = try requiredDigest(of: entry)
@@ -449,6 +583,121 @@ final class DeterministicProfileFixture {
                     localPath: nil
                 ))
             }
+        case .unknownSystem:
+            let entry = Self.entry(
+                id: "00000000-0000-7000-8000-000000000100",
+                title: "Synthetic Unknown System", seed: 100, system: "nes", role: "rom", bytes: 32
+            )
+            try catalogueStore.upsert(entry)
+            try seedCachedObject(for: entry, bytes: 32, seed: 100)
+            try installFakeAdapter()
+        case .gbcMissingReadinessEvidence:
+            try catalogueStore.upsert(CatalogueEntry(
+                id: "00000000-0000-7000-8000-000000000102",
+                system: "gbc", displayTitle: "Synthetic Missing Cartridge Evidence",
+                tags: ["fixture": "deterministic"], members: []
+            ))
+            try installFakeAdapter()
+        case .gbcUnsupportedHeader, .gbcCorruptHeaderLongName:
+            var rom = Data(repeating: 0, count: 32_768)
+            rom[0x143] = 0xC0
+            rom[0x147] = 0x1A
+            rom[0x149] = 0x03
+            if profile == .gbcUnsupportedHeader {
+                rom[0x14D] = (0x134...0x14C).reduce(UInt8(0)) { sum, offset in
+                    sum &- rom[offset] &- 1
+                }
+            }
+            let fileName = profile == .gbcCorruptHeaderLongName
+                ? String(repeating: "u", count: 235) + ".gbc"
+                : "synthetic-unsupported.gbc"
+            let digest = Self.digest(of: rom)
+            let entry = CatalogueEntry(
+                id: "00000000-0000-7000-8000-000000000096",
+                system: "gbc",
+                displayTitle: profile == .gbcCorruptHeaderLongName
+                    ? "Synthetic Corrupt Color Cartridge" : "Synthetic Unsupported Color Cartridge",
+                tags: ["fixture": "deterministic"],
+                members: [AssetMember(
+                    ordinal: 0, role: "primary", required: true,
+                    sha256: digest, size: rom.count, name: fileName
+                )]
+            )
+            try catalogueStore.upsert(entry)
+            try seedCachedObject(for: entry, bytes: rom)
+            try installFakeAdapter()
+        case .gbMBC1Qualified:
+            try seedQualifiedCartridge(
+                id: "00000000-0000-7000-8000-000000000097", system: "gb", title: String(repeating: "X", count: 4_096),
+                cgbFlag: 0x00, cartridgeType: 0x03, ramSizeCode: 0x02, name: "qualified-mbc1.gb"
+            )
+        case .gbcMBC5Qualified:
+            try seedQualifiedCartridge(
+                id: "00000000-0000-7000-8000-000000000098", system: "gbc", title: "Synthetic Qualified MBC5",
+                cgbFlag: 0xC0, cartridgeType: 0x1B, ramSizeCode: 0x03, name: "qualified-mbc5.gbc"
+            )
+        case .gbcMBC3RTCQualified:
+            let digest = try seedQualifiedCartridge(
+                id: "00000000-0000-7000-8000-000000000099", system: "gbc", title: "Synthetic Qualified MBC3 RTC",
+                cgbFlag: 0xC0, cartridgeType: 0x10, ramSizeCode: 0x03, name: "qualified-mbc3-rtc.gbc"
+            )
+            try seedQualifiedRTCRevision(contentKey: digest)
+        case .gbcMBC3RTCQueuedOffline:
+            let digest = try seedQualifiedCartridge(
+                id: "00000000-0000-7000-8000-000000000103", system: "gbc",
+                title: "Synthetic Offline Pending RTC " + String(repeating: "Long Title ", count: 24),
+                cgbFlag: 0xC0, cartridgeType: 0x10, ramSizeCode: 0x03, name: "offline-pending-rtc.gbc"
+            )
+            try seedQualifiedRTCRevision(
+                contentKey: digest, durability: .queued,
+                originDeviceID: String(repeating: "Remote Device ", count: 40)
+            )
+        case .gbcIncompatibleRestore:
+            let assetID = "00000000-0000-7000-8000-000000000104"
+            let digest = try seedQualifiedCartridge(
+                id: assetID, system: "gbc", title: "Synthetic Incompatible Save Layout",
+                cgbFlag: 0xC0, cartridgeType: 0x10, ramSizeCode: 0x03, name: "qualified-mbc3-rtc.gbc"
+            )
+            guard let declaration = CartridgeQualification.supportedDeclarations.first(where: { $0.cartridgeID == "mbc5" }) else {
+                throw DeterministicProfileError.stateMismatch("MBC5 declaration is missing")
+            }
+            let incompatibleBytes = Data(repeating: 0x6B, count: declaration.artifactBytes)
+            let incompatibleDigest = Self.digest(of: incompatibleBytes)
+            try commitBlob(incompatibleBytes, digest: incompatibleDigest)
+            let line = try saveStore.resolveLine(
+                contentKey: digest, saveKind: "battery", slot: "0", placeholderID: "line-incompatible-layout"
+            )
+            try saveStore.insertRevision(SaveRevisionRow(
+                id: "rev-incompatible-mbc5", saveLineID: line.id, parentRevisionID: nil,
+                blobSHA256: incompatibleDigest, sizeBytes: incompatibleBytes.count,
+                originDeviceID: "another-mac", deviceCapturedAt: nil, recordedAt: Self.timestampString,
+                captureMethod: "poller", adapterID: "mgba", adapterVersion: "0.10.5",
+                saveFormat: declaration.saveFormat, formatConfidence: "exact", playSessionID: nil,
+                durability: SaveDurability.uploaded.rawValue, localPath: nil
+            ))
+            let targetURL = SaveCapturePaths.targetURL(
+                saveDirectory: paths.root.appendingPathComponent("saves", isDirectory: true)
+                    .appendingPathComponent(assetID, isDirectory: true),
+                romFileName: "qualified-mbc3-rtc.gbc"
+            )
+            try FileManager.default.createDirectory(at: targetURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(repeating: 0x2D, count: CartridgeQualification.mbc3RTCDeclaration.artifactBytes).write(to: targetURL)
+        case .gbcDownloadProgress:
+            let entry = CatalogueEntry(
+                id: UITestDownloadFixture.assetID,
+                system: "gbc",
+                displayTitle: "Synthetic Download Progress",
+                tags: ["fixture": "deterministic"],
+                members: [AssetMember(
+                    ordinal: 0, role: "primary", required: true,
+                    sha256: UITestDownloadFixture.sha256,
+                    size: UITestDownloadFixture.bytes.count,
+                    name: "synthetic-progress.gbc"
+                )]
+            )
+            try catalogueStore.upsert(entry)
+            try downloadQueue.enqueueGame(entry)
+            try installFakeAdapter()
         }
     }
 
@@ -526,12 +775,15 @@ final class DeterministicProfileFixture {
     }
 
     private func seedCachedObject(for entry: CatalogueEntry, bytes: Int, seed: UInt8) throws {
+        try seedCachedObject(for: entry, bytes: Data(repeating: seed, count: bytes))
+    }
+
+    private func seedCachedObject(for entry: CatalogueEntry, bytes: Data) throws {
         guard let digest = entry.members.first?.sha256 else {
             throw DeterministicProfileError.stateMismatch("cached fixture is missing its digest")
         }
-        let data = Data(repeating: seed, count: bytes)
         let partial = try paths.partialURL(for: digest)
-        try data.write(to: partial, options: .atomic)
+        try bytes.write(to: partial, options: .atomic)
         let cas = CASManager(paths: paths)
         try cas.commit(partialAt: partial, sha256: digest)
         guard let verify = cas.verifyRecord(for: digest) else {
@@ -544,10 +796,70 @@ final class DeterministicProfileFixture {
             VALUES (?, ?, ?, ?, ?, ?, ?);
             """,
             params: [
-                digest, bytes, Self.timestampString, Self.timestampString,
+                digest, bytes.count, Self.timestampString, Self.timestampString,
                 verify.size, Int(verify.inode), Int(verify.mtime * 1_000)
             ]
         )
+    }
+
+    @discardableResult
+    private func seedQualifiedCartridge(
+        id: String,
+        system: String,
+        title: String,
+        cgbFlag: UInt8,
+        cartridgeType: UInt8,
+        ramSizeCode: UInt8,
+        name: String
+    ) throws -> String {
+        var rom = Data(repeating: 0, count: 32_768)
+        rom[0x143] = cgbFlag
+        rom[0x147] = cartridgeType
+        rom[0x149] = ramSizeCode
+        rom[0x14D] = (0x134...0x14C).reduce(UInt8(0)) { sum, offset in
+            sum &- rom[offset] &- 1
+        }
+        let entry = CatalogueEntry(
+            id: id,
+            system: system,
+            displayTitle: title,
+            tags: ["fixture": "deterministic"],
+            members: [AssetMember(
+                ordinal: 0, role: "primary", required: true,
+                sha256: Self.digest(of: rom), size: rom.count, name: name
+            )]
+        )
+        try catalogueStore.upsert(entry)
+        try seedCachedObject(for: entry, bytes: rom)
+        try installFakeAdapter()
+        return try requiredDigest(of: entry)
+    }
+
+    private func seedQualifiedRTCRevision(
+        contentKey: String,
+        durability: SaveDurability = .uploaded,
+        originDeviceID: String = "another-mac"
+    ) throws {
+        let declaration = CartridgeQualification.supportedDeclarations.first {
+            $0.cartridgeID == "mbc3-rtc"
+        }
+        guard let declaration, declaration.artifactBytes == 32_816 else {
+            throw DeterministicProfileError.stateMismatch("MBC3 RTC fixture declaration changed")
+        }
+        let bytes = Data(repeating: 0x5A, count: declaration.artifactBytes)
+        let digest = Self.digest(of: bytes)
+        try commitBlob(bytes, digest: digest)
+        let line = try saveStore.resolveLine(
+            contentKey: contentKey, saveKind: "battery", slot: "0", placeholderID: "line-gbc-mbc3-rtc"
+        )
+        try saveStore.insertRevision(SaveRevisionRow(
+            id: "rev-gbc-mbc3-rtc-complete", saveLineID: line.id, parentRevisionID: nil,
+            blobSHA256: digest, sizeBytes: bytes.count, originDeviceID: originDeviceID,
+            deviceCapturedAt: nil, recordedAt: Self.timestampString, captureMethod: "poller",
+            adapterID: "mgba", adapterVersion: "0.10.5", saveFormat: declaration.saveFormat,
+            formatConfidence: "exact", playSessionID: nil, durability: durability.rawValue,
+            localPath: nil
+        ))
     }
 
     private func scalarCount(_ sql: String) -> Int {
@@ -602,18 +914,25 @@ final class DeterministicProfileFixture {
         ) }
     }
 
-    private static func entry(id: String, title: String, seed: UInt8) -> CatalogueEntry {
-        let data = Data(repeating: seed, count: 32)
+    private static func entry(
+        id: String,
+        title: String,
+        seed: UInt8,
+        system: String = "synthetic-system",
+        role: String = "fixture",
+        bytes: Int = 32
+    ) -> CatalogueEntry {
+        let data = Data(repeating: seed, count: bytes)
         let digest = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
         return CatalogueEntry(
             id: id,
-            system: "synthetic-system",
+            system: system,
             displayTitle: title,
             tags: ["fixture": "deterministic"],
             members: [
                 AssetMember(
                     ordinal: 0,
-                    role: "fixture",
+                    role: role,
                     required: true,
                     sha256: digest,
                     size: data.count,

@@ -56,10 +56,10 @@ struct BiosDropTargetView: View {
 
     var body: some View {
         VStack(spacing: DesignTokens.Spacing.sm) {
-            Text("Drop your BIOS file here to validate it.")
+            Text("Drop a BIOS file here, or choose one to validate it.")
                 .font(.psBody)
                 .foregroundColor(DesignTokens.textPrimary)
-            Button("Choose File…") {
+            Button("Choose BIOS…") {
                 if let url = chooseFile() {
                     result = target.handle(droppedFileURL: url)
                 }
@@ -70,12 +70,12 @@ struct BiosDropTargetView: View {
         }
         .padding(DesignTokens.Spacing.lg)
         .background(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.standard)
                 .strokeBorder(isTargeted ? DesignTokens.focusRing : DesignTokens.border, lineWidth: isTargeted ? 2 : 1)
         )
         .onDrop(of: [UTType.fileURL], isTargeted: $isTargeted, perform: handleProviders)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("BIOS settings")
+        .accessibilityLabel("Add a BIOS file")
         .accessibilityIdentifier(AccessibilityIdentifiers.Surface.bios)
     }
 

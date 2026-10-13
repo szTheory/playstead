@@ -5,6 +5,37 @@ import XCTest
 /// compatibility gate, and the additive `AdapterSaveContract` fields
 /// decoding safely against an older pin.
 final class SaveCompatibilityGateTests: XCTestCase {
+    func testDisplayedDiagnosticIsLiteralAndBoundedTo256Characters() {
+        let hostile = String(repeating: "[evil](https://invalid.example)🔥\n", count: 100)
+        let displayed = ReadinessReportView.boundedDiagnostic(hostile)
+
+        XCTAssertEqual(displayed.count, 256)
+        XCTAssertTrue(displayed.hasSuffix("…"))
+        XCTAssertEqual(String(displayed.dropLast()), String(hostile.prefix(255)))
+    }
+
+    func testHistoryDeviceSubjectIsLiteralAndBounded() {
+        let value = String(repeating: "Remote [device](https://invalid.example) 🕹️\n", count: 20)
+        let shown = SaveHistorySheet.boundedSubject(value)
+        XCTAssertEqual(shown.count, 120)
+        XCTAssertTrue(shown.hasSuffix("…"))
+        XCTAssertEqual(String(shown.dropLast()), String(value.prefix(119)))
+    }
+
+    @MainActor
+    func testRowActionGateStartsOnlyOneConcurrentOperation() {
+        let gate = GameRowActionGate()
+        var submittedOperations = 0
+
+        if gate.begin() { submittedOperations += 1 }
+        if gate.begin() { submittedOperations += 1 }
+
+        XCTAssertEqual(submittedOperations, 1)
+        XCTAssertTrue(gate.isInFlight)
+        gate.finish()
+        XCTAssertTrue(gate.begin(), "a completed operation may be retried")
+        XCTAssertEqual(submittedOperations, 1, "the duplicate attempt did not reach the operation counter")
+    }
 
     // MARK: - Fixtures
 
@@ -25,11 +56,14 @@ final class SaveCompatibilityGateTests: XCTestCase {
         romSHA256: String = "rom-a",
         titleIdentity: SaveTitleIdentity? = nil,
         origin: String = "emulated",
-        provenance: SaveProvenance = SaveCompatibilityGateTests.provenance
+        provenance: SaveProvenance = SaveCompatibilityGateTests.provenance,
+        saveFormat: String? = nil,
+        formatConfidence: String? = nil
     ) -> SaveBinding {
         SaveBinding(
             systemID: systemID, saveKind: saveKind, mediumID: mediumID, artifactBytes: artifactBytes,
-            romSHA256: romSHA256, titleIdentity: titleIdentity, origin: origin, provenance: provenance
+            romSHA256: romSHA256, titleIdentity: titleIdentity, origin: origin, provenance: provenance,
+            saveFormat: saveFormat, formatConfidence: formatConfidence
         )
     }
 
@@ -186,6 +220,49 @@ final class SaveCompatibilityGateTests: XCTestCase {
         _ = try gate().evaluate(candidate: binding(), target: binding())
 
         XCTAssertEqual(FailOnAnyRequestURLProtocol.requestCount, 0)
+    }
+
+    func testQualifiedMediumAndWrongBindingsRejectBeforeWrite() throws {
+        let format = CartridgeQualification.mbc1Declaration.saveFormat
+        let declaredFormats: Set<String> = [format]
+        let gate = SaveCompatibilityGate(saveContract: try loadShippedContract(), declaredSaveFormats: declaredFormats)
+        let exact = binding(
+            systemID: "gb", mediumID: "gb_sram_8k", artifactBytes: 8_192,
+            romSHA256: "same-rom", saveFormat: format, formatConfidence: "exact"
+        )
+        XCTAssertEqual(try gate.evaluate(candidate: exact, target: exact), .exact)
+
+        // Equal size and two agreeing candidate claims still cannot promote
+        // a GBA-only medium into an authorized GB target.
+        let undeclaredMedium = binding(
+            systemID: "gb", mediumID: "eeprom_8k", artifactBytes: 8_192,
+            romSHA256: "same-rom", saveFormat: format, formatConfidence: "exact"
+        )
+        guard case .incompatible = try gate.evaluate(candidate: undeclaredMedium, target: undeclaredMedium) else {
+            return XCTFail("matching but undeclared medium must be rejected before any target write")
+        }
+
+        let wrongFormat = binding(
+            systemID: "gb", mediumID: "gb_sram_8k", artifactBytes: 8_192,
+            romSHA256: "same-rom", saveFormat: "mgba-0.10.5-gba-eeprom-8k", formatConfidence: "exact"
+        )
+        guard case .incompatible = try gate.evaluate(candidate: wrongFormat, target: exact) else {
+            return XCTFail("a mismatched source format must be rejected before any target write")
+        }
+    }
+
+    func testQualifiedFormatConfidenceRemainsProvenanceOnly() throws {
+        let declaration = CartridgeQualification.mbc5Declaration
+        let source = binding(
+            systemID: declaration.systemID, mediumID: declaration.mediumID, artifactBytes: declaration.artifactBytes,
+            saveFormat: declaration.saveFormat, formatConfidence: "reported"
+        )
+        let target = binding(
+            systemID: declaration.systemID, mediumID: declaration.mediumID, artifactBytes: declaration.artifactBytes,
+            saveFormat: declaration.saveFormat, formatConfidence: "exact"
+        )
+
+        XCTAssertEqual(try gate().evaluate(candidate: source, target: target), .exact)
     }
 }
 

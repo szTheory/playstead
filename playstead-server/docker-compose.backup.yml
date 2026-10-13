@@ -1,0 +1,11 @@
+# Opt-in recovery override. The host path is intentionally required: this
+# mount must be selected by an operator as an independent destination, never
+# derived from the repository or a canonical named volume.
+services:
+  app:
+    environment:
+      PLAYSTEAD_BACKUP_DESTINATION: /app/backups
+    volumes:
+      - type: bind
+        source: ${PLAYSTEAD_BACKUP_HOST_PATH:?PLAYSTEAD_BACKUP_HOST_PATH must name an existing independent backup directory}
+        target: /app/backups

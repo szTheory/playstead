@@ -17,6 +17,38 @@ struct LaunchSaveContextBuilder {
     /// strictness when unknown" posture.
     let saveContract: AdapterSaveContract?
     let systemID: String
+    let targetROMURL: URL?
+    let targetROMExpectedSHA256: String?
+    let declaredCartridges: [CartridgeSupportDeclaration]
+
+    init(
+        saveStore: SaveStore,
+        casManager: CASManager,
+        saveContract: AdapterSaveContract?,
+        systemID: String,
+        targetROMURL: URL? = nil,
+        targetROMExpectedSHA256: String? = nil,
+        declaredCartridges: [CartridgeSupportDeclaration] = []
+    ) {
+        self.saveStore = saveStore
+        self.casManager = casManager
+        self.saveContract = saveContract
+        self.systemID = systemID
+        self.targetROMURL = targetROMURL
+        self.targetROMExpectedSHA256 = targetROMExpectedSHA256
+        self.declaredCartridges = declaredCartridges
+    }
+
+    /// Reduces a save-lane failure to the only value a launch/recovery report
+    /// may carry. The report cannot learn anything about the launched game or
+    /// save because this method accepts only already-reduced evidence.
+    static func handoffEvidence(from evidence: EligibleDiagnosticEvidence?) -> EligibleDiagnosticEvidence? {
+        evidence
+    }
+
+    static func handoffEvidence(for problem: APIError) -> EligibleDiagnosticEvidence? {
+        handoffEvidence(from: EligibleDiagnosticEvidence(problem: problem))
+    }
 
     /// `contentKey` is the ROM's own sha256 — the server's
     /// `content_key` identity (D-10), never `assetSetID`, so a future
@@ -82,6 +114,9 @@ struct LaunchSaveContextBuilder {
         for head: SaveRevisionRow, contentKey: String, saveKind: String
     ) -> SaveCompatibilityGate.Verdict? {
         guard let saveContract else { return nil }
+        if systemID == "gb" || systemID == "gbc" {
+            return gameBoyCompatibilityVerdict(for: head, contentKey: contentKey, saveKind: saveKind, contract: saveContract)
+        }
         let mediumID = Self.mediumID(forArtifactBytes: head.sizeBytes, contract: saveContract)
         let provenance = SaveProvenance(
             emulator: head.adapterID ?? "",
@@ -103,6 +138,67 @@ struct LaunchSaveContextBuilder {
         )
         let gate = SaveCompatibilityGate(saveContract: saveContract)
         return gate.evaluate(candidate: binding, target: binding)
+    }
+
+    private func gameBoyCompatibilityVerdict(
+        for head: SaveRevisionRow,
+        contentKey: String,
+        saveKind: String,
+        contract: AdapterSaveContract
+    ) -> SaveCompatibilityGate.Verdict {
+        guard let targetROMURL, let targetROMExpectedSHA256,
+              let targetCartridge = try? CartridgeQualification.qualify(
+                romURL: targetROMURL, expectedSHA256: targetROMExpectedSHA256
+              ),
+              declaredCartridges.contains(where: { declaration in
+                  declaration.systemID == targetCartridge.systemID &&
+                      declaration.cartridgeID == targetCartridge.cartridgeID &&
+                      declaration.mediumID == targetCartridge.mediumID &&
+                      declaration.artifactBytes == targetCartridge.artifactBytes &&
+                      declaration.saveFormat == targetCartridge.saveFormat
+              }) else {
+            return .incompatible(reason: "target_cartridge_unqualified")
+        }
+
+        let declaredFormats = Set(declaredCartridges.map(\.saveFormat))
+        let candidateDeclaration = declaredCartridges.first { declaration in
+            declaration.systemID == systemID && declaration.saveFormat == head.saveFormat &&
+                declaration.artifactBytes == head.sizeBytes
+        }
+        let provenance = SaveProvenance(
+            emulator: head.adapterID ?? "",
+            emulatorVersion: head.adapterVersion ?? "",
+            coreVersion: nil,
+            adapterPinSHA256: "",
+            capturedAt: head.recordedAt ?? "",
+            deviceID: head.originDeviceID ?? ""
+        )
+        let candidate = SaveBinding(
+            systemID: systemID,
+            saveKind: saveKind,
+            mediumID: candidateDeclaration?.mediumID,
+            artifactBytes: head.sizeBytes,
+            romSHA256: contentKey,
+            titleIdentity: nil,
+            origin: "emulated",
+            provenance: provenance,
+            saveFormat: head.saveFormat,
+            formatConfidence: head.formatConfidence
+        )
+        let target = SaveBinding(
+            systemID: targetCartridge.systemID,
+            saveKind: saveKind,
+            mediumID: targetCartridge.mediumID,
+            artifactBytes: targetCartridge.artifactBytes,
+            romSHA256: targetCartridge.romSHA256,
+            titleIdentity: nil,
+            origin: "emulated",
+            provenance: provenance,
+            saveFormat: targetCartridge.saveFormat,
+            formatConfidence: "exact"
+        )
+        let gate = SaveCompatibilityGate(saveContract: contract, declaredSaveFormats: declaredFormats)
+        return gate.evaluate(candidate: candidate, target: target)
     }
 
     private static func mediumID(forArtifactBytes bytes: Int, contract: AdapterSaveContract) -> String? {

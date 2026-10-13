@@ -201,27 +201,27 @@ defmodule PlaysteadWeb.CollectionsLive do
   @impl true
   def render(%{live_action: :show} = assigns) do
     ~H"""
-    <div class="min-h-screen bg-[#0F172A] px-8 py-12 font-sans">
+    <div class="min-h-screen bg-app-canvas px-8 py-12 font-sans">
       <Layouts.flash_group flash={@flash} />
       <div class="mx-auto max-w-3xl space-y-6">
-        <.link navigate={~p"/library/collections"} class="text-sm text-[#94A3B8] hover:text-[#F1F5F9]">
+        <.link navigate={~p"/library/collections"} class="text-sm text-app-muted hover:text-app-text">
           &larr; Back to collections
         </.link>
 
-        <div :if={@collection_not_found} id="collection-not-found" class="text-base text-[#F1F5F9]">
+        <div :if={@collection_not_found} id="collection-not-found" class="text-base text-app-text">
           Not found
         </div>
 
         <div :if={@collection} id={"collection-#{@collection.id}"}>
-          <h1 class="text-display font-semibold text-[#F1F5F9]">{@collection.name}</h1>
+          <h1 class="text-display font-semibold text-app-text">{@collection.name}</h1>
 
           <div id="collection-members" class="mt-6 space-y-2">
             <div
               :for={member <- @members}
               id={"collection-member-#{member.asset_set_id}"}
-              class="flex items-center justify-between rounded-lg border border-[#334155] bg-[#1E293B] p-3"
+              class="flex items-center justify-between rounded-lg border border-app-border bg-app-surface p-3"
             >
-              <span class="text-sm text-[#F1F5F9]">
+              <span class="text-sm text-app-text">
                 {member_title(member, @assets_by_id)}
               </span>
               <div class="flex items-center gap-2">
@@ -233,7 +233,7 @@ defmodule PlaysteadWeb.CollectionsLive do
                   phx-value-asset-set-id={member.asset_set_id}
                   phx-value-direction="up"
                   aria-label={"Move #{member_title(member, @assets_by_id)} up"}
-                  class="text-sm text-[#94A3B8] hover:text-[#F1F5F9]"
+                  class="text-sm text-app-muted hover:text-app-text"
                 >
                   Move up
                 </button>
@@ -245,7 +245,7 @@ defmodule PlaysteadWeb.CollectionsLive do
                   phx-value-asset-set-id={member.asset_set_id}
                   phx-value-direction="down"
                   aria-label={"Move #{member_title(member, @assets_by_id)} down"}
-                  class="text-sm text-[#94A3B8] hover:text-[#F1F5F9]"
+                  class="text-sm text-app-muted hover:text-app-text"
                 >
                   Move down
                 </button>
@@ -256,7 +256,7 @@ defmodule PlaysteadWeb.CollectionsLive do
                   phx-value-collection-id={@collection.id}
                   phx-value-asset-set-id={member.asset_set_id}
                   aria-label={"Remove #{member_title(member, @assets_by_id)} from collection"}
-                  class="text-sm font-semibold text-[#F1F5F9] hover:underline"
+                  class="text-sm font-semibold text-app-text hover:underline"
                 >
                   Remove
                 </button>
@@ -265,7 +265,7 @@ defmodule PlaysteadWeb.CollectionsLive do
           </div>
 
           <div :if={@available_assets != []} id="collection-add-member" class="mt-6">
-            <h2 class="text-heading font-semibold text-[#F1F5F9]">Add a game</h2>
+            <h2 class="text-heading font-semibold text-app-text">Add a game</h2>
             <div class="mt-2 space-y-2">
               <button
                 :for={%{asset_set: set} <- @available_assets}
@@ -274,7 +274,7 @@ defmodule PlaysteadWeb.CollectionsLive do
                 phx-click="add-collection-member"
                 phx-value-collection-id={@collection.id}
                 phx-value-asset-set-id={set.id}
-                class="block text-sm text-[#F1F5F9] hover:underline"
+                class="block text-sm text-app-text hover:underline"
               >
                 {set.display_title}
               </button>
@@ -288,14 +288,14 @@ defmodule PlaysteadWeb.CollectionsLive do
 
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen bg-[#0F172A] px-8 py-12 font-sans">
+    <div class="min-h-screen bg-app-canvas px-8 py-12 font-sans">
       <Layouts.flash_group flash={@flash} />
       <div class="mx-auto max-w-3xl space-y-6">
-        <.link navigate={~p"/library"} class="text-sm text-[#94A3B8] hover:text-[#F1F5F9]">
+        <.link navigate={~p"/library"} class="text-sm text-app-muted hover:text-app-text">
           &larr; Back to library
         </.link>
 
-        <h1 class="text-display font-semibold text-[#F1F5F9]">Collections</h1>
+        <h1 class="text-display font-semibold text-app-text">Collections</h1>
 
         <form id="create-collection-form" phx-submit="create-collection" class="flex gap-2">
           <input
@@ -303,12 +303,12 @@ defmodule PlaysteadWeb.CollectionsLive do
             name="name"
             id="create-collection-name"
             aria-label="Collection name"
-            class="rounded-lg border border-[#334155] bg-[#1E293B] px-3 py-2 text-sm text-[#F1F5F9]"
+            class="rounded-lg border border-app-border bg-app-surface px-3 py-2 text-sm text-app-text"
           />
           <button
             type="submit"
             id="create-collection-submit"
-            class="rounded-lg bg-[#38BDF8] px-3 py-2 text-sm font-semibold text-[#0F172A]"
+            class="rounded-lg bg-app-accent px-3 py-2 text-sm font-semibold text-app-canvas"
           >
             Create Collection
           </button>
@@ -317,20 +317,20 @@ defmodule PlaysteadWeb.CollectionsLive do
         <div
           :if={@collections == []}
           id="collections-empty"
-          class="rounded-lg border border-[#334155] bg-[#1E293B] p-6"
+          class="rounded-lg border border-app-border bg-app-surface p-6"
         >
-          <p class="text-base text-[#94A3B8]">Create a collection to group games your way.</p>
+          <p class="text-base text-app-muted">Create a collection to group games your way.</p>
         </div>
 
         <div :if={@collections != []} id="collections-list" class="space-y-3">
           <div
             :for={collection <- @collections}
             id={"collection-row-#{collection.id}"}
-            class="rounded-lg border border-[#334155] bg-[#1E293B] p-4"
+            class="rounded-lg border border-app-border bg-app-surface p-4"
           >
             <.link
               navigate={~p"/library/collections/#{collection.id}"}
-              class="text-base font-semibold text-[#F1F5F9] hover:underline"
+              class="text-base font-semibold text-app-text hover:underline"
             >
               {collection.name}
             </.link>
@@ -347,12 +347,12 @@ defmodule PlaysteadWeb.CollectionsLive do
                 id={"rename-collection-name-#{collection.id}"}
                 value={collection.name}
                 aria-label={"Rename #{collection.name}"}
-                class="rounded-lg border border-[#334155] bg-[#1E293B] px-2 py-1 text-sm text-[#F1F5F9]"
+                class="rounded-lg border border-app-border bg-app-surface px-2 py-1 text-sm text-app-text"
               />
               <button
                 type="submit"
                 id={"rename-collection-submit-#{collection.id}"}
-                class="text-sm font-semibold text-[#F1F5F9] hover:underline"
+                class="text-sm font-semibold text-app-text hover:underline"
               >
                 Rename
               </button>
@@ -366,7 +366,7 @@ defmodule PlaysteadWeb.CollectionsLive do
               data-confirm={
                 "Delete \"#{collection.name}\"? This removes the collection and its order. The games themselves stay in your library and on your server."
               }
-              class="mt-2 text-sm font-semibold text-[#EF4444] hover:underline"
+              class="mt-2 text-sm font-semibold text-app-danger hover:underline"
             >
               Delete
             </button>

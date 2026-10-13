@@ -1,4 +1,5 @@
 import XCTest
+import CoreFoundation
 
 /// Plan 04-13 task 1: the strict zero-network Play flow assertion.
 /// Deliberately stricter than the shipped blob-only precedent -- this
@@ -47,20 +48,56 @@ final class ZeroNetworkPlayFlowTests: XCTestCase {
         }
         XCTAssertTrue(FileManager.default.fileExists(atPath: resultURL.path), "zero-network-play-flow result was never written within 60s")
 
-        let resultData = try Data(contentsOf: resultURL)
-        let result = try JSONDecoder().decode(ZeroNetworkPlayFlowResult.self, from: resultData)
+        guard
+            let resultData = try? Data(contentsOf: resultURL),
+            let value = try? JSONSerialization.jsonObject(with: resultData),
+            let result = value as? [String: Any],
+            Set(result.keys) == Set(["recorded_request_count", "failure_stage"])
+        else {
+            XCTFail("zero-network-play-flow result did not match the closed schema")
+            return
+        }
 
-        XCTAssertNil(result.failureReason, "the in-process Play flow must complete without error: \(result.failureReason ?? "")")
-        XCTAssertEqual(result.recordedRequestCount, 0, "the whole Play flow -- plan, execute, spawn, and any task started along the way -- must attempt zero HTTP requests")
+        guard
+            let requestCountNumber = result["recorded_request_count"] as? NSNumber,
+            CFGetTypeID(requestCountNumber) != CFBooleanGetTypeID(),
+            requestCountNumber.doubleValue.isFinite,
+            requestCountNumber.doubleValue >= 0,
+            requestCountNumber.doubleValue.rounded(.towardZero) == requestCountNumber.doubleValue,
+            requestCountNumber.doubleValue <= 1_000_000
+        else {
+            XCTFail("zero-network-play-flow request count was malformed")
+            return
+        }
+        let requestCount = Int(requestCountNumber.doubleValue)
+
+        let failureStage: String?
+        if result["failure_stage"] is NSNull {
+            failureStage = nil
+        } else if let rawStage = result["failure_stage"] as? String,
+                  ZeroNetworkPlayFlowStage(rawValue: rawStage) != nil {
+            failureStage = rawStage
+        } else {
+            XCTFail("zero-network-play-flow failure stage was malformed")
+            return
+        }
+
+        XCTAssertNil(
+            failureStage,
+            failureStage.map { "zero-network-play-flow-stage=\($0)" } ?? "zero-network-play-flow-stage=missing"
+        )
+        XCTAssertEqual(requestCount, 0, "the whole Play flow -- plan, execute, spawn, and any task started along the way -- must attempt zero HTTP requests")
     }
 
-    private struct ZeroNetworkPlayFlowResult: Decodable {
-        let recordedRequestCount: Int
-        let failureReason: String?
-
-        enum CodingKeys: String, CodingKey {
-            case recordedRequestCount = "recorded_request_count"
-            case failureReason = "failure_reason"
-        }
+    private enum ZeroNetworkPlayFlowStage: String, CaseIterable {
+        case unknown
+        case standInInstallation = "stand-in-installation"
+        case adapterSelection = "adapter-selection"
+        case adapterHostAcquisition = "adapter-host-acquisition"
+        case syntheticCASCatalogueReadiness = "synthetic-cas-catalogue-readiness"
+        case materializationSaveSetup = "materialization-save-setup"
+        case adapterLaunch = "adapter-launch"
+        case boundedExit = "bounded-exit"
+        case unexpectedHTTPRequest = "unexpected-http-request"
     }
 }

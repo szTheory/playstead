@@ -13,7 +13,6 @@ tokens = (root / "Playstead/Design/DesignTokens.swift").read_text()
 focus_ring = (root / "Playstead/Design/FocusRing.swift").read_text()
 shell = (root / "Playstead/Library/LibraryShellView.swift").read_text()
 game_row = (root / "Playstead/Library/GameRowView.swift").read_text()
-game_card = (root / "Playstead/Library/GameCardView.swift").read_text()
 status_slot = (root / "Playstead/Library/StatusSlotView.swift").read_text()
 sidebar = (root / "Playstead/Library/SidebarView.swift").read_text()
 adapter = (root / "Playstead/Adapter/AdapterSetupView.swift").read_text()
@@ -26,18 +25,20 @@ tests = (root / "PlaysteadUITests/SurfaceAccessibilityTests.swift").read_text()
 bootstrap = (root / "Playstead/UITesting/UITestBootstrap.swift").read_text()
 profiles = (root / "Playstead/UITesting/DeterministicProfile.swift").read_text()
 app_root = (root / "Playstead/App/PlaysteadApp.swift").read_text()
+install_adapter = app_root[app_root.find("func installAdapter() async -> Bool {"):app_root.find("func selectExistingAdapter(appURL:")]
 docs = (root / "docs/ACCESSIBILITY.md").read_text()
+runner = (root / "scripts/ci/run-mac-verification.sh").read_text()
+navigation_tests = (root / "PlaysteadTests/ControllerTests/ControllerNavigationTests.swift").read_text()
 plan = (root.parent / ".planning/phases/03.5-mac-verification-automation/03.5-05-PLAN.md").read_text()
 
 routes = {
     "playstead.surface.library": shell,
     "playstead.surface.sidebar": sidebar,
-    "playstead.surface.search": shell,
     "playstead.surface.filter": shell,
     "playstead.surface.game-card": shell,
     "playstead.surface.game-list": shell,
     "playstead.surface.readiness": readiness,
-    "playstead.surface.adapter": shell,
+    "playstead.surface.adapter": adapter,
     "playstead.surface.bios": bios,
     "playstead.surface.controller-settings": controller,
 }
@@ -46,7 +47,6 @@ controls = (
     "playstead.control.show-list",
     "playstead.control.open-readiness",
     "playstead.control.open-adapter",
-    "playstead.control.open-bios",
     "playstead.control.open-controller-settings",
 )
 
@@ -72,29 +72,31 @@ granular_coverage = {
     ),
     "testLibraryRouteInventorySettlesOnProductionProfile": (
         "playstead.surface.library", "playstead.surface.sidebar",
-        "playstead.surface.search", "playstead.surface.filter",
-        "playstead.surface.game-card", "library.search.field",
+        "playstead.surface.filter", "playstead.surface.game-card",
+        "validateNativeSearchField()",
     ),
-    "testLibraryFocusSequenceWrapsAndActivatesList": (
-        "exactFocusOrder", "traverseExactFocusSequence", "playstead.surface.game-list",
+    "testLibraryListRadioControlOpensAndArrowKeysSelectRows": (
+        "playstead.control.show-list", "type: .radioButton",
+        "playstead.surface.game-list", ".downArrow",
     ),
-    "testDownloadsSheetOpensAndDismisses": (
-        "playstead.control.open-downloads", "playstead.control.done", "XCTAssertFalse",
+    "testDownloadsSidebarRouteOpensAndReturnsToLibrary": (
+        'selectSidebar("Downloads")', 'selectSidebar("All Games")',
+        "playstead.surface.downloads", "XCTAssertFalse",
     ),
     "testLibrarySemanticTargetsHaveRolesLabelsAndFrames": (
-        "validateSemanticTargets(libraryTargets)", "sanitizedTrace",
+        "validateSemanticTargets(libraryTargets)", "validateNativeSearchField()", "sanitizedTrace",
     ),
     "testContextualOpenersHaveRolesLabelsAndFrames": (
         "validateSemanticTargets(contextualOpenerTargets)",
     ),
-    "testAdapterSheetContainsKeyboardFocus": (
-        "launchAdapterSheet()", "assertSheetFocusContained",
+    "testAdapterSettingsContainsKeyboardFocus": (
+        "launchAdapterSettings()", "assertSheetFocusContained",
     ),
-    "testAdapterSheetDismissesWithEscape": (
-        "launchAdapterSheet()", ".escape", "XCTAssertFalse",
+    "testAdapterSettingsRouteReturnsToStoragePane": (
+        "launchAdapterSettings()", "open-storage", "radioButton", "XCTAssertFalse",
     ),
-    "testAdapterSheetRestoresOpenerFocusAfterEscape": (
-        "launchAdapterSheet()", ".escape", "hasKeyboardFocus",
+    "testAdapterSettingsRouteReturnsToLibrary": (
+        "launchAdapterSettings()", 'selectSidebar("All Games")', "XCTAssertFalse",
     ),
     "testAdapterControlsHaveRolesLabelsAndFrames": (
         "validateSemanticTargets(adapterTargets)",
@@ -102,6 +104,33 @@ granular_coverage = {
     "testReadinessRoutesReachBIOSAndControllerSettings": ("launchReadinessRoutes()",),
     "testReadinessSheetContainsKeyboardFocus": (
         "launchReadinessRoutes()", "assertSheetFocusContained",
+    ),
+    "testReadinessAdapterRemedyOpensBoundedSetupAndReturnsFocus": (
+        'for appearance in ["light", "dark"]',
+        '"PLAYSTEAD_UI_TEST_WINDOW_SIZE": "960x560"',
+        '"PLAYSTEAD_UI_TEST_APPEARANCE": appearance',
+        '"playstead.readiness.row.emulator.remedy"',
+        "harness.focusContainedAction(remedy.identifier, rootIdentifier: readiness.identifier)",
+        "remedy.typeKey(.space, modifierFlags: [])",
+        '"playstead.surface.readiness-adapter-setup"',
+        '"playstead.readiness.adapter.back"',
+        '"playstead.control.install-adapter"',
+        '"playstead.control.choose-adapter"',
+        "for action in [back, install, choose]",
+        "XCTAssertTrue(action.isHittable",
+        "XCTAssertGreaterThan(action.frame.width, 0)",
+        "XCTAssertGreaterThan(action.frame.height, 0)",
+        "XCTAssertTrue(setup.frame.insetBy(dx: -1, dy: -1).contains(action.frame))",
+        "XCTAssertLessThanOrEqual(setup.frame.height, 480)",
+        "harness.assertSheetFocusContained(rootIdentifier: setup.identifier)",
+        'waitForKeyboardFocus(back, stage: "readiness-adapter-initial-focus")',
+        "back.typeKey(.escape, modifierFlags: [])",
+        "XCTAssertFalse(setup.waitForExistence(timeout: 2)",
+        "XCTAssertTrue(readiness.exists",
+        'waitForKeyboardFocus(done, stage: "readiness-adapter-return-focus")',
+        "done.typeKey(.space, modifierFlags: [])",
+        "XCTAssertFalse(readiness.waitForExistence(timeout: 2))",
+        'XCTAssertTrue(harness.element("playstead.surface.library").exists)',
     ),
     "testReadinessDoneActionReceivesKeyboardFocus": (
         "launchReadinessRoutes()", "focusContainedAction", "playstead.control.done",
@@ -116,7 +145,7 @@ granular_coverage = {
     # make it non-vacuous: a fixed-size expected inventory, and the final
     # equality proving every surface was actually visited.
     "testKeyboardOnlySurfaceInventoryAndLiveAudit": (
-        "XCTAssertEqual(expectedSurfaces.count, 20",
+        "XCTAssertEqual(expectedSurfaces.count, 19",
         "XCTAssertEqual(visited, expectedSurfaces",
         "sanitizedTrace()",
     ),
@@ -143,10 +172,16 @@ for surface, helper in audit_surfaces.items():
         )
 
 def check_granular_coverage(test_source):
+    if re.search(r"\bXCTSkip(?:If|Unless)?\s*\(", test_source):
+        raise AssertionError("granular UI coverage must not skip required acceptance")
     matches = list(re.finditer(r"^    func (test[A-Za-z0-9_]+)\(", test_source, re.MULTILINE))
     names = [match.group(1) for match in matches]
     if set(names) != set(granular_coverage) or len(names) != len(granular_coverage):
-        raise AssertionError(f"granular UI test identity drift: {names}")
+        raise AssertionError(
+            f"granular UI test identity drift: missing={sorted(set(granular_coverage) - set(names))}, "
+            f"unexpected={sorted(set(names) - set(granular_coverage))}, "
+            f"duplicates={sorted(name for name in set(names) if names.count(name) > 1)}"
+        )
     for index, match in enumerate(matches):
         end = matches[index + 1].start() if index + 1 < len(matches) else test_source.find("    private func", match.end())
         section = test_source[match.start():end]
@@ -168,15 +203,23 @@ def check_granular_coverage(test_source):
     )
     if any(name in test_source for name in broad_tests):
         raise AssertionError("broad UI tests hide the failing audit category or sheet stage")
-    for marker in (
-        "playstead.surface.readiness", "playstead.surface.bios",
-        "playstead.surface.controller-settings",
-    ):
-        helper = test_source[test_source.find("    private func launchReadinessRoutes") :]
-        if marker not in helper:
-            raise AssertionError(f"readiness route helper lost coverage: {marker}")
+readiness_routes_test = tests[
+    tests.find("    func testReadinessRoutesReachBIOSAndControllerSettings("):
+    tests.find("    func testReadinessSheetContainsKeyboardFocus(")
+]
+if "playstead.surface.controller-settings" not in readiness_routes_test:
+    raise AssertionError("readiness/controller inventory no longer reaches the production Settings route")
+
+if ".searchable(" not in shell or "app.searchFields.firstMatch" not in tests:
+    raise AssertionError("library search must be checked through its native accessibility role")
 
 check_granular_coverage(tests)
+for marker in (
+    "playstead.surface.readiness", "playstead.surface.bios",
+):
+    helper = tests[tests.find("    private func launchReadinessRoutes") :]
+    if marker not in helper:
+        raise AssertionError(f"readiness route helper lost coverage: {marker}")
 for name, markers in granular_coverage.items():
     method = re.search(rf"^    func {name}\(", tests, re.MULTILINE)
     following = re.search(r"^    (?:func test|private func)", tests[method.end():], re.MULTILINE)
@@ -191,6 +234,22 @@ for name, markers in granular_coverage.items():
             pass
         else:
             raise SystemExit(f"granular coverage meta-test did not fail for {name}: {marker}")
+
+first_name = next(iter(granular_coverage))
+for label, mutated in {
+    "empty inventory": "",
+    "removed selector": tests.replace(f"func {first_name}(", "func removedSelector(", 1),
+    "renamed selector": tests.replace(f"func {first_name}(", "func testRenamedSelector(", 1),
+    "duplicate selector": tests + f"\n    func {first_name}() {{}}\n",
+    "unexpected selector": tests + "\n    func testUnexpectedSelector() {}\n",
+    "skipped acceptance": re.sub(rf"(func {first_name}\([^)]*\)[^{{]*\{{)", lambda match: match.group(1) + '\n        throw XCTSkip("removed acceptance")', tests, count=1),
+}.items():
+    try:
+        check_granular_coverage(mutated)
+    except AssertionError:
+        pass
+    else:
+        raise SystemExit(f"granular identity meta-test did not fail for {label}")
 
 def check_route_inventory(sources):
     missing = [route for route, source in sources.items() if route not in tests or route not in identifiers or "AccessibilityIdentifiers.Surface" not in source]
@@ -309,6 +368,7 @@ def check_ui_profile_launch(harness_source):
     # `persistentSession` so the default launch is still exactly mode + profile.
     optional = {
         "PLAYSTEAD_UI_TEST_SESSION_ID": "UUID().uuidString.lowercased()",
+        "PLAYSTEAD_UI_TEST_CONTROLLER_SOURCE": '"1"',
     }
     for key, value in required.items():
         if assignments.get(key) != value:
@@ -321,6 +381,11 @@ def check_ui_profile_launch(harness_source):
             raise AssertionError(f"{key} must be a freshly generated UUID, got: {assignments[key]}")
     if "PLAYSTEAD_UI_TEST_SESSION_ID" in assignments and "if persistentSession {" not in harness_source:
         raise AssertionError("per-session identity must stay gated behind persistentSession")
+    if "PLAYSTEAD_UI_TEST_CONTROLLER_SOURCE" in assignments and (
+        assignments["PLAYSTEAD_UI_TEST_CONTROLLER_SOURCE"] != '"1"'
+        or 'if profile == .saveRestorable {' not in harness_source
+    ):
+        raise AssertionError("synthetic controller source must stay an exact saveRestorable-only test opt-in")
     if "enum Profile: String, CaseIterable" not in harness_source:
         raise AssertionError("UI harness profile selector is not finite")
 
@@ -378,26 +443,29 @@ for marker in (
 ):
     if marker not in bootstrap:
         raise SystemExit(f"deterministic UI profile composition drifted: {marker}")
+if "guard !uiTestingBlocksExternalIO else { return false }" not in install_adapter:
+    raise SystemExit("deterministic adapter activation can reach the production downloader")
 
 def check_audit_repairs(shell_source, row_source, token_source, focus_source):
     required_shell = (
-        "private var libraryCommandBar",
-        '.accessibilityLabel("Library actions")',
-        ".focused($focusedShellControl, equals: surface)",
-        ".onChange(of: presentedSurface)",
-        "focusedShellControl = previous",
+        'Picker("Library view", selection: $libraryLayout)',
+        '.accessibilityLabel("Library view")',
         ".accessibilityLabel(Self.title(for: surface))",
         ".background(DesignTokens.background.ignoresSafeArea())",
-        ".preferredColorScheme(.dark)",
         ".accessibilityHidden(true)",
     )
     missing = [marker for marker in required_shell if marker not in shell_source]
-    if missing or ".toolbar {" in shell_source:
-        raise AssertionError(f"unlabeled toolbar/sheet or focus-restoration regression: {missing}")
-    if "static let background = Color(hex: 0x0F172A)" not in token_source:
-        raise AssertionError("the dark palette has no explicit production canvas")
-    if ".foregroundStyle(.secondary)" in row_source:
-        raise AssertionError("small game-row metadata regressed to the low-contrast secondary role")
+    controls_start = shell_source.find("private var libraryControls: some View {")
+    picker_start = shell_source.find("private var libraryLayoutPicker: some View {")
+    controls_source = shell_source[controls_start:picker_start] if 0 <= controls_start < picker_start else ""
+    picker_composed = "libraryLayoutPicker" in controls_source
+    if missing or not picker_composed:
+        raise AssertionError(
+            f"labeled library view picker or its libraryControls composition regressed: "
+            f"missing markers={missing}, picker_composed={picker_composed}"
+        )
+    if "static let background = Color(nsColor: .windowBackgroundColor)" not in token_source:
+        raise AssertionError("the app canvas must follow the semantic macOS window color")
     if ".accessibilityHidden(true)" not in focus_source:
         raise AssertionError("decorative focus-ring shape leaked into the accessibility tree")
     # 03.5-07 (73cd594) moved the row from `.combine` to `.contain`. `.combine`
@@ -411,14 +479,13 @@ def check_audit_repairs(shell_source, row_source, token_source, focus_source):
 
 check_audit_repairs(shell, game_row, tokens, focus_ring)
 
-def check_hosted_audit_repairs(shell_source, readiness_source, card_source, slot_source, report_source):
+def check_hosted_audit_repairs(shell_source, readiness_source, row_source, slot_source, report_source):
     required_shell = (
         "@FocusState private var focusedSheetDismissal: Bool",
         ".focused($focusedSheetDismissal)",
         ".focusSection()",
         ".defaultFocus($focusedSheetDismissal, true)",
         ".background(DesignTokens.background.ignoresSafeArea())",
-        ".preferredColorScheme(.dark)",
     )
     required_readiness = (
         "@FocusState private var doneHasFocus: Bool",
@@ -426,37 +493,51 @@ def check_hosted_audit_repairs(shell_source, readiness_source, card_source, slot
         ".focusSection()",
         ".defaultFocus($doneHasFocus, true)",
         ".background(DesignTokens.background.ignoresSafeArea())",
-        ".preferredColorScheme(.dark)",
     )
     missing = [marker for marker in required_shell if marker not in shell_source]
     missing += [marker for marker in required_readiness if marker not in readiness_source]
     if missing or shell_source.count(".background(DesignTokens.background.ignoresSafeArea())") < 2:
-        raise AssertionError(f"sheet focus or explicit dark canvas regressed: {missing}")
-    focus_modifier = card_source.find(".playsteadFocusable(identifier: Self.accessibilityIdentifier)")
-    card_element = card_source.find(".accessibilityElement(children: .ignore)")
-    card_label = card_source.find(".accessibilityLabel(accessibleLabel)")
-    # 03.5-06 (824b44b) inverted this order deliberately: applying identity before
-    # `.accessibilityElement` left it on a child the hosted accessibility hierarchy
-    # discards. Collapse first, then attach description and identity to that final
-    # node. The invariant is unchanged -- one collapsed, described, focusable node
-    # with no nested subtree -- only the required order moved.
-    # All three must be present: with the focus modifier last, a bare ordering
-    # comparison would read a missing marker's -1 as "earliest" and pass.
-    if min(focus_modifier, card_element, card_label) < 0 or not (card_element < card_label < focus_modifier) or ".accessibilityElement(children: .combine)" in card_source:
-        raise AssertionError("described game card exposes a conflicting nested accessibility subtree")
+        raise AssertionError(f"sheet focus or semantic system canvas regressed: {missing}")
+    card_branch = row_source.find("case .card:")
+    card_content_start = row_source.find("private var cardContent: some View {")
+    card_content_end = row_source.find("\n    private var systemDisplayName", card_content_start)
+    if min(card_branch, card_content_start, card_content_end) < 0 or card_branch > card_content_start:
+        raise AssertionError("library card presentation is not routed through its production row")
+    card_content = row_source[card_content_start:card_content_end]
+    card_controls = ("actionButton", "favoriteButton", "queueButton", "curationMenu", "statusPair")
+    missing_card_controls = [marker for marker in card_controls if marker not in card_content]
+    if missing_card_controls or any(
+        marker in card_content
+        for marker in (".accessibilityElement(children: .ignore)", ".accessibilityElement(children: .combine)")
+    ):
+        raise AssertionError(f"actionable game card lost independent controls or status: {missing_card_controls}")
+    required_actions = (
+        "Self.downloadActionIdentifier(assetSetID: entry.id)",
+        "Self.playActionIdentifier(assetSetID: entry.id)",
+        "Self.retryActionIdentifier(assetSetID: entry.id)",
+        ".accessibilityLabel(Self.favoriteActionLabel(",
+        ".accessibilityLabel(Self.queueActionLabel(",
+    )
+    missing_actions = [marker for marker in required_actions if marker not in row_source]
+    if missing_actions:
+        raise AssertionError(f"production game card actions lost stable identifiers or accessible names: {missing_actions}")
     if '?? ""' in slot_source or "Color.clear" not in slot_source or ".accessibilityHidden(true)" not in slot_source:
         raise AssertionError("empty status slot can become an undescribed accessibility element")
     if ".accessibilityElement(children: .contain)" not in report_source or '.accessibilityLabel("\\(label). \\(check.finding)")' not in report_source or ".accessibilityHidden(true)" not in report_source:
         raise AssertionError("readiness row collapses its actionable remedy into the descriptive parent")
 
-check_hosted_audit_repairs(shell, readiness, game_card, status_slot, readiness_report)
+check_hosted_audit_repairs(shell, readiness, game_row, status_slot, readiness_report)
 
 for marker, source_name in (
     ("@FocusState private var focusedSheetDismissal: Bool", "shell"),
     (".defaultFocus($focusedSheetDismissal, true)", "shell"),
     ("@FocusState private var doneHasFocus: Bool", "readiness"),
     (".defaultFocus($doneHasFocus, true)", "readiness"),
-    (".accessibilityElement(children: .ignore)", "card"),
+    ("case .card:", "card"),
+    ("                actionButton\n                favoriteButton\n                queueButton\n                curationMenu", "card"),
+    ("Self.downloadActionIdentifier(assetSetID: entry.id)", "card"),
+    ("Self.playActionIdentifier(assetSetID: entry.id)", "card"),
+    ("Self.retryActionIdentifier(assetSetID: entry.id)", "card"),
     ("Color.clear", "slot"),
     ('.accessibilityLabel("\\(label). \\(check.finding)")', "report"),
     (".accessibilityHidden(true)", "report"),
@@ -464,7 +545,7 @@ for marker, source_name in (
     sources = {
         "shell": shell,
         "readiness": readiness,
-        "card": game_card,
+        "card": game_row,
         "slot": status_slot,
         "report": readiness_report,
     }
@@ -482,8 +563,8 @@ for marker, source_name in (
 # Pin the production repairs themselves: each synthetic removal must trip the
 # source contract rather than letting the live audit regress silently.
 for marker in (
-    "private var libraryCommandBar",
-    ".onChange(of: presentedSurface)",
+    'Picker("Library view", selection: $libraryLayout)',
+    '.accessibilityLabel("Library view")',
     ".accessibilityLabel(Self.title(for: surface))",
 ):
     try:
@@ -493,8 +574,124 @@ for marker in (
     else:
         raise SystemExit(f"audit-repair meta-test did not fail after removing {marker}")
 
-if "experiential" not in docs or "VoiceOver" not in docs or "Controller hardware itself remains unproven" not in docs:
-    raise SystemExit("accessibility evidence boundary is overstated")
+try:
+    check_audit_repairs(shell, game_row, tokens.replace(
+        "static let background = Color(nsColor: .windowBackgroundColor)",
+        "removed.semantic.canvas",
+        1,
+    ), focus_ring)
+except AssertionError:
+    pass
+else:
+    raise SystemExit("semantic macOS canvas meta-test did not fail after removing its token")
+
+def check_accessibility_evidence_contract(document):
+    machine_heading = "## Machine-observable evidence"
+    human_heading = "## Human review and limits"
+    machine_start = document.find(machine_heading)
+    human_start = document.find(human_heading)
+    if machine_start < 0 or human_start <= machine_start:
+        raise AssertionError("machine evidence and human limits must be distinct sections")
+    machine = document[machine_start:human_start]
+    human = document[human_start:]
+    required_machine = (
+        "Keyboard reachability and activation",
+        "Accessibility roles, names, values, parent-child hierarchy",
+        "Non-color status communication",
+        "public macOS accessibility audit categories",
+        "`SurfaceAccessibilityTests` is live UI evidence",
+        "`ControllerNavigationTests` proves deterministic controller-navigation state",
+        "neither stands in for the other",
+        "owner-run paired",
+        "DualSense walkthrough",
+    )
+    required_human = (
+        "Automation does not establish VoiceOver pronunciation",
+        "rotor usefulness",
+        "sentence quality",
+        "human comprehension",
+        "navigation intuition",
+        "not a third-party conformance certification",
+    )
+    missing = [marker for marker in required_machine if marker not in machine]
+    missing += [marker for marker in required_human if marker not in human]
+    if missing:
+        raise AssertionError(f"accessibility evidence contract is incomplete: {missing}")
+    forbidden = (
+        "automation proves VoiceOver comprehension",
+        "automation establishes VoiceOver pronunciation",
+        "ControllerNavigationTests proves visible focus",
+        "unit tests prove physical controller behavior",
+    )
+    lowered = document.lower()
+    overclaims = [claim for claim in forbidden if claim.lower() in lowered]
+    if overclaims:
+        raise AssertionError(f"unsupported accessibility claims found: {overclaims}")
+
+check_accessibility_evidence_contract(docs)
+for marker in (
+    "Keyboard reachability and activation",
+    "Non-color status communication",
+    "public macOS accessibility audit categories",
+    "neither stands in for the other",
+    "Automation does not establish VoiceOver pronunciation",
+    "rotor usefulness",
+    "navigation intuition",
+):
+    try:
+        check_accessibility_evidence_contract(docs.replace(marker, "removed.evidence.contract", 1))
+    except AssertionError:
+        pass
+    else:
+        raise SystemExit(f"accessibility claim meta-test did not fail after removing {marker}")
+
+try:
+    check_accessibility_evidence_contract(docs + "\nAutomation proves VoiceOver comprehension.\n")
+except AssertionError:
+    pass
+else:
+    raise SystemExit("accessibility claim meta-test did not fail after adding an overclaim")
+
+def check_evidence_registration(runner_source, navigation_source):
+    unit_start = runner_source.find("run_test_layer unit Unit")
+    rendering_start = runner_source.find("run_test_layer rendering Rendering", unit_start)
+    ui_start = runner_source.find("run_test_layer ui UI", rendering_start)
+    live_start = runner_source.find("run_test_layer live-server LiveServer", ui_start)
+    if min(unit_start, rendering_start, ui_start, live_start) < 0:
+        raise AssertionError("recurring evidence layer boundaries are missing")
+    unit_layer = runner_source[unit_start:rendering_start]
+    ui_layer = runner_source[ui_start:live_start]
+    expected_navigation = set(re.findall(r"^    func (test[A-Za-z0-9_]+)\(", navigation_source, re.MULTILINE))
+    registered_navigation = set(re.findall(r"PlaysteadTests\.ControllerNavigationTests/(test[A-Za-z0-9_]+)", unit_layer))
+    if not expected_navigation or expected_navigation != registered_navigation:
+        raise AssertionError(
+            f"controller transition evidence must be required in Unit independently: "
+            f"missing={sorted(expected_navigation - registered_navigation)}, "
+            f"unexpected={sorted(registered_navigation - expected_navigation)}"
+        )
+    required_surface_tests = (
+        "testKeyboardOnlySurfaceInventoryAndLiveAudit",
+        "testReadinessAdapterRemedyOpensBoundedSetupAndReturnsFocus",
+    )
+    registered_surface_tests = re.findall(
+        r"--required-test PlaysteadUITests\.SurfaceAccessibilityTests/(test[A-Za-z0-9_]+)", ui_layer
+    )
+    if any(registered_surface_tests.count(name) != 1 for name in required_surface_tests) or "SurfaceAccessibilityTests/" in unit_layer:
+        raise AssertionError("keyboard/live-tree evidence must remain a separately required UI test")
+
+check_evidence_registration(runner, navigation_tests)
+for test_identifier in (
+    "PlaysteadTests.ControllerNavigationTests/testRightEntersRecentlyPlayedAtItsFirstAvailableGame",
+    "PlaysteadUITests.SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit",
+    "PlaysteadUITests.SurfaceAccessibilityTests/testReadinessAdapterRemedyOpensBoundedSetupAndReturnsFocus",
+):
+    mutated_runner = runner.replace(test_identifier, "removed.required.evidence")
+    try:
+        check_evidence_registration(mutated_runner, navigation_tests)
+    except AssertionError:
+        pass
+    else:
+        raise SystemExit(f"evidence registration meta-test did not fail after removing {test_identifier}")
 PY
 
 printf 'plan 05 static surface contract: passed\n'

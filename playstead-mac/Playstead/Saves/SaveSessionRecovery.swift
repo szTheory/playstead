@@ -87,6 +87,17 @@ actor SaveSessionRecovery {
     /// already recorded.
     @discardableResult
     func replay(_ session: AbandonedSaveSession, parentRevisionID: String?) async throws -> SaveRevisionRow? {
+        let stagedProvenance = saveStore.fetchAllRevisions().first {
+            $0.saveLineID == session.saveLineID && $0.sessionID == session.sessionID &&
+                $0.tier == SaveCaptureTier.staged.rawValue
+        }.map {
+            SaveCaptureProvenance(
+                adapterID: $0.adapterID ?? provenance.adapterID,
+                adapterVersion: $0.adapterVersion ?? provenance.adapterVersion,
+                saveFormat: $0.saveFormat,
+                formatConfidence: $0.formatConfidence
+            )
+        } ?? provenance
         let poller = SaveCapturePoller(
             source: session.artifactSource,
             destinationDirectory: session.destinationDirectory,
@@ -124,10 +135,10 @@ actor SaveSessionRecovery {
             deviceCapturedAt: nil,
             recordedAt: nil,
             captureMethod: "recovery",
-            adapterID: provenance.adapterID,
-            adapterVersion: provenance.adapterVersion,
-            saveFormat: nil,
-            formatConfidence: nil,
+            adapterID: stagedProvenance.adapterID,
+            adapterVersion: stagedProvenance.adapterVersion,
+            saveFormat: stagedProvenance.saveFormat,
+            formatConfidence: stagedProvenance.formatConfidence,
             playSessionID: session.sessionID,
             durability: SaveDurability.localOnly.rawValue,
             localPath: promoted.localPath,

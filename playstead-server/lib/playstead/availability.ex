@@ -6,10 +6,14 @@ defmodule Playstead.Availability do
   the server stores them per device and merges them per user at read
   time — the console never derives these facts itself.
 
-  `replace_for_device/2` performs a full replacement of one device's
+  `replace_for_device/3` performs a full replacement of one device's
   reported rows inside a single `Ecto.Multi` transaction, so a failed
   report can never leave a device with a partially-cleared row set
-  (T-03-13-05). `facts_for_user/1` merges across all of a user's
+  (T-03-13-05). Sequence-bearing replacements advance a durable
+  per-device watermark in that same transaction. Only a strictly newer
+  sequence can replace rows; requests without a sequence keep the legacy
+  replacement behavior and have no ordering guarantee. `facts_for_user/1`
+  merges across all of a user's
   devices using the "true on any device" rule decided at this plan's
   Task 1 checkpoint: a boolean fact is true if true on any device, and
   `download_percent` is the maximum across devices.
@@ -37,6 +41,18 @@ defmodule Playstead.Availability do
   # is rejected outright rather than streamed into a transaction
   # (T-03-13-04).
   @max_entries 5000
+  @max_report_sequence 9_223_372_036_854_775_807
+
+  @sequence_guard_sql """
+  INSERT INTO device_availability_report_watermarks
+    (device_id, accepted_report_sequence, inserted_at, updated_at)
+  VALUES ($1, $2, NOW(), NOW())
+  ON CONFLICT (device_id) DO UPDATE
+  SET accepted_report_sequence = EXCLUDED.accepted_report_sequence,
+      updated_at = EXCLUDED.updated_at
+  WHERE device_availability_report_watermarks.accepted_report_sequence < EXCLUDED.accepted_report_sequence
+  RETURNING device_id
+  """
 
   @doc """
   Fully replaces `device`'s reported rows with `entries` inside one
@@ -54,36 +70,57 @@ defmodule Playstead.Availability do
   @spec replace_for_device(Playstead.Pairing.Device.t(), [map()]) ::
           {:ok, :replaced} | {:error, term()}
   def replace_for_device(device, entries) when is_list(entries) do
-    if length(entries) > @max_entries do
-      {:error, :too_many_entries}
-    else
-      normalized = Enum.map(entries, &normalize_entry/1)
-      owned_ids = owned_asset_set_ids(device.user_id, normalized)
-      now = DateTime.utc_now() |> DateTime.truncate(:microsecond)
+    replace_for_device(device, entries, nil)
+  end
 
-      changesets =
-        normalized
-        |> Enum.filter(&MapSet.member?(owned_ids, Map.get(&1, "asset_set_id")))
-        |> Enum.map(&build_changeset(device, now, &1))
+  @spec replace_for_device(Playstead.Pairing.Device.t(), [map()], nil | pos_integer()) ::
+          {:ok, :replaced} | {:error, term()}
+  def replace_for_device(device, entries, report_sequence) when is_list(entries) do
+    cond do
+      length(entries) > @max_entries ->
+        {:error, :too_many_entries}
 
-      multi =
-        changesets
-        |> Enum.with_index()
-        |> Enum.reduce(
+      not valid_report_sequence?(report_sequence) ->
+        {:error,
+         {:validation_failed, "The \"report_sequence\" field must be a positive integer."}}
+
+      true ->
+        normalized = Enum.map(entries, &normalize_entry/1)
+        owned_ids = owned_asset_set_ids(device.user_id, normalized)
+        now = DateTime.utc_now() |> DateTime.truncate(:microsecond)
+
+        changesets =
+          normalized
+          |> Enum.filter(&MapSet.member?(owned_ids, Map.get(&1, "asset_set_id")))
+          |> Enum.map(&build_changeset(device, now, &1))
+
+        multi =
           Ecto.Multi.new()
+          |> add_report_sequence_guard(device.id, report_sequence)
           |> Ecto.Multi.delete_all(
             :delete_existing,
             from(r in DeviceReport, where: r.device_id == ^device.id)
-          ),
-          fn {changeset, index}, multi ->
-            Ecto.Multi.insert(multi, {:report, index}, changeset)
-          end
-        )
+          )
+          |> then(fn multi ->
+            changesets
+            |> Enum.with_index()
+            |> Enum.reduce(multi, fn {changeset, index}, multi ->
+              Ecto.Multi.insert(multi, {:report, index}, changeset)
+            end)
+          end)
 
-      case Repo.transaction(multi) do
-        {:ok, _changes} -> {:ok, :replaced}
-        {:error, _step, reason, _changes} -> {:error, reason}
-      end
+        case Repo.transaction(multi) do
+          {:ok, _changes} ->
+            {:ok, :replaced}
+
+          {:error, :report_sequence, :stale_report_sequence, _changes} ->
+            {:error,
+             {:validation_failed,
+              "The \"report_sequence\" must be greater than the last accepted sequence."}}
+
+          {:error, _step, reason, _changes} ->
+            {:error, reason}
+        end
     end
   end
 
@@ -125,6 +162,29 @@ defmodule Playstead.Availability do
         }
       end
     )
+  end
+
+  defp add_report_sequence_guard(multi, _device_id, nil), do: multi
+
+  defp add_report_sequence_guard(multi, device_id, report_sequence) do
+    Ecto.Multi.run(multi, :report_sequence, fn repo, _changes ->
+      case repo.query(@sequence_guard_sql, [Ecto.UUID.dump!(device_id), report_sequence]) do
+        {:ok, %{num_rows: 1}} ->
+          {:ok, :advanced}
+
+        {:ok, %{num_rows: 0}} ->
+          {:error, :stale_report_sequence}
+
+        {:error, reason} ->
+          {:error, reason}
+      end
+    end)
+  end
+
+  defp valid_report_sequence?(nil), do: true
+
+  defp valid_report_sequence?(sequence) do
+    is_integer(sequence) and sequence > 0 and sequence <= @max_report_sequence
   end
 
   defp normalize_entry(entry) do

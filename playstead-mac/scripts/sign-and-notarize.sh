@@ -39,6 +39,20 @@ fi
 
 echo "==> Verifying signature"
 codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+HELPERS="$APP_PATH/Contents/Helpers"
+for nested in "$HELPERS/libSDL2.0.dylib" "$HELPERS/playstead-sdl-input-bridge"; do
+  [ -f "$nested" ] || { echo "FATAL: SDL helper artifact missing: $(basename "$nested")" >&2; exit 1; }
+  codesign --verify --strict "$nested"
+done
+[ -f "$APP_PATH/Contents/Resources/SDL-LICENSE.txt" ] && [ -f "$APP_PATH/Contents/Resources/SDL-SOURCE-PROVENANCE.txt" ] || {
+  echo "FATAL: SDL source/license provenance missing from app bundle" >&2; exit 1;
+}
+grep -Fq 'SDL source commit: 9519b9916cd29a14587af0507292f2bd31dd5752' "$APP_PATH/Contents/Resources/SDL-SOURCE-PROVENANCE.txt" || {
+  echo "FATAL: bundled SDL source provenance does not match the verified revision" >&2; exit 1;
+}
+[ "$("$HELPERS/playstead-sdl-input-bridge" --version)" = 'SDL 2.30.7' ] || {
+  echo "FATAL: bundled SDL input helper has the wrong runtime version" >&2; exit 1;
+}
 
 echo "==> Confirming hardened runtime and non-sandboxed entitlements"
 # Captured into a variable rather than piped live into `grep`, for the

@@ -53,7 +53,19 @@ require_text "$runner" 'exec mix phx.server'
 require_text "$runner" 'ui_only+=("-only-testing:${identifier%%.*}/${identifier#*.}")'
 require_text "$runner" '-only-testing:"${snapshot_identifier%%.*}/${snapshot_identifier#*.}"'
 require_text "$runner" 'PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT="$snapshot_output"'
-require_text "$scheme" 'key="PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT" value="$(PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT)" isEnabled="YES"'
+python3 - "$scheme" <<'PY_SCHEME'
+import sys
+import xml.etree.ElementTree as ET
+
+scheme = ET.parse(sys.argv[1]).getroot()
+expected = {
+    "key": "PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT",
+    "value": "$(PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT)",
+    "isEnabled": "YES",
+}
+if expected not in [node.attrib for node in scheme.iter("EnvironmentVariable")]:
+    raise SystemExit("snapshot canary must be enabled in the Xcode scheme")
+PY_SCHEME
 require_text "$snapshot_canary" 'appendingPathComponent(".snapshot-testing", isDirectory: true)'
 if grep -F "trap 'rm -f \"\$required_file\"' RETURN" "$runner" >/dev/null; then
   printf 'verifier temp-file cleanup must not leak a RETURN trap\n' >&2

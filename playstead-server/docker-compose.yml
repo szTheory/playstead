@@ -1,3 +1,8 @@
+# The default is the canonical stack.  An isolated recovery proof must set a
+# newly generated PLAYSTEAD_COMPOSE_PROJECT and preflight it before Compose is
+# allowed to create project-scoped networks or named volumes.
+name: ${PLAYSTEAD_COMPOSE_PROJECT:-playstead}
+
 services:
   db:
     image: postgres:17.2
@@ -54,10 +59,10 @@ services:
       # this host folder. `:ro` is load-bearing, not decorative — it
       # makes "your source file stays where it is" a kernel guarantee
       # rather than an application-code promise.
-      - ./inbox:/app/inbox:ro
+      - ${PLAYSTEAD_INBOX_HOST_PATH:-./inbox}:/app/inbox:ro
       # D-33: where exported folders are written. Genuinely writable —
       # unlike the inbox, export jobs cannot proceed without it.
-      - ./exports:/app/exports
+      - ${PLAYSTEAD_EXPORT_HOST_PATH:-./exports}:/app/exports
     restart: unless-stopped
 
   caddy:
@@ -65,15 +70,16 @@ services:
     environment:
       # Compose's ${VAR:-default} treats an unset AND an empty
       # PLAYSTEAD_DOMAIN the same way, falling back to "localhost".
-      # Caddy's own {$VAR:default} Caddyfile syntax does NOT — it only
-      # falls back for a truly unset variable, and docker compose
-      # always sets a listed environment key (to "" if unset at the
-      # host), so passing PLAYSTEAD_DOMAIN through directly would hand
-      # Caddy an explicitly-empty site address and fail to parse.
-      CADDY_SITE_ADDRESS: ${PLAYSTEAD_DOMAIN:-localhost}
+      # The optional explicit site address supports a LAN IP served by
+      # Caddy's internal CA while PLAYSTEAD_DOMAIN stays empty, keeping
+      # Playstead's TLS readiness state truthful. Ordinary deployments
+      # still fall back to PLAYSTEAD_DOMAIN or localhost.
+      CADDY_SITE_ADDRESS: ${PLAYSTEAD_CADDY_SITE_ADDRESS:-${PLAYSTEAD_DOMAIN:-localhost}}
+      CADDY_HTTP_PORT: ${PLAYSTEAD_HTTP_PORT:-80}
+      CADDY_HTTPS_PORT: ${PLAYSTEAD_HTTPS_PORT:-443}
     ports:
-      - "${PLAYSTEAD_HTTP_PORT:-80}:80"
-      - "${PLAYSTEAD_HTTPS_PORT:-443}:443"
+      - "${PLAYSTEAD_BIND_ADDRESS:-0.0.0.0}:${PLAYSTEAD_HTTP_PORT:-80}:${PLAYSTEAD_HTTP_PORT:-80}"
+      - "${PLAYSTEAD_BIND_ADDRESS:-0.0.0.0}:${PLAYSTEAD_HTTPS_PORT:-443}:${PLAYSTEAD_HTTPS_PORT:-443}"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

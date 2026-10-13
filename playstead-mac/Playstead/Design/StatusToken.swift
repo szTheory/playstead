@@ -6,20 +6,35 @@ import SwiftUI
 /// storage view, plan 03-07, needs it) but is **not** a `LibraryStatus`
 /// case — see that type's doc comment in `StatusSlotView.swift`.
 enum StatusToken {
-    static let attention = Color(hex: 0xF59E0B)
-    static let missingDependency = Color(hex: 0xEA580C)
-    static let downloading = Color(hex: 0x0EA5E9)
-    static let queued = Color(hex: 0x9CA3AF)
-    static let verified = Color(hex: 0x16A34A)
-    static let pinned = Color(hex: 0x15803D)
-    static let serverOnly = Color(hex: 0x94A3B8)
-    static let safeToEvict = Color(hex: 0x78716C)
-
-    /// Every declared value — used by `StatusLadderTests` to assert this
-    /// vocabulary shares no value with `SystemAccent`'s.
-    static let allValues: Set<UInt32> = [
-        0xF59E0B, 0xEA580C, 0x0EA5E9, 0x9CA3AF, 0x16A34A, 0x15803D, 0x94A3B8, 0x78716C
+    private static let hexValues: [String: UInt32] = [
+        "attention": 0xF59E0B,
+        "missingDependency": 0xEA580C,
+        "downloading": 0x0EA5E9,
+        "queued": 0x9CA3AF,
+        "verified": 0x16A34A,
+        "serverOnly": 0x94A3B8,
+        "safeToEvict": 0x78716C
     ]
+
+    private static func color(_ role: String) -> Color {
+        Color(hex: hexValues[role]!)
+    }
+
+    static let attention = color("attention")
+    static let missingDependency = color("missingDependency")
+    static let downloading = color("downloading")
+    static let queued = color("queued")
+    static let verified = color("verified")
+    /// Retention is a storage policy, not a success state. Keep it neutral
+    /// so the pin doesn't compete with the verified/playable checkmark.
+    static let pinned = Color(nsColor: .secondaryLabelColor)
+    static let serverOnly = color("serverOnly")
+    static let safeToEvict = color("safeToEvict")
+
+    /// Fixed palette values — used by `StatusLadderTests` to assert this
+    /// vocabulary shares no value with `SystemAccent`'s. Pinned deliberately
+    /// uses the system's secondary label color instead.
+    static let allValues: Set<UInt32> = Set(hexValues.values)
 
     static func color(for status: LibraryStatus) -> Color {
         switch status {

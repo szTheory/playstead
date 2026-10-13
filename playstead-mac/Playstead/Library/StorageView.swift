@@ -16,6 +16,25 @@ enum StorageMotionContract {
         _ = phase
         return reduceMotion ? 0 : normalDuration
     }
+
+    /// Occasional local status feedback only; byte progress and input stay immediate.
+    static func animation(for phase: Phase, reduceMotion: Bool) -> Animation? {
+#if DEBUG && UI_TESTING
+        // SwiftUI's macOS reduced-motion environment is read-only. Inject the
+        // policy input only in the finite, store-free presentation harness.
+        let effectiveReduceMotion = UITestMotionReviewMode.requested.map { $0 == .reduced } ?? reduceMotion
+        guard !effectiveReduceMotion else { return nil }
+#else
+        guard !reduceMotion else { return nil }
+#endif
+        let animation = Animation.timingCurve(0.23, 1, 0.32, 1, duration: duration(for: phase, reduceMotion: false))
+#if DEBUG && UI_TESTING
+        // Slow only the isolated review harness; ordinary app and test launches
+        // retain the production duration, and release builds have no override.
+        if UITestMotionReviewMode.requested == .slow { return animation.speed(0.1) }
+#endif
+        return animation
+    }
 }
 
 /// A pinned game's row in `StorageView`'s protected section.

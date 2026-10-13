@@ -37,51 +37,51 @@
       })();
     </script>
   </head>
-  <body class="bg-[#0F172A] font-sans text-[#F1F5F9]">
+  <body class="bg-app-canvas font-sans text-app-text">
     <nav
       id="console-nav"
       aria-label="Console"
-      class="relative z-10 flex w-full flex-wrap items-center justify-end gap-x-6 gap-y-2 border-b border-[#334155] bg-[#0F172A] px-4 py-3 text-sm sm:px-6 lg:px-8"
+      class="relative z-10 flex w-full flex-wrap items-center justify-end gap-x-6 gap-y-2 border-b border-app-border bg-app-canvas px-4 py-3 text-sm sm:px-6 lg:px-8"
     >
       <%= if @current_scope do %>
         <.link
           id="nav-import"
           navigate={~p"/import"}
-          class="text-[#94A3B8] hover:text-[#F1F5F9]"
+          class="text-app-muted hover:text-app-text"
         >
           Import
         </.link>
         <.link
           id="nav-library"
           navigate={~p"/library"}
-          class="text-[#94A3B8] hover:text-[#F1F5F9]"
+          class="text-app-muted hover:text-app-text"
         >
           Library
         </.link>
         <.link
           id="nav-devices"
           navigate={~p"/devices"}
-          class="text-[#94A3B8] hover:text-[#F1F5F9]"
+          class="text-app-muted hover:text-app-text"
         >
           Devices
         </.link>
         <.link
           id="nav-reference-packs"
           navigate={~p"/reference-packs"}
-          class="text-[#94A3B8] hover:text-[#F1F5F9]"
+          class="text-app-muted hover:text-app-text"
         >
           Reference packs
         </.link>
         <.link
           id="nav-sessions"
           navigate={~p"/settings/sessions"}
-          class="text-[#94A3B8] hover:text-[#F1F5F9]"
+          class="text-app-muted hover:text-app-text"
         >
           Sessions
         </.link>
         <span
           id="nav-account"
-          class="max-w-[24ch] truncate text-[#94A3B8]"
+          class="max-w-[24ch] truncate text-app-muted"
           title={@current_scope.user.email}
         >
           {@current_scope.user.email}
@@ -90,7 +90,7 @@
           id="log-out"
           href={~p"/log-out"}
           method="delete"
-          class="font-semibold text-[#F1F5F9] hover:text-[#38BDF8]"
+          class="font-semibold text-app-text hover:text-app-accent"
         >
           Log out
         </.link>
@@ -98,7 +98,7 @@
         <.link
           id="nav-log-in"
           navigate={~p"/log-in"}
-          class="font-semibold text-[#F1F5F9] hover:text-[#38BDF8]"
+          class="font-semibold text-app-text hover:text-app-accent"
         >
           Log in
         </.link>

@@ -58,6 +58,14 @@ defmodule Mix.Tasks.Playstead.MacCiFixture do
         owner = Accounts.get_owner() || raise ArgumentError, "Mac CI owner is missing"
         write_control!(output, %{sentinel: add_second_sentinel!(owner)})
 
+      ["import-gb", "--registry", registry_path, "--fixture", fixture_name, "--output", output] ->
+        owner = Accounts.get_owner() || raise ArgumentError, "Mac CI owner is missing"
+        write_control!(output, import_gb_fixture!(owner, registry_path, fixture_name))
+
+      ["import-aerevenadvance", "--registry", registry_path, "--output", output] ->
+        owner = Accounts.get_owner() || raise ArgumentError, "Mac CI owner is missing"
+        write_control!(output, import_aerevenadvance_fixture!(owner, registry_path))
+
       ["approve-sole", "--display-code", display_code, "--device-label", device_label] ->
         owner = Accounts.get_owner() || raise ArgumentError, "Mac CI owner is missing"
 
@@ -233,6 +241,180 @@ defmodule Mix.Tasks.Playstead.MacCiFixture do
          end) do
       {:ok, :ok} -> :ok
       {:error, _reason} -> raise ArgumentError, "could not reset second CI sentinel"
+    end
+  end
+
+  # Imports only one of the already-registered self-authored GB/GBC fixtures. The
+  # registry is private local setup; paths and hashes never leave this
+  # task's process. The production blob and Import contexts own byte
+  # custody and catalogue creation exactly as they do for normal uploads.
+  defp import_gb_fixture!(owner, registry_path, fixture_name) do
+    registry = Path.expand(registry_path)
+
+    private_registry =
+      Path.expand("../../../../playstead-mac/.local/gb-gbc-spike/fixtures/fixtures.json", __DIR__)
+
+    generated_registry =
+      Path.expand("../../../../playstead-mac/.build/ci/gb-gbc-fixtures/fixtures.json", __DIR__)
+
+    unless registry in [private_registry, generated_registry] do
+      raise ArgumentError, "GB fixture registry identity mismatch"
+    end
+
+    expected = %{
+      "gb-mbc1-8k" => %{
+        system: "gb",
+        cartridge_type: 3,
+        sram_bytes: 8192,
+        rtc: false,
+        filename: "gb-mbc1-8k.gb",
+        sha256: "4d62166b5cd35185ac0977eb73fe5bc22b406141861832863f133d754f635aa4"
+      },
+      "gbc-mbc5-32k" => %{
+        system: "gbc",
+        cartridge_type: 27,
+        sram_bytes: 32768,
+        rtc: false,
+        filename: "gbc-mbc5-32k.gbc",
+        sha256: "f9d914ba107bfd9676c730d315956a2d264c6e0e74e042afd729f493dcb40a3b"
+      },
+      "gbc-mbc3-rtc" => %{
+        system: "gbc",
+        cartridge_type: 16,
+        sram_bytes: 32768,
+        rtc: true,
+        filename: "gbc-mbc3-rtc.gbc",
+        sha256: "0edb186314a8fee38e00fec0c52e678ba24abf5b00198e3cfcb80c0d3e60cbc7"
+      }
+    }
+
+    with %{
+           system: system,
+           cartridge_type: cartridge_type,
+           sram_bytes: sram_bytes,
+           rtc: rtc,
+           filename: filename,
+           sha256: pinned_sha256
+         } <-
+           Map.fetch!(expected, fixture_name),
+         {:ok, registry_bytes} <- File.read(registry),
+         {:ok, rows} when is_list(rows) <- Jason.decode(registry_bytes),
+         %{
+           "name" => ^fixture_name,
+           "system" => ^system,
+           "cartridge_type" => ^cartridge_type,
+           "sram_bytes" => ^sram_bytes,
+           "rtc" => ^rtc,
+           "path" => fixture_path,
+           "sha256" => expected_sha256
+         } <- Enum.find(rows, &(&1["name"] == fixture_name)),
+         true <- is_binary(fixture_path) and is_binary(expected_sha256),
+         true <- expected_sha256 == pinned_sha256,
+         true <- Regex.match?(~r/\A[0-9a-f]{64}\z/, expected_sha256),
+         fixture_path <- Path.expand(fixture_path, Path.dirname(registry)),
+         true <-
+           String.starts_with?(fixture_path, Path.dirname(registry) <> "/"),
+         {:ok, %{size: size, type: :regular}} <- File.lstat(fixture_path),
+         true <- size >= 0x150 and size <= 64 * 1024 * 1024,
+         {:ok, status, meta} <-
+           Playstead.Blobs.put_stream(
+             File.stream!(fixture_path, [], 65_536),
+             size,
+             expected_sha256: expected_sha256
+           ),
+         {:ok, receipt} <-
+           Import.import_single(
+             owner.id,
+             %{original_name: filename, origin: "mac_ci_fixture", size_bytes: size},
+             {status, meta}
+           ),
+         {:ok, detail} <- Catalogue.get_asset_detail(Scope.for_user(owner), receipt.asset_set_id),
+         true <-
+           Enum.any?(
+             detail.asset_set.asset_members,
+             &(&1.role == "primary" and &1.blob.sha256 == expected_sha256)
+           ) do
+      %{
+        asset_set_id: detail.asset_set.id,
+        outcome: receipt.outcome,
+        sha256: meta.sha256,
+        size_bytes: meta.size_bytes,
+        system: detail.asset_set.system_id
+      }
+    else
+      _ -> raise ArgumentError, "registered GB fixture import failed closed"
+    end
+  end
+
+  # This private fixture path is intentionally separate from the public
+  # generated GB/GBC aliases. It accepts only the exact ignored registry and
+  # immutable owner-supplied ROM digest, then uses the same production blob
+  # custody and single-file Import contexts.
+  defp import_aerevenadvance_fixture!(owner, registry_path) do
+    registry = Path.expand(registry_path)
+
+    static_registry =
+      Path.expand("../../../../playstead-mac/.local/test-fixtures/aerevenadvance.json", __DIR__)
+
+    profile_root = System.get_env("PLAYSTEAD_GB_GBC_SAVE_E2E_PROFILE_ROOT", "") |> Path.expand()
+    isolated_registry = Path.join([profile_root, "aereven-fixture", "aerevenadvance.json"])
+
+    isolated_root? =
+      profile_root != Path.expand(".") and
+        Regex.match?(~r/^playstead-gb-save-e2e\.[A-Za-z0-9]{6}$/, Path.basename(profile_root))
+
+    unless registry == static_registry or (isolated_root? and registry == isolated_registry) do
+      raise ArgumentError, "AerevenAdvance fixture registry identity mismatch"
+    end
+
+    expected_sha = "de968dca9f86f1648bb2bb992d6ce4aa4007d3bf7a064b4bbfd82a96e29409ab"
+    expected_size = 5_564_940
+
+    with {:ok, registry_bytes} <- File.read(registry),
+         {:ok,
+          %{
+            "schema" => "playstead.local-test-fixture.v1",
+            "fixture_id" => "aerevenadvance",
+            "system_id" => "gba",
+            "game" => game
+          }} <- Jason.decode(registry_bytes),
+         %{"path" => fixture_path, "sha256" => ^expected_sha, "size_bytes" => ^expected_size} <-
+           game,
+         {:ok, stat} <- File.stat(registry),
+         true <- Bitwise.band(stat.mode, 0o777) == 0o600,
+         fixture_path <- Path.expand(fixture_path),
+         {:ok, %{size: ^expected_size, type: :regular}} <- File.lstat(fixture_path),
+         {:ok, status, meta} <-
+           Playstead.Blobs.put_stream(File.stream!(fixture_path, [], 65_536), expected_size,
+             expected_sha256: expected_sha
+           ),
+         {:ok, receipt} <-
+           Import.import_single(
+             owner.id,
+             %{
+               original_name: "AerevenAdvance.gba",
+               origin: "mac_ci_fixture",
+               size_bytes: expected_size
+             },
+             {status, meta}
+           ),
+         {:ok, detail} <- Catalogue.get_asset_detail(Scope.for_user(owner), receipt.asset_set_id),
+         true <- detail.asset_set.system_id == "gba",
+         true <-
+           Enum.any?(
+             detail.asset_set.asset_members,
+             &(&1.role == "primary" and &1.blob.sha256 == expected_sha and
+                 &1.blob.size_bytes == expected_size)
+           ) do
+      %{
+        asset_set_id: detail.asset_set.id,
+        outcome: receipt.outcome,
+        sha256: meta.sha256,
+        size_bytes: meta.size_bytes,
+        system: detail.asset_set.system_id
+      }
+    else
+      _ -> raise ArgumentError, "registered AerevenAdvance import failed closed"
     end
   end
 

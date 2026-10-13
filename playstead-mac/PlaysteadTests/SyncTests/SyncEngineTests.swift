@@ -50,12 +50,14 @@ final class SyncEngineTests: XCTestCase {
     private func snapshotResponseJSON(
         catalogue: [String],
         curation: [String],
+        save: [String] = [],
         cursor: String,
         hasMore: Bool,
         nextAfterID: String?
     ) -> Data {
         let catalogueJSON = "[" + catalogue.joined(separator: ",") + "]"
         let curationJSON = "[" + curation.joined(separator: ",") + "]"
+        let saveJSON = "[" + save.joined(separator: ",") + "]"
         let nextAfterField = nextAfterID.map { "\"\($0)\"" } ?? "null"
         let json = """
         {
@@ -65,7 +67,8 @@ final class SyncEngineTests: XCTestCase {
           "next_after_id": \(nextAfterField),
           "catalogue": \(catalogueJSON),
           "job": [],
-          "curation": \(curationJSON)
+          "curation": \(curationJSON),
+          "save": \(saveJSON)
         }
         """
         return Data(json.utf8)
@@ -175,6 +178,45 @@ final class SyncEngineTests: XCTestCase {
         let catalogueStore = CatalogueStore(localStore: localStore)
         XCTAssertEqual(catalogueStore.count(), 2)
         XCTAssertEqual(Set(catalogueStore.fetchAll().map(\.id)), Set(["game-1", "game-2"]))
+    }
+
+    func testBootstrapFromSnapshotMaterializesRestoredSaveAndSchedulesItsBytesWhenGameIsCached() async throws {
+        let contentKey = String(repeating: "a", count: 64)
+        let saveDigest = String(repeating: "b", count: 64)
+        try localStore.connection.execute(
+            """
+            INSERT INTO cache_objects (sha256, size, committed_at, last_used_at, verify_size, verify_inode, verify_mtime_ms)
+            VALUES (?, ?, ?, ?, ?, 0, 0);
+            """,
+            params: [contentKey, 32_768, "2026-09-22T00:00:00Z", "2026-09-22T00:00:00Z", 32_768]
+        )
+
+        StubURLProtocol.responder = { request in
+            XCTAssertEqual(request.url?.path, "/api/v1/snapshot")
+            return StubURLProtocol.Stub(
+                statusCode: 200,
+                headers: ["Content-Type": "application/json"],
+                body: self.snapshotResponseJSON(
+                    catalogue: [], curation: [], save: [self.savePayloadJSON(
+                        revisionID: "restored-revision", saveLineID: "restored-line",
+                        contentKey: contentKey, blobSHA256: saveDigest
+                    )], cursor: "CUR-SAVE", hasMore: false, nextAfterID: nil
+                )
+            )
+        }
+
+        var prefetched: [(String, Int)] = []
+        let engine = SyncEngine(apiClient: apiClient, localStore: localStore) { digest, size in
+            prefetched.append((digest, size))
+        }
+        await engine.syncNow()
+
+        let revision = SaveStore(localStore: localStore).fetchRevision(id: "restored-revision")
+        XCTAssertEqual(revision?.saveLineID, "restored-line")
+        XCTAssertEqual(revision?.blobSHA256, saveDigest)
+        XCTAssertEqual(prefetched.map(\.0), [saveDigest])
+        XCTAssertEqual(prefetched.map(\.1), [32_768])
+        XCTAssertEqual(CursorStore(localStore: localStore).load()?.rawValue, "CUR-SAVE")
     }
 
     // MARK: - Resumed sync
@@ -353,6 +395,63 @@ final class SyncEngineTests: XCTestCase {
 
         guard case .synced = await engine.state else {
             return XCTFail("expected .synced after a successful reset")
+        }
+    }
+
+    /// WINDOWS #80. A cursor the server will not accept is unusable
+    /// whichever code says so, and the client must recover from it the
+    /// same way.
+    ///
+    /// Before this, only `cursor_expired` (410) was handled: a 400
+    /// `cursor_invalid` -- which the server returns for a "malformed,
+    /// tampered with, or FOREIGN" cursor, i.e. for this Mac re-paired to a
+    /// different server, or to the same server after its SECRET_KEY_BASE
+    /// was regenerated -- fell through to the generic failure arm. The app
+    /// then reported "offline since <date>" while the server was up, kept
+    /// the rejected cursor byte-identical, and re-sent it forever, with no
+    /// UI anywhere that reaches `forceFullResync()`.
+    func testCursorInvalidAlsoResetsToFreshSnapshotRatherThanStrandingTheClientOffline() async throws {
+        let cursorStore = CursorStore(localStore: localStore)
+        try cursorStore.store(OpaqueCursor(rawValue: "FOREIGN-SERVERS-CURSOR"), syncedAt: Date())
+
+        let catalogueStore = CatalogueStore(localStore: localStore)
+        try catalogueStore.upsert(try makePayload(catalogueEntryJSON(id: "other-servers-game", title: "Other")).decoded(as: CatalogueEntry.self))
+
+        var changesCallCount = 0
+        StubURLProtocol.responder = { request in
+            if request.url?.path == "/api/v1/changes" {
+                changesCallCount += 1
+                return StubURLProtocol.Stub(
+                    statusCode: 400,
+                    headers: ["Content-Type": "application/json"],
+                    body: self.problemJSON(code: "cursor_invalid")
+                )
+            }
+            XCTAssertEqual(request.url?.path, "/api/v1/snapshot")
+            return StubURLProtocol.Stub(
+                statusCode: 200,
+                headers: ["Content-Type": "application/json"],
+                body: self.snapshotResponseJSON(
+                    catalogue: [self.catalogueEntryJSON(id: "game-1", title: "Game One")],
+                    curation: [], cursor: "FRESH", hasMore: false, nextAfterID: nil
+                )
+            )
+        }
+
+        let engine = makeEngine()
+        await engine.syncNow()
+
+        XCTAssertEqual(changesCallCount, 1)
+        XCTAssertEqual(
+            cursorStore.load()?.rawValue, "FRESH",
+            "the rejected cursor must be replaced by one this server issued, or every later pass repeats it"
+        )
+        XCTAssertEqual(
+            catalogueStore.fetchAll().map(\.id), ["game-1"],
+            "the other server's mirror must be replaced, not merged into"
+        )
+        guard case .synced = await engine.state else {
+            return XCTFail("a recoverable cursor rejection must not leave the app reading as offline")
         }
     }
 

@@ -25,11 +25,11 @@ defmodule PlaysteadWeb.RecoveryCodesController do
     """
     <!DOCTYPE html>
     <html><head><title>New recovery codes</title></head>
-    <body style="background:#0F172A;color:#F1F5F9;font-family:Inter,sans-serif;">
+    <body style="background:var(--color-app-canvas);color:var(--color-app-text);font-family:Inter,sans-serif;">
       <h1>Your new recovery codes</h1>
       <p>Save these somewhere safe — they are shown only once. Your old codes no longer work.</p>
-      <ul id="new-recovery-codes" style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:600;letter-spacing:0.04em;color:#38BDF8;">#{items}</ul>
-      <p><a href="/settings/sessions" style="color:#38BDF8;">Back to Sessions</a></p>
+      <ul id="new-recovery-codes" style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:600;letter-spacing:0.04em;color:var(--color-app-accent);">#{items}</ul>
+      <p><a href="/settings/sessions" style="color:var(--color-app-accent);">Back to Sessions</a></p>
     </body></html>
     """
   end

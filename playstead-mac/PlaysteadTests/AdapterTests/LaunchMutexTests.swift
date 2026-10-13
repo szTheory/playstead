@@ -62,7 +62,7 @@ final class LaunchMutexTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: tempRoot) }
 
         let pin = try AdapterPin.load()
-        let host = AdapterHost(pin: pin, emulatorsRoot: tempRoot.appendingPathComponent("emulators"))
+        let host = AdapterHost(pin: pin, emulatorsRoot: tempRoot.appendingPathComponent("emulators"), processRegistry: .isolatedForTesting())
 
         // No install recorded, so `verifyInstalledDigest` throws before
         // any process is spawned — the mutex must still be released.
@@ -107,7 +107,10 @@ final class LaunchMutexTests: XCTestCase {
         let emulatorsRoot = tempRoot.appendingPathComponent("emulators")
         let emulatorDir = emulatorsRoot.appendingPathComponent(pin.emulator).appendingPathComponent(pin.version)
         try FileManager.default.createDirectory(at: emulatorDir, withIntermediateDirectories: true)
-        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/bin/sleep"), to: emulatorDir.appendingPathComponent("sleep"))
+        try StandInExecutable.install(
+            from: URL(fileURLWithPath: "/bin/sleep"),
+            to: emulatorDir.appendingPathComponent("sleep")
+        )
 
         var sleepHasher = try StreamingSHA256.resume(from: emulatorDir.appendingPathComponent("sleep"))
         let sleepDigest = sleepHasher.finalizeHex()
@@ -115,9 +118,9 @@ final class LaunchMutexTests: XCTestCase {
             archiveSHA256: pin.sha256, executableSHA256: sleepDigest, executablePath: emulatorDir.appendingPathComponent("sleep").path
         )).write(to: emulatorDir.appendingPathComponent(".install-verify.json"))
 
-        let hostA = AdapterHost(pin: pin, emulatorsRoot: emulatorsRoot)
-        let hostB = AdapterHost(pin: pin, emulatorsRoot: emulatorsRoot)
-        let hostC = AdapterHost(pin: pin, emulatorsRoot: emulatorsRoot)
+        let hostA = AdapterHost(pin: pin, emulatorsRoot: emulatorsRoot, processRegistry: .isolatedForTesting())
+        let hostB = AdapterHost(pin: pin, emulatorsRoot: emulatorsRoot, processRegistry: .isolatedForTesting())
+        let hostC = AdapterHost(pin: pin, emulatorsRoot: emulatorsRoot, processRegistry: .isolatedForTesting())
 
         let firstExited = expectation(description: "first process exits")
         let proc = try await hostA.launch(assetSetID: "shared-game", romPath: "/tmp/rom.gba", saveDir: "/tmp/saves") { _ in
@@ -170,7 +173,10 @@ final class LaunchMutexTests: XCTestCase {
         let emulatorsRoot = tempRoot.appendingPathComponent("emulators")
         let emulatorDir = emulatorsRoot.appendingPathComponent(pin.emulator).appendingPathComponent(pin.version)
         try FileManager.default.createDirectory(at: emulatorDir, withIntermediateDirectories: true)
-        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/usr/bin/true"), to: emulatorDir.appendingPathComponent("true"))
+        try StandInExecutable.install(
+            from: URL(fileURLWithPath: "/usr/bin/true"),
+            to: emulatorDir.appendingPathComponent("true")
+        )
 
         var trueHasher = try StreamingSHA256.resume(from: emulatorDir.appendingPathComponent("true"))
         let trueDigest = trueHasher.finalizeHex()
@@ -178,7 +184,7 @@ final class LaunchMutexTests: XCTestCase {
             archiveSHA256: pin.sha256, executableSHA256: trueDigest, executablePath: emulatorDir.appendingPathComponent("true").path
         )).write(to: emulatorDir.appendingPathComponent(".install-verify.json"))
 
-        let host = AdapterHost(pin: pin, emulatorsRoot: emulatorsRoot)
+        let host = AdapterHost(pin: pin, emulatorsRoot: emulatorsRoot, processRegistry: .isolatedForTesting())
         let exited = expectation(description: "process exits cleanly")
         _ = try await host.launch(assetSetID: "clean-exit-game", romPath: "/tmp/rom.gba", saveDir: "/tmp/saves") { exit in
             XCTAssertEqual(exit, .clean)

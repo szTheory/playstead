@@ -40,6 +40,19 @@ CHECKPOINT_TESTS = {
     ],
 }
 
+SIMULATED_MAPPINGS = {
+    8: [
+        "ControllerNoHIDIntegrationTests/testSimulatedControllerInputAndReconnectPreserveFallback",
+        "ControllerNoHIDIntegrationTests/testSimulatedDetachShowsNonModalRecoveryAndPreservesFallback",
+    ],
+    9: ["ControllerNoHIDIntegrationTests/testSimulatedControllerMappingLifecyclePersistsAndResets"],
+}
+OBJECTIVE_ACCESSIBILITY_TESTS = [
+    "ControllerNavigationTests/testSidebarUpDownAndRightLeftHandoffUseStableIndexes",
+    "ControllerNavigationTests/testKeyboardDirectionsShareTheControllerTransitionReducer",
+    "SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit",
+]
+
 
 def checkpoint(number, body):
     return f"### {number}. Fixture checkpoint {number}\n{body.strip()}\n"
@@ -93,32 +106,109 @@ coverage_id: fixture/{number}
     )
 
 
+MANUAL_7_TOKENS = (
+    "docker compose stop caddy",
+    "f7f6e37aaf7527e088fd88616ce82f4b16fe4800f5f4cf2de59ff2e0b24ff026",
+    "f2f329b4947baa5082fcaf27ced1e2b21f2999ccf73ca481f22b44c4c87d6640",
+    '"Last exit: clean"',
+    '"Last exit: crashed"',
+    '"Last exit: killed"',
+    'unknown(status: 0, reason: "exit")',
+)
+
+
+def manually_closed_checkpoint(number):
+    """A checkpoint the owner closed by hand: passing, `source: manual`, never
+    claiming an automated source, and carrying every proof token that made the
+    pass real."""
+    tokens = "\n".join(f"  {token}" for token in MANUAL_7_TOKENS)
+    return checkpoint(
+        number,
+        f"""
+expected: fixture
+result: pass
+source: manual
+evidence: |
+  Closed by hand on the owner's own machine.
+{tokens}
+coverage_id: fixture/{number}
+""",
+    )
+
+
 def valid_uat():
+    def simulated_checkpoint(number):
+        ids = "\n".join(f"  - `{test}`" for test in SIMULATED_MAPPINGS[number])
+        return checkpoint(number, f"""
+expected: fixture
+result: blocked
+blocked_by: GameController-enumeration-and-physical-device-qualification
+#### Simulated app recovery/lifecycle record
+result: pass
+source: automated
+evidence: |
+  Exact covering tests:
+{ids}
+  Finite UI_TESTING source proves simulated app behavior only.
+  Evidence result: discovered, executed once, non-skipped, passed.
+#### Unqualified OS/hardware record
+result: blocked
+blocked_by: 03-17-entitled-GameController-enumeration-and-physical-DualSense-observation
+source: human-needed
+evidence: |
+  `ControllerHardwareIntegrationTests/testEntitledVirtualGamepadEnumeratesDetachesAndReconnectsWithoutRelaunch` remains unqualified; physical DualSense observation remains human-needed.
+coverage_id: fixture/{number}
+""")
+
     sections = {
         2: automated_checkpoint(2),
         3: automated_checkpoint(3),
         4: resolved_checkpoint(4),
         5: automated_checkpoint(5),
         6: automated_checkpoint(6),
-        7: blocked_checkpoint(7, "real-emulator-game-bytes"),
-        8: blocked_checkpoint(8, "physical-device"),
-        9: blocked_checkpoint(9, "physical-device"),
+        7: manually_closed_checkpoint(7),
+        8: simulated_checkpoint(8),
+        9: simulated_checkpoint(9),
         10: checkpoint(
             10,
             """
 expected: fixture
-result: blocked
+result: issue
 #### Automated keyboard/live-tree record
 result: pass
 source: automated
 evidence: |
   `SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit`
+  `ControllerNavigationTests/testSidebarUpDownAndRightLeftHandoffUseStableIndexes`
+  `ControllerNavigationTests/testKeyboardDirectionsShareTheControllerTransitionReducer`
   Keyboard and machine-checkable live-tree labels, roles, state, hierarchy, focus, and audits only.
+  Objective accessibility properties are live-tree labels, roles, state, hierarchy, focus order, and audits.
 #### Blocked physical-controller/experiential record
 result: blocked
 blocked_by: physical-device-and-experiential-review
 reason: "Physical controller d-pad/shoulder behavior and experiential VoiceOver pronunciation, rotor behavior, sentence quality, and comprehension remain blocked and unclaimed."
 coverage_id: fixture/10
+""",
+        ),
+        13: checkpoint(
+            13,
+            """
+expected: fixture
+result: issue
+source: automated
+evidence: |
+  The production Choose File control opens NSOpenPanel. The finite UI_TESTING
+  `UITestBiosCandidate` seam exercises the candidate acceptance path without
+  proprietary BIOS bytes. No drag-session oracle is claimed.
+  Proprietary BIOS possession/authenticity, legality, emulator consumption, and
+  hardware fidelity remain explicit non-gating non-claims.
+#### Blocked real-BIOS acceptance record
+result: blocked
+blocked_by: legally-owned-production-BIOS-required
+source: human-needed
+evidence: |
+  No proprietary BIOS possession or authenticity is proven by the synthetic seam.
+coverage_id: fixture/13
 """,
         ),
         14: resolved_checkpoint(14),
@@ -210,11 +300,14 @@ class ValidatorTests(unittest.TestCase):
 
     def test_rejects_overbroad_or_misplaced_automated_source(self):
         self.assert_rejected(uat=valid_uat().replace("source: automated\n", "source: human\n", 1))
-        self.assert_rejected(uat=valid_uat().replace("blocked_by: real-emulator-game-bytes", "source: automated\nblocked_by: real-emulator-game-bytes"))
+        self.assert_rejected(uat=valid_uat().replace("blocked_by: physical-device", "source: automated\nblocked_by: physical-device", 1))
         self.assert_rejected(uat=valid_uat().replace("blocked_by: physical-device-and-experiential-review", "source: automated\nblocked_by: physical-device-and-experiential-review"))
 
     def test_rejects_absent_residual_blocker(self):
-        for number in (7, 8, 9):
+        # 7 is deliberately absent: the owner closed it by hand on 2026-09-13, so
+        # it is covered by the manually-closed tests above instead. 8 and 9 remain
+        # blocked on physical controller hardware.
+        for number in (8, 9):
             with self.subTest(checkpoint=number):
                 source = valid_uat()
                 start = source.index(f"### {number}.")
@@ -239,6 +332,73 @@ class ValidatorTests(unittest.TestCase):
                     end = len(source) if end < 0 else end
                     section = source[start:end].replace(mutation, replacement, 1)
                     self.assert_rejected(uat=source[:start] + section + source[end:])
+
+    def test_rejects_missing_renamed_skipped_or_zero_discovery_simulated_evidence(self):
+        source = valid_uat()
+        mutations = (
+            (SIMULATED_MAPPINGS[8][0], "RenamedRecoveryTest"),
+            ("discovered, executed once, non-skipped, passed", "not discovered, skipped, passed"),
+            ("executed once", "execution_count: 0"),
+        )
+        for original, replacement in mutations:
+            with self.subTest(mutation=original):
+                self.assert_rejected(uat=source.replace(original, replacement, 1))
+
+    def test_rejects_hardware_evidence_substitution_and_closed_parent(self):
+        source = valid_uat()
+        self.assert_rejected(uat=source.replace("testEntitledVirtualGamepadEnumeratesDetachesAndReconnectsWithoutRelaunch", "simulated-placeholder", 1))
+        self.assert_rejected(uat=source.replace("result: blocked\nblocked_by: GameController-enumeration", "result: pass\nblocked_by: GameController-enumeration", 1))
+
+    def test_rejects_removed_objective_inventory_or_non_gating_voiceover_claim(self):
+        source = valid_uat()
+        for token in (
+            "Objective accessibility properties are live-tree labels, roles, state, hierarchy, focus order, and audits.",
+            "experiential VoiceOver pronunciation, rotor behavior, sentence quality, and comprehension",
+        ):
+            with self.subTest(token=token):
+                self.assert_rejected(uat=source.replace(token, "removed objective/non-claim", 1))
+
+    def test_rejects_bios_drag_and_proprietary_overclaims_or_missing_picker_seam(self):
+        source = valid_uat()
+        for mutation in (
+            "The test dragged candidate into the BIOS surface.",
+            "Proprietary BIOS bytes were accepted.",
+            "BIOS authenticity was verified.",
+            "The emulator consumed the BIOS.",
+            "hardware fidelity was verified.",
+            "Choose File",
+            "UITestBiosCandidate",
+        ):
+            with self.subTest(mutation=mutation):
+                self.assert_rejected(uat=source.replace("No drag-session oracle is claimed.", mutation, 1) if "Choose File" not in mutation and "UITestBiosCandidate" not in mutation else source.replace(mutation, "removed", 1))
+
+    def test_rejects_manually_closed_checkpoint_claiming_automation(self):
+        """A hand-closed checkpoint must never be dressed up as CI-proven — a
+        manual pass on one machine is not a regression gate."""
+        self.assert_rejected(
+            uat=valid_uat().replace("result: pass\nsource: manual", "result: pass\nsource: automated", 1)
+        )
+
+    def test_rejects_manually_closed_checkpoint_reverting_to_blocked(self):
+        """Reading `pass` while still carrying a blocked clause is the exact
+        rounding-up this validator exists to prevent."""
+        self.assert_rejected(
+            uat=valid_uat().replace(
+                "coverage_id: fixture/7",
+                "#### Regressed clause\nresult: blocked\nblocked_by: third-party\ncoverage_id: fixture/7",
+                1,
+            )
+        )
+
+    def test_rejects_manually_closed_checkpoint_losing_each_proof_token(self):
+        """Every token is load-bearing: deleting any one must fail, so the
+        specific proofs cannot be quietly dropped while the `pass` survives."""
+        for token in MANUAL_7_TOKENS:
+            with self.subTest(token=token):
+                self.assert_rejected(uat=valid_uat().replace(token, "REDACTED", 1))
+
+    def test_rejects_manually_closed_checkpoint_without_manual_source(self):
+        self.assert_rejected(uat=valid_uat().replace("source: manual", "", 1))
 
     def test_rejects_non_partial_frontmatter(self):
         self.assert_rejected(uat=valid_uat().replace("status: partial", "status: complete", 1))

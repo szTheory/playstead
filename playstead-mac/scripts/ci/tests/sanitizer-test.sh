@@ -41,6 +41,10 @@ make_valid() {
   python3 - "$root/evidence/ui-tests.json" <<'PY'
 import json, pathlib, sys
 path = pathlib.Path(sys.argv[1]); data = json.loads(path.read_text())
+data["layout_diagnostic_count"] = 0
+data["layout_diagnostics_truncated"] = False
+data["layout_diagnostics"] = []
+data["runner_process_error_count"] = 0
 data["save_upload_diagnostic_count"] = 2
 data["save_upload_diagnostics"] = [
     {"test_identifier":"SaveEndToEndTests/testOneSaveRoundTripsCaptureUploadAndJournalReturn()","drain_outcome":"stopped_for_retry","classification":"server_refusal","http_status":409,"api_code":"other","server_route_status":"unavailable"},
@@ -48,6 +52,7 @@ data["save_upload_diagnostics"] = [
 ]
 path.write_text(json.dumps(data))
 PY
+  printf '%s\n' '{"schema_version":1,"run_id":"123e4567-e89b-42d3-a456-426614174000","lane":"linux_restore_fixture","stages":["chain","preflight","database","cas","manifest","api"],"outcome":"passed"}' >"$root/evidence/recovery-e2e.json"
   printf 'safe app event at /Users/example/private/location\n' >"$root/evidence/logs/app.log"
   printf 'server health passed\n' >"$root/evidence/logs/server.log"
   printf '\211PNG\r\n\032\nreference' >"$root/evidence/snapshot-triplet/reference.png"
@@ -70,6 +75,80 @@ grep -F '[PATH]' "$TMP_ROOT/output/logs/app.log" >/dev/null || { printf 'FAIL: l
 [ ! -e "$TMP_ROOT/output/DerivedData" ]
 [ -s "$TMP_ROOT/output/storage-candidate/storage-surfaces.actual.png" ]
 PASS_COUNT=$((PASS_COUNT + 4))
+
+virtual_gamepad_blocked="$TMP_ROOT/virtual-gamepad-blocked"
+make_valid "$virtual_gamepad_blocked"
+printf '%s\n' '{"schema_version":1,"lane":"virtual_gamepad","test_identifier":"PlaysteadUITests.ControllerHardwareIntegrationTests/testEntitledVirtualGamepadEnumeratesDetachesAndReconnectsWithoutRelaunch","status":"blocked/not-configured","gate_passed":false}' >"$virtual_gamepad_blocked/evidence/entitled-gamepad.json"
+expect_pass virtual_gamepad_blocked "$SANITIZER" --input "$virtual_gamepad_blocked" --output "$TMP_ROOT/virtual-gamepad-blocked-output"
+grep -F '"status": "blocked/not-configured"' "$TMP_ROOT/virtual-gamepad-blocked-output/entitled-gamepad.json" >/dev/null
+PASS_COUNT=$((PASS_COUNT + 1))
+
+virtual_gamepad_false_pass="$TMP_ROOT/virtual-gamepad-false-pass"
+make_valid "$virtual_gamepad_false_pass"
+printf '%s\n' '{"schema_version":1,"lane":"virtual_gamepad","test_identifier":"PlaysteadUITests.ControllerHardwareIntegrationTests/testEntitledVirtualGamepadEnumeratesDetachesAndReconnectsWithoutRelaunch","status":"blocked/not-configured","gate_passed":true}' >"$virtual_gamepad_false_pass/evidence/entitled-gamepad.json"
+expect_fail virtual_gamepad_false_pass "$SANITIZER" --input "$virtual_gamepad_false_pass" --output "$TMP_ROOT/virtual-gamepad-false-pass-output"
+
+runner_process_error_overflow="$TMP_ROOT/runner-process-error-overflow"
+make_valid "$runner_process_error_overflow"
+python3 - "$runner_process_error_overflow/evidence/ui-tests.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+data = json.loads(path.read_text())
+data["runner_process_error_count"] = 51
+path.write_text(json.dumps(data))
+PY
+expect_fail runner_process_error_overflow "$SANITIZER" --input "$runner_process_error_overflow" --output "$TMP_ROOT/runner-process-error-overflow-output"
+
+recovery_unknown="$TMP_ROOT/recovery-unknown"
+make_valid "$recovery_unknown"
+python3 - "$recovery_unknown/evidence/recovery-e2e.json" <<'PY'
+import json, pathlib, sys
+p=pathlib.Path(sys.argv[1]); d=json.loads(p.read_text()); d["fixture_path"]="/Users/private/game.gba"; p.write_text(json.dumps(d))
+PY
+expect_fail recovery_unknown "$SANITIZER" --input "$recovery_unknown" --output "$TMP_ROOT/recovery-unknown-output"
+
+recovery_stage="$TMP_ROOT/recovery-stage"
+make_valid "$recovery_stage"
+python3 - "$recovery_stage/evidence/recovery-e2e.json" <<'PY'
+import json, pathlib, sys
+p=pathlib.Path(sys.argv[1]); d=json.loads(p.read_text()); d["stages"].pop(); p.write_text(json.dumps(d))
+PY
+expect_fail recovery_stage "$SANITIZER" --input "$recovery_stage" --output "$TMP_ROOT/recovery-stage-output"
+
+# Same-host Mac recovery receipts use a separate compact schema. Keep their
+# stage/outcome pair strict without changing the Linux fixture receipt above.
+local_recovery_blocked="$TMP_ROOT/local-recovery-blocked"
+make_valid "$local_recovery_blocked"
+printf '%s\n' '{"schema":"playstead.recovery-e2e-local.v1","run_id":"123e4567-e89b-42d3-a456-426614174000","lane":"same_host_restored_target","stage":"cache_preflight","outcome":"blocked"}' >"$local_recovery_blocked/evidence/recovery-e2e.json"
+expect_pass local_recovery_blocked "$SANITIZER" --input "$local_recovery_blocked" --output "$TMP_ROOT/local-recovery-blocked-output"
+python3 - "$TMP_ROOT/local-recovery-blocked-output/recovery-e2e.json" <<'PY'
+import json, pathlib, sys
+data = json.loads(pathlib.Path(sys.argv[1]).read_text())
+assert set(data) == {"schema", "run_id", "lane", "stage", "outcome"}
+assert data["stage"] == "cache_preflight" and data["outcome"] == "blocked"
+PY
+PASS_COUNT=$((PASS_COUNT + 1))
+
+local_recovery_complete="$TMP_ROOT/local-recovery-complete"
+make_valid "$local_recovery_complete"
+printf '%s\n' '{"schema":"playstead.recovery-e2e-local.v1","run_id":"123e4567-e89b-42d3-a456-426614174000","lane":"same_host_restored_target","stage":"complete","outcome":"passed"}' >"$local_recovery_complete/evidence/recovery-e2e.json"
+expect_pass local_recovery_complete "$SANITIZER" --input "$local_recovery_complete" --output "$TMP_ROOT/local-recovery-complete-output"
+PASS_COUNT=$((PASS_COUNT + 1))
+
+local_recovery_bad_stage="$TMP_ROOT/local-recovery-bad-stage"
+make_valid "$local_recovery_bad_stage"
+printf '%s\n' '{"schema":"playstead.recovery-e2e-local.v1","run_id":"123e4567-e89b-42d3-a456-426614174000","lane":"same_host_restored_target","stage":"private-path","outcome":"blocked"}' >"$local_recovery_bad_stage/evidence/recovery-e2e.json"
+expect_fail local_recovery_bad_stage "$SANITIZER" --input "$local_recovery_bad_stage" --output "$TMP_ROOT/local-recovery-bad-stage-output"
+
+local_recovery_extra_field="$TMP_ROOT/local-recovery-extra-field"
+make_valid "$local_recovery_extra_field"
+printf '%s\n' '{"schema":"playstead.recovery-e2e-local.v1","run_id":"123e4567-e89b-42d3-a456-426614174000","lane":"same_host_restored_target","stage":"cache_preflight","outcome":"blocked","private_field":"forbidden"}' >"$local_recovery_extra_field/evidence/recovery-e2e.json"
+expect_fail local_recovery_extra_field "$SANITIZER" --input "$local_recovery_extra_field" --output "$TMP_ROOT/local-recovery-extra-field-output"
+
+local_recovery_inconsistent="$TMP_ROOT/local-recovery-inconsistent"
+make_valid "$local_recovery_inconsistent"
+printf '%s\n' '{"schema":"playstead.recovery-e2e-local.v1","run_id":"123e4567-e89b-42d3-a456-426614174000","lane":"same_host_restored_target","stage":"complete","outcome":"blocked"}' >"$local_recovery_inconsistent/evidence/recovery-e2e.json"
+expect_fail local_recovery_inconsistent "$SANITIZER" --input "$local_recovery_inconsistent" --output "$TMP_ROOT/local-recovery-inconsistent-output"
 python3 - "$TMP_ROOT/output/ui-tests.json" <<'PY'
 import json, pathlib, sys
 data = json.loads(pathlib.Path(sys.argv[1]).read_text())
@@ -113,6 +192,21 @@ data["timed_test_count"] = -1
 path.write_text(json.dumps(data))
 PY
 expect_fail malformed_profile "$SANITIZER" --input "$malformed_profile" --output "$TMP_ROOT/malformed-profile-output"
+class_selector="$TMP_ROOT/class-selector"
+make_valid "$class_selector"
+python3 - "$class_selector/evidence/ui-tests.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1]); data = json.loads(path.read_text())
+data["required_tests"][0]["identifier"] = "PlaysteadUITests.LibraryEmptyStateTests/*"
+path.write_text(json.dumps(data))
+PY
+expect_pass class_selector "$SANITIZER" --input "$class_selector" --output "$TMP_ROOT/class-selector-output"
+python3 - "$TMP_ROOT/class-selector-output/ui-tests.json" <<'PY'
+import json, pathlib, sys
+data = json.loads(pathlib.Path(sys.argv[1]).read_text())
+assert data["required_tests"][0]["identifier"] == "PlaysteadUITests.LibraryEmptyStateTests/*"
+PY
+PASS_COUNT=$((PASS_COUNT + 1))
 
 secret_json="$TMP_ROOT/secret-json"
 make_valid "$secret_json"
@@ -163,6 +257,131 @@ data["save_upload_diagnostics"][0]["http_status"] = 999
 path.write_text(json.dumps(data))
 PY
 expect_fail unbounded_save_status "$SANITIZER" --input "$unbounded_save_status" --output "$TMP_ROOT/unbounded-save-status-output"
+zero_network_stages="unknown stand-in-installation adapter-selection adapter-host-acquisition synthetic-cas-catalogue-readiness materialization-save-setup adapter-launch bounded-exit unexpected-http-request"
+for stage in $zero_network_stages; do
+  zero_network_stage="$TMP_ROOT/zero-network-stage-$stage"
+  make_valid "$zero_network_stage"
+  python3 - "$zero_network_stage/evidence/ui-tests.json" "$stage" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+stage = sys.argv[2]
+data = json.loads(path.read_text())
+identifier = "ZeroNetworkPlayFlowTests/testWholePlayFlowRecordsZeroHTTPRequests()"
+data["failed_tests"] = [{"identifier": identifier, "outcome": "failed"}]
+data["failed_test_count"] = 1
+data["failure_diagnostic_count"] = 1
+data["failure_diagnostics"] = [{
+    "test_identifier": identifier,
+    "assertion": "XCTAssertNil",
+    "source_file": "PlaysteadUITests/ZeroNetworkPlayFlowTests.swift",
+    "source_line": 57,
+    "failure_stage": stage,
+}]
+path.write_text(json.dumps(data, separators=(",", ":")))
+PY
+  expect_pass "zero_network_stage_$stage" "$SANITIZER" --input "$zero_network_stage" --output "$TMP_ROOT/zero-network-stage-$stage-output"
+  python3 - "$TMP_ROOT/zero-network-stage-$stage-output/ui-tests.json" "$stage" <<'PY'
+import json, pathlib, sys
+data = json.loads(pathlib.Path(sys.argv[1]).read_text())
+records = data["failure_diagnostics"]
+assert len(records) == 1 and records[0]["failure_stage"] == sys.argv[2]
+assert set(records[0]) == {"test_identifier", "assertion", "source_file", "source_line", "failure_stage"}
+PY
+done
+PASS_COUNT=$((PASS_COUNT + 1))
+
+zero_network_stage_unknown="$TMP_ROOT/zero-network-stage-unknown"
+make_valid "$zero_network_stage_unknown"
+python3 - "$zero_network_stage_unknown/evidence/ui-tests.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1]); data = json.loads(path.read_text())
+data["failure_diagnostics"][0].update({
+    "test_identifier": "ZeroNetworkPlayFlowTests/testWholePlayFlowRecordsZeroHTTPRequests()",
+    "failure_stage": "private-stage",
+})
+path.write_text(json.dumps(data))
+PY
+expect_fail zero_network_stage_unknown "$SANITIZER" --input "$zero_network_stage_unknown" --output "$TMP_ROOT/zero-network-stage-unknown-output"
+
+zero_network_stage_wrong_test="$TMP_ROOT/zero-network-stage-wrong-test"
+make_valid "$zero_network_stage_wrong_test"
+python3 - "$zero_network_stage_wrong_test/evidence/ui-tests.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1]); data = json.loads(path.read_text())
+data["failure_diagnostics"][0]["failure_stage"] = "adapter-launch"
+path.write_text(json.dumps(data))
+PY
+expect_fail zero_network_stage_wrong_test "$SANITIZER" --input "$zero_network_stage_wrong_test" --output "$TMP_ROOT/zero-network-stage-wrong-test-output"
+
+zero_network_stage_sentinel="$TMP_ROOT/zero-network-stage-sentinel"
+make_valid "$zero_network_stage_sentinel"
+python3 - "$zero_network_stage_sentinel/evidence/ui-tests.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1]); data = json.loads(path.read_text())
+data["failure_diagnostics"][0].update({
+    "test_identifier": "ZeroNetworkPlayFlowTests/testWholePlayFlowRecordsZeroHTTPRequests()",
+    "failure_stage": "adapter-launch-/Users/private/Secret.gba-Bearer-secret",
+})
+path.write_text(json.dumps(data))
+PY
+expect_fail zero_network_stage_sentinel "$SANITIZER" --input "$zero_network_stage_sentinel" --output "$TMP_ROOT/zero-network-stage-sentinel-output"
+
+zero_network_stage_extra_key="$TMP_ROOT/zero-network-stage-extra-key"
+make_valid "$zero_network_stage_extra_key"
+python3 - "$zero_network_stage_extra_key/evidence/ui-tests.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1]); data = json.loads(path.read_text())
+data["failure_diagnostics"][0].update({
+    "test_identifier": "ZeroNetworkPlayFlowTests/testWholePlayFlowRecordsZeroHTTPRequests()",
+    "failure_stage": "adapter-launch",
+    "message": "Bearer private-token /Users/private/Secret.gba",
+})
+path.write_text(json.dumps(data))
+PY
+expect_fail zero_network_stage_extra_key "$SANITIZER" --input "$zero_network_stage_extra_key" --output "$TMP_ROOT/zero-network-stage-extra-key-output"
+
+zero_network_stage_duplicate_key="$TMP_ROOT/zero-network-stage-duplicate-key"
+make_valid "$zero_network_stage_duplicate_key"
+python3 - "$zero_network_stage_duplicate_key/evidence/ui-tests.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1]); data = json.loads(path.read_text())
+data["failure_diagnostics"][0].update({
+    "test_identifier": "ZeroNetworkPlayFlowTests/testWholePlayFlowRecordsZeroHTTPRequests()",
+    "failure_stage": "adapter-launch",
+})
+raw = json.dumps(data, separators=(",", ":"))
+raw = raw.replace('"failure_stage":"adapter-launch"', '"failure_stage":"adapter-launch","failure_stage":"bounded-exit"', 1)
+path.write_text(raw)
+PY
+expect_fail zero_network_stage_duplicate_key "$SANITIZER" --input "$zero_network_stage_duplicate_key" --output "$TMP_ROOT/zero-network-stage-duplicate-key-output"
+
+layout_diagnostic="$TMP_ROOT/layout-diagnostic"
+make_valid "$layout_diagnostic"
+python3 - "$layout_diagnostic/evidence/ui-tests.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1]); data = json.loads(path.read_text())
+data["layout_diagnostic_count"] = 1
+data["layout_diagnostics"] = [{"kind":"moveUp","hittable":False,"element":[12,34,56,78],"pane":[1,2,300,400],"window":[0,0,1200,900]}]
+path.write_text(json.dumps(data))
+PY
+expect_pass layout_diagnostic "$SANITIZER" --input "$layout_diagnostic" --output "$TMP_ROOT/layout-diagnostic-output"
+python3 - "$TMP_ROOT/layout-diagnostic-output/ui-tests.json" <<'PY'
+import json, pathlib, sys
+data = json.loads(pathlib.Path(sys.argv[1]).read_text())
+assert data["layout_diagnostics"] == [{"kind":"moveUp","hittable":False,"element":[12,34,56,78],"pane":[1,2,300,400],"window":[0,0,1200,900]}]
+PY
+PASS_COUNT=$((PASS_COUNT + 1))
+
+layout_diagnostic_freeform="$TMP_ROOT/layout-diagnostic-freeform"
+make_valid "$layout_diagnostic_freeform"
+python3 - "$layout_diagnostic_freeform/evidence/ui-tests.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1]); data = json.loads(path.read_text())
+data["layout_diagnostic_count"] = 1
+data["layout_diagnostics"] = [{"kind":"moveUp","hittable":False,"element":[12,34,56,78],"pane":[1,2,300,400],"window":[0,0,1200,900],"message":"private XCTest text"}]
+path.write_text(json.dumps(data))
+PY
+expect_fail layout_diagnostic_freeform "$SANITIZER" --input "$layout_diagnostic_freeform" --output "$TMP_ROOT/layout-diagnostic-freeform-output"
 
 unbounded_diagnostics="$TMP_ROOT/unbounded-diagnostics"
 make_valid "$unbounded_diagnostics"
@@ -333,6 +552,69 @@ xctest_still_strict="$TMP_ROOT/xctest-still-strict"
 make_valid "$xctest_still_strict"
 printf '%s\n' '{"layer":"ui","outcome":"passed"}' >"$xctest_still_strict/evidence/ui-tests.json"
 expect_fail xctest_evidence_still_strict "$SANITIZER" --input "$xctest_still_strict" --output "$TMP_ROOT/xctest-still-strict-output"
+
+# WINDOWS: the real defect this file exists to prevent recurred anyway. The
+# writer in run-mac-verification.sh grew a timing block (c3f51e1) and the
+# validator's allowlist did not, so EVERY layer file was rejected -- yet this
+# guard stayed green, because make_valid hand-writes its fixture and a test
+# that decodes its own fixture cannot see a wrong shipped shape. Worse, the
+# sanitizer runs only when a layer has already failed, so the breakage was
+# invisible on green runs and destroyed the evidence of exactly the red runs
+# that needed it.
+#
+# So do not assert against a fixture alone. Derive the key set from the
+# SHIPPED writer and require the shipped validator to accept a file carrying
+# it. A key added on either side fails this check on the next run, green or red.
+writer_shape="$TMP_ROOT/writer-shape"
+make_valid "$writer_shape"
+python3 - "${SCRIPT_DIR}/../run-mac-verification.sh" "$writer_shape/evidence/ui-tests.json" <<'WRITERSHAPE'
+import json, pathlib, re, sys
+
+script = pathlib.Path(sys.argv[1]).read_text()
+marker = "\nsummary = {\n"
+if script.count(marker) != 1:
+    raise SystemExit("the per-layer summary literal is not uniquely locatable")
+body = script[script.index(marker) + len(marker):]
+body = body[:body.index("\n}\n")]
+# Keys of the summary dict literal sit at exactly four spaces of indent;
+# nested dict and list entries are indented further and are not keys.
+writer_keys = set(re.findall(r'^    "([a-z_]+)":', body, re.M))
+if len(writer_keys) < 10:
+    raise SystemExit(f"writer key extraction found only {len(writer_keys)} key(s); the literal moved")
+
+data = json.loads(pathlib.Path(sys.argv[2]).read_text())
+missing = sorted(writer_keys - set(data))
+unexpected = sorted(set(data) - writer_keys)
+if missing or unexpected:
+    raise SystemExit(
+        f"evidence fixture has drifted from the shipped writer: "
+        f"missing={missing} unexpected={unexpected}"
+    )
+print(f"writer emits {len(writer_keys)} key(s); fixture carries all of them")
+WRITERSHAPE
+expect_pass writer_shape_accepted_by_validator "$SANITIZER" --input "$writer_shape" --output "$TMP_ROOT/writer-shape-output"
+
+continuation_matrix="$TMP_ROOT/continuation-matrix"
+mkdir -p "$continuation_matrix"
+python3 - "$continuation_matrix" <<'PY'
+import json,pathlib,sys,uuid
+root=pathlib.Path(sys.argv[1])
+for stage in ("preflight","qualification","initial-save","safe-exit","fresh-launch","continue","oracle"):
+    for outcome in ("passed","failed-stage","blocked-capability"):
+        evidence=root/(stage+"-"+outcome)/"evidence"
+        evidence.mkdir(parents=True)
+        (evidence/"continuation.json").write_text(json.dumps({"schema":"playstead.continuation-local.v1","run_id":str(uuid.uuid4()),"stage":stage,"outcome":outcome}))
+PY
+for stage in preflight qualification initial-save safe-exit fresh-launch continue oracle; do
+  for outcome in passed failed-stage blocked-capability; do
+    name="continuation-$stage-$outcome"
+    case "$stage/$outcome" in
+      preflight/blocked-capability|qualification/blocked-capability|initial-save/failed-stage|safe-exit/failed-stage|fresh-launch/failed-stage|continue/failed-stage|oracle/failed-stage|oracle/passed)
+        expect_pass "$name" "$SANITIZER" --input "$continuation_matrix/$stage-$outcome" --output "$TMP_ROOT/$name-output" ;;
+      *) expect_fail "$name" "$SANITIZER" --input "$continuation_matrix/$stage-$outcome" --output "$TMP_ROOT/$name-output" ;;
+    esac
+  done
+done
 
 if [ "$FAIL_COUNT" -ne 0 ]; then
   printf 'evidence sanitizer: %d check(s) failed\n' "$FAIL_COUNT" >&2

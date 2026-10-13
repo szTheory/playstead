@@ -80,6 +80,29 @@ final class FilterTests: XCTestCase {
         XCTAssertEqual(intersection.map(\.id), ["gba-ready"])
     }
 
+    func testClearFiltersResetsSystemAndAvailabilityWithoutChangingSearch() throws {
+        try seed(id: "gba-ready", title: "Metroid Fusion", system: "gba", filename: "metroid.gba")
+        try seed(id: "snes-ready", title: "Metroid Returns", system: "snes", filename: "metroid.smc")
+        try seed(id: "gba-server", title: "Metroid Prime", system: "gba", filename: "prime.gba")
+        try catalogueStore.setAvailability(id: "gba-ready", availability: "ready_offline")
+        try catalogueStore.setAvailability(id: "snes-ready", availability: "ready_offline")
+
+        let engine = makeUnusedSyncEngine()
+        let curationStore = CurationStore(localStore: localStore)
+        let viewModel = LibraryViewModel(catalogueStore: catalogueStore, curationStore: curationStore, syncEngine: engine)
+        viewModel.selectedSystemID = "gba"
+        viewModel.selectedAvailability = "ready_offline"
+        viewModel.searchTerm = "Metroid"
+        XCTAssertEqual(viewModel.filteredCatalogue.map(\.id), ["gba-ready"])
+
+        viewModel.clearFilters()
+
+        XCTAssertNil(viewModel.selectedSystemID)
+        XCTAssertNil(viewModel.selectedAvailability)
+        XCTAssertEqual(viewModel.searchTerm, "Metroid")
+        XCTAssertEqual(Set(viewModel.filteredCatalogue.map(\.id)), Set(["gba-ready", "snes-ready", "gba-server"]))
+    }
+
     func testPressedChipIsSelectedAccordingToTheSharedSelectionModel() {
         let chip = FilterChip(id: "gba", label: "Game Boy Advance")
         let otherChip = FilterChip(id: "snes", label: "Super Nintendo")

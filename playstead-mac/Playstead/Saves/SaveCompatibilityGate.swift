@@ -64,6 +64,32 @@ struct SaveBinding: Equatable {
     /// gated on.
     let origin: String
     let provenance: SaveProvenance
+    let saveFormat: String?
+    let formatConfidence: String?
+
+    init(
+        systemID: String,
+        saveKind: String,
+        mediumID: String?,
+        artifactBytes: Int,
+        romSHA256: String,
+        titleIdentity: SaveTitleIdentity?,
+        origin: String,
+        provenance: SaveProvenance,
+        saveFormat: String? = nil,
+        formatConfidence: String? = nil
+    ) {
+        self.systemID = systemID
+        self.saveKind = saveKind
+        self.mediumID = mediumID
+        self.artifactBytes = artifactBytes
+        self.romSHA256 = romSHA256
+        self.titleIdentity = titleIdentity
+        self.origin = origin
+        self.provenance = provenance
+        self.saveFormat = saveFormat
+        self.formatConfidence = formatConfidence
+    }
 }
 
 /// Pure evaluator, mirroring `ReadinessEngine`'s zero-network, disk-free
@@ -88,6 +114,12 @@ struct SaveCompatibilityGate {
     /// entry widens without a client change (SEED-019), and this type's
     /// own field selection below already matches D-18's binding tuple.
     let saveContract: AdapterSaveContract
+    let declaredSaveFormats: Set<String>?
+
+    init(saveContract: AdapterSaveContract, declaredSaveFormats: Set<String>? = nil) {
+        self.saveContract = saveContract
+        self.declaredSaveFormats = declaredSaveFormats
+    }
 
     /// Evaluates whether `candidate` (a save revision under
     /// consideration for restore) may be written onto `target` (the
@@ -100,6 +132,36 @@ struct SaveCompatibilityGate {
         }
         guard candidate.saveKind == target.saveKind else {
             return .incompatible(reason: "different_save_kind")
+        }
+        if let declaredSaveFormats {
+            guard let candidateFormat = candidate.saveFormat,
+                  let targetFormat = target.saveFormat,
+                  declaredSaveFormats.contains(candidateFormat),
+                  declaredSaveFormats.contains(targetFormat),
+                  candidateFormat == targetFormat else {
+                return .incompatible(reason: "save_format_mismatch")
+            }
+        }
+
+        // GB/GBC battery formats are qualified by the complete source and
+        // target declaration tuple, not by coincidentally equal byte counts.
+        if candidate.systemID == "gb" || candidate.systemID == "gbc" {
+            let declarations = CartridgeQualification.supportedDeclarations
+            guard let candidateFormat = candidate.saveFormat,
+                  let targetFormat = target.saveFormat,
+                  let sourceDeclaration = declarations.first(where: {
+                      $0.systemID == candidate.systemID && $0.saveFormat == candidateFormat
+                  }),
+                  let targetDeclaration = declarations.first(where: {
+                      $0.systemID == target.systemID && $0.saveFormat == targetFormat
+                  }),
+                  candidate.mediumID == sourceDeclaration.mediumID,
+                  candidate.artifactBytes == sourceDeclaration.artifactBytes,
+                  target.mediumID == targetDeclaration.mediumID,
+                  target.artifactBytes == targetDeclaration.artifactBytes,
+                  sourceDeclaration.saveFormat == targetDeclaration.saveFormat else {
+                return .incompatible(reason: "cartridge_binding_mismatch")
+            }
         }
 
         // The destructive case (D-20): GBA's backup media share the

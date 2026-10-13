@@ -219,6 +219,25 @@ defmodule PlaysteadWeb.Api.V1.ImportsControllerTest do
       assert ChangeJournal.max_seq(scope.user.id) == before + 1
     end
 
+    test "a successful import emits a decodable catalogue change for a resuming client", %{
+      conn: conn
+    } do
+      {scope, _device, token} = paired()
+      before = ChangeJournal.max_seq(scope.user.id)
+
+      response = upload_conn(conn, token, random_bytes(128))
+      %{"receipt_id" => receipt_id} = json_response(response, 201)
+      receipt = Repo.get!(Receipt, receipt_id)
+
+      [entry] = ChangeJournal.read_after(scope.user.id, before, 10)
+      payload = entry.payload |> Jason.encode!() |> Jason.decode!()
+
+      assert entry.entity_kind == "catalogue"
+      assert entry.entity_id == receipt.asset_set_id
+      assert payload["id"] == receipt.asset_set_id
+      assert payload["members"] != []
+    end
+
     test "a receipt fetched in a fresh process reports the same hash, size, and provenance", %{
       conn: conn
     } do

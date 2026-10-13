@@ -67,19 +67,19 @@ defmodule PlaysteadWeb.CoreComponents do
       {@rest}
     >
       <div class={[
-        "flex items-start gap-3 rounded-lg border bg-[#1E293B] p-4 text-[#F1F5F9] shadow-xl",
-        @kind == :info && "border-[#38BDF8]",
-        @kind == :error && "border-[#EF4444]"
+        "flex items-start gap-3 rounded-lg border bg-app-surface p-4 text-app-text shadow-xl",
+        @kind == :info && "border-app-accent",
+        @kind == :error && "border-app-danger"
       ]}>
         <.icon
           :if={@kind == :info}
           name="hero-information-circle"
-          class="mt-0.5 size-5 shrink-0 text-[#38BDF8]"
+          class="mt-0.5 size-5 shrink-0 text-app-accent"
         />
         <.icon
           :if={@kind == :error}
           name="hero-exclamation-circle"
-          class="mt-0.5 size-5 shrink-0 text-[#EF4444]"
+          class="mt-0.5 size-5 shrink-0 text-app-danger"
         />
         <div class="min-w-0 flex-1 break-words">
           <p :if={@title} class="text-sm font-semibold">{@title}</p>
@@ -87,7 +87,7 @@ defmodule PlaysteadWeb.CoreComponents do
         </div>
         <button
           type="button"
-          class="-m-2 flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-md text-[#94A3B8] hover:bg-[#334155] hover:text-[#F1F5F9]"
+          class="-m-2 flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-md text-app-muted hover:bg-app-border hover:text-app-text"
           aria-label={gettext("Dismiss")}
         >
           <.icon name="hero-x-mark" class="size-5" />
@@ -503,7 +503,7 @@ defmodule PlaysteadWeb.CoreComponents do
     <span
       id={@id}
       data-role="code"
-      class={["font-mono text-code font-semibold text-[#38BDF8]", @class]}
+      class={["font-mono text-code font-semibold text-app-accent", @class]}
       {@rest}
     >
       {render_slot(@inner_block)}

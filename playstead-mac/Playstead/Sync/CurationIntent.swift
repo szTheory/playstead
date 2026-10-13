@@ -82,6 +82,24 @@ struct AvailabilityReportEntry: Codable, Equatable {
     }
 }
 
+private struct AvailabilityReportWireBody: Encodable {
+    let entries: [AvailabilityReportEntry]
+    let reportSequence: Int?
+
+    private enum CodingKeys: String, CodingKey {
+        case entries
+        case reportSequence = "report_sequence"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(entries, forKey: .entries)
+        if let reportSequence {
+            try container.encode(reportSequence, forKey: .reportSequence)
+        }
+    }
+}
+
 /// The wire-and-storage envelope for one `CurationIntent` — every field
 /// every kind might need, most left `nil` for a given kind. This is what
 /// actually gets persisted as `outbox_entries.payload_json`: not just
@@ -264,6 +282,12 @@ enum CurationIntent: Equatable {
     /// names only its two neighbours, never an array of identifiers —
     /// the server rejects an array-shaped body outright.
     var wireBody: Data? {
+        wireBody(reportSequence: nil)
+    }
+
+    /// The persisted outbox row supplies a sequence only for availability
+    /// reports. Other intent bodies retain their existing wire shape.
+    func wireBody(reportSequence: Int?) -> Data? {
         func encode(_ dict: [String: String?]) -> Data? {
             let filtered = dict.compactMapValues { $0 }
             return try? JSONEncoder().encode(filtered)
@@ -305,8 +329,9 @@ enum CurationIntent: Equatable {
         case .playSessionDelete:
             return nil
         case .availabilityReport(_, let entries):
-            struct Body: Encodable { let entries: [AvailabilityReportEntry] }
-            return try? JSONEncoder().encode(Body(entries: entries))
+            return try? JSONEncoder().encode(
+                AvailabilityReportWireBody(entries: entries, reportSequence: reportSequence)
+            )
         }
     }
 

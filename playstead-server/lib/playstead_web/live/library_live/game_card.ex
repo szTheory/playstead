@@ -52,7 +52,7 @@ defmodule PlaysteadWeb.LibraryLive.GameCard do
     end
   end
 
-  @doc "The `--system-accent-*` token key for a system id (falls back to `unknown`)."
+  @doc "The `--color-system-accent-*` token key for a system id (falls back to `unknown`)."
   @spec accent_key(String.t() | nil) :: String.t()
   def accent_key(system_id) do
     if Enum.any?(@registry, fn {id, _, _} -> id == system_id end), do: system_id, else: "unknown"
@@ -84,14 +84,14 @@ defmodule PlaysteadWeb.LibraryLive.GameCard do
       class="game-card"
       aria-label={accessible_name(@asset_set, @system_name, @status_state_assigns)}
     >
-      <p class="game-card-title text-heading font-semibold text-[#F1F5F9]">
+      <p class="game-card-title text-heading font-semibold text-app-text">
         {@asset_set.display_title}
       </p>
 
       <div class="game-card-meta">
         <span
           class="system-monogram text-heading font-semibold"
-          style={"background-color: var(--system-accent-#{accent_key(@asset_set.system_id)})"}
+          style={"background-color: var(--color-system-accent-#{accent_key(@asset_set.system_id)})"}
           aria-hidden="true"
         >
           {monogram(@asset_set.system_id)}
@@ -99,7 +99,7 @@ defmodule PlaysteadWeb.LibraryLive.GameCard do
         <span
           :if={@identification_state == :unidentified}
           id={"#{@base_id}-unidentified"}
-          class="unidentified-badge text-label text-[#94A3B8]"
+          class="unidentified-badge text-label text-app-muted"
         >
           Not yet identified
         </span>

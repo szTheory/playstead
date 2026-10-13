@@ -25,7 +25,23 @@ final class AppPathsBackupExclusionTests: XCTestCase {
     }
 
     private func isExcluded(_ url: URL) -> Bool {
-        (try? url.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup) ?? false
+        // URL instances may retain resource values across a nearby
+        // setResourceValues call. Clear that per-URL cache so this helper
+        // observes the current APFS attribute instead of a stale snapshot.
+        var refreshedURL = url
+        refreshedURL.removeCachedResourceValue(forKey: .isExcludedFromBackupKey)
+        return (try? refreshedURL.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup) ?? false
+    }
+
+    private func waitForExclusionState(_ url: URL, expected: Bool, timeout: TimeInterval = 1) -> Bool {
+        let deadline = ProcessInfo.processInfo.systemUptime + timeout
+        repeat {
+            if isExcluded(url) == expected {
+                return true
+            }
+            Thread.sleep(forTimeInterval: 0.01)
+        } while ProcessInfo.processInfo.systemUptime < deadline
+        return isExcluded(url) == expected
     }
 
     // MARK: - Fresh root
@@ -68,7 +84,7 @@ final class AppPathsBackupExclusionTests: XCTestCase {
 
         let paths = AppPaths(root: tempRoot)
 
-        XCTAssertFalse(isExcluded(paths.root), "stale root flag must be cleared at init")
+        XCTAssertTrue(waitForExclusionState(paths.root, expected: false), "stale root flag must be cleared at init")
         for dir in [paths.objects, paths.partials, paths.launch, paths.emulators, paths.bios] {
             XCTAssertTrue(isExcluded(dir), "\(dir.lastPathComponent) should still be excluded after migration")
         }

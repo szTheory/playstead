@@ -1,50 +1,171 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Scheme LastUpgradeVersion="2660" version="1.7">
-   <BuildAction parallelizeBuildables="YES" buildImplicitDependencies="YES" buildArchitectures="Automatic">
+<Scheme
+   LastUpgradeVersion = "2660"
+   version = "1.7">
+   <BuildAction
+      parallelizeBuildables = "YES"
+      buildImplicitDependencies = "YES"
+      buildArchitectures = "Automatic">
       <BuildActionEntries>
-         <BuildActionEntry buildForTesting="YES" buildForRunning="YES" buildForProfiling="YES" buildForArchiving="YES" buildForAnalyzing="YES">
-            <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="44DC10C2CEB44A12A91241F2" BuildableName="Playstead.app" BlueprintName="Playstead" ReferencedContainer="container:Playstead.xcodeproj"/>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
+            buildForProfiling = "YES"
+            buildForArchiving = "YES"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "44DC10C2CEB44A12A91241F2"
+               BuildableName = "Playstead.app"
+               BlueprintName = "Playstead"
+               ReferencedContainer = "container:Playstead.xcodeproj">
+            </BuildableReference>
          </BuildActionEntry>
-         <BuildActionEntry buildForTesting="YES" buildForRunning="NO" buildForProfiling="NO" buildForArchiving="NO" buildForAnalyzing="YES">
-            <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="B523D701384541059776544C" BuildableName="PlaysteadTests.xctest" BlueprintName="PlaysteadTests" ReferencedContainer="container:Playstead.xcodeproj"/>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "B523D701384541059776544C"
+               BuildableName = "PlaysteadTests.xctest"
+               BlueprintName = "PlaysteadTests"
+               ReferencedContainer = "container:Playstead.xcodeproj">
+            </BuildableReference>
          </BuildActionEntry>
-         <BuildActionEntry buildForTesting="YES" buildForRunning="NO" buildForProfiling="NO" buildForArchiving="NO" buildForAnalyzing="YES">
-            <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="1E0000000000000000000001" BuildableName="PlaysteadUITests.xctest" BlueprintName="PlaysteadUITests" ReferencedContainer="container:Playstead.xcodeproj"/>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "1E0000000000000000000001"
+               BuildableName = "PlaysteadUITests.xctest"
+               BlueprintName = "PlaysteadUITests"
+               ReferencedContainer = "container:Playstead.xcodeproj">
+            </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
-   <TestAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.DebuggerFoundation.Launcher.LLDB" shouldUseLaunchSchemeArgsEnv="YES">
-      <TestPlans>
-         <TestPlanReference reference="container:TestPlans/Unit.xctestplan" default="YES"/>
-         <TestPlanReference reference="container:TestPlans/Rendering.xctestplan" default="NO"/>
-         <TestPlanReference reference="container:TestPlans/UI.xctestplan" default="NO"/>
-         <TestPlanReference reference="container:TestPlans/LiveServer.xctestplan" default="NO"/>
-      </TestPlans>
+   <TestAction
+      buildConfiguration = "Debug"
+      selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
+      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+      shouldUseLaunchSchemeArgsEnv = "YES">
       <MacroExpansion>
-         <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="44DC10C2CEB44A12A91241F2" BuildableName="Playstead.app" BlueprintName="Playstead" ReferencedContainer="container:Playstead.xcodeproj"/>
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "44DC10C2CEB44A12A91241F2"
+            BuildableName = "Playstead.app"
+            BlueprintName = "Playstead"
+            ReferencedContainer = "container:Playstead.xcodeproj">
+         </BuildableReference>
       </MacroExpansion>
       <EnvironmentVariables>
-         <EnvironmentVariable key="PLAYSTEAD_MAC_CI_ROOT" value="$(PLAYSTEAD_MAC_CI_ROOT)" isEnabled="YES"/>
-         <EnvironmentVariable key="PLAYSTEAD_LIVE_SERVER_STAGE_ROOT" value="$(PLAYSTEAD_LIVE_SERVER_STAGE_ROOT)" isEnabled="YES"/>
-         <EnvironmentVariable key="PLAYSTEAD_LIVE_SERVER_STAGE_FILE" value="$(PLAYSTEAD_LIVE_SERVER_STAGE_FILE)" isEnabled="YES"/>
-         <EnvironmentVariable key="MAC_CI_DATABASE_URL" value="$(MAC_CI_DATABASE_URL)" isEnabled="YES"/>
-         <EnvironmentVariable key="MIX_ENV" value="$(MIX_ENV)" isEnabled="YES"/>
-         <EnvironmentVariable key="PORT" value="$(PORT)" isEnabled="YES"/>
+         <EnvironmentVariable
+            key = "PLAYSTEAD_MAC_CI_ROOT"
+            value = "$(PLAYSTEAD_MAC_CI_ROOT)"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "PLAYSTEAD_LIVE_SERVER_STAGE_ROOT"
+            value = "$(PLAYSTEAD_LIVE_SERVER_STAGE_ROOT)"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "PLAYSTEAD_LIVE_SERVER_STAGE_FILE"
+            value = "$(PLAYSTEAD_LIVE_SERVER_STAGE_FILE)"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "MAC_CI_DATABASE_URL"
+            value = "$(MAC_CI_DATABASE_URL)"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "MIX_ENV"
+            value = "$(MIX_ENV)"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "PORT"
+            value = "$(PORT)"
+            isEnabled = "YES">
+         </EnvironmentVariable>
       </EnvironmentVariables>
+      <TestPlans>
+         <TestPlanReference
+            reference = "container:TestPlans/Unit.xctestplan"
+            default = "YES">
+         </TestPlanReference>
+         <TestPlanReference
+            reference = "container:TestPlans/Rendering.xctestplan">
+         </TestPlanReference>
+         <TestPlanReference
+            reference = "container:TestPlans/UI.xctestplan">
+         </TestPlanReference>
+         <TestPlanReference
+            reference = "container:TestPlans/LiveServer.xctestplan">
+         </TestPlanReference>
+         <TestPlanReference
+            reference = "container:TestPlans/Recovery.xctestplan">
+         </TestPlanReference>
+      </TestPlans>
    </TestAction>
-   <LaunchAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.DebuggerFoundation.Launcher.LLDB" launchStyle="0" useCustomWorkingDirectory="NO" ignoresPersistentStateOnLaunch="NO" debugDocumentVersioning="YES" debugServiceExtension="internal" allowLocationSimulation="YES">
-      <BuildableProductRunnable runnableDebuggingMode="0">
-         <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="44DC10C2CEB44A12A91241F2" BuildableName="Playstead.app" BlueprintName="Playstead" ReferencedContainer="container:Playstead.xcodeproj"/>
+   <LaunchAction
+      buildConfiguration = "Debug"
+      selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
+      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+      launchStyle = "0"
+      useCustomWorkingDirectory = "NO"
+      ignoresPersistentStateOnLaunch = "NO"
+      debugDocumentVersioning = "YES"
+      debugServiceExtension = "internal"
+      allowLocationSimulation = "YES">
+      <BuildableProductRunnable
+         runnableDebuggingMode = "0">
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "44DC10C2CEB44A12A91241F2"
+            BuildableName = "Playstead.app"
+            BlueprintName = "Playstead"
+            ReferencedContainer = "container:Playstead.xcodeproj">
+         </BuildableReference>
       </BuildableProductRunnable>
       <EnvironmentVariables>
-         <EnvironmentVariable key="PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT" value="$(PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT)" isEnabled="YES"/>
+         <EnvironmentVariable
+            key = "PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT"
+            value = "$(PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT)"
+            isEnabled = "YES">
+         </EnvironmentVariable>
       </EnvironmentVariables>
    </LaunchAction>
-   <ProfileAction buildConfiguration="Release" shouldUseLaunchSchemeArgsEnv="YES" savedToolIdentifier="" useCustomWorkingDirectory="NO" debugDocumentVersioning="YES">
-      <BuildableProductRunnable runnableDebuggingMode="0">
-         <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="44DC10C2CEB44A12A91241F2" BuildableName="Playstead.app" BlueprintName="Playstead" ReferencedContainer="container:Playstead.xcodeproj"/>
+   <ProfileAction
+      buildConfiguration = "Release"
+      shouldUseLaunchSchemeArgsEnv = "YES"
+      savedToolIdentifier = ""
+      useCustomWorkingDirectory = "NO"
+      debugDocumentVersioning = "YES">
+      <BuildableProductRunnable
+         runnableDebuggingMode = "0">
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "44DC10C2CEB44A12A91241F2"
+            BuildableName = "Playstead.app"
+            BlueprintName = "Playstead"
+            ReferencedContainer = "container:Playstead.xcodeproj">
+         </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
-   <AnalyzeAction buildConfiguration="Debug"/>
-   <ArchiveAction buildConfiguration="Release" revealArchiveInOrganizer="YES"/>
+   <AnalyzeAction
+      buildConfiguration = "Debug">
+   </AnalyzeAction>
+   <ArchiveAction
+      buildConfiguration = "Release"
+      revealArchiveInOrganizer = "YES">
+   </ArchiveAction>
 </Scheme>

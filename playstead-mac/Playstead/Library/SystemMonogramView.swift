@@ -12,14 +12,21 @@ struct SystemMonogramView: View {
     }
 
     var body: some View {
-        Text(entry.monogram)
-            .font(.psHeading)
-            .tracking(0.04 * 20)
-            .foregroundStyle(.white)
-            .frame(minWidth: DesignTokens.InteractiveTarget.minimum, minHeight: DesignTokens.InteractiveTarget.minimum)
-            .background(SystemAccent.color(for: systemID))
-            .clipShape(RoundedRectangle(cornerRadius: 6))
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(entry.displayName)
+        Group {
+            if entry.id == SystemRegistry.unknown.id {
+                Image(systemName: "gamecontroller.fill")
+                    .font(.psLabelEmphasized)
+            } else {
+                Text(entry.monogram)
+                    .font(.psHeading)
+                    .tracking(0.04 * 20)
+            }
+        }
+        .foregroundStyle(.white)
+        .frame(minWidth: DesignTokens.InteractiveTarget.minimum, minHeight: DesignTokens.InteractiveTarget.minimum)
+        .background(SystemAccent.color(for: systemID))
+        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.standard))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(entry.id == SystemRegistry.unknown.id ? "Unknown system" : entry.displayName)
     }
 }

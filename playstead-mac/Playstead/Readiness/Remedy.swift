@@ -10,6 +10,7 @@ import Foundation
 enum RemedyAction: Equatable {
     case downloadMember(sha256: String)
     case installAdapter
+    case reviewAdapterSupport
     case openBiosDropTarget
     case openInputSettings
     case repairSaveDirectory

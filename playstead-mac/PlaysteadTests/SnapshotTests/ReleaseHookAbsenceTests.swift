@@ -9,11 +9,18 @@ final class ReleaseHookAbsenceTests: XCTestCase {
         "DeterministicProfileFixture",
         "PLAYSTEAD_UI_TESTING",
         "PLAYSTEAD_UI_TEST_PROFILE",
+        "controller-recovery",
+        "UITestControllerInputSource",
         "blockExternalIOForUITesting",
         "uiTestingBlocksExternalIO",
         "uiTestingLocalStore",
         "UITestBiosCandidate",
-        "PLAYSTEAD_UI_TEST_BIOS_CANDIDATE"
+        "PLAYSTEAD_UI_TEST_BIOS_CANDIDATE",
+        "BiosAcceptanceTestReference",
+        "syntheticBIOSCandidateBytes",
+        "playstead-test-bios-lab",
+        "bios-acceptance",
+        "VirtualGamepad"
     ]
 
     func testScannerRejectsSeededForbiddenHookToken() {
@@ -115,7 +122,7 @@ final class IdentityAndFocusPrimitiveTests: XCTestCase {
     }
 
     func testFocusRingUsesLockedCyanOnlyWhenFocusIsOwned() {
-        XCTAssertEqual(PlaysteadFocusRing.colorHex, "#38BDF8")
+        XCTAssertEqual(PlaysteadFocusRing.colorRole, "systemAccent")
         XCTAssertEqual(PlaysteadFocusRing.lineWidth, 2)
         XCTAssertEqual(PlaysteadFocusRing.opacity(isFocused: true), 1)
         XCTAssertEqual(PlaysteadFocusRing.opacity(isFocused: false), 0)

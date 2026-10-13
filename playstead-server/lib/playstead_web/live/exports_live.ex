@@ -33,28 +33,28 @@ defmodule PlaysteadWeb.ExportsLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen bg-[#0F172A] px-8 py-12 font-sans">
+    <div class="min-h-screen bg-app-canvas px-8 py-12 font-sans">
       <Layouts.flash_group flash={@flash} />
       <div class="mx-auto max-w-3xl space-y-8">
         <div>
-          <h1 class="text-display font-semibold text-[#F1F5F9]">Exports</h1>
-          <p class="mt-1 text-sm text-[#94A3B8]">
+          <h1 class="text-display font-semibold text-app-text">Exports</h1>
+          <p class="mt-1 text-sm text-app-muted">
             Your games, written as ordinary files onto a disk you control.
           </p>
-          <p id="export-readme-note" class="mt-2 text-sm text-[#94A3B8] whitespace-pre-line">
+          <p id="export-readme-note" class="mt-2 text-sm text-app-muted whitespace-pre-line">
             {@readme_text}
           </p>
         </div>
 
-        <section id="export-actions" class="rounded-lg border border-[#334155] bg-[#1E293B] p-6">
+        <section id="export-actions" class="rounded-lg border border-app-border bg-app-surface p-6">
           <form phx-submit="export_library" class="flex flex-wrap items-center gap-3">
-            <label for="saves-scope-select" class="text-sm text-[#94A3B8]">
+            <label for="saves-scope-select" class="text-sm text-app-muted">
               Saves
             </label>
             <select
               id="saves-scope-select"
               name="saves_scope"
-              class="h-9 rounded-md bg-[#0F172A] px-2 text-sm text-[#F1F5F9]"
+              class="h-9 rounded-md bg-app-canvas px-2 text-sm text-app-text"
             >
               <option value="all">All save versions</option>
               <option value="none">No save versions</option>
@@ -63,7 +63,7 @@ defmodule PlaysteadWeb.ExportsLive do
             <button
               id="export-library"
               type="submit"
-              class="rounded-md border border-[#334155] px-4 py-2 text-sm font-semibold text-[#F1F5F9]"
+              class="rounded-md border border-app-border px-4 py-2 text-sm font-semibold text-app-text"
             >
               Export whole library
             </button>
@@ -71,24 +71,24 @@ defmodule PlaysteadWeb.ExportsLive do
         </section>
 
         <section id="exports">
-          <h2 class="text-heading font-semibold text-[#F1F5F9]">Export history</h2>
+          <h2 class="text-heading font-semibold text-app-text">Export history</h2>
 
           <div
             :if={@exports == []}
             id="exports-empty"
-            class="mt-4 rounded-lg border border-[#334155] bg-[#1E293B] p-6"
+            class="mt-4 rounded-lg border border-app-border bg-app-surface p-6"
           >
-            <p class="text-base text-[#F1F5F9]">No exports yet</p>
+            <p class="text-base text-app-text">No exports yet</p>
           </div>
 
           <div :if={@exports != []} id="export-list" class="mt-4 space-y-3">
             <div
               :for={export <- @exports}
               id={"export-#{export.id}"}
-              class="rounded-lg border border-[#334155] bg-[#1E293B] p-4"
+              class="rounded-lg border border-app-border bg-app-surface p-4"
             >
-              <p class="text-sm font-semibold text-[#F1F5F9]">{export.target_name}</p>
-              <p class="text-sm text-[#94A3B8]">
+              <p class="text-sm font-semibold text-app-text">{export.target_name}</p>
+              <p class="text-sm text-app-muted">
                 {export.set_count} set(s), {export.file_count} file(s)
               </p>
               <p id={"export-status-#{export.id}"} class="text-sm">
@@ -99,7 +99,7 @@ defmodule PlaysteadWeb.ExportsLive do
                 type="button"
                 phx-click="verify_again"
                 phx-value-id={export.id}
-                class="mt-2 rounded-md border border-[#334155] px-3 py-1 text-sm font-semibold text-[#F1F5F9]"
+                class="mt-2 rounded-md border border-app-border px-3 py-1 text-sm font-semibold text-app-text"
               >
                 Verify again
               </button>

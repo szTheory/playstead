@@ -92,7 +92,7 @@ final class AvailabilityStateTests: XCTestCase {
         XCTAssertEqual(AvailabilityState.deriveForStorageView(inputs), .pinnedOffline)
     }
 
-    /// The card never receives `.safeToEvict`: `GameCardView`'s own
+    /// The library row never receives `.safeToEvict`: its own
     /// `LibraryStatus.forCard(availability:activeMemberProgressPercent:)`
     /// consumes `AvailabilityState`, and `.derive(_:)` (the only entry
     /// point a card may call) structurally cannot produce `.safeToEvict`
