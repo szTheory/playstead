@@ -5,10 +5,9 @@ current_phase: "4.7"
 current_phase_name: Optional game artwork and metadata sync
 status: complete
 stopped_at: Phase4.7 complete38/38; next $gsd-ship
-last_updated: "2026-10-13T14:19:14.189Z"
+last_updated: "2026-10-13T17:34:21.229Z"
 last_activity: 2026-10-13
-last_activity_desc: Phase4.7 automated closure complete; prepare reviewed delivery with $gsd-ship; parked qualifications remain separate
-state_head: 8380a085ffe113669395b5fea5152809b62c23b2
+state_head: f569981006a7af61721d64e7b65f85814b9eb78c
 progress:
   total_phases: 11
   completed_phases: 5
@@ -27,7 +26,7 @@ current_plan: null
 See: `.planning/PROJECT.md` (updated 2026-08-30)
 
 **Core value:** A locally available game and its progress remain effortless to play, safe, understandable, synchronized, and fully under the user's control.
-**Current focus:** Phase4.7 is complete. Next: `$gsd-ship` for reviewed delivery preparation. Apple/HID and retained recovery qualifications remain independently parked.
+**Current focus:** Phase 4.7 implementation is complete. Draft prerequisite PR #12 targets main and draft Phase 4.7 PR #13 targets its prerequisite branch. Current-source local closure is retained after CI repairs; hosted exact-head checks remain active. The owner selected recorded audits and no additional review. Next command: `$gsd-ship 4.7` to resume these existing PRs. Apple/HID and retained recovery qualifications remain independently parked.
 
 ## Current Position
 
@@ -58,7 +57,7 @@ See: `.planning/PROJECT.md` (updated 2026-08-30)
 Phase: 4.7 (Optional game artwork and metadata sync) — COMPLETE
 Current GSD pointer: $gsd-ship
 Last GSD action: Phase4.7 goal verification passed38/38 and all ten plans completed automatically; independent qualifications remain parked.
-Last activity: 2026-10-13 — Phase4.7 complete; exact independent next command $gsd-ship
+Last activity: 2026-10-13
 
 **Local resource cleanup (2026-10-10):** `docker ps | wc -l` fell from 118 to 49 and Docker volume storage from 24.92 GB to 18.84 GB. Only `playstead-server` remains running among Playstead projects. Its teardown is intentionally left for the owner to decide. See [quick task 261010-d83](./quick/261010-d83-resource-cleanup-for-stale-playstead-doc/).
 
@@ -478,3 +477,11 @@ Resume file: .planning/phases/04.7-optional-game-artwork-and-metadata-sync/conti
 ## UAT audit — 2026-10-10
 
 Cross-phase record reconciliation is complete: 25 raw entries became 14 outstanding record-level entries across three phases, with zero parse gaps and no immediately runnable phase human checkpoint. Saved evidence closed nine historical Phase 04 gaps and both static-guard deferrals. WINDOWS #97 is fixed in the working ledger; #48/#95 stay open with narrower obligations. Hosted PR 38008516483 passed at 77c858c, while main 38011046324 at 162f664 failed release revalidation and a distinct save-upload refusal. No numbered phase was completed. See [the prioritized audit and conditional human plan](audits/2026-10-10-uat/REPORT.md). Exact next command: `$gsd-debug continue release-evidence-revalidation`.
+
+## Phase 4.7 shipping
+
+- Prerequisites: https://github.com/szTheory/playstead/pull/12 (`feat/phase-04.7-prerequisites` → `main`).
+- Phase: https://github.com/szTheory/playstead/pull/13 (`feat/phase-04.7-artwork-metadata` → prerequisite branch).
+- Recorded audits selected; no additional review or merge requested.
+- Current-source local goal verification passes 38/38; shipping CI repairs and exact run hashes are recorded in `04.7-SHIP-COMPOSITION-EVIDENCE.json`.
+- Resume command: `$gsd-ship 4.7`; reconcile current checks and merge readiness for these PRs without recreating them or repeating unchanged UI evidence.
