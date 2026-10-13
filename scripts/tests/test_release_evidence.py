@@ -181,6 +181,25 @@ class ReleaseScannerScopeContracts(unittest.TestCase):
         self.assertIn("--scanners vuln --format json", image_scan)
         self.assertNotIn("--scanners vuln,license", image_scan)
         self.assertIn("--scanners vuln,license", source_scan)
+        self.assertIn("--skip-dirs ops/media-decoder/.build", source_scan)
+        self.assertIn("--skip-dirs ops/media-decoder/build/generated", source_scan)
+        for protected in ("lib", "deps", "mix.lock", "ops/media-decoder/build/recipes"):
+            self.assertNotIn("--skip-dirs " + protected + " ", source_scan)
+        dockerignore = (Path(__file__).parents[2] / "playstead-server/.dockerignore").read_text()
+        self.assertIn("/ops/media-decoder/.build/", dockerignore)
+        self.assertIn("/ops/media-decoder/build/generated/", dockerignore)
+
+    def test_clean_checkout_ignores_generated_python_guards(self):
+        root = Path(__file__).parents[2]
+        with tempfile.TemporaryDirectory() as temporary:
+            checkout = Path(temporary)
+            (checkout / ".gitignore").write_bytes((root / ".gitignore").read_bytes())
+            generated = checkout / "scripts/tests/__pycache__/test_guard.cpython-312.pyc"
+            generated.parent.mkdir(parents=True)
+            generated.write_bytes(b"interpreter cache control")
+            subprocess.run(["git", "init", "--quiet", str(checkout)], check=True, capture_output=True)
+            accepted = subprocess.run(["git", "-c", "core.excludesfile=/dev/null", "check-ignore", "--no-index", "scripts/tests/__pycache__/test_guard.cpython-312.pyc"], cwd=checkout, text=True, capture_output=True)
+            self.assertEqual(accepted.returncode, 0, accepted.stderr)
 
     def test_evidence_preserves_unfixed_counts_and_rejects_fixable_findings(self):
         evidence = valid_evidence()

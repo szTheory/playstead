@@ -21,10 +21,14 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/work:ro" 
   --output /raw/image-trivy.json "$IMAGE_REF"
 # The container vulnerability scan covers every installed image package.
 # Restricted-license policy is scoped to Playstead's resolved source dependencies
-# below; applying it to Debian's base-system packages incorrectly treated normal
+# below. The decoder bootstrap cache and signed generated APKs are ignored
+# build artifacts; the decoder image has its own complete artifact scan.
+# Applying this source policy to Debian's base-system packages incorrectly treated normal
 # distro utilities as Playstead application dependencies.
 docker run --rm -v "$PWD:/work:ro" -v "$RAW_DIR:/raw" "$TRIVY_IMAGE" fs \
   --config /work/scripts/ci/trivy.yaml --scanners vuln,license --format json \
+  --skip-dirs ops/media-decoder/.build \
+  --skip-dirs ops/media-decoder/build/generated \
   --output /raw/source-trivy.json /work/playstead-server
 docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/work:ro" -v "$OUTPUT_DIR:/evidence" "$TRIVY_IMAGE" image \
   --config /work/scripts/ci/trivy.yaml --format cyclonedx --output /evidence/sbom.cdx.json "$IMAGE_REF"

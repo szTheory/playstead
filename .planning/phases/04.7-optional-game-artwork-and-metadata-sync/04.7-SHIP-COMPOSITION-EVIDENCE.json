@@ -170,7 +170,11 @@
     "scripts/tests/test_media_decoder_supply_chain.py": "7b5a182edea173eaa565684e968badb97369dee809844b26ac0d33f980364179",
     "playstead-server/ops/media-decoder/build/wolfi_repo_proxy.py": "e19c31643d7f42aa483392bee458fe35b47faea1aa971f17a68b9719661aba83",
     "scripts/ci/media-decoder-supply-chain.sh": "a4ee40975f9951e260b3a690640337218b4f02dac7d1323df8da99d931f07442",
-    "scripts/tests/test_wolfi_repo_proxy.py": "8ba71dad79f685435b93d48a5508ad39848b84bd52a5b73729913a0b99eb5dd8"
+    "scripts/tests/test_wolfi_repo_proxy.py": "8ba71dad79f685435b93d48a5508ad39848b84bd52a5b73729913a0b99eb5dd8",
+    ".gitignore": "83e13d32331ee717cb14540cd58e5cfb4c20fee17da512220fdff7cbe3e607b2",
+    "playstead-server/.dockerignore": "6efbe1a1f95044b19c6cc7ea90176da99a0375e42bd94996ec9cd9329b7c6deb",
+    "scripts/ci/release-supply-chain.sh": "a7bd88bc004c9df470adfb633b55c6322ef81193e96bbe92467e699f088eb99c",
+    "scripts/tests/test_release_evidence.py": "e36297ba7fd113ec9a6f28b7d1b745480e00964c105d1f831cc6eda372599a55"
   },
   "logs_sha256": {
     "phase-final-build.log": "aa87117cef03c791bad48eefddbc85dc994ff6639bf7427b75b3ff32810f005f",
@@ -205,7 +209,7 @@
       "skips": 0
     },
     "decoder_policy_tests": 12,
-    "shared_release_policy_tests": 28,
+    "shared_release_policy_tests": 29,
     "static_validator_tests": 91,
     "real_decoder_restore": "passed six production stages and exact cleanup",
     "scan_lineage": "Revalidated existing exact report under stricter current policy; original scan timestamp retained, no new scan claim",
@@ -227,9 +231,10 @@
     },
     "hosted_mac_setup": "install and validate ripgrep before static guards; composed positive/negative contract passes",
     "relay_qualification": "04.7-SHIP-RELAY-QUALIFICATION.json",
-    "relay_http_tests": 5
+    "relay_http_tests": 5,
+    "source_scan_qualification": "04.7-SHIP-SOURCE-SCAN-QUALIFICATION.json"
   },
-  "covered_digest": "v3:sha256:55181a129f8fd0fce179cb7c265e91f1043c2ea3fe58aaf8dcd29bd9bd747b0e",
+  "covered_digest": "v3:sha256:189cb614d640c928a0e45e886d081b575ec6aaeb0b97e06a94cdfc79e57f4b95",
   "log_sha256": {
     "phase-ci-repairs-static.log": "a9c213cd5c89461d2f17ff53cfa2e8a89ccc1d8b98deb964a9186341735995a3",
     "phase-ci-repairs-compile.log": "7f95425152a32b6e0c48d184d776fd2373280f0144e38b8deb759977dc69f574",
@@ -244,6 +249,7 @@
     "decoder-archive-supply-chain-tests.log": "316d72d1d266e6d5ed038056b5bd91fdce6f4156570248ef1acfacc6b67eb25e",
     "decoder-relay-build.log": "ecf50ec91aebff3484ea8143420af009be4d98e6de9d73ce491ad5f9f4c333df",
     "decoder-relay-scan.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "decoder-relay-receipt.log": "d373ff48968acc566308f583e7789a1ad485e70907bea81ff4f335470b5707ac"
+    "decoder-relay-receipt.log": "d373ff48968acc566308f583e7789a1ad485e70907bea81ff4f335470b5707ac",
+    "release-source-scope-tests.log": "f1d433718902b8f9781fedf2043f7a250af4b1abd493ff60650c9112a2bea06a"
   }
 }
