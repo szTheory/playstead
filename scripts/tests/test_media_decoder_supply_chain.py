@@ -113,6 +113,22 @@ class DecoderSupplyChainTests(unittest.TestCase):
         self.assertIn("network_mode: none", decoder_service)
         self.assertIn("mem_limit: 512m", decoder_service)
 
+    def test_ci_prepares_decoder_before_each_consuming_linux_lane(self):
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+        test_job = workflow.split("  test:\n", 1)[1].split("\n  mac-verification:", 1)[0]
+        recovery_job = workflow.split("  recovery-fixture:\n", 1)[1].split("\n  compose-smoke:", 1)[0]
+        for lane, preparation, consumer in (
+            (test_job, "Prepare qualified decoder before packaged parser tests", "Phase 04.7 metadata protocol and exact ExUnit guard"),
+            (recovery_job, "Prepare qualified decoder for the isolated restore target", "Run isolated restore fixture"),
+        ):
+            self.assertGreaterEqual(lane.find(preparation), 0)
+            self.assertLess(lane.find(preparation), lane.find(consumer))
+            setup = lane.split(preparation, 1)[1].split(consumer, 1)[0]
+            self.assertIn("prepare-media-decoder-image.sh", setup)
+            self.assertIn('>> "$GITHUB_ENV"', setup)
+            self.assertIn("PLAYSTEAD_MEDIA_DECODER_EVIDENCE_DIR", setup)
+            self.assertIn("PLAYSTEAD_MEDIA_DECODER_IMAGE", setup)
+
     def test_supported_compose_paths_use_receipt_validator(self):
         smoke = (ROOT / "playstead-server/scripts/compose-smoke.sh").read_text()
         deploy = (ROOT / "playstead-server/scripts/verified-compose.sh").read_text()

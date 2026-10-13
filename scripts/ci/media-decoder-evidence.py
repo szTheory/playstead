@@ -81,6 +81,11 @@ def _read_report(path: pathlib.Path, expected_sha256: str, expected_image_id: st
                 continue
             if not package.get("SrcName") or not package.get("SrcVersion") or not package.get("Licenses"):
                 raise ValueError(f"runtime package lacks source or license evidence: {package.get('Name')}@{package.get('Version')}")
+    # The optional parser has its own activation policy. Unlike the shared
+    # stable-release scanner, it rejects HIGH/CRITICAL findings even when the
+    # report has no published fix. Keep both counts visible in the receipt.
+    if summary["high_critical"] > 0:
+        summary["status"] = "failed"
     summary["runtime_packages"] = len(identities)
     return report, {**summary, "report_sha256": hashlib.sha256(raw_bytes).hexdigest()}
 

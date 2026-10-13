@@ -8,6 +8,8 @@ Cleanup: allforegroundwindowsreleased; no taskapp/runner/native service/decoderc
 
 Retainedlimitations: codeWR02 sharedCAS/outerSQL crashboundary isdeferred, not acceptedrisk orcrashatomicity. UI17/24, sixadvisories and zeroblockers retained inUI-REVIEW/DISPOSITION. Repo-wide summaryguardstillrejects fourunrelatedlegacydocs; phase10/10coverageblocks pass. Generic UI/schema detectors omitnativeSwift/Ecto; actualproductiontests areauthoritative. Completedplans remain valid; no ceremonial confirmation/re-init/replay.
 
-Next command: `$gsd-ship`.
+Next command: `$gsd-ship 4.7`.
+
+Draft prerequisite PR [#12](https://github.com/szTheory/playstead/pull/12) and stacked phase PR [#13](https://github.com/szTheory/playstead/pull/13) are open. The owner selected recorded audits and no additional review. Current-source shipping repairs pass the local 38/38 goal gate, 91 static validator tests, 24 restore tests, nine backup/custody tests, four exact decoder boundary tests and the real six-stage decoder-backed restore with teardown. Hosted exact-head checks remain pending; resume these existing PRs in the isolated delivery checkout. Do not recreate PRs, rerun phase initialization, repeat unchanged UI evidence, or merge without authorization.
 
 KeepApple/HID03-30andproviderimagegrantseparatelyparked. NoApplepolling orphysicaltest now; conditionalcommands/prerequisitesremain inHANDOFF parked_work. PhoenixconsoleUX is aseparate futuremilestone, not partofthisphase. Shipping must review/isolate the phase scope from >500 inheriteddirtychanges; sourceownership/context lineage are inplan summaries/review receipts. No externalpublication, merge, productiondata or accountaction occurred duringthisexecution.

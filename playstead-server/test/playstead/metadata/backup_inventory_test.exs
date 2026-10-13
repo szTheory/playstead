@@ -12,7 +12,7 @@ defmodule Playstead.Metadata.BackupInventoryTest do
   alias Playstead.Recovery.BackupSet
 
   defmodule DecoderFake do
-    def decode(_bytes, _mime, _opts), do: {:ok, "derived preview bytes"}
+    def decode(bytes, _mime, _opts), do: {:ok, "derived preview bytes " <> bytes}
   end
 
   test "backup inventory preserves original media while derivative reclaim leaves canonical objects intact" do
@@ -22,6 +22,17 @@ defmodule Playstead.Metadata.BackupInventoryTest do
   defp run_backup_roundtrip do
     owner = user_scope_fixture().user
     asset_set = asset_set_fixture(owner.id)
+
+    original = "synthetic user authored image bytes #{Ecto.UUID.generate()}"
+    derivative = "derived preview bytes " <> original
+
+    owned_hashes =
+      Enum.map(
+        [original, derivative],
+        &(:crypto.hash(:sha256, &1) |> Base.encode16(case: :lower))
+      )
+
+    blob_root = Playstead.Blobs.Store.LocalDisk.blob_path()
 
     on_exit(fn ->
       Sandbox.unboxed_run(Repo, fn ->
@@ -37,11 +48,13 @@ defmodule Playstead.Metadata.BackupInventoryTest do
 
         Repo.delete_all(from set in Playstead.Catalogue.AssetSet, where: set.id == ^asset_set.id)
         Repo.delete_all(from user in Playstead.Accounts.User, where: user.id == ^owner.id)
+        Repo.delete_all(from blob in Playstead.Blobs.Blob, where: blob.sha256 in ^owned_hashes)
+
+        Enum.each(owned_hashes, fn hash ->
+          File.rm(Playstead.Blobs.Store.LocalDisk.object_path(blob_root, hash))
+        end)
       end)
     end)
-
-    original = "synthetic user authored image bytes"
-    derivative = "derived preview bytes"
 
     assert {:ok, media} =
              PrivateMedia.create(owner.id, asset_set.id, original, "image/png",

@@ -24,7 +24,7 @@ jobs:
   test:
     name: mix precommit (unit + LiveView + browser + integration)
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 45
     services:
       postgres:
         image: public.ecr.aws/docker/library/postgres:17.2
@@ -95,6 +95,15 @@ jobs:
 
       - run: mix deps.get
       - run: mix assets.setup
+
+      - name: Prepare qualified decoder before packaged parser tests
+        working-directory: .
+        run: |
+          set -euo pipefail
+          decoder_evidence="$RUNNER_TEMP/playstead-media-decoder-test"
+          decoder_image="$(PLAYSTEAD_MEDIA_DECODER_EVIDENCE_DIR="$decoder_evidence" bash playstead-server/scripts/prepare-media-decoder-image.sh)"
+          printf 'PLAYSTEAD_MEDIA_DECODER_EVIDENCE_DIR=%s\n' "$decoder_evidence" >> "$GITHUB_ENV"
+          printf 'PLAYSTEAD_MEDIA_DECODER_IMAGE=%s\n' "$decoder_image" >> "$GITHUB_ENV"
 
       - name: Phase 04.7 metadata protocol and exact ExUnit guard
         working-directory: playstead-server
@@ -255,6 +264,15 @@ jobs:
           bash playstead-mac/scripts/ci/tests/sanitizer-test.sh
           bash playstead-server/scripts/ci/recovery-fixture.sh --self-test
 
+      - name: Prepare qualified decoder for the isolated restore target
+        working-directory: .
+        run: |
+          set -euo pipefail
+          decoder_evidence="$RUNNER_TEMP/playstead-media-decoder-recovery"
+          decoder_image="$(PLAYSTEAD_MEDIA_DECODER_EVIDENCE_DIR="$decoder_evidence" bash playstead-server/scripts/prepare-media-decoder-image.sh)"
+          printf 'PLAYSTEAD_MEDIA_DECODER_EVIDENCE_DIR=%s\n' "$decoder_evidence" >> "$GITHUB_ENV"
+          printf 'PLAYSTEAD_MEDIA_DECODER_IMAGE=%s\n' "$decoder_image" >> "$GITHUB_ENV"
+
       - name: Run isolated restore fixture
         run: |
           mkdir -m 700 "$RUNNER_TEMP/recovery-input"
@@ -323,8 +341,12 @@ jobs:
         run: |
           set -euo pipefail
           test -s scripts/tests/test_media_decoder_supply_chain.py
+          set +e
           contract_output="$(python3 -m unittest discover -s scripts/tests -p 'test_media_decoder_supply_chain.py' -v 2>&1)"
+          contract_status=$?
+          set -e
           printf '%s\n' "$contract_output"
+          test "$contract_status" -eq 0
           printf '%s\n' "$contract_output" | grep -Eq '^Ran [1-9][0-9]* tests?'
 
       - id: changes

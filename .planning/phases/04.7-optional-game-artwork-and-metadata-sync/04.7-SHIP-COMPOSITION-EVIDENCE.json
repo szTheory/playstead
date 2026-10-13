@@ -3,7 +3,7 @@
   "scope": "isolated delivery composition re-audit",
   "human_judgment": false,
   "base_pr": 12,
-  "base_commit": "2da681a461c1ada25c4652aadec05a541c5089fe",
+  "base_commit": "381f4efe27055658625bce994b9540dd068e6439",
   "original_verdict": "38/38; 04.7-VERIFICATION.md original2026-10-13T14:18:26Z",
   "automated_reaudit": {
     "result": "38/38 retained",
@@ -43,7 +43,7 @@
     "live IGDB image rights grant"
   ],
   "source_sha256": {
-    ".github/workflows/ci.yml": "fdfa3b3c9763e42814eb8589d25008866ed5673447d0f9af526aadcf6fbec909",
+    ".github/workflows/ci.yml": "d896f3dae612a4f3dac790b23f11c13f6abd42ea96bed301a2616e8090211fad",
     ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-00-PLAN.md": "effc28a36466de04aaa46b97ff371d74555dc1b3d942f6f5e958b1745ec4bc7b",
     ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-00-SUMMARY.md": "7ae6eae22a176981f065ff93e253b0b7c136895e98a9161585718114f264e051",
     ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-01-PLAN.md": "78f4ef44095c25e73696cff7a01f7ec850b1d9207951a31558da6598cd5febe9",
@@ -140,7 +140,7 @@
     "playstead-server/scripts/ci/validate-metadata-protocol-decision.js": "a0bfd33088be16fc01b9f0a4185d7b47e1c8112b9e72c3d7514ebbbddd868c88",
     "playstead-server/scripts/tests/require-exunit-target-test.sh": "154f90f060b2825f4766a4b6e12e4b772a2b1b0307e4ab116839f4d6af37f62c",
     "playstead-server/test/fixtures/metadata_api_v1.json": "ba9c7e9f84a046d100b80b220ba22226142a05b5a59aab1000808954b1bc2242",
-    "playstead-server/test/playstead/metadata/backup_inventory_test.exs": "c587184e7f1db23db77ed7061a5bb6b8af69de382d2269353ec556e3c5388cb7",
+    "playstead-server/test/playstead/metadata/backup_inventory_test.exs": "454a8f69a1d0ecf9aa4d196c65a4723c28bc002cd6aaa9111f0440bf0e17f984",
     "playstead-server/test/playstead/metadata/consent_test.exs": "1d5dbd336342ad6c719d8da756dcad80decef9713d1db7aabf5238b881ec1576",
     "playstead-server/test/playstead/metadata/custody_round_trip_test.exs": "8a6d7f636ee6a222021e63e7e75d98a4875a7dcf00f40684bb846a1376cf804f",
     "playstead-server/test/playstead/metadata/enrichment_worker_test.exs": "70ce4beb843a5745382e96dd05e8335a62109be4a4d47b5fa0fb9ce5e0d69e73",
@@ -150,7 +150,24 @@
     "playstead-server/test/playstead/metadata/provider_media_cache_test.exs": "944d69e14f996d6cd56b45e3c5383aad481df9ef4a982b7faa3eeeb7bb286c2b",
     "playstead-server/test/playstead/metadata/selection_test.exs": "d55705cf33693b66effa8448884d46324523e2bdf50ed195794f0ffe16b63150",
     "playstead-server/test/playstead/metadata/sync_contract_test.exs": "2361a891a9fc17ae726e313341cff17b2b45be500a2d211cc35ef4f5f664e52d",
-    "playstead-server/test/playstead/metadata_test.exs": "eefb3f1e9f48f3c8a3c32cb60f5443d54da614431d4ba15c8370ec2c5ce9c826"
+    "playstead-server/test/playstead/metadata_test.exs": "eefb3f1e9f48f3c8a3c32cb60f5443d54da614431d4ba15c8370ec2c5ce9c826",
+    "playstead-mac/Playstead/UITesting/UITestBootstrap.swift": "8d71c75a3b37e517e4e901ba91b1abd80b914b5a535174e2bef1e13f16bae9a9",
+    "playstead-mac/PlaysteadUITests/LiveServerSnapshotTests.swift": "ec229dce34a321d21dfd0d3649f28a995c3f114296f12cdb8895f62dce8c7472",
+    "playstead-mac/scripts/ci/cleanup-gb-gbc-save-children.py": "bce56976fd8d308a5de86f11a7d74247d87aad9577c17fb531314e266a94dd97",
+    "playstead-mac/scripts/ci/gb-gbc-save-e2e.sh": "0ba5c7d81c25ccf10a9d9180d242e9762670ef1ab524aaf079ae60aa07e42122",
+    "playstead-mac/scripts/ci/tests/four-layer-topology-test.sh": "b650372b9a2ba2e21d3260a136974659eb8f8911176ef3ef99a67e2684124ee2",
+    "playstead-mac/scripts/ci/tests/keychain-prompt-safety-test.sh": "bad84aaf9e7348434315602754da5db01d67ba81802715c4e6e4a73bcec29c50",
+    "playstead-mac/scripts/ci/tests/live-server-env-detector.py": "438ceecf452a78f84907734c36bf65f57814d3115c52c4a7d595ff82405f38ac",
+    "playstead-mac/scripts/ci/tests/recovery-build-only-test.sh": "d5e8abd63cf95b569a262ddabaa5481e7136d03999506709b6a541eeec4fadc5",
+    "playstead-mac/scripts/ci/tests/test_cleanup_gb_gbc_save_children.py": "f1f550df21c70cacfa930985a84bf7d9870adfa98091add303253876b632912d",
+    "playstead-mac/scripts/ci/tests/test_server_workflow_contract.py": "c4e57870547f4cfa9377dd26028edf0b611a32dcdc6a07457854d657e0bcd67f",
+    "playstead-mac/scripts/ci/tests/test_virtual_hid_workflow_contract.py": "d3dd65e7b91382b97dc74320ef302c37d4b17a49a5e3aa88f11aeb98eee20906",
+    "playstead-server/lib/mix/tasks/playstead.restore.ex": "d6e65163f35f0ea6e3d63e6b2fdd7af0df1565c4fd4ab40e7cded5757e207b97",
+    "playstead-server/lib/playstead/recovery/restore.ex": "e08d875e1a200545d417596e96eacd42263dd1471f2dbd238a592bae1ffe0d6c",
+    "playstead-server/test/playstead/recovery/restore_test.exs": "55f868b9799687a88790c30712610a9ec4e92af5e3becb36985a3d7011490afc",
+    "scripts/check-phase-summary-coverage.py": "fab8211985703788f5d1fdd052137535925d4ad98a7bdb96ed948a5aadf63b1c",
+    "scripts/ci/media-decoder-evidence.py": "41f52eb2002324f07594722d80695b9372eb4ebaedc1c7811a19368f92691e79",
+    "scripts/tests/test_media_decoder_supply_chain.py": "35e07490fc41b3d542ff79bfa0fc52235aefa5d2eb908d27e658e9f05c4a7bcd"
   },
   "logs_sha256": {
     "phase-final-build.log": "aa87117cef03c791bad48eefddbc85dc994ff6639bf7427b75b3ff32810f005f",
@@ -165,5 +182,56 @@
     "rendering": "a7d952deae2be61ab9adf3b60b8fbcbf853cbf3706dbb65fb8d28e466a754730"
   },
   "hosted_ci": "pending; no result inferred",
-  "nonsemantic_formatting": "Removed existing Markdown trailing spaces and a Swift EOF blank line in delivery clone; behavior/test assertions unchanged"
+  "nonsemantic_formatting": "Removed existing Markdown trailing spaces and a Swift EOF blank line in delivery clone; behavior/test assertions unchanged",
+  "shipping_ci_repairs": {
+    "recorded_at": "2026-10-13T17:33:39Z",
+    "additional_review": "Owner selected recorded audits; none requested",
+    "restore_tests": {
+      "executed": 24,
+      "failures": 0
+    },
+    "backup_custody_tests": {
+      "executed": 9,
+      "failures": 0,
+      "remaining_blob_rows": 0
+    },
+    "decoder_boundary": {
+      "required": 4,
+      "executed": 4,
+      "failures": 0,
+      "skips": 0
+    },
+    "decoder_policy_tests": 11,
+    "shared_release_policy_tests": 28,
+    "static_validator_tests": 91,
+    "real_decoder_restore": "passed six production stages and exact cleanup",
+    "scan_lineage": "Revalidated existing exact report under stricter current policy; original scan timestamp retained, no new scan claim",
+    "hosted_ci": "pending",
+    "prior_failed_phase_run": 38435053282,
+    "restore_receipt": {
+      "lane": "linux_restore_fixture",
+      "outcome": "passed",
+      "run_id": "c959c9e1-af43-457c-9d6e-cd13aad877c7",
+      "schema_version": 1,
+      "stages": [
+        "chain",
+        "preflight",
+        "database",
+        "cas",
+        "manifest",
+        "api"
+      ]
+    }
+  },
+  "covered_digest": "v3:sha256:9275fd5c40e410818543f6a1e0c52ef757e8a8d9275c6eb5d176cc2865b507d4",
+  "log_sha256": {
+    "phase-ci-repairs-static.log": "a9c213cd5c89461d2f17ff53cfa2e8a89ccc1d8b98deb964a9186341735995a3",
+    "phase-ci-repairs-compile.log": "7f95425152a32b6e0c48d184d776fd2373280f0144e38b8deb759977dc69f574",
+    "decoder-current-policy-boundary.log": "3fefd86d745d371be1c9254af36fe4ef1aa365c0ad5b3473234080edd3786679",
+    "decoder-supply-chain-fixed.log": "980edb843606075836be3387c82035c9c66b24fb5ae9af578450c02ccf5ae414",
+    "phase-release-policy-fixed.log": "1025bedcbf22a8343ee0937e937f643a3328af46c163b7bb75f259b837225b48",
+    "metadata-backup-cleanup-regression.log": "378e76a4a09de26eee4332bac914b108c570481301f81f943842f475f29cf0b2",
+    "phase-restore-qualified.log": "923923919b6b0dafb1b7418a86a6304c14b81e1425fa4b492ab3b28c7812dead",
+    "decoder-strict-revalidation.log": "3a385507b9895200afbd9efbcb5596ea95923abb5ded483a93eee1b9455e8055"
+  }
 }
