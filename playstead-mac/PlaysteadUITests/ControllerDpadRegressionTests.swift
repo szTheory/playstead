@@ -56,7 +56,10 @@ final class ControllerDpadRegressionTests: XCTestCase {
         harness.element("playstead.sidebar.home").clickWhenHittable()
         harness.element("playstead.sidebar.settings").clickWhenHittable()
         XCTAssertTrue(settings.awaitExistence(timeout: 5), "Settings did not reopen from the sidebar")
-        XCTAssertTrue(storagePage.awaitExistence(timeout: 5), "re-entering Settings should return to the Storage landing pane")
-        XCTAssertFalse(controllerSettings.exists, "re-entering Settings must not reopen Controller settings automatically")
+        let storageLanding = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            storagePage.exists && !controllerSettings.exists
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [storageLanding], timeout: 5), .completed,
+                       "re-entering Settings should settle on Storage with Controller closed")
     }
 }

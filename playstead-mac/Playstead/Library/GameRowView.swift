@@ -317,12 +317,17 @@ struct GameRowView: View {
             titleColumn
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            HStack(spacing: DesignTokens.Spacing.md) {
-                statusPair
-                    .fixedSize(horizontal: true, vertical: false)
-
-                Spacer(minLength: 0)
-                listActions
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: DesignTokens.Spacing.md) {
+                    statusPair
+                        .fixedSize(horizontal: true, vertical: false)
+                    Spacer(minLength: 0)
+                    listActions
+                }
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+                    statusPair
+                    listActions
+                }
             }
         }
     }

@@ -56,18 +56,18 @@ granular_coverage = {
         "apply-catalogue-transition", ".frame.intersects(after)",
         "window.coordinate(withNormalizedOffset: .zero)",
         "dx: before.midX - windowFrame.minX", "dy: before.midY - windowFrame.minY",
-        "playstead.library.list-selection", "playstead.surface.game-list",
+        "playstead.surface.game-list", "playstead.surface.game-list",
         "playstead.game.transition-sentinel.summary",
     ),
     "testEarlyListActivationSurvivesInitialCatalogueRefresh": (
-        "clickWhenHittable()", "playstead.library.list-selection",
-        "apply-catalogue-transition", "library.filter.gba",
+        "clickWhenHittable()", "playstead.surface.game-list",
+        "apply-catalogue-transition", "library.filter.system:gba",
         "playstead.surface.game-list", "playstead.game.transition-sentinel.summary",
     ),
     "testFirstPointerClickActivatesListInFreshLibraryProfiles": (
         "[.emptyLibrary, .populatedCurationReorder]", ".runningForeground",
         "listButton.isHittable", "listButton.clickWhenHittable()",
-        "playstead.library.list-selection", "playstead.surface.game-list",
+        "playstead.surface.game-list", "playstead.surface.game-list",
         "playstead.surface.game-card",
     ),
     "testLibraryRouteInventorySettlesOnProductionProfile": (

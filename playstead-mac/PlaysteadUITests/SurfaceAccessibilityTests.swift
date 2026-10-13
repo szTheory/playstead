@@ -23,9 +23,9 @@ final class SurfaceAccessibilityTests: XCTestCase {
         XCTAssertTrue(button.isHittable)
         let before = button.frame
         try Data().write(to: root.appendingPathComponent("apply-catalogue-transition"))
-        XCTAssertTrue(harness.element("library.filter.gba").awaitExistence(timeout: 10))
+        XCTAssertTrue(harness.element("library.filter.system:gba").awaitExistence(timeout: 10))
         let after = button.frame
-        XCTAssertFalse(harness.element("library.filter.gba").frame.intersects(after),
+        XCTAssertFalse(harness.element("library.filter.system:gba").frame.intersects(after),
                        "the layout button and filter must remain distinct hit regions")
         print("snapshot-list-pointer original=\(before) updated=\(after)")
         // Freeze the point as XCUITest does when resolving a pointer target;
@@ -35,8 +35,9 @@ final class SurfaceAccessibilityTests: XCTestCase {
         window.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(
             dx: before.midX - windowFrame.minX, dy: before.midY - windowFrame.minY
         )).click()
-        XCTAssertTrue(harness.element("playstead.library.list-selection").awaitExistence(),
-                      "the initially resolved List click did not activate List after refresh")
+        let list = harness.element("playstead.surface.game-list")
+        XCTAssertTrue(list.awaitExistence(), "the initially resolved List click did not activate List after refresh")
+        XCTAssertFalse((list.value as? String ?? "").isEmpty, "List must expose its actual selection")
         XCTAssertTrue(after.contains(CGPoint(x: before.midX, y: before.midY)),
                       "initial snapshot moved List away from the resolved click target")
         XCTAssertTrue(harness.element("playstead.surface.game-list").exists)
@@ -48,10 +49,11 @@ final class SurfaceAccessibilityTests: XCTestCase {
         let root = try launchCatalogueTransitionProfile()
         defer { harness.app.terminate(); try? FileManager.default.removeItem(at: root) }
         harness.element("playstead.control.show-list", type: .radioButton).clickWhenHittable()
-        XCTAssertTrue(harness.element("playstead.library.list-selection").awaitExistence())
-        XCTAssertTrue(harness.element("playstead.surface.game-list").awaitExistence())
+        let list = harness.element("playstead.surface.game-list")
+        XCTAssertTrue(list.awaitExistence())
+        XCTAssertFalse((list.value as? String ?? "").isEmpty, "List must expose its actual selection")
         try Data().write(to: root.appendingPathComponent("apply-catalogue-transition"))
-        XCTAssertTrue(harness.element("library.filter.gba").awaitExistence(timeout: 10))
+        XCTAssertTrue(harness.element("library.filter.system:gba").awaitExistence(timeout: 10))
         XCTAssertTrue(harness.element("playstead.surface.game-list").exists)
         XCTAssertTrue(harness.element("playstead.game.transition-sentinel.summary").awaitExistence())
     }
@@ -74,12 +76,14 @@ final class SurfaceAccessibilityTests: XCTestCase {
         for profile: UITestHarness.Profile in [.emptyLibrary, .populatedCurationReorder] {
             launchLibrary(profile: profile)
             XCTAssertEqual(harness.app.state, .runningForeground)
-            XCTAssertTrue(harness.element("playstead.surface.game-card").exists)
+            XCTAssertEqual(harness.element("playstead.surface.game-card").exists, profile != .emptyLibrary,
+                           "an empty catalogue shows guidance instead of a card container")
             let listButton = harness.element("playstead.control.show-list", type: .radioButton)
             XCTAssertTrue(listButton.isHittable)
             listButton.clickWhenHittable()
-            XCTAssertTrue(harness.element("playstead.library.list-selection").awaitExistence())
-            XCTAssertTrue(harness.element("playstead.surface.game-list").awaitExistence())
+            let list = harness.element("playstead.surface.game-list")
+            XCTAssertTrue(list.awaitExistence())
+            XCTAssertFalse((list.value as? String ?? "").isEmpty, "List must expose its actual selection")
             XCTAssertFalse(harness.element("playstead.surface.game-card").exists)
             harness.app.terminate()
         }

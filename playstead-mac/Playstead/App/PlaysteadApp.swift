@@ -77,22 +77,21 @@ struct PlaysteadApp: App {
 /// Finite, test-only window controls for geometry assertions. These values
 /// cannot be selected in release builds or applied to unsupported dimensions.
 private enum UITestWindowSize {
-    static func applyRequestedSize() {
-        guard let requested = ProcessInfo.processInfo.environment["PLAYSTEAD_UI_TEST_WINDOW_SIZE"] else { return }
-        let size: CGSize
-        switch requested {
-        case "960x560": size = CGSize(width: 960, height: 560)
-        case "1280x800": size = CGSize(width: 1280, height: 800)
-        case "480x360": size = CGSize(width: 480, height: 360)
-        default: return
+    static var requested: CGSize? {
+        switch ProcessInfo.processInfo.environment["PLAYSTEAD_UI_TEST_WINDOW_SIZE"] {
+        case "960x560": CGSize(width: 960, height: 560)
+        case "1280x800": CGSize(width: 1280, height: 800)
+        case "480x360": CGSize(width: 480, height: 360)
+        default: nil
         }
+    }
+
+    static func applyRequestedSize() {
+        guard let size = requested else { return }
         DispatchQueue.main.async {
             guard let window = NSApp.keyWindow ?? NSApp.windows.first(where: { $0.isVisible }) else { return }
             window.minSize = NSSize(width: 1, height: 1)
             window.setContentSize(size)
-            // Keep each finite geometry case inside the display after growth.
-            // Retaining a smaller window's origin can put actions off-screen
-            // or beneath another application's floating window.
             window.center()
         }
     }
@@ -147,6 +146,9 @@ struct UITestProfileRootView: View {
         LibraryShellView()
             .environment(session.environment)
             .frame(minWidth: 960, minHeight: 560)
+            // Content-size windows follow SwiftUI's ideal dimensions after
+            // sheet dismissal too; retain the finite test size in layout.
+            .frame(width: UITestWindowSize.requested?.width, height: UITestWindowSize.requested?.height)
             .task {
                 if session.isLiveServerSession {
                     initialSyncStarted = true

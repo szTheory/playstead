@@ -42,7 +42,10 @@ cleanup_gb_gbc_live_profiles() {
   [ -d "$profile_root" ] || { GB_GBC_LIVE_PROFILE_ROOT=""; return 0; }
   local executable="${HOME}/Library/Application Support/Playstead/emulators/mgba/0.10.5/mGBA.app/Contents/MacOS/mGBA"
   local profile cleanup_status=0
-  for profile in source-profile target-profile; do
+  for profile in source-profile target-profile \
+      gb-mbc1-8k/source-profile gb-mbc1-8k/target-profile \
+      gbc-mbc5-32k/source-profile gbc-mbc5-32k/target-profile \
+      gbc-mbc3-rtc/source-profile gbc-mbc3-rtc/target-profile; do
     [ -d "${profile_root}/${profile}" ] || continue
     python3 "${SCRIPT_DIR}/cleanup-gb-gbc-save-children.py" \
       --executable "$executable" --profile-root "${profile_root}/${profile}" \
@@ -152,7 +155,7 @@ PY
   LIVE_SERVER_XCTESTRUN_PATCHED=true
   python3 - "$target" \
     "$PLAYSTEAD_MAC_CI_ROOT" "$PLAYSTEAD_LIVE_SERVER_STAGE_ROOT" \
-    "$PLAYSTEAD_LIVE_SERVER_STAGE_FILE" "$MAC_CI_DATABASE_URL" "$MIX_ENV" "$PORT" "$LIVE_SERVER_CA_DER" "$PLAYSTEAD_TEST_LIVE_SERVER_CA_SHA256" "$LIVE_SERVER_RUNTIME_CONFIG" "${PLAYSTEAD_GB_GBC_FIXTURE_REGISTRY:-${MAC_ROOT}/.local/gb-gbc-spike/fixtures/fixtures.json}" <<'PY'
+    "$PLAYSTEAD_LIVE_SERVER_STAGE_FILE" "$MAC_CI_DATABASE_URL" "$MIX_ENV" "$PORT" "$LIVE_SERVER_CA_DER" "$PLAYSTEAD_TEST_LIVE_SERVER_CA_SHA256" "$LIVE_SERVER_RUNTIME_CONFIG" "${PLAYSTEAD_GB_GBC_FIXTURE_REGISTRY:-${MAC_ROOT}/.local/gb-gbc-spike/fixtures/fixtures.json}" "${PLAYSTEAD_GB_GBC_SAVE_E2E_PROFILE_ROOT}" <<'PY'
 import os, pathlib, plistlib, sys
 
 path = pathlib.Path(sys.argv[1])
@@ -163,6 +166,7 @@ keys = (
     "PLAYSTEAD_TEST_LIVE_SERVER_CA_SHA256",
     "PLAYSTEAD_TEST_LIVE_SERVER_RUNTIME_CONFIG",
     "PLAYSTEAD_GB_GBC_FIXTURE_REGISTRY",
+    "PLAYSTEAD_GB_GBC_SAVE_E2E_PROFILE_ROOT",
 )
 if len(sys.argv) != len(keys) + 2:
     raise SystemExit("live-server test environment argument count drifted")
@@ -173,6 +177,7 @@ for key in (
     "PLAYSTEAD_MAC_CI_ROOT", "PLAYSTEAD_LIVE_SERVER_STAGE_ROOT", "PLAYSTEAD_LIVE_SERVER_STAGE_FILE",
     "PLAYSTEAD_TEST_LIVE_SERVER_CA_DER", "PLAYSTEAD_TEST_LIVE_SERVER_RUNTIME_CONFIG",
     "PLAYSTEAD_GB_GBC_FIXTURE_REGISTRY",
+    "PLAYSTEAD_GB_GBC_SAVE_E2E_PROFILE_ROOT",
 ):
     if not pathlib.PurePath(values[key]).is_absolute():
         raise SystemExit(f"live-server test environment path is not absolute: {key}")
@@ -1821,12 +1826,18 @@ PY
   # The LiveServer layer is the native client/server behavior proof (D-04).
   # Keep PostgreSQL/Phoenix scoped to that layer and compose its fail-safe
   # service cleanup with the already-armed keyboard-mode restoration.
-  trap 'restore_live_server_xctestrun; cleanup_live_server_runtime_config; cleanup_native_services; restore_keyboard_mode' EXIT
+  trap 'restore_live_server_xctestrun; cleanup_live_server_runtime_config; cleanup_gb_gbc_live_profiles; cleanup_native_services; restore_keyboard_mode' EXIT
   start_native_services
+  GB_GBC_LIVE_PROFILE_ROOT="$(mktemp -d "${FOUR_LAYER_RAW}/playstead-gb-save-e2e.XXXXXX")"
+  chmod 0700 "$GB_GBC_LIVE_PROFILE_ROOT"
+  export PLAYSTEAD_GB_GBC_SAVE_E2E_PROFILE_ROOT="$GB_GBC_LIVE_PROFILE_ROOT"
   prepare_live_server_failure_stage
   materialize_live_server_runtime_config
   materialize_live_server_xctestrun
-  run_test_layer live-server LiveServer 900 \
+  run_test_layer live-server LiveServer 1800 \
+    --required-test PlaysteadUITests.GBGBCSaveContinuityTests/testGBMBC1FreshProfileGameReadback \
+    --required-test PlaysteadUITests.GBGBCSaveContinuityTests/testGBCMBC5FreshProfileGameReadback \
+    --required-test PlaysteadUITests.GBGBCSaveContinuityTests/testGBCMBC3RTCFreshProfileGameReadback \
     --required-test PlaysteadUITests.HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner \
     --required-test PlaysteadUITests.LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch \
     --required-test PlaysteadUITests.SaveRestoreProofTests/testCapturedRevisionRestoresToByteIdenticalArtifactInLaunchDir \
@@ -1837,6 +1848,7 @@ PY
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
   restore_live_server_xctestrun
   cleanup_live_server_runtime_config
+  cleanup_gb_gbc_live_profiles
   cleanup_native_services
   trap restore_keyboard_mode EXIT
 
