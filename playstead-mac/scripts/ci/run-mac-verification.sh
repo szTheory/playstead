@@ -169,10 +169,15 @@ if len(sys.argv) != len(keys) + 2:
 values = dict(zip(keys, sys.argv[2:]))
 if any(not value or "\n" in value or "\x00" in value or len(value) > 4096 for value in values.values()):
     raise SystemExit("live-server test environment contains an invalid value")
-for key in (*keys[:3], keys[-4], keys[-2], keys[-1]):
+for key in (
+    "PLAYSTEAD_MAC_CI_ROOT", "PLAYSTEAD_LIVE_SERVER_STAGE_ROOT", "PLAYSTEAD_LIVE_SERVER_STAGE_FILE",
+    "PLAYSTEAD_TEST_LIVE_SERVER_CA_DER", "PLAYSTEAD_TEST_LIVE_SERVER_RUNTIME_CONFIG",
+    "PLAYSTEAD_GB_GBC_FIXTURE_REGISTRY",
+):
     if not pathlib.PurePath(values[key]).is_absolute():
         raise SystemExit(f"live-server test environment path is not absolute: {key}")
-if len(values[keys[-2]]) != 64 or any(c not in "0123456789abcdef" for c in values[keys[-2]].lower()):
+ca_digest = values["PLAYSTEAD_TEST_LIVE_SERVER_CA_SHA256"]
+if len(ca_digest) != 64 or any(c not in "0123456789abcdef" for c in ca_digest.lower()):
     raise SystemExit("live-server test environment CA digest is invalid")
 if values["MIX_ENV"] != "mac_ci" or values["PORT"] != "4010":
     raise SystemExit("live-server test environment identity drifted")

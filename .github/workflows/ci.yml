@@ -133,7 +133,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 60
     needs: [test, compose-smoke]
-    if: always()
+    if: ${{ !cancelled() }}
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
       PLAYSTEAD_GB_GBC_FIXTURE_REGISTRY: ${{ github.workspace }}/playstead-mac/.build/ci/gb-gbc-fixtures/fixtures.json
@@ -158,6 +158,10 @@ jobs:
             HOMEBREW_NO_AUTO_UPDATE=1 brew install ripgrep
           fi
           rg --version
+
+      - name: Prepare the hosted display for finite window geometry cases
+        working-directory: playstead-mac
+        run: swift scripts/ci/configure-test-display.swift
 
       - name: Verify static contract guards
         working-directory: playstead-mac

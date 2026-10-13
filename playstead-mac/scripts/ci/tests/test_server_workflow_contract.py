@@ -37,6 +37,10 @@ def validate(source):
     mac_job = source.split("  mac-verification:\n", 1)[1].split("\n  recovery-fixture:", 1)[0]
     if not (0 <= mac_job.find("Install static contract prerequisites") < mac_job.find("Verify static contract guards")):
         raise AssertionError("Mac static prerequisites must precede the contract guards")
+    if "if: ${{ !cancelled() }}" not in mac_job:
+        raise AssertionError("Mac verification must survive Linux failure but stop after cancellation")
+    if not (0 <= mac_job.find("Prepare the hosted display for finite window geometry cases") < mac_job.find("Verify static contract guards")):
+        raise AssertionError("hosted display must be prepared before native geometry tests")
     if "brew install ripgrep" not in mac_job or "rg --version" not in mac_job:
         raise AssertionError("Mac runner must install and validate ripgrep")
     if "wallaby_screenshots" in source or "name: wallaby-screenshots" in source:
@@ -48,6 +52,7 @@ class ServerWorkflowContractTest(unittest.TestCase):
         source = WORKFLOW.read_text(encoding="utf-8")
         validate(source)
         mutations = (
+            source.replace("if: ${{ !cancelled() }}", "if: always()", 1),
             source.replace("brew install ripgrep", "true", 1),
             source.replace("Suites: noble-pgdg", "Suites: wrong-pgdg", 1),
             source.replace("postgresql-client-17", "postgresql-client-16", 1),

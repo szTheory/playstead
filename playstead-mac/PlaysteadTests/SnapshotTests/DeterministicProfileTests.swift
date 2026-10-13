@@ -87,7 +87,17 @@ final class DeterministicProfileTests: XCTestCase {
                 "controller-recovery",
                 "save-restorable",
                 "save-only-copy",
-                "save-diverged"
+                "save-diverged",
+                "gbc-unsupported-header",
+                "gbc-corrupt-header-long-name",
+                "unknown-system",
+                "gbc-missing-readiness-evidence",
+                "gb-mbc1-qualified",
+                "gbc-mbc5-qualified",
+                "gbc-mbc3-rtc-qualified",
+                "gbc-mbc3-rtc-queued-offline",
+                "gbc-incompatible-restore",
+                "gbc-download-progress"
             ]
         )
     }

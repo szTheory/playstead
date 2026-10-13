@@ -42,10 +42,25 @@
       "restore_fixture": "passed all six production stages; target and source cleanup complete",
       "restore_cleanup_tests": "24 executed, 0 failures",
       "cleanup_defect": "File.rm_rf returns {:ok, paths}; valid teardown now reports success"
+    },
+    "native_ci_repairs": {
+      "rendering_run": "oYwjYI",
+      "executed": 3,
+      "failed": 0,
+      "skipped": 0,
+      "in_test_seconds": 4.1,
+      "static_validator_tests": 92,
+      "named_ca_stamp_test": 1,
+      "ci_setup_contract_tests": 2,
+      "display_script_typecheck": "passed; no local display mutation",
+      "pointer_query_fix": "existing production segmented radio picker retained; 3 stale button queries corrected",
+      "hosted_display": "public supported mode selection restricted to exact GitHub hosted Mac repository context",
+      "cancellation": "Mac verification survives Linux failure but respects workflow cancellation",
+      "hosted_pointer_and_geometry": "pending"
     }
   },
   "sources": {
-    ".github/workflows/ci.yml": "03bf981f4b6becef74ecb12cfc9106c578f04e04270c10c298f4308defe6178d",
+    ".github/workflows/ci.yml": "9e834359c2e71b9d8a5fa0d6266375876453c99aa31b76819381673248ef768f",
     ".github/workflows/verify-hosted-evidence.yml": "82da05f045fb66a4409e69867f7acfe542c8671c2c194535624dbcb5621cd936",
     ".gitignore": "03dbdeb8c5c9987310f4b44bc6f934907ad3a86a1732575e212172e13ae87d70",
     ".planning/ROADMAP.md": "13704a294139e257e9067c4ab1d707cad1065c82780f947be651f81c00adad24",
@@ -166,7 +181,7 @@
     "playstead-mac/PlaysteadTests/SecurityTests/PathTraversalTests.swift": "4b673587af13f2fbc173397446e2cac1ca1a7664cf40ef13e98a8e91d0e573f5",
     "playstead-mac/PlaysteadTests/SecurityTests/PinnedTrustEvaluationTests.swift": "e2b00db1ee0364c5e12d68ea25e907ea4b6963d128fef9702c85b51e46ec12cd",
     "playstead-mac/PlaysteadTests/SecurityTests/PinnedTrustWiringTests.swift": "efad0eb235d7ba982513e5555df3e6f037103fb500ce03c856c9f45a508caa5b",
-    "playstead-mac/PlaysteadTests/SnapshotTests/DeterministicProfileTests.swift": "89eb29c0dad56dec3db997a466d2af1602cd43591d04e851be23807d46e8a637",
+    "playstead-mac/PlaysteadTests/SnapshotTests/DeterministicProfileTests.swift": "82ae432bf06effa4fb2569625e74e58b681ac763806e815a90d64ddd42f0be51",
     "playstead-mac/PlaysteadTests/SnapshotTests/LibraryContractSnapshotTests.swift": "42cb42465d94cf256b9223bbee46bda28621c4ce3f7619885ccfad95c8fd225a",
     "playstead-mac/PlaysteadTests/SnapshotTests/ReleaseHookAbsenceTests.swift": "2beef6c2d86ab291553d95306cb8bf0709595e58420813182449d503d67de321",
     "playstead-mac/PlaysteadTests/SnapshotTests/SaveHistoryContractSnapshotTests.swift": "a86dcbcf16871b964bb1f7b7c1bc1482e62e0c4952857214bea630335169b1fc",
@@ -198,7 +213,7 @@
     "playstead-mac/PlaysteadUITests/SaveFrontDoorJourneyTests.swift": "69e3232630a56faaf7a0d46871eab5e280c829d9cfe28897c64c2f1d3a0181a9",
     "playstead-mac/PlaysteadUITests/StorageInteractionTests.swift": "e1eba3ae4477ff651ec5001d453af90e3216715a5a685680953af377f977db65",
     "playstead-mac/PlaysteadUITests/Support/UITestHarness.swift": "26a8907a1e6ce9bd33956249dfbe9201c4fec1e5a0bca166237b07a83dc6dab7",
-    "playstead-mac/PlaysteadUITests/SurfaceAccessibilityTests.swift": "f478b1243ddb11887f49fcb14915f6f70e8111a71f496b052ddcc843bb611f2a",
+    "playstead-mac/PlaysteadUITests/SurfaceAccessibilityTests.swift": "1a501332191de7e800400d5655429ba6c16df06e9894ababf52a9a9f7bf610b4",
     "playstead-mac/PlaysteadUITests/ZeroNetworkPlayFlowTests.swift": "c44c245d7fb6d1bed1caaa683386f402203dd8789fc46cd4be1464e12d4a3806",
     "playstead-mac/README.md": "ee265b47ffef2ea9d25c274e8a3d54a4a9f926b84fe236d3a6daeaa9a9209150",
     "playstead-mac/TestPlans/LiveServer.xctestplan": "eb2ebab5794d8754a1342c6e1acf92a6a9d92c8060f2746186337fa70c070833",
@@ -208,7 +223,7 @@
     "playstead-mac/docs/RELEASE.md": "9da57aa372f58c45b4d80dea6f3eba86ab7ceff0c81850333bc25a544b949c99",
     "playstead-mac/scripts/ci/live-server.sh": "2634847287308a334f42106fef330636df386f92b59a430243de7badaf0502f3",
     "playstead-mac/scripts/ci/reachability-allowlist.txt": "370ea0096addb56498c7dc7a789532ead8a2acb9c645b3a11e8d003b109091ab",
-    "playstead-mac/scripts/ci/run-mac-verification.sh": "22302f15db1e18fb7976589588698b319a4ed4547de8bedf61bd05c0fe34977d",
+    "playstead-mac/scripts/ci/run-mac-verification.sh": "6a32ea64a7a7391132f736b52ab6f47d8790e8e8e76667ca9bb3d6a0f4d0d83b",
     "playstead-mac/scripts/ci/sanitize-evidence.sh": "6ee656e29fa5bd078dde5fa551ad617c8deef447a96a5dd2c8e1ac5b27c3589e",
     "playstead-mac/scripts/ci/tests/ax-value-detector.py": "8b7e4cd5f892338042bfdc236cb4284e6ff45746df9e32ce25ddcdd3608d8517",
     "playstead-mac/scripts/ci/tests/ax-value-semantics-test.sh": "bf62b0dccf547b871dc6249a4c3ef13af6c10400dfbe57299debc6b60c6e85e7",
@@ -407,7 +422,7 @@
     "playstead-mac/scripts/ci/tests/test-gb-gbc-save-wrapper-cleanup.sh": "e8dfce3df18ce2cc99849f46280c2e2d4e6a0be6ee9db55deb6ff65cf292dd16",
     "playstead-mac/scripts/ci/tests/test_cleanup_gb_gbc_save_children.py": "f1f550df21c70cacfa930985a84bf7d9870adfa98091add303253876b632912d",
     "playstead-mac/scripts/ci/tests/test_layout_evidence.py": "bfbb3676aacc3f46fc54861f2cdf47d68e8b83157e667e1e59e9263550a7aa43",
-    "playstead-mac/scripts/ci/tests/test_server_workflow_contract.py": "48dd04ee50c3e1b4862e90bf75c76b1e80e2c2c7b809c01acb3c6e7c88aaa6ec",
+    "playstead-mac/scripts/ci/tests/test_server_workflow_contract.py": "3b4a56271f6b4385410424b00019694ed7286e1c89f56fd473d5898b4f68d2d0",
     "playstead-mac/scripts/ci/tests/test_surface_contract_registration.py": "f10ec7159842b1973e70eeb2b569d5e5c38f3d14b1395221ab19817046d9798c",
     "playstead-mac/scripts/ci/tests/test_virtual_hid_workflow_contract.py": "d3dd65e7b91382b97dc74320ef302c37d4b17a49a5e3aa88f11aeb98eee20906",
     "playstead-mac/scripts/ci/verify-hosted-evidence.py": "1ab423f2414afcce77721de07caabc5a6cc1fa629993778bc8b7500994838147",
@@ -474,7 +489,9 @@
     "scripts/dev-up.sh": "976840650636c68f67109dbe6c44c67208403eda280d941f5e14d72b8b56a10c",
     "scripts/tests/test_release_evidence.py": "e81a2d062b901f5c5f6d02f399be22732d0c5592454bc7f3d4dd7647bec17532",
     "scripts/uat7-status.sh": "ba5477e34aee4f9da082d94f28d9e115e007c6461fc21628603a6c6f86eb99aa",
-    "design-system/shared-tokens.json": "07598e86c15b068a69403896f70f9c6af4941cadc99b1ed6920c630e96e3e688"
+    "design-system/shared-tokens.json": "07598e86c15b068a69403896f70f9c6af4941cadc99b1ed6920c630e96e3e688",
+    "playstead-mac/scripts/ci/configure-test-display.swift": "00d62c47af9f4ff28f0f1961bdf793e6a64c5e3bb76a9b9189c39884016eba61",
+    "playstead-mac/scripts/ci/tests/test_live_server_xctestrun_environment.py": "7c7ef59e9dd9d8edf126e9e554480a15e99aae9c380c086e8f69bd0c78e88265"
   },
   "logs_sha256": {
     "prerequisite-build-5.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -497,7 +514,12 @@
     "restore-cleanup-fixture-qualified.log": "923923919b6b0dafb1b7418a86a6304c14b81e1425fa4b492ab3b28c7812dead",
     "ci-repairs-format.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "pgdg-contract-tests.log": "633635626e3dc52a9325aea7cbcbd9bffab2981fc0c71fa908b77cd6f7156d43",
-    "mac-static-prerequisite-contract.log": "00e47871602d8b9efaf1a575c2b5aa011862e17109d937d8b09dccfe41466cba"
+    "mac-static-prerequisite-contract.log": "00e47871602d8b9efaf1a575c2b5aa011862e17109d937d8b09dccfe41466cba",
+    "native-prerequisite-repair-rendering-qualified.log": "ca85e5471eb22628a6ade87eae60bfab122aa0311caf2f2a68d595f17e20dfa7",
+    "native-prerequisite-repair-static-qualified.log": "8b79640749a804f8572488eebf32ab0ec2110d3931f2114814eabd676fe71d08",
+    "native-ci-setup-contract.log": "76f97dd3b5cb003ad01705fd3b0a8a1b50dba34b337a12a3c0f971e2f912953e",
+    "native-ca-stamp-contract.log": "625e087546cda90560c3373a4d432ed72a691522b4956eafacb8447441758fb3",
+    "native-display-typecheck.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   },
   "unit_receipt_sha256": "fe2eddb2a6da32419ceade7ae16206908d5bdc3932c262ccbd432f5dbe002cbf",
   "hosted_ci": "current CI corrections verified locally; next exact-head hosted run pending",
@@ -547,6 +569,21 @@
       ],
       "failure": "Mac app-free guards require ripgrep; install before running guards",
       "success_claim": false
+    },
+    {
+      "run_id": 38440257085,
+      "source": "7733382a6e4f341273485b753078d8cd6b70c522",
+      "passed": [
+        "Linux precommit",
+        "isolated restore",
+        "deployment smoke and release scan"
+      ],
+      "native_failures": [
+        "finite profile test omitted 10 intentional GB/GBC profiles",
+        "3 pointer tests queried radio controls as buttons",
+        "1280x800 window geometry needs explicit hosted display preflight",
+        "CA stamp checked runtime config path as digest"
+      ]
     }
   ],
   "restore_fixture_receipt": {

@@ -19,7 +19,7 @@ final class SurfaceAccessibilityTests: XCTestCase {
     func testInitialCatalogueRefreshKeepsListPointerTarget() throws {
         let root = try launchCatalogueTransitionProfile()
         defer { harness.app.terminate(); try? FileManager.default.removeItem(at: root) }
-        let button = harness.element("playstead.control.show-list", type: .button)
+        let button = harness.element("playstead.control.show-list", type: .radioButton)
         XCTAssertTrue(button.isHittable)
         let before = button.frame
         try Data().write(to: root.appendingPathComponent("apply-catalogue-transition"))
@@ -47,7 +47,7 @@ final class SurfaceAccessibilityTests: XCTestCase {
     func testEarlyListActivationSurvivesInitialCatalogueRefresh() throws {
         let root = try launchCatalogueTransitionProfile()
         defer { harness.app.terminate(); try? FileManager.default.removeItem(at: root) }
-        harness.element("playstead.control.show-list", type: .button).clickWhenHittable()
+        harness.element("playstead.control.show-list", type: .radioButton).clickWhenHittable()
         XCTAssertTrue(harness.element("playstead.library.list-selection").awaitExistence())
         XCTAssertTrue(harness.element("playstead.surface.game-list").awaitExistence())
         try Data().write(to: root.appendingPathComponent("apply-catalogue-transition"))
@@ -75,7 +75,7 @@ final class SurfaceAccessibilityTests: XCTestCase {
             launchLibrary(profile: profile)
             XCTAssertEqual(harness.app.state, .runningForeground)
             XCTAssertTrue(harness.element("playstead.surface.game-card").exists)
-            let listButton = harness.element("playstead.control.show-list", type: .button)
+            let listButton = harness.element("playstead.control.show-list", type: .radioButton)
             XCTAssertTrue(listButton.isHittable)
             listButton.clickWhenHittable()
             XCTAssertTrue(harness.element("playstead.library.list-selection").awaitExistence())
