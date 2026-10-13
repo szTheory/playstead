@@ -34,6 +34,11 @@ def validate(source):
     for required in ("postgres:17.2", "postgresql-client-17", "https://www.postgresql.org/media/keys/ACCC4CF8.asc", "Suites: noble-pgdg", "/usr/lib/postgresql/17/bin/pg_dump --version", 'echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"'):
         if required not in test_job:
             raise AssertionError(f"matching dump client guard missing: {required}")
+    mac_job = source.split("  mac-verification:\n", 1)[1].split("\n  recovery-fixture:", 1)[0]
+    if not (0 <= mac_job.find("Install static contract prerequisites") < mac_job.find("Verify static contract guards")):
+        raise AssertionError("Mac static prerequisites must precede the contract guards")
+    if "brew install ripgrep" not in mac_job or "rg --version" not in mac_job:
+        raise AssertionError("Mac runner must install and validate ripgrep")
     if "wallaby_screenshots" in source or "name: wallaby-screenshots" in source:
         raise AssertionError("raw Wallaby screenshots must not be uploaded")
 
@@ -43,6 +48,7 @@ class ServerWorkflowContractTest(unittest.TestCase):
         source = WORKFLOW.read_text(encoding="utf-8")
         validate(source)
         mutations = (
+            source.replace("brew install ripgrep", "true", 1),
             source.replace("Suites: noble-pgdg", "Suites: wrong-pgdg", 1),
             source.replace("postgresql-client-17", "postgresql-client-16", 1),
             source.replace('echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"', "true", 1),

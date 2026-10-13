@@ -45,7 +45,7 @@
     }
   },
   "sources": {
-    ".github/workflows/ci.yml": "60057c0ca9c931300813d3f9dd1c8b6121d917bc3b816a53dea9d8740674c3f2",
+    ".github/workflows/ci.yml": "03bf981f4b6becef74ecb12cfc9106c578f04e04270c10c298f4308defe6178d",
     ".github/workflows/verify-hosted-evidence.yml": "82da05f045fb66a4409e69867f7acfe542c8671c2c194535624dbcb5621cd936",
     ".gitignore": "03dbdeb8c5c9987310f4b44bc6f934907ad3a86a1732575e212172e13ae87d70",
     ".planning/ROADMAP.md": "13704a294139e257e9067c4ab1d707cad1065c82780f947be651f81c00adad24",
@@ -407,7 +407,7 @@
     "playstead-mac/scripts/ci/tests/test-gb-gbc-save-wrapper-cleanup.sh": "e8dfce3df18ce2cc99849f46280c2e2d4e6a0be6ee9db55deb6ff65cf292dd16",
     "playstead-mac/scripts/ci/tests/test_cleanup_gb_gbc_save_children.py": "f1f550df21c70cacfa930985a84bf7d9870adfa98091add303253876b632912d",
     "playstead-mac/scripts/ci/tests/test_layout_evidence.py": "bfbb3676aacc3f46fc54861f2cdf47d68e8b83157e667e1e59e9263550a7aa43",
-    "playstead-mac/scripts/ci/tests/test_server_workflow_contract.py": "c4e57870547f4cfa9377dd26028edf0b611a32dcdc6a07457854d657e0bcd67f",
+    "playstead-mac/scripts/ci/tests/test_server_workflow_contract.py": "48dd04ee50c3e1b4862e90bf75c76b1e80e2c2c7b809c01acb3c6e7c88aaa6ec",
     "playstead-mac/scripts/ci/tests/test_surface_contract_registration.py": "f10ec7159842b1973e70eeb2b569d5e5c38f3d14b1395221ab19817046d9798c",
     "playstead-mac/scripts/ci/tests/test_virtual_hid_workflow_contract.py": "d3dd65e7b91382b97dc74320ef302c37d4b17a49a5e3aa88f11aeb98eee20906",
     "playstead-mac/scripts/ci/verify-hosted-evidence.py": "1ab423f2414afcce77721de07caabc5a6cc1fa629993778bc8b7500994838147",
@@ -496,7 +496,8 @@
     "restore-cleanup-qualified.log": "a615c8a5e964231d7170981cb6519433e2304f3a5d74e30e07d3bbd88ee5504e",
     "restore-cleanup-fixture-qualified.log": "923923919b6b0dafb1b7418a86a6304c14b81e1425fa4b492ab3b28c7812dead",
     "ci-repairs-format.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "pgdg-contract-tests.log": "633635626e3dc52a9325aea7cbcbd9bffab2981fc0c71fa908b77cd6f7156d43"
+    "pgdg-contract-tests.log": "633635626e3dc52a9325aea7cbcbd9bffab2981fc0c71fa908b77cd6f7156d43",
+    "mac-static-prerequisite-contract.log": "00e47871602d8b9efaf1a575c2b5aa011862e17109d937d8b09dccfe41466cba"
   },
   "unit_receipt_sha256": "fe2eddb2a6da32419ceade7ae16206908d5bdc3932c262ccbd432f5dbe002cbf",
   "hosted_ci": "current CI corrections verified locally; next exact-head hosted run pending",
@@ -535,6 +536,17 @@
       "run_id": 38437960778,
       "success_claim": false,
       "failure": "Ubuntu source lacks postgresql-client-17; explicitly enable official PostgreSQL noble-pgdg Apt source"
+    },
+    {
+      "run_id": 38438402125,
+      "source": "381f4efe27055658625bce994b9540dd068e6439",
+      "passed": [
+        "server precommit",
+        "Linux isolated recovery fixture",
+        "cold-start deployment"
+      ],
+      "failure": "Mac app-free guards require ripgrep; install before running guards",
+      "success_claim": false
     }
   ],
   "restore_fixture_receipt": {

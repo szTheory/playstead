@@ -151,6 +151,14 @@ jobs:
       # guard and the code it guards fails in seconds. Until this step existed,
       # CI invoked exactly one harness flag and reached none of these guards, so
       # two of them had silently drifted out of agreement with shipped code.
+      - name: Install static contract prerequisites
+        run: |
+          set -euo pipefail
+          if ! command -v rg >/dev/null 2>&1; then
+            HOMEBREW_NO_AUTO_UPDATE=1 brew install ripgrep
+          fi
+          rg --version
+
       - name: Verify static contract guards
         working-directory: playstead-mac
         run: scripts/ci/run-mac-verification.sh --self-test-contracts
