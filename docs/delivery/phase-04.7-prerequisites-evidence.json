@@ -599,5 +599,72 @@
       "manifest",
       "api"
     ]
+  },
+  "hosted_native_failure_repair": {
+    "recorded_at": "2026-10-13T21:46:55.630683+00:00",
+    "human_judgment": false,
+    "failed_run": 38454178548,
+    "failed_head": "1294bf67ab540e7ceb5d3ee3a333585f47d73b37",
+    "source_sha256": {
+      ".github/workflows/ci.yml": "2f501e1e6ae8a5b576aed48a20649148e26636233059d67e978560943150ccf0",
+      "playstead-mac/Playstead/App/PlaysteadApp.swift": "be081f94c7c983c29e8e7aef91fe73d89f901cc993e0f4b8542fdd6bdab127da",
+      "playstead-mac/Playstead/Library/GameRowView.swift": "396868cf3bfcda32293211d3bc1ccbe91b4d9a110edb25f3d0a3716e64c40df4",
+      "playstead-mac/Playstead/Library/LibraryShellView.swift": "d3b804e732f8fa1e01a37400da16e82a166e24ffe13e4608b331dcf833ec0513",
+      "playstead-mac/PlaysteadTests/ReadinessTests/SaveDirectoryAtomicPlacementTests.swift": "dbb32d9cb0df90f9687f03a508ef9faa3d4e3571ccd9b08b26d19f1c1279b755",
+      "playstead-mac/PlaysteadTests/SnapshotTests/ReleaseHookAbsenceTests.swift": "08cfeae0f834726d8d60b04c9f428d20dd4ed1d840bef45bded50a0b97bc2ba5",
+      "playstead-mac/PlaysteadUITests/ControllerDpadRegressionTests.swift": "f2c48778849bd12b185ad49a701d053fc13c7d69f4842caffd1b7d9c9a647d94",
+      "playstead-mac/PlaysteadUITests/SaveEndToEndTests.swift": "4e379eed19a018af13d7200c3477aa2a977a0ee8eb30a695ff5b5a4ec59be5eb",
+      "playstead-mac/PlaysteadUITests/SurfaceAccessibilityTests.swift": "fb06452c9395e8eb15b49998b511e90a4af2332917b40d84e221076294db9b51",
+      "playstead-mac/scripts/ci/run-mac-verification.sh": "f977f25c29671178d65ab6bcaaae07b9f3d78e5a3b20eed29304cb0868a6e81f",
+      "playstead-mac/scripts/ci/tests/four-layer-topology-test.sh": "875afd60f8455379edb1437ef56975feb6de7121188f13c8c2307ed1c1866147",
+      "playstead-mac/scripts/ci/tests/plan-05-surface-contract-test.sh": "d3dcae2d688a45c2a673f5f3a09ecbefb8b268947eeaa273ad8c07bf2387b3c6",
+      "playstead-mac/scripts/ci/tests/test_live_server_xctestrun_environment.py": "7fb7a81784cc4ea488919fee6bdbcb4fc104456720755abd57a618c257f8c106",
+      "playstead-mac/PlaysteadTests/SnapshotTests/__Snapshots__/LibraryContractSnapshotTests/collection-create-controls-sidebar.png": "3d4bab3fefce0ccfe173b1c98dd3615bde531c6b15d20e1eabb6e27b4929b7b3",
+      "playstead-mac/PlaysteadTests/SnapshotTests/__Snapshots__/LibraryContractSnapshotTests/library-list-row-width-adaptation.png": "3db607b851657c0c96fff309429fbe46864d4f23fb9008f115a56b22a2459e09"
+    },
+    "repairs": [
+      "Gate the test-only Downloads evidence property out of ordinary release compilation",
+      "Run the nested release build with ordinary build tools instead of inherited XCTest injection settings",
+      "Preserve unrelated immutable legacy probe names while replacing only uniquely owned readiness files",
+      "Adapt narrow list footer to keep all readiness and curation actions visible",
+      "Restore missing collection reference and inspect/update the list reference against actual current readiness state",
+      "Use native list selection values, current system filter identifiers, and truthful empty-state expectations",
+      "Hold finite test window size in SwiftUI layout through controller sheet dismissal",
+      "Wait for Storage landing state after re-entering Settings",
+      "Verify both explicitly seeded save journey sentinels",
+      "Create and patch run-owned GB/GBC live profiles, clean their nested emulator children, and require all three cartridge tests in the aggregate"
+    ],
+    "verification": {
+      "unit": {
+        "run": "selected-unit.UUfV46",
+        "executed": 3,
+        "failures": 0,
+        "skips": 0,
+        "includes": "real non-testing release executable and symbols hook scan"
+      },
+      "rendering": {
+        "run": "selected-rendering.HKOVeR",
+        "executed": 2,
+        "failures": 0,
+        "skips": 0
+      },
+      "controller_geometry_and_navigation": {
+        "run": "selected-ui.Xms80F",
+        "selected_passed": 2,
+        "selected_failures": 0,
+        "selected_skips": 0,
+        "whole_run_status": "failed on three pointer predicates; repaired separately"
+      },
+      "pointer": {
+        "run": "selected-ui.Sz2nEU",
+        "executed": 3,
+        "failures": 0,
+        "skips": 0
+      },
+      "static": "full guard suite passed (92 Python validator tests); after final pointer predicate edit both affected surface/topology guards passed again",
+      "remaining": "current hosted full regression, including save journey and three GB/GBC continuity tests"
+    },
+    "cleanup": "exact task app and runner inventory empty after focused UI; no local service stack launched",
+    "new_list_reference_sha256": "3db607b851657c0c96fff309429fbe46864d4f23fb9008f115a56b22a2459e09"
   }
 }

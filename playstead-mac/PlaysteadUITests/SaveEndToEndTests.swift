@@ -195,8 +195,8 @@ final class SaveEndToEndTests: XCTestCase {
             )
         }
 
-        // This test owns a separate fresh profile with only the first
-        // sentinel: stored cursor, that sentinel, empty objects/partials, and zero blob
+        // This test owns a fresh profile with both explicitly seeded
+        // sentinels: stored cursor, both entries, empty objects/partials, and zero blob
         // routes. It makes NO claim about how many snapshots the layer
         // fetched, and saying so explicitly is what stops it inheriting
         // LiveServerSnapshotTests' count -- which is what failed it in run
@@ -204,7 +204,7 @@ final class SaveEndToEndTests: XCTestCase {
         let mirrorVerificationPassed = try runFixture(
             "verify",
             root: runRoot,
-            extraArguments: ["snapshots-not-asserted-here", "first-only"]
+            extraArguments: ["snapshots-not-asserted-here", "both"]
         )
         if !mirrorVerificationPassed {
             recordMirrorVerificationFailure(in: runRoot)

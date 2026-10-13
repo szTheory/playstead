@@ -59,6 +59,7 @@ final class ReleaseHookAbsenceTests: XCTestCase {
                 "-configuration", "Release",
                 "-destination", "platform=macOS",
                 "-derivedDataPath", derivedData.path,
+                "-clonedSourcePackagesDirPath", macRoot.appendingPathComponent(".build/ci/SourcePackages").path,
                 "CODE_SIGNING_ALLOWED=NO",
                 "SWIFT_ACTIVE_COMPILATION_CONDITIONS="
             ]
@@ -86,6 +87,14 @@ final class ReleaseHookAbsenceTests: XCTestCase {
         }
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = arguments
+        // XCTest injects DYLD and build-product settings into its host. A
+        // nested release build must use an ordinary tool environment instead.
+        let toolKeys: Set<String> = ["PATH", "HOME", "TMPDIR", "DEVELOPER_DIR", "LANG", "LC_ALL"]
+        var toolEnvironment = ProcessInfo.processInfo.environment.filter { toolKeys.contains($0.key) }
+        // XCUITest's PATH omits Homebrew, which supplies the pinned SDL build's
+        // CMake. Preserve ordinary system tools and both standard brew paths.
+        toolEnvironment["PATH"] = "/opt/homebrew/bin:/usr/local/bin:" + (toolEnvironment["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin")
+        process.environment = toolEnvironment
         process.standardOutput = output
         process.standardError = output
         try process.run()
@@ -94,7 +103,8 @@ final class ReleaseHookAbsenceTests: XCTestCase {
         let data = try Data(contentsOf: outputURL)
         let text = String(decoding: data, as: UTF8.self)
         guard process.terminationReason == .exit, process.terminationStatus == 0 else {
-            XCTFail("\(executable) failed closed with status \(process.terminationStatus):\n\(text.suffix(4_000))")
+            let diagnostics = text.split(separator: "\n").filter { $0.localizedCaseInsensitiveContains("error") || $0.localizedCaseInsensitiveContains("failed") || $0.contains("not found") || $0.contains("denied") }.suffix(12).joined(separator: "\n")
+            XCTFail("\(executable) failed closed with status \(process.terminationStatus):\n\(diagnostics.suffix(4_000))")
             throw CocoaError(.executableLoad)
         }
         return text

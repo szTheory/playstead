@@ -319,7 +319,7 @@ if 'classify-xcode-failure.py' not in runner_source or '"$result_log"' not in ru
     raise SystemExit("xcodebuild failures must use the category-only owned-log classifier")
 if re.search(r"(?:sed|tail|cat)\s+[^\n]*\$result_log", runner_source):
     raise SystemExit("the raw xcodebuild log must never be copied into failure output")
-if "trap 'restore_live_server_xctestrun; cleanup_live_server_runtime_config; cleanup_native_services; restore_keyboard_mode' EXIT" not in four_layer:
+if "trap 'restore_live_server_xctestrun; cleanup_live_server_runtime_config; cleanup_gb_gbc_live_profiles; cleanup_native_services; restore_keyboard_mode' EXIT" not in four_layer:
     raise SystemExit("LiveServer xctestrun/config/native cleanup must preserve keyboard-mode restoration")
 stage_preflight = four_layer.find("prepare_live_server_failure_stage")
 if not (0 <= stage_preflight < live_layer):
@@ -371,7 +371,7 @@ deadlines = {layer: int(seconds) for layer, seconds in deadline_pairs}
 # deadline: the last green run spent 1631s here, 9% under the old cap, on a
 # commit whose diff touched no file in the UI test plan. The cap stays a real
 # bound -- it just has to sit above the observed runtime, not on top of it.
-expected_deadlines = {"unit": 900, "rendering": 600, "ui": 2700, "live-server": 900}
+expected_deadlines = {"unit": 900, "rendering": 600, "ui": 2700, "live-server": 1800}
 if len(deadline_pairs) != 4 or deadlines != expected_deadlines:
     raise SystemExit(f"four-layer deadlines drifted: {deadlines} != {expected_deadlines}")
 if any(seconds <= 0 or seconds > 2700 for seconds in deadlines.values()):
@@ -547,7 +547,7 @@ for path in callers:
             )
         if re.search(r'extraArguments:\s*\["\d+",\s*"both"\]', body):
             numeric.append(path.name)
-        elif re.search(r'extraArguments:\s*\["snapshots-not-asserted-here",\s*"first-only"\]', body):
+        elif re.search(r'extraArguments:\s*\["snapshots-not-asserted-here",\s*"both"\]', body):
             opted_out.append(path.name)
         else:
             raise SystemExit(f"{path.name}: unrecognised snapshot or sentinel-set expectation")

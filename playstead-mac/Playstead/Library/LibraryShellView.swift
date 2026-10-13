@@ -509,6 +509,14 @@ struct LibraryShellView: View {
         }
     }
 
+    private var downloadStartEvidence: String {
+#if UI_TESTING
+        environment.uiTestDownloadStartEvidence
+#else
+        ""
+#endif
+    }
+
     private var downloadsDetail: some View {
         // Queue rows are read from durable storage. Mutating one of them
         // bumps this revision so the persistent Downloads destination
@@ -531,7 +539,7 @@ struct LibraryShellView: View {
                 onMoveUp: { environment.moveDownloadUp(id: $0); storageRevision += 1 },
                 onMoveDown: { environment.moveDownloadDown(id: $0); storageRevision += 1 },
                 onBrowseLibrary: { selection = .home },
-                testStartEvidence: environment.uiTestDownloadStartEvidence
+                testStartEvidence: downloadStartEvidence
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .task { await environment.startDownloadQueue() }

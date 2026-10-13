@@ -20,13 +20,14 @@ class LiveServerXctestrunEnvironmentTests(unittest.TestCase):
             root = pathlib.Path(temporary)
             run = root / "LiveServer.xctestrun"
             initial = {"TestPlan": {"Name": "LiveServer"}, "TestConfigurations": [{"Name": "LiveServer", "TestTargets": [{"BlueprintName": "PlaysteadUITests"}]}]}
-            values = [str(root / "profile"), str(root / "stages"), str(root / "stage.json"), "ecto://fixture/database", "mac_ci", "4010", str(root / "ca.der"), "a" * 64, str(root / "runtime-configuration-path-longer-than-a-ca-digest-is-allowed.json"), str(root / "fixtures.json")]
+            values = [str(root / "profile"), str(root / "stages"), str(root / "stage.json"), "ecto://fixture/database", "mac_ci", "4010", str(root / "ca.der"), "a" * 64, str(root / "runtime-configuration-path-longer-than-a-ca-digest-is-allowed.json"), str(root / "fixtures.json"), str(root / "playstead-gb-save-e2e.A1b2C3")]
             run.write_bytes(plistlib.dumps(initial))
             good = subprocess.run([sys.executable, "-c", writers[0], str(run), *values], text=True, capture_output=True)
             self.assertEqual(good.returncode, 0, good.stderr)
             target = plistlib.loads(run.read_bytes())["TestConfigurations"][0]["TestTargets"][0]
             self.assertEqual(target["EnvironmentVariables"]["PLAYSTEAD_TEST_LIVE_SERVER_CA_SHA256"], "a" * 64)
-            self.assertEqual(target["TestingEnvironmentVariables"]["PLAYSTEAD_GB_GBC_FIXTURE_REGISTRY"], values[-1])
+            self.assertEqual(target["TestingEnvironmentVariables"]["PLAYSTEAD_GB_GBC_FIXTURE_REGISTRY"], values[-2])
+            self.assertEqual(target["TestingEnvironmentVariables"]["PLAYSTEAD_GB_GBC_SAVE_E2E_PROFILE_ROOT"], values[-1])
             values[7] = "invalid-digest"
             bad = subprocess.run([sys.executable, "-c", writers[0], str(run), *values], text=True, capture_output=True)
             self.assertNotEqual(bad.returncode, 0)
