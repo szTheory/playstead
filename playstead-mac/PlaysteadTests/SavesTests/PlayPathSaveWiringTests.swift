@@ -467,6 +467,9 @@ final class PlayPathSaveWiringTests: XCTestCase {
     /// session that writes save bytes leaves a promoted, local-only
     /// revision in the app's own `SaveStore`.
     func testAFullSessionThroughTheProductionSeamPromotesARevisionIntoTheAppsSaveStore() async throws {
+        // This oracle owns local promotion. Keep delivery offline so the
+        // independent upload lane cannot change durability during assertion.
+        environment.reachability.simulate(online: false)
         let romSHA256 = String(repeating: "e", count: 64)
         let saveDir = tempRoot.appendingPathComponent("saves/asset-5", isDirectory: true)
         try FileManager.default.createDirectory(at: saveDir, withIntermediateDirectories: true)

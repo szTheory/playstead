@@ -53,14 +53,14 @@ defmodule Playstead.Metadata.IGDBTest do
     assert candidate.license_expires_at == nil
   end
 
-  test "hash lookup is explicitly unsupported and never becomes an outbound search" do
-    assert {:error, :hash_lookup_unsupported} =
-             IGDB.lookup_hash(String.duplicate("a", 64),
-               client_id: "test-client",
-               access_token: "test-token",
-               transport: TransportSpy,
-               test_pid: self()
-             )
+  test "hash lookup is absent from the provider boundary" do
+    Code.ensure_loaded!(IGDB)
+    refute function_exported?(IGDB, :lookup_hash, 1)
+    refute function_exported?(IGDB, :lookup_hash, 2)
+
+    refute Enum.any?(Playstead.Metadata.Provider.behaviour_info(:callbacks), fn {name, _} ->
+             name == :lookup_hash
+           end)
 
     refute_receive {:request, _, _, _, _}
   end

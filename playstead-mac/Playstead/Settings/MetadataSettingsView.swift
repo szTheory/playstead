@@ -67,6 +67,16 @@ struct MetadataSettingsView: View {
     private var coordinator: MetadataCoordinator { environment.metadataCoordinator }
     private var selectedGame: CatalogueEntry? { games.first { $0.id == selectedAssetSetID } }
 
+    private var offersUploadRetry: Bool {
+        if pendingUpload != nil { return true }
+#if UI_TESTING
+        return fixture?.fixtureIdentity == "local-media-form/rejected-error"
+            || fixture?.fixtureIdentity == "local-media-form/overlarge-image"
+#else
+        return false
+#endif
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
             Text("Metadata").font(.psHeading)
@@ -225,7 +235,7 @@ struct MetadataSettingsView: View {
                             .accessibilityIdentifier("playstead.metadata.media.progress")
                         Button("Cancel upload", role: .cancel) { cancelUpload() }
                             .accessibilityIdentifier("playstead.metadata.media.cancel")
-                    } else if pendingUpload != nil || fixture?.fixtureIdentity == "local-media-form/rejected-error" || fixture?.fixtureIdentity == "local-media-form/overlarge-image" {
+                    } else if offersUploadRetry {
                         Button("Retry upload") {
                             if pendingUpload != nil { retryUpload() }
                             else { showsMediaPicker = true }
@@ -279,10 +289,10 @@ struct MetadataSettingsView: View {
                 selectedAssetSetID = games.first?.id
 #endif
             }
+#if UI_TESTING
             if fixture?.simulateUpload == true, !isUploading {
                 startFixtureUpload()
             }
-#if UI_TESTING
             if fixture == nil { await refreshCache() }
 #else
             await refreshCache()

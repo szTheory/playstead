@@ -41,8 +41,6 @@ defmodule Playstead.Metadata.Providers.IGDB do
     end
   end
 
-  def lookup_hash(_hash, _opts \\ []), do: {:error, :hash_lookup_unsupported}
-
   defp validate_title(title) when is_binary(title) do
     normalized = String.trim(title)
 
