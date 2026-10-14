@@ -758,7 +758,7 @@ allowed_zero_network_stages = {
     "unexpected-http-request",
 }
 assertion_pattern = re.compile(
-    r"\b(XCTAssert(?:True|False|Equal|NotEqual|Nil|NotNil|LessThan|LessThanOrEqual|GreaterThan|GreaterThanOrEqual|NoThrow|ThrowsError)|XCTFail|XCTUnwrap)\b"
+    r"\b(XCTAssert(?:True|False|Equal|NotEqual|Nil|NotNil|LessThan|LessThanOrEqual|GreaterThan|GreaterThanOrEqual|NoThrow|ThrowsError)|XCTFail|XCTUnwrap|XCTIssue)\b"
 )
 failure_message_location_pattern = re.compile(
     r"^(?P<file>[A-Za-z_][A-Za-z0-9_]*\.swift):(?P<line>[1-9][0-9]*):"
@@ -1027,9 +1027,10 @@ if undiagnosed and result_bundle:
             continue
         assertion = assertion_pattern.search(message)
         # XCTest serializes XCTFail as 'failed - <message>' in this issue form.
-        assertion_name = assertion.group(1) if assertion else "XCTFail" if message.startswith("failed - ") else None
-        if assertion_name is None:
-            continue
+        # Framework/interaction failures need not name an XCTAssert primitive.
+        # The structured TestFailureIssueSummary still proves a failure at this
+        # exact source site; classify it without exporting its private message.
+        assertion_name = assertion.group(1) if assertion else "XCTFail" if message.startswith("failed - ") else "XCTIssue"
         diagnostic = bounded_failure_diagnostic({
             "fileName": urllib.parse.unquote(parsed.path),
             "lineNumber": int(line_values[0]),
@@ -1177,7 +1178,7 @@ allowed_assertions = {
     "XCTAssertTrue", "XCTAssertFalse", "XCTAssertEqual", "XCTAssertNotEqual",
     "XCTAssertNil", "XCTAssertNotNil", "XCTAssertLessThan", "XCTAssertLessThanOrEqual",
     "XCTAssertGreaterThan", "XCTAssertGreaterThanOrEqual", "XCTAssertNoThrow",
-    "XCTAssertThrowsError", "XCTFail", "XCTUnwrap",
+    "XCTAssertThrowsError", "XCTFail", "XCTUnwrap", "XCTIssue",
 }
 
 if not isinstance(diagnostics, list) or len(diagnostics) > 50:

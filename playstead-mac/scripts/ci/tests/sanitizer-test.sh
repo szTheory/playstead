@@ -170,6 +170,16 @@ assert data["slowest_tests"] == [
 PY
 PASS_COUNT=$((PASS_COUNT + 1))
 
+framework_issue="$TMP_ROOT/framework-issue"
+make_valid "$framework_issue"
+python3 - "$framework_issue/evidence/ui-tests.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1]); data = json.loads(path.read_text())
+data["failure_diagnostics"][0]["assertion"] = "XCTIssue"
+path.write_text(json.dumps(data))
+PY
+expect_pass framework_issue "$SANITIZER" --input "$framework_issue" --output "$TMP_ROOT/framework-issue-output"
+
 legacy_schema="$TMP_ROOT/legacy-schema"
 make_valid "$legacy_schema"
 python3 - "$legacy_schema/evidence/ui-tests.json" <<'PY'
