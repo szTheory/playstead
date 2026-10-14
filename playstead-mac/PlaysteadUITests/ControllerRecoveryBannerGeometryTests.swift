@@ -53,8 +53,12 @@ final class ControllerRecoveryBannerGeometryTests: XCTestCase {
 
                 let sidebar = harness.element("playstead.surface.sidebar")
                 let favorites = harness.element("playstead.sidebar.favorites", type: .staticText)
-                // Visiting Settings can leave the finite-height source list
-                // scrolled to Manage. Reveal the destination before clicking.
+                // Reset retained source-list scroll position before resolving
+                // the destination. Run this in focused checks too, so the
+                // native scroll action is qualified on every window case.
+                XCTAssertTrue(sidebar.awaitExistence(timeout: 5), "source list was absent")
+                harness.app.activate()
+                sidebar.scroll(byDeltaX: 0, deltaY: 480)
                 for _ in 0..<6 where !favorites.isHittable {
                     sidebar.scroll(byDeltaX: 0, deltaY: 480)
                 }

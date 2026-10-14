@@ -2,7 +2,6 @@ import XCTest
 import AppKit
 import CryptoKit
 import Darwin
-import ApplicationServices
 import Foundation
 import Vision
 
@@ -283,9 +282,6 @@ final class GBGBCSaveContinuityTests: XCTestCase {
     }
 
     private func runFreshProfileGameReadback(fixtureName: String) throws {
-        guard AXIsProcessTrusted() else {
-            return XCTFail("gb-save-e2e=runner-accessibility-trust-required")
-        }
         guard FileManager.default.isReadableFile(atPath: oracleToolsRoot.appendingPathComponent(
             ".planning/spikes/002-persistent-battery-saves/oracle_command.py").path) else {
             return XCTFail("gb-save-e2e=oracle-generator-missing")
@@ -429,17 +425,10 @@ final class GBGBCSaveContinuityTests: XCTestCase {
             return XCTFail("gb-save-e2e=qt-xctest-attachment-identity-mismatch; child_pid=\(pidNumber); child_path=\(childPath); child_sha256=\(childDigest)")
         }
         qtApp.activate()
-        let toolsPress = axPressMenuItem(pid: pid_t(pidNumber), titles: ["Tools", "Outils"], role: "AXMenuBarItem")
-        guard toolsPress == 0 else {
-            return XCTFail("gb-save-e2e=qt-tools-ax-press-failed; child_pid=\(pidNumber); ax_error=\(toolsPress); \(axDiagnostics(pid: pid_t(pidNumber)))")
-        }
-        let scriptingPress = axPressMenuItem(pid: pid_t(pidNumber), titles: ["Scripting...", "Scripting…"], role: "AXMenuItem")
-        guard scriptingPress == 0 else {
-            return XCTFail("gb-save-e2e=qt-scripting-ax-press-failed; child_pid=\(pidNumber); ax_error=\(scriptingPress); \(axDiagnostics(pid: pid_t(pidNumber)))")
-        }
+        try openScriptingConsole(in: qtApp)
         let console = qtApp.windows.matching(NSPredicate(format: "title CONTAINS[c] %@", "script")).firstMatch
         guard console.waitForExistence(timeout: 5) else {
-            return XCTFail("gb-save-e2e=qt-console-window-unavailable; child_pid=\(pidNumber); child_path=\(childPath); child_sha256=\(childDigest); \(axDiagnostics(pid: pid_t(pidNumber)))")
+            return XCTFail("gb-save-e2e=qt-console-window-unavailable; child_pid=\(pidNumber); child_path=\(childPath); child_sha256=\(childDigest)")
         }
         let prompts = console.textFields.allElementsBoundByIndex
         guard let prompt = prompts.first(where: { $0.isHittable }) else {
@@ -593,14 +582,7 @@ final class GBGBCSaveContinuityTests: XCTestCase {
         }
         let targetQt = XCUIApplication(bundleIdentifier: "com.endrift.mgba-qt")
         targetQt.activate()
-        let targetToolsPress = axPressMenuItem(pid: pid_t(targetPID), titles: ["Tools", "Outils"], role: "AXMenuBarItem")
-        guard targetToolsPress == 0 else {
-            return XCTFail("gb-save-e2e=target-tools-ax-press-failed; ax_error=\(targetToolsPress); \(axDiagnostics(pid: pid_t(targetPID)))")
-        }
-        let targetScriptingPress = axPressMenuItem(pid: pid_t(targetPID), titles: ["Scripting...", "Scripting…"], role: "AXMenuItem")
-        guard targetScriptingPress == 0 else {
-            return XCTFail("gb-save-e2e=target-scripting-ax-press-failed; ax_error=\(targetScriptingPress); \(axDiagnostics(pid: pid_t(targetPID)))")
-        }
+        try openScriptingConsole(in: targetQt)
         let targetConsole = targetQt.windows.matching(NSPredicate(format: "title CONTAINS[c] %@", "script")).firstMatch
         guard targetConsole.waitForExistence(timeout: 5) else { return XCTFail("gb-save-e2e=target-console-unavailable") }
         let targetPrompts = targetConsole.textFields.allElementsBoundByIndex
@@ -633,6 +615,23 @@ final class GBGBCSaveContinuityTests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [targetExited], timeout: 20), .completed, "gb-save-e2e=target-normal-quit-not-observed")
         let targetHostExited = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "exited"), object: targetProcessReadout)
         XCTAssertEqual(XCTWaiter.wait(for: [targetHostExited], timeout: 20), .completed, "gb-save-e2e=target-host-exit-not-observed")
+    }
+
+    private func openScriptingConsole(in app: XCUIApplication) throws {
+        // XCTest uses the system's UI testing service; direct AX calls from
+        // this runner have a separate trust requirement. Preserve the real
+        // child identity and game/save oracles without changing permissions
+        // or competing with the adapter's private controller configuration.
+        let tools = app.menuBars.menuBarItems.matching(
+            NSPredicate(format: "title IN %@", ["Tools", "Outils"])
+        ).firstMatch
+        XCTAssertTrue(tools.awaitExistence(timeout: 5), "gb-save-e2e=tools-menu-missing")
+        tools.click()
+        let scripting = app.menuItems.matching(
+            NSPredicate(format: "title IN %@", ["Scripting...", "Scripting…"])
+        ).firstMatch
+        XCTAssertTrue(scripting.awaitExistence(timeout: 5), "gb-save-e2e=scripting-menu-missing")
+        scripting.click()
     }
 
     private struct GBImportReceipt: Decodable {
@@ -679,56 +678,6 @@ final class GBGBCSaveContinuityTests: XCTestCase {
         app.launchEnvironment["PLAYSTEAD_UI_TEST_PAIRING_DEVICE_NAME"] = "Playstead Hosted Mac"
         app.launchEnvironment["PLAYSTEAD_UI_TEST_MANAGED_ADAPTER_SELECTION"] = managedPinnedAppURL.path
         app.launchEnvironment["PLAYSTEAD_UI_TEST_CONTROLLER_SOURCE"] = "1"
-    }
-
-    private func axElement(_ element: AXUIElement, attribute: String) -> AXUIElement? {
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success,
-              let value, CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
-        return (value as! AXUIElement)
-    }
-
-    private func axDiagnostics(pid: pid_t) -> String {
-        let app = AXUIElementCreateApplication(pid)
-        var value: CFTypeRef?
-        let menuStatus = AXUIElementCopyAttributeValue(app, kAXMenuBarAttribute as CFString, &value)
-        let menuBar: AXUIElement? = menuStatus == .success ? (value as! AXUIElement) : nil
-        let titles = menuBar.map { axDescendants($0).compactMap(axTitle).joined(separator: ",") } ?? "<unavailable>"
-        let appRole = axRole(app) ?? "<unavailable>"
-        return "ax_trusted=\(AXIsProcessTrusted()); app_role=\(appRole); menu_status=\(menuStatus.rawValue); menu_titles=[\(titles)]"
-    }
-
-    private func axPressMenuItem(pid: pid_t, titles: Set<String>, role expectedRole: String) -> Int32 {
-        let app = AXUIElementCreateApplication(pid)
-        guard let menuBar = axElement(app, attribute: kAXMenuBarAttribute as String) else { return -1 }
-        guard let item = axDescendants(menuBar).first(where: {
-            guard let role = axRole($0), role == expectedRole,
-                  let title = axTitle($0) else { return false }
-            return titles.contains(title)
-        }) else { return -2 }
-        return AXUIElementPerformAction(item, kAXPressAction as CFString).rawValue
-    }
-
-    private func axDescendants(_ element: AXUIElement, depth: Int = 0) -> [AXUIElement] {
-        guard depth < 12 else { return [] }
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &value) == .success,
-              let children = value as? [AXUIElement] else { return [] }
-        return children + children.flatMap { axDescendants($0, depth: depth + 1) }
-    }
-
-    private func axString(_ element: AXUIElement, attribute: String) -> String? {
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success else { return nil }
-        return value as? String
-    }
-
-    private func axTitle(_ element: AXUIElement) -> String? {
-        axString(element, attribute: kAXTitleAttribute as String) ?? axString(element, attribute: kAXDescriptionAttribute as String)
-    }
-
-    private func axRole(_ element: AXUIElement) -> String? {
-        axString(element, attribute: kAXRoleAttribute as String)
     }
 
     private func requestPairing(in app: XCUIApplication, runRoot: URL, serverRoot: String) -> Bool {

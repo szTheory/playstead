@@ -110,6 +110,10 @@ jobs=yaml.safe_load(pathlib.Path(sys.argv[1]).read_text())["jobs"]
 job=jobs["recovery-fixture"]
 assert job["defaults"]["run"]["working-directory"] == "."
 assert any(s.get("name") == "Compile recovery task and dependencies" and s.get("run") == "mix compile --warnings-as-errors" and s.get("working-directory") == "playstead-server" for s in job["steps"])
-assert not job.get("needs")
+# Older prerequisite branches have no decoder producer. Once present, only
+# its same-run runtime may precede recovery; the fixture remains independent
+# of the ordinary server and Compose outcomes.
+expected_needs = ["decoder-runtime"] if "decoder-runtime" in jobs else []
+assert job.get("needs", []) == expected_needs
 PY
 echo "recovery fixture coordinator contracts passed (fake command only)"
