@@ -4,6 +4,13 @@ This document is the one supported, documented path to a self-hosted
 Playstead server. Following it end to end is the acceptance test for
 OPER-01.
 
+For an owner's personal first-adopter library, use
+[FIRST-ADOPTER.md](FIRST-ADOPTER.md) instead. It fixes a separate Compose
+project identity and requires an external env file and host data directories.
+The default project and its `./inbox`, `./exports`, and named volumes remain
+the canonical development/QA deployment. Do not import a personal collection
+into this default stack as a shortcut.
+
 ## Prerequisites
 
 - A machine with Docker and Docker Compose installed (`docker compose version`).

@@ -33,6 +33,7 @@ final class OutboxTests: XCTestCase {
 
     override func tearDownWithError() throws {
         StubURLProtocol.reset()
+        localStore?.connection.close()
         if let tempRoot {
             try? FileManager.default.removeItem(at: tempRoot)
         }
@@ -75,6 +76,46 @@ final class OutboxTests: XCTestCase {
         XCTAssertEqual(reopenedCurationStore.fetchFavorites().map(\.assetSetID), ["asset-1"])
         XCTAssertEqual(reopenedOutbox.listPending().count, 1)
         XCTAssertEqual(reopenedOutbox.listPending().first?.state, .pending)
+    }
+
+    func test_favoriteSnapshotIDAndServerIDConvergeToOneLocalRow() throws {
+        try curationStore.upsertFavorite(
+            id: "favorite:asset-1",
+            assetSetID: "asset-1",
+            createdAt: "2026-01-01T00:00:00Z"
+        )
+
+        // A later journal upsert carries the server entity ID, not the
+        // synthetic ID used to bootstrap the snapshot row.
+        try curationStore.upsertFavorite(
+            id: "server-favorite-1",
+            assetSetID: "asset-1",
+            createdAt: "2026-01-01T00:00:00Z"
+        )
+
+        XCTAssertEqual(curationStore.fetchFavorites().count, 1)
+        XCTAssertEqual(curationStore.fetchFavorites().first?.id, "server-favorite-1")
+        XCTAssertEqual(curationStore.fetchFavorites().first?.assetSetID, "asset-1")
+    }
+
+    func test_favoritesMigrationCollapsesLegacyDuplicateRows() throws {
+        try localStore.connection.execute("DROP INDEX idx_curation_favorites_asset_set;")
+        try localStore.connection.execute(
+            "INSERT INTO curation_favorites (id, asset_set_id, created_at) VALUES ('legacy-a', 'asset-1', NULL);"
+        )
+        try localStore.connection.execute(
+            "INSERT INTO curation_favorites (id, asset_set_id, created_at) VALUES ('legacy-b', 'asset-1', NULL);"
+        )
+
+        try Migrations.run(on: localStore.connection)
+
+        XCTAssertEqual(curationStore.fetchFavorites().filter { $0.assetSetID == "asset-1" }.count, 1)
+        XCTAssertThrowsError(
+            try localStore.connection.execute(
+                "INSERT INTO curation_favorites (id, asset_set_id, created_at) VALUES ('legacy-c', 'asset-1', NULL);"
+            ),
+            "The migrated local store must reject a second row for the same game."
+        )
     }
 
     // MARK: - When the server becomes reachable, the entry sends once,
@@ -130,6 +171,117 @@ final class OutboxTests: XCTestCase {
         XCTAssertEqual(keys.count, 2)
         XCTAssertEqual(keys[0], keys[1], "the same idempotency key must be sent on every attempt of the same intent")
         XCTAssertNotNil(keys[0])
+    }
+
+    func test_retryDelayAtQueueHeadPreventsLaterMutationFromOvertaking() async throws {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        try outbox.enqueue(.favoriteAdd(id: "fav-1", assetSetID: "asset-1"), at: start)
+        try outbox.enqueue(.favoriteAdd(id: "fav-2", assetSetID: "asset-2"), at: start.addingTimeInterval(1))
+
+        StubURLProtocol.responder = { _ in StubURLProtocol.Stub(statusCode: 503, headers: [:], body: Data()) }
+        let first = await makeWorker().drainOnce(at: start)
+        XCTAssertTrue(first.stoppedForRetry)
+        XCTAssertEqual(StubURLProtocol.requestLog.count, 1)
+
+        StubURLProtocol.requestLog.removeAll()
+        StubURLProtocol.responder = { _ in StubURLProtocol.Stub(statusCode: 200, headers: [:], body: Data("{}".utf8)) }
+        let beforeRetryDeadline = await makeWorker().drainOnce(at: start.addingTimeInterval(1))
+
+        XCTAssertEqual(beforeRetryDeadline.sent, 0)
+        XCTAssertTrue(beforeRetryDeadline.stoppedForRetry)
+        XCTAssertTrue(StubURLProtocol.requestLog.isEmpty, "a delayed head must block every later mutation")
+
+        let afterRetryDeadline = start.addingTimeInterval(Outbox.retryDelay(forAttempt: 1) + 2)
+        let retried = await makeWorker().drainOnce(at: afterRetryDeadline)
+        XCTAssertEqual(retried.sent, 2)
+        XCTAssertEqual(StubURLProtocol.requestLog.map { $0.url?.path }, [
+            "/api/v1/curation/favorites/asset-1",
+            "/api/v1/curation/favorites/asset-2"
+        ])
+    }
+
+    func test_inFlightQueueHeadPreventsOverlappingDrainFromSendingLaterMutation() async throws {
+        let first = try outbox.enqueue(
+            .favoriteAdd(id: "fav-1", assetSetID: "asset-1"),
+            at: Date(timeIntervalSince1970: 1_700_000_001)
+        )
+        let second = try outbox.enqueue(
+            .favoriteAdd(id: "fav-2", assetSetID: "asset-2"),
+            at: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        try outbox.markInFlight(first.id)
+        StubURLProtocol.responder = { _ in StubURLProtocol.Stub(statusCode: 200, headers: [:], body: Data("{}".utf8)) }
+
+        let result = await makeWorker().drainOnce()
+
+        XCTAssertEqual(result.sent, 0)
+        XCTAssertTrue(result.stoppedForRetry)
+        XCTAssertTrue(StubURLProtocol.requestLog.isEmpty, "an in-flight head must block later entries")
+        XCTAssertEqual(outbox.listUnresolved().map(\.id), [first.id, second.id])
+    }
+
+    func test_availabilityRetryReusesPersistedSequenceAndIdempotencyKeyAfterRelaunch() async throws {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        let entry = try outbox.enqueue(makeReport(assetSetID: "asset-1", id: "report-1"), at: start)
+        var requestBodies: [Data] = []
+        StubURLProtocol.responder = { request in
+            requestBodies.append(self.bodyData(from: request))
+            return StubURLProtocol.Stub(statusCode: 500, headers: [:], body: Data())
+        }
+
+        let firstAttempt = await makeWorker().drainOnce(at: start)
+        XCTAssertTrue(firstAttempt.stoppedForRetry)
+        let firstRequest = try XCTUnwrap(StubURLProtocol.requestLog.first)
+        let firstKey = try XCTUnwrap(firstRequest.value(forHTTPHeaderField: "Idempotency-Key"))
+        let firstSequence = reportSequence(in: try XCTUnwrap(requestBodies.first))
+        XCTAssertEqual(firstSequence, entry.enqueueSequence)
+
+        // Reopening LocalStore mirrors a process restart. The row remains
+        // the source of both request identity values.
+        let relaunchedStore = try LocalStore(paths: paths)
+        let relaunchedOutbox = Outbox(localStore: relaunchedStore, curationStore: CurationStore(localStore: relaunchedStore))
+        let recovered = try XCTUnwrap(relaunchedOutbox.listAll().first)
+        XCTAssertEqual(recovered.enqueueSequence, entry.enqueueSequence)
+        XCTAssertEqual(recovered.idempotencyKey, entry.idempotencyKey)
+
+        StubURLProtocol.requestLog.removeAll()
+        requestBodies.removeAll()
+        StubURLProtocol.responder = { request in
+            requestBodies.append(self.bodyData(from: request))
+            return StubURLProtocol.Stub(statusCode: 200, headers: [:], body: Data("{}".utf8))
+        }
+        let retryAt = start.addingTimeInterval(Outbox.retryDelay(forAttempt: 1) + 1)
+        let retry = await OutboxWorker(apiClient: apiClient, outbox: relaunchedOutbox).drainOnce(at: retryAt)
+
+        XCTAssertEqual(retry.sent, 1)
+        XCTAssertEqual(requestBodies.count, 1)
+        XCTAssertEqual(reportSequence(in: try XCTUnwrap(requestBodies.first)), entry.enqueueSequence)
+        XCTAssertEqual(reportSequence(in: try XCTUnwrap(requestBodies.first)), firstSequence)
+        let retryRequest = try XCTUnwrap(StubURLProtocol.requestLog.first)
+        XCTAssertEqual(retryRequest.value(forHTTPHeaderField: "Idempotency-Key"), firstKey)
+    }
+
+    private func bodyData(from request: URLRequest) -> Data {
+        if let httpBody = request.httpBody { return httpBody }
+        guard let stream = request.httpBodyStream else { return Data() }
+        stream.open()
+        defer { stream.close() }
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        while stream.hasBytesAvailable {
+            let read = stream.read(&buffer, maxLength: buffer.count)
+            if read <= 0 { break }
+            data.append(buffer, count: read)
+        }
+        return data
+    }
+
+    private func reportSequence(in body: Data) -> Int? {
+        guard
+            let object = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+            let number = object["report_sequence"] as? NSNumber
+        else { return nil }
+        return number.intValue
     }
 
     // MARK: - Two distinct intents on the same row must never collide on
@@ -367,15 +519,15 @@ final class OutboxTests: XCTestCase {
 
     // MARK: - A local persistence failure must not let a later intent overtake an earlier one
 
-    /// `Outbox` subclass whose `markInFlight` fails for one chosen entry,
+    /// `Outbox` subclass whose atomic claim fails for one chosen entry,
     /// standing in for a local persistence failure (a locked/failed
     /// SQLite write) mid-drain.
     private final class MarkInFlightFailingOutbox: Outbox {
         var failingEntryID: String?
 
-        override func markInFlight(_ entryID: String) throws {
+        override func claimForSending(_ entryID: String, at now: Date = Date()) throws -> Bool {
             if entryID == failingEntryID { throw OutboxError.payloadEncodingFailed }
-            try super.markInFlight(entryID)
+            return try super.claimForSending(entryID, at: now)
         }
     }
 
@@ -449,6 +601,150 @@ final class OutboxTests: XCTestCase {
         XCTAssertTrue(all.contains { $0.id == first.id && $0.state == .inFlight })
     }
 
+    /// WR-07 (03-VERIFICATION.md's one open gap): the exact sequence that
+    /// verification named as untested.
+    ///
+    /// `enqueue`'s supersede deliberately spares an `in_flight` row -- a
+    /// request already on the wire cannot be recalled. But
+    /// `markPendingForRetry` is the path that brings such a row BACK to
+    /// `pending`, and it did not re-ask whether something newer had
+    /// arrived meanwhile. `listPending` orders `created_at ASC`, so the
+    /// revived older report would be delivered AFTER the newer one had
+    /// already succeeded, reasserting stale facts.
+    func test_anInFlightReportRevertedForRetryIsDroppedWhenANewerReportArrivedMeanwhile() throws {
+        let first = try outbox.enqueue(
+            makeReport(assetSetID: "asset-1", id: "report-1"),
+            at: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        try outbox.markInFlight(first.id)
+
+        // Enqueued while the first is genuinely on the wire, so the
+        // enqueue-time supersede correctly leaves the first alone.
+        let second = try outbox.enqueue(
+            makeReport(assetSetID: "asset-2", id: "report-2"),
+            at: Date(timeIntervalSince1970: 1_700_000_060)
+        )
+        XCTAssertEqual(outbox.listAll().count, 2, "the in-flight row survives the enqueue, as it must")
+
+        // The in-flight delivery now fails.
+        try outbox.markPendingForRetry(first, at: Date(timeIntervalSince1970: 1_700_000_120))
+
+        // One clause per fact: CI keeps file:line and drops assertion text.
+        let all = outbox.listAll()
+        XCTAssertEqual(all.count, 1, "the superseded older report must not be revived alongside the newer one")
+        XCTAssertEqual(all.first?.id, second.id, "the survivor is the newer report")
+        XCTAssertTrue(
+            outbox.listPending(at: Date(timeIntervalSince1970: 1_800_000_000)).allSatisfy { $0.id == second.id },
+            "no backoff window may later deliver the stale report after the newer one"
+        )
+    }
+
+    /// WR-07, second round: the must-have's own final clause, "after a
+    /// later one that already succeeded".
+    ///
+    /// The first fix asked "is a newer entry still live?" — but `markDone`
+    /// DELETES the row it delivered, so once the newer report succeeds
+    /// there is no live row left to find and the older one revived exactly
+    /// as before. The independent re-verification caught this and proved
+    /// it with this sequence; it is kept here so it can never regress to
+    /// "closed by a live-row query" again.
+    func test_anInFlightReportRevertedForRetryIsDroppedWhenTheNewerReportAlreadySucceeded() throws {
+        let first = try outbox.enqueue(
+            makeReport(assetSetID: "asset-1", id: "report-1"),
+            at: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        try outbox.markInFlight(first.id)
+
+        let second = try outbox.enqueue(
+            makeReport(assetSetID: "asset-2", id: "report-2"),
+            at: Date(timeIntervalSince1970: 1_700_000_060)
+        )
+        try outbox.markInFlight(second.id)
+        // The newer report succeeds first — its row is now gone.
+        try outbox.markDone(second.id)
+        XCTAssertTrue(outbox.listAll().allSatisfy { $0.id != second.id }, "a delivered entry is deleted, which is what hid it")
+
+        // Only now does the older, still-in-flight delivery fail.
+        try outbox.markPendingForRetry(first, at: Date(timeIntervalSince1970: 1_700_000_120))
+
+        // One clause per fact: CI keeps file:line and drops assertion text.
+        XCTAssertEqual(outbox.listAll().count, 0, "a stale older report must not be delivered after the newer one already succeeded")
+        XCTAssertTrue(
+            outbox.listPending(at: Date(timeIntervalSince1970: 1_800_000_000)).isEmpty,
+            "and no backoff window may deliver it later either"
+        )
+    }
+
+    /// The tie window the re-verification probed, now answerable.
+    ///
+    /// `ISO8601DateFormatter()` emits no fractional seconds, so two
+    /// entries enqueued less than a second apart genuinely share one
+    /// `created_at` -- this is not a test artifact of passing the same
+    /// `Date` twice. While the supersede rule compared timestamps, that
+    /// window had no right answer: strict let the stale report through,
+    /// non-strict would have dropped a delivery nothing replaced.
+    ///
+    /// `enqueue_seq` is a total order, so the newer report wins here even
+    /// though both rows carry the identical `created_at`.
+    func test_aRetrySharingTheDeliveredReportsTimestampIsStillDroppedAsOlder() throws {
+        let sameSecond = Date(timeIntervalSince1970: 1_700_000_000)
+        let first = try outbox.enqueue(makeReport(assetSetID: "asset-1", id: "report-1"), at: sameSecond)
+        try outbox.markInFlight(first.id)
+        let second = try outbox.enqueue(makeReport(assetSetID: "asset-2", id: "report-2"), at: sameSecond)
+        XCTAssertEqual(first.createdAt, second.createdAt, "the premise: second granularity really does collapse these")
+        try outbox.markInFlight(second.id)
+        try outbox.markDone(second.id)
+
+        try outbox.markPendingForRetry(first, at: sameSecond.addingTimeInterval(60))
+
+        // One clause per fact: CI keeps file:line and drops assertion text.
+        XCTAssertEqual(outbox.listAll().count, 0, "a shared timestamp must not rescue a genuinely older report")
+        XCTAssertTrue(
+            outbox.listPending(at: sameSecond.addingTimeInterval(100_000)).isEmpty,
+            "and no backoff window may deliver it later either"
+        )
+    }
+
+    /// The opposite failure the total order must not introduce: the
+    /// watermark belongs to ONE kind, and an unrelated kind's retry must
+    /// be untouched by it even though sequences are global.
+    func test_aDeliveredReportsWatermarkDoesNotDropAnUnrelatedKindsRetry() throws {
+        let favorite = try outbox.enqueue(
+            .favoriteAdd(id: "fav-1", assetSetID: "asset-1"),
+            at: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        try outbox.markInFlight(favorite.id)
+        let report = try outbox.enqueue(
+            makeReport(assetSetID: "asset-2", id: "report-1"),
+            at: Date(timeIntervalSince1970: 1_700_000_060)
+        )
+        try outbox.markInFlight(report.id)
+        try outbox.markDone(report.id)
+
+        try outbox.markPendingForRetry(favorite, at: Date(timeIntervalSince1970: 1_700_000_120))
+
+        XCTAssertEqual(outbox.listAll().count, 1, "superseding is scoped to the one kind for which newest-wins is true")
+        XCTAssertEqual(outbox.listAll().first?.id, favorite.id)
+        XCTAssertEqual(outbox.listAll().first?.state, .pending, "and it is still retried")
+    }
+
+    /// The other half of the same rule: a retry with nothing newer behind
+    /// it is an ordinary retry and must still be revived. Without this, the
+    /// fix above would read equally well as "reverting drops the row",
+    /// which would silently stop retrying every failed report.
+    func test_anInFlightReportRevertedForRetryIsKeptWhenNothingNewerArrived() throws {
+        let only = try outbox.enqueue(
+            makeReport(assetSetID: "asset-1", id: "report-1"),
+            at: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        try outbox.markInFlight(only.id)
+        try outbox.markPendingForRetry(only, at: Date(timeIntervalSince1970: 1_700_000_060))
+
+        let all = outbox.listAll()
+        XCTAssertEqual(all.count, 1, "an ordinary retry keeps its row")
+        XCTAssertEqual(all.first?.state, .pending, "and returns it to pending so it is delivered later")
+    }
+
     func test_secondFavoriteIntent_isNotSupersededBecauseOnlyReportsAreNewestWins() throws {
         try outbox.enqueue(.favoriteAdd(id: "fav-1", assetSetID: "asset-1"))
         try outbox.enqueue(.favoriteAdd(id: "fav-2", assetSetID: "asset-2"))
@@ -492,5 +788,121 @@ final class OutboxTests: XCTestCase {
             "the body actually sent must be the newer report's, not merely the row count"
         )
         XCTAssertFalse(sentString.contains("asset-1"))
+    }
+
+    func test_inFlightAvailabilityFailureThenNewerDeliveryNeverRetriesOlderBodyAfterBackoff() async throws {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        let first = try outbox.enqueue(makeReport(assetSetID: "asset-old", id: "report-old"), at: start)
+        var second: OutboxEntry?
+        var enqueueFailure: Error?
+        var requestBodies: [Data] = []
+        var requestKeys: [String?] = []
+        var requestCount = 0
+
+        StubURLProtocol.responder = { request in
+            requestCount += 1
+            requestBodies.append(self.bodyData(from: request))
+            requestKeys.append(request.value(forHTTPHeaderField: "Idempotency-Key"))
+
+            if requestCount == 1 {
+                XCTAssertEqual(self.outbox.listAll().first { $0.id == first.id }?.state, .inFlight)
+                do {
+                    second = try self.outbox.enqueue(
+                        self.makeReport(assetSetID: "asset-new", id: "report-new"),
+                        at: start.addingTimeInterval(1)
+                    )
+                } catch {
+                    enqueueFailure = error
+                }
+                return StubURLProtocol.Stub(statusCode: 500, headers: [:], body: Data())
+            }
+            return StubURLProtocol.Stub(statusCode: 200, headers: [:], body: Data("{}".utf8))
+        }
+
+        let failedPass = await makeWorker().drainOnce(at: start)
+        XCTAssertTrue(failedPass.stoppedForRetry)
+        XCTAssertNil(enqueueFailure)
+        let newer = try XCTUnwrap(second)
+        XCTAssertEqual(outbox.listAll().map(\.id), [newer.id])
+        XCTAssertEqual(outbox.listAll().first?.state, .pending)
+        let latest = try localStore.connection.query(
+            "SELECT latest_enqueued_seq FROM outbox_latest_enqueued_watermark WHERE kind = ?;",
+            params: [CurationIntentKind.availabilityReport.rawValue]
+        ) { $0.int(0) }.compactMap { $0 }.first
+        XCTAssertEqual(latest, newer.enqueueSequence)
+
+        let newerPass = await makeWorker().drainOnce(at: start.addingTimeInterval(2))
+        XCTAssertEqual(newerPass.sent, 1)
+        XCTAssertEqual(requestBodies.count, 2)
+        XCTAssertEqual(reportSequence(in: requestBodies[0]), first.enqueueSequence)
+        XCTAssertEqual(reportSequence(in: requestBodies[1]), newer.enqueueSequence)
+        XCTAssertEqual(reportAssetIDs(in: requestBodies[0]), ["asset-old"])
+        XCTAssertEqual(reportAssetIDs(in: requestBodies[1]), ["asset-new"])
+        XCTAssertNotEqual(requestKeys[0], requestKeys[1])
+
+        // Cross the time at which the old transport failure would have
+        // become retryable. The older row is gone and no request is made.
+        let requestsBeforeOldDeadline = StubURLProtocol.requestLog.count
+        let oldRetryDeadline = start.addingTimeInterval(Outbox.retryDelay(forAttempt: 1) + 1)
+        let latePass = await makeWorker().drainOnce(at: oldRetryDeadline)
+        XCTAssertEqual(latePass.sent, 0)
+        XCTAssertEqual(StubURLProtocol.requestLog.count, requestsBeforeOldDeadline)
+        XCTAssertTrue(outbox.listPending(at: oldRetryDeadline).isEmpty)
+    }
+
+    func test_dismissedRejectedAvailabilityReportStillFencesOlderRetryAfterRelaunch() throws {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        let first = try outbox.enqueue(makeReport(assetSetID: "asset-old", id: "report-old"), at: start)
+        try outbox.markInFlight(first.id)
+        let newer = try outbox.enqueue(makeReport(assetSetID: "asset-new", id: "report-new"), at: start.addingTimeInterval(1))
+        try outbox.markRejected(newer.id, intent: try XCTUnwrap(newer.intent), code: "validation_failed")
+        try localStore.connection.execute("DELETE FROM outbox_entries WHERE id = ?;", params: [newer.id])
+
+        let relaunchedStore = try LocalStore(paths: paths)
+        let relaunchedOutbox = Outbox(localStore: relaunchedStore, curationStore: CurationStore(localStore: relaunchedStore))
+        let latest = try relaunchedStore.connection.query(
+            "SELECT latest_enqueued_seq FROM outbox_latest_enqueued_watermark WHERE kind = ?;",
+            params: [CurationIntentKind.availabilityReport.rawValue]
+        ) { $0.int(0) }.compactMap { $0 }.first
+        XCTAssertEqual(latest, newer.enqueueSequence)
+        try relaunchedOutbox.markPendingForRetry(try XCTUnwrap(relaunchedOutbox.listAll().first), at: start.addingTimeInterval(60))
+
+        XCTAssertTrue(relaunchedOutbox.listAll().isEmpty)
+        XCTAssertTrue(relaunchedOutbox.listPending(at: start.addingTimeInterval(100_000)).isEmpty)
+    }
+
+    func test_dismissedQuarantinedAvailabilityReportStillFencesOlderRetryAfterRelaunch() throws {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        let first = try outbox.enqueue(makeReport(assetSetID: "asset-old", id: "report-old"), at: start)
+        try outbox.markInFlight(first.id)
+        let newer = try outbox.enqueue(makeReport(assetSetID: "asset-new", id: "report-new"), at: start.addingTimeInterval(1))
+
+        for attempt in 1...Outbox.maxAttempts {
+            try outbox.markInFlight(newer.id)
+            let current = try XCTUnwrap(outbox.listAll().first { $0.id == newer.id })
+            try outbox.markPendingForRetry(current, at: start.addingTimeInterval(TimeInterval(attempt * 1_000)))
+        }
+        XCTAssertEqual(outbox.listAll().first { $0.id == newer.id }?.state, .quarantined)
+        try localStore.connection.execute("DELETE FROM outbox_entries WHERE id = ?;", params: [newer.id])
+
+        let relaunchedStore = try LocalStore(paths: paths)
+        let relaunchedOutbox = Outbox(localStore: relaunchedStore, curationStore: CurationStore(localStore: relaunchedStore))
+        let latest = try relaunchedStore.connection.query(
+            "SELECT latest_enqueued_seq FROM outbox_latest_enqueued_watermark WHERE kind = ?;",
+            params: [CurationIntentKind.availabilityReport.rawValue]
+        ) { $0.int(0) }.compactMap { $0 }.first
+        XCTAssertEqual(latest, newer.enqueueSequence)
+        try relaunchedOutbox.markPendingForRetry(try XCTUnwrap(relaunchedOutbox.listAll().first), at: start.addingTimeInterval(60))
+
+        XCTAssertTrue(relaunchedOutbox.listAll().isEmpty)
+        XCTAssertTrue(relaunchedOutbox.listPending(at: start.addingTimeInterval(100_000)).isEmpty)
+    }
+
+    private func reportAssetIDs(in body: Data) -> [String]? {
+        guard
+            let object = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+            let entries = object["entries"] as? [[String: Any]]
+        else { return nil }
+        return entries.compactMap { $0["asset_set_id"] as? String }
     }
 }

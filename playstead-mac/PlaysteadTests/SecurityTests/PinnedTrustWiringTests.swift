@@ -17,6 +17,23 @@ final class PinnedTrustWiringTests: XCTestCase {
     private var scopedKeychain: SecKeychain?
     private var store: KeychainStore!
 
+    func testDownloadSessionReusesTheInjectedTransportSeam() async throws {
+        let credential = PairingCredential(
+            deviceID: "device-1", baseURL: URL(string: "https://sync.test")!, token: "token"
+        )
+        let injected = StubURLProtocol.makeSession()
+        let client = APIClient(
+            keychain: KeychainStore(),
+            pinnedCertificateURL: nil,
+            session: injected,
+            credential: credential
+        )
+
+        let downloadSession = await client.makeAuthenticatedDownloadSession()
+
+        XCTAssertTrue(downloadSession === injected, "downloads must use the same retained transport seam as the API client")
+    }
+
     override func setUpWithError() throws {
         try super.setUpWithError()
         tempRoot = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)

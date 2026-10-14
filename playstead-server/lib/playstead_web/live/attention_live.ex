@@ -183,12 +183,12 @@ defmodule PlaysteadWeb.AttentionLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen bg-[#0F172A] px-8 py-12 font-sans">
+    <div class="min-h-screen bg-app-canvas px-8 py-12 font-sans">
       <Layouts.flash_group flash={@flash} />
       <div class="mx-auto max-w-4xl space-y-8">
         <div>
-          <h1 class="text-display font-semibold text-[#F1F5F9]">Needs attention</h1>
-          <p id="attention-count" aria-live="polite" class="mt-1 text-sm text-[#94A3B8]">
+          <h1 class="text-display font-semibold text-app-text">Needs attention</h1>
+          <p id="attention-count" aria-live="polite" class="mt-1 text-sm text-app-muted">
             <span :if={@count > 0}>{@count} item{if @count != 1, do: "s"} need a decision</span>
             <span :if={@count == 0}>Nothing needs your attention right now</span>
           </p>
@@ -197,10 +197,10 @@ defmodule PlaysteadWeb.AttentionLive do
         <div
           :if={@count == 0}
           id="attention-empty"
-          class="rounded-lg border border-[#334155] bg-[#1E293B] p-6"
+          class="rounded-lg border border-app-border bg-app-surface p-6"
         >
-          <p class="text-base text-[#F1F5F9]">Nothing needs your attention</p>
-          <p class="mt-1 text-sm text-[#94A3B8]">
+          <p class="text-base text-app-text">Nothing needs your attention</p>
+          <p class="mt-1 text-sm text-app-muted">
             New content that doesn't need a decision stays quietly in your library.
           </p>
         </div>
@@ -212,7 +212,7 @@ defmodule PlaysteadWeb.AttentionLive do
           id={"group-#{reason}"}
           class="space-y-3"
         >
-          <h2 class="text-heading font-semibold text-[#F1F5F9]">{group_title(reason)}</h2>
+          <h2 class="text-heading font-semibold text-app-text">{group_title(reason)}</h2>
 
           <table :if={saves_reason?(reason)} id={"table-#{reason}"} class="w-full">
             <tbody>
@@ -241,7 +241,7 @@ defmodule PlaysteadWeb.AttentionLive do
                       id={"attach-#{item.id}"}
                       phx-click="exclude"
                       phx-value-id={item.id}
-                      class="text-sm text-[#94A3B8] hover:text-[#F1F5F9]"
+                      class="text-sm text-app-muted hover:text-app-text"
                     >
                       Exclude
                     </button>
@@ -252,7 +252,7 @@ defmodule PlaysteadWeb.AttentionLive do
                       id={"retain-#{item.id}"}
                       phx-click="retain-as-custom"
                       phx-value-id={item.id}
-                      class="text-sm text-[#94A3B8] hover:text-[#F1F5F9]"
+                      class="text-sm text-app-muted hover:text-app-text"
                     >
                       Retain as custom
                     </button>
@@ -263,7 +263,7 @@ defmodule PlaysteadWeb.AttentionLive do
                       id={"exclude-#{item.id}"}
                       phx-click="exclude"
                       phx-value-id={item.id}
-                      class="text-sm text-[#94A3B8] hover:text-[#F1F5F9]"
+                      class="text-sm text-app-muted hover:text-app-text"
                     >
                       Exclude
                     </button>
@@ -274,7 +274,7 @@ defmodule PlaysteadWeb.AttentionLive do
                       id={"retry-#{item.id}"}
                       phx-click="retry"
                       phx-value-id={item.id}
-                      class="text-sm text-[#94A3B8] hover:text-[#F1F5F9]"
+                      class="text-sm text-app-muted hover:text-app-text"
                     >
                       Retry safe processing
                     </button>
@@ -286,7 +286,7 @@ defmodule PlaysteadWeb.AttentionLive do
                       phx-click="correct-system"
                       phx-value-id={item.id}
                       phx-value-system_id="unknown"
-                      class="text-sm text-[#94A3B8] hover:text-[#F1F5F9]"
+                      class="text-sm text-app-muted hover:text-app-text"
                     >
                       Correct system
                     </button>
@@ -297,8 +297,8 @@ defmodule PlaysteadWeb.AttentionLive do
           </table>
         </section>
 
-        <section id="excluded-filter" class="border-t border-[#334155] pt-6">
-          <p class="text-sm text-[#94A3B8]">
+        <section id="excluded-filter" class="border-t border-app-border pt-6">
+          <p class="text-sm text-app-muted">
             <span id="excluded-storage">{@excluded_storage_bytes} bytes</span> held by excluded items.
           </p>
 
@@ -307,15 +307,15 @@ defmodule PlaysteadWeb.AttentionLive do
               <div
                 :for={item <- items}
                 id={"excluded-#{item.id}"}
-                class="flex items-center justify-between rounded border border-[#334155] p-3"
+                class="flex items-center justify-between rounded border border-app-border p-3"
               >
-                <span class="text-sm text-[#F1F5F9]">{item.reason}</span>
+                <span class="text-sm text-app-text">{item.reason}</span>
                 <button
                   type="button"
                   id={"restore-#{item.id}"}
                   phx-click="restore"
                   phx-value-id={item.id}
-                  class="text-sm font-semibold text-[#94A3B8] hover:text-[#F1F5F9]"
+                  class="text-sm font-semibold text-app-muted hover:text-app-text"
                 >
                   Restore
                 </button>
@@ -338,12 +338,12 @@ defmodule PlaysteadWeb.AttentionLive do
     <div
       id={"attention-item-#{@item.id}"}
       data-role="saves-item-card"
-      class="rounded-lg border border-[#334155] bg-[#1E293B] p-6"
+      class="rounded-lg border border-app-border bg-app-surface p-6"
     >
-      <p id={"attention-item-#{@item.id}-reason"} class="text-base font-semibold text-[#F1F5F9]">
+      <p id={"attention-item-#{@item.id}-reason"} class="text-base font-semibold text-app-text">
         {saves_plain_language_reason(@item)}
       </p>
-      <p :if={@item.count > 1} class="mt-1 text-sm text-[#94A3B8]">
+      <p :if={@item.count > 1} class="mt-1 text-sm text-app-muted">
         Raised {@item.count} times.
       </p>
       <div class="mt-3">
@@ -351,7 +351,7 @@ defmodule PlaysteadWeb.AttentionLive do
           :if={@item.reason == "divergence"}
           href={"/saves/#{@item.grouping_key}"}
           id={"compare-#{@item.id}"}
-          class="text-sm font-semibold text-[#94A3B8] hover:text-[#F1F5F9]"
+          class="text-sm font-semibold text-app-muted hover:text-app-text"
         >
           Compare versions
         </.link>

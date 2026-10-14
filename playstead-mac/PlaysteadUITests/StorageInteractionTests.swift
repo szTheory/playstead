@@ -5,6 +5,8 @@ final class StorageInteractionTests: XCTestCase {
     private var harness: UITestHarness!
     private let quotaReclaimAssetID = "00000000-0000-7000-8000-000000000041"
     private let quotaDownloadAssetID = "00000000-0000-7000-8000-000000000042"
+    private let gameCardIdentifier = "playstead.surface.game-card"
+    private let showListControl = "playstead.control.show-list"
     private var quotaDownloadAction: String {
         "playstead.game.\(quotaDownloadAssetID).download"
     }
@@ -18,10 +20,101 @@ final class StorageInteractionTests: XCTestCase {
         harness = nil
     }
 
+    /// Review the real presentation components in a finite, store-free root.
+    /// Captures deliberately span the transition; settled AX checks alone
+    /// cannot establish the appearance of a 200 ms fade.
+    func testLocalStatusMotionReviewAndImmediateByteProgress() async throws {
+        for mode in ["normal", "slow", "reduced"] {
+            harness = UITestHarness(profile: .emptyLibrary, extraEnvironment: [
+                "PLAYSTEAD_UI_TEST_MOTION_REVIEW": mode,
+                "PLAYSTEAD_UI_TEST_APPEARANCE": "dark"
+            ])
+            harness.launch(settledAt: "playstead.motion.review")
+            let app = harness.app
+            defer { app.terminate() }
+
+            let root = app.descendants(matching: .any)["playstead.motion.review"]
+            XCTAssertTrue(root.awaitExistence(timeout: 10))
+            let stationary = app.descendants(matching: .any)["playstead.download.row.1"]
+            let stationaryFrame = stationary.frame
+            let slot = app.descendants(matching: .any)["library.status-slot"]
+            let slotFrame = slot.frame
+            XCTAssertGreaterThan(slotFrame.width, 0)
+            XCTAssertGreaterThan(slotFrame.height, 0)
+            XCTAssertLessThanOrEqual(slotFrame.width, 24)
+            XCTAssertLessThanOrEqual(slotFrame.height, 24)
+
+            harness.focusContainedAction("playstead.motion.start", rootIdentifier: "playstead.motion.review")
+            app.buttons["playstead.motion.start"].typeKey(.space, modifierFlags: [])
+            try await captureMotionFrames(app, mode: mode, transition: "queued-to-downloading")
+            XCTAssertEqual(app.staticTexts["playstead.motion.phase"].readableText, "active-42")
+            XCTAssertEqual(app.descendants(matching: .any)["playstead.download.row.0.state"].value as? String, "active")
+            XCTAssertEqual(stationary.frame, stationaryFrame)
+            assertStableStatusCenter(slot.frame, comparedWith: slotFrame)
+
+            harness.focusContainedAction("playstead.motion.progress", rootIdentifier: "playstead.motion.review")
+            app.buttons["playstead.motion.progress"].typeKey(.space, modifierFlags: [])
+            XCTAssertEqual(app.staticTexts["playstead.motion.phase"].readableText, "active-73")
+            let nativeProgress = app.descendants(matching: .any)["playstead.download.row.0.progress"]
+            let numericProgress = (nativeProgress.value as? NSNumber)?.doubleValue
+                ?? (nativeProgress.value as? String).flatMap(Double.init)
+            XCTAssertEqual(numericProgress, 0.73)
+            XCTAssertEqual(slot.label, "Synthetic Motion Fixture is downloading, 73 percent complete.")
+            let progress = XCTAttachment(screenshot: app.screenshot())
+            progress.name = "motion-\(mode)-immediate-progress-73"
+            progress.lifetime = .keepAlways
+            add(progress)
+            XCTAssertEqual(stationary.frame, stationaryFrame)
+            assertStableStatusCenter(slot.frame, comparedWith: slotFrame)
+
+            harness.focusContainedAction("playstead.motion.pause", rootIdentifier: "playstead.motion.review")
+            app.buttons["playstead.motion.pause"].typeKey(.space, modifierFlags: [])
+            try await captureMotionFrames(app, mode: mode, transition: "downloading-to-paused")
+            XCTAssertEqual(app.staticTexts["playstead.motion.phase"].readableText, "paused")
+            XCTAssertEqual(app.descendants(matching: .any)["playstead.download.row.0.state"].value as? String, "paused")
+            XCTAssertEqual(stationary.frame, stationaryFrame)
+            assertStableStatusCenter(slot.frame, comparedWith: slotFrame)
+        }
+    }
+
+    private func assertStableStatusCenter(_ frame: CGRect, comparedWith original: CGRect) {
+        // AX reports the visible glyph's tight bounds, rather than the
+        // SwiftUI slot's 24 pt frame. Its center must stay in place as a
+        // glyph becomes a determinate ring and back again.
+        XCTAssertGreaterThan(frame.width, 0)
+        XCTAssertGreaterThan(frame.height, 0)
+        XCTAssertLessThanOrEqual(frame.width, 24)
+        XCTAssertLessThanOrEqual(frame.height, 24)
+        XCTAssertEqual(frame.midX, original.midX, accuracy: 1)
+        XCTAssertEqual(frame.midY, original.midY, accuracy: 1)
+    }
+
+    private func captureMotionFrames(_ app: XCUIApplication, mode: String, transition: String) async throws {
+        let started = ContinuousClock.now
+        var timing: [String] = []
+        for (index, offset) in [0.0, 0.8, 1.02, 1.1, 1.25, 1.5, 2.0, 3.3].enumerated() {
+            let elapsed = started.duration(to: .now)
+            let target = Duration.seconds(offset)
+            if elapsed < target { try await Task.sleep(for: target - elapsed) }
+            let before = started.duration(to: .now)
+            let shot = app.screenshot()
+            let after = started.duration(to: .now)
+            let attachment = XCTAttachment(screenshot: shot)
+            attachment.name = "motion-\(mode)-\(transition)-frame-\(index)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            timing.append("frame=\(index) capture-start=\(before) capture-end=\(after)")
+        }
+        let receipt = XCTAttachment(string: timing.joined(separator: "\n"))
+        receipt.name = "motion-\(mode)-\(transition)-capture-timing"
+        receipt.lifetime = .keepAlways
+        add(receipt)
+    }
+
     func testDownloadsPauseResumeFlow() throws {
         launchStorageProfile(.pausedActiveQueue)
         openSurface(
-            control: "playstead.control.open-downloads",
+            control: "playstead.sidebar.downloads",
             root: "playstead.surface.downloads"
         )
 
@@ -81,7 +174,7 @@ final class StorageInteractionTests: XCTestCase {
         _ = waitForUniqueDownloadAction()
     }
 
-    func testReclaimRouteKeyboardFocusOwnsUniqueDownloadTrigger() {
+    func testReclaimRouteArrowSelectionTargetsUniqueDownloadTrigger() {
         navigateToQuotaFixtureList()
         selectQuotaDownloadByKeyboard()
     }
@@ -223,10 +316,7 @@ final class StorageInteractionTests: XCTestCase {
 
     func testStorageInventoryProtectsPinnedCopy() {
         launchStorageProfile(.storage)
-        openSurface(
-            control: "playstead.control.open-storage",
-            root: "playstead.surface.storage"
-        )
+        openStorageSettings()
         assertValue(
             "playstead.storage.state",
             equals: "used=32;candidate-count=0;pinned-count=1;unreferenced-count=0;quarantined-count=0"
@@ -236,13 +326,51 @@ final class StorageInteractionTests: XCTestCase {
         XCTAssertFalse(harness.element("playstead.storage.reclaim", type: .button).isEnabled)
     }
 
+    /// The front-door gate for WINDOWS #72/#73/#74, at the layer where the
+    /// defect actually lived.
+    ///
+    /// The `.storage` profile seeds one game that is cached AND pinned, so
+    /// every badge in the app should say so. Before this, `ShelfView` was
+    /// handed a hardcoded `[.serverOnly]` for every entry and the shipped
+    /// list row rendered no status at all, so the card claimed "is on your
+    /// server. Choose Download to play it offline." over content that was
+    /// downloaded, verified and pinned -- and no unit test could see it,
+    /// because the derivation those tests exercise had no production
+    /// caller.
+    func testCachedAndPinnedGameIsNotDescribedAsBeingOnTheServer() {
+        launchStorageProfile(.storage)
+
+        let card = harness.element(gameCardIdentifier)
+        XCTAssertTrue(card.awaitExistence(timeout: 5), "the seeded game's card never rendered")
+        let cardStatus = harness.element("library.status-slot")
+        XCTAssertTrue(cardStatus.awaitExistence(timeout: 5), "the seeded game's card rendered no status")
+        XCTAssertTrue(
+            cardStatus.readableText.hasSuffix("is kept on this Mac and protected from automatic removal."),
+            "a cached, pinned game's card must not describe it as being on the server: \(cardStatus.readableText)"
+        )
+
+        // The list layout is what the shipped app renders for the list
+        // view, and QUAL-01 requires it to pair the glyph with a text
+        // label. Those strings previously existed only in `GameListView`, since deleted,
+        // which nothing in production renders.
+        harness.element(showListControl).clickWhenHittable()
+        let slot = harness.element("library.status-slot")
+        XCTAssertTrue(slot.awaitExistence(timeout: 5), "the list row rendered no status indicator at all")
+        XCTAssertTrue(
+            slot.readableText.hasSuffix("is kept on this Mac and protected from automatic removal."),
+            "the list row's status must describe the real state: \(slot.readableText)"
+        )
+        let label = harness.element("library.status-label")
+        XCTAssertTrue(
+            label.exists,
+            "QUAL-01: the list row must show the status's text label, never the glyph alone"
+        )
+        XCTAssertEqual(label.readableText, "Kept on this Mac", "the label must state the real status")
+    }
+
     private func exerciseQuotaAndFocusRestoration() {
         launchStorageProfile(.quotaBlockReclaim)
-        let opener = harness.element("playstead.control.open-storage", type: .button)
-        openSurface(
-            control: "playstead.control.open-storage",
-            root: "playstead.surface.storage"
-        )
+        openStorageSettings()
         harness.require([
             "playstead.quota.root",
             "playstead.quota.state",
@@ -263,8 +391,11 @@ final class StorageInteractionTests: XCTestCase {
             "playstead.quota.state",
             equals: "used=32;quota=1073741840;floor=10737418240"
         )
-        dismissSheet(root: "playstead.surface.storage")
-        XCTAssertTrue(opener.value(forKey: "hasKeyboardFocus") as? Bool == true)
+        XCTAssertTrue(
+            harness.element("playstead.quota.increase", type: .button)
+                .value(forKey: "hasKeyboardFocus") as? Bool == true,
+            "editing the persistent Storage settings pane must keep focus on its quota action"
+        )
     }
 
     private func openReclaimPrompt() {
@@ -277,14 +408,11 @@ final class StorageInteractionTests: XCTestCase {
 
     private func navigateToQuotaFixtureList() {
         launchStorageProfile(.quotaBlockReclaim)
-        harness.traverseExactFocusSequence(
-            [
-                "playstead.control.show-cards",
-                "playstead.control.show-list",
-                "playstead.control.open-readiness"
-            ],
-            activate: "playstead.control.show-list"
-        )
+        let showList = harness.element("playstead.control.show-list", type: .radioButton)
+        XCTAssertTrue(showList.awaitExistence(timeout: 5), "the List radio segment is missing")
+        showList.clickWhenHittable()
+        XCTAssertTrue(harness.element("playstead.surface.game-list").awaitExistence(timeout: 5))
+        XCTAssertTrue(harness.element(quotaDownloadAction, type: .button).awaitExistence(timeout: 5))
     }
 
     private func requireInitialReclaimEvidence() {
@@ -342,6 +470,14 @@ final class StorageInteractionTests: XCTestCase {
 
     private func openEligibleStorageInventory() {
         launchStorageProfile(.quotaBlockReclaim)
+        openStorageSettings()
+    }
+
+    private func openStorageSettings() {
+        openSurface(
+            control: "playstead.sidebar.settings",
+            root: "playstead.settings"
+        )
         openSurface(
             control: "playstead.control.open-storage",
             root: "playstead.surface.storage"
@@ -391,12 +527,14 @@ final class StorageInteractionTests: XCTestCase {
     }
 
     private func dismissStorageAndAssertCanonicalRows() {
-        dismissSheet(root: "playstead.surface.storage")
+        harness.element("playstead.sidebar.home").clickWhenHittable()
+        XCTAssertTrue(harness.element("playstead.surface.library").awaitExistence(timeout: 5))
         // Storage opens from the default Cards layout, unlike the reclaim
-        // prompt journey that starts in List. Reveal the same production
+        // prompt journey that starts in List. Return to the game library and
+        // reveal the same production
         // GameRow identities without relaunching or reseeding; the mutation
         // proof above therefore remains the state being inspected.
-        harness.element("playstead.control.show-list", type: .button).clickWhenHittable()
+        harness.element("playstead.control.show-list").clickWhenHittable()
         XCTAssertTrue(harness.element("playstead.surface.game-list").awaitExistence(timeout: 5))
         assertCanonicalRow(assetID: quotaReclaimAssetID, title: "Synthetic Reclaim Candidate")
         assertCanonicalRow(assetID: quotaDownloadAssetID, title: "Synthetic Quota Download")
@@ -409,7 +547,7 @@ final class StorageInteractionTests: XCTestCase {
     }
 
     private func openSurface(control: String, root: String) {
-        harness.element(control, type: .button).clickWhenHittable()
+        harness.element(control).clickWhenHittable()
         XCTAssertTrue(harness.element(root).awaitExistence(timeout: 5))
     }
 
@@ -451,21 +589,11 @@ final class StorageInteractionTests: XCTestCase {
         _ = waitForUniqueDownloadAction()
         let list = harness.element("playstead.surface.game-list")
         XCTAssertTrue(list.awaitExistence(timeout: 5))
-        XCTAssertTrue(
-            list.value(forKey: "hasKeyboardFocus") as? Bool == true,
-            "activating List must transfer keyboard focus to its production selection model"
-        )
-
-        let selection = harness.element("playstead.library.list-selection")
-        XCTAssertTrue(selection.awaitExistence(timeout: 5))
-        for _ in 0..<2 {
-            let currentSelection = selection.value as? String
-            if currentSelection == quotaDownloadAssetID { break }
-            list.typeKey(.downArrow, modifierFlags: [])
-        }
-        let settledSelection = selection.value as? String
-        XCTAssertEqual(settledSelection, quotaDownloadAssetID)
-        XCTAssertTrue(list.value(forKey: "hasKeyboardFocus") as? Bool == true)
+        XCTAssertEqual(list.value as? String, "Synthetic Quota Download")
+        list.typeKey(.downArrow, modifierFlags: [])
+        XCTAssertEqual(list.value as? String, "Synthetic Reclaim Candidate")
+        list.typeKey(.upArrow, modifierFlags: [])
+        XCTAssertEqual(list.value as? String, "Synthetic Quota Download")
 
         let command = harness.element("playstead.control.download-selected", type: .button)
         XCTAssertTrue(command.awaitExistence(timeout: 5))

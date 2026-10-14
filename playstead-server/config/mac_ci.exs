@@ -57,7 +57,10 @@ config :playstead, PlaysteadWeb.Endpoint,
   https: [
     ip: {127, 0, 0, 1},
     port: port,
-    cipher_suite: :strong,
+    # The local Python readiness probe follows host TLS policy, which may
+    # negotiate TLS 1.2. Plug's compatible profile still uses modern AEAD
+    # suites and permits TLS 1.2/1.3 for this loopback-only fixture.
+    cipher_suite: :compatible,
     certfile: Path.join(tls_root, "server.pem"),
     keyfile: Path.join(tls_root, "server-key.pem")
   ],
@@ -70,6 +73,9 @@ config :playstead, PlaysteadWeb.Endpoint,
 config :playstead, :sql_sandbox, false
 config :playstead, :trust_proxy_headers, false
 config :playstead, Playstead.Sync.Snapshot, set_isolation: true
+# mac_ci-only, run-owned control files used by the live save reliability
+# fixture. No equivalent control root is configured in test/dev/prod.
+config :playstead, :mac_ci_save_test_control_root, Path.join(native_root, "mac-client-control")
 config :bcrypt_elixir, :log_rounds, 1
 # Request-path logs remain in the run-owned native root and are never attached.
 # The hosted harness reduces them to exact route counters before evidence crosses

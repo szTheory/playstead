@@ -9,9 +9,8 @@ import XCTest
 /// mode the emulator hit at spawn.
 final class SaveDirectoryAtomicPlacementTests: XCTestCase {
 
-    /// The engine's own fixed target name for the atomic-placement
-    /// probe — mirrored here so this test can pre-occupy it with an
-    /// immutable fixture and force the replace to fail.
+    /// A legacy probe name may already exist. The engine now probes only
+    /// unique files it creates, so this unrelated entry must be preserved.
     private static let probeTargetName = ".playstead-readiness-write-probe-target"
 
     private var tempRoot: URL!
@@ -70,18 +69,18 @@ final class SaveDirectoryAtomicPlacementTests: XCTestCase {
         XCTAssertTrue(check.outcome.isBlocking)
     }
 
-    /// The case the old `isWritableFile` check could not see: the
-    /// directory itself is writable, but the exact name the atomic
-    /// replace targets is already occupied by an immutable file, so the
-    /// replace operation itself fails.
-    func testWritableDirectoryWithImmutableTargetNameEvaluatesBlocked() throws {
+    /// An existing legacy probe entry belongs to the user. Readiness must
+    /// leave it untouched while probing replacement with owned unique files.
+    func testImmutableLegacyProbeNameIsPreservedAndDoesNotBlockOwnedProbe() throws {
         let targetURL = saveDir.appendingPathComponent(Self.probeTargetName, isDirectory: false)
         try Data().write(to: targetURL)
         try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: targetURL.path)
 
         let check = evaluateSaveCheck(saveDirectoryURL: saveDir)
 
-        XCTAssertTrue(check.outcome.isBlocking, "an immutable file occupying the replace target must block, not pass")
+        XCTAssertFalse(check.outcome.isBlocking, "an unrelated immutable file must not block the unique probe")
+        XCTAssertEqual(try Data(contentsOf: targetURL), Data(), "readiness must preserve the existing file")
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: saveDir.path), [Self.probeTargetName])
     }
 
     func testBlockedResultCarriesTheLockedRemedy() {

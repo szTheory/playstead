@@ -12,30 +12,10 @@ import sys
 
 # `let x = app.staticTexts[...]` / `= <anything>.staticTexts[` -- the binding
 # whose `.label` is meaningless.
-BIND = re.compile(r"\b(?:let|var)\s+(\w+)\s*(?::[^=]+)?=\s*[^\n]*\.staticTexts\[")
 INLINE = re.compile(r"\.staticTexts\[[^\]]*\]\s*\.label\b")
 PREDICATE = re.compile(r'NSPredicate\(\s*format:\s*"([^"]*)"')
-# Any read of `.label` on an element. `readableText` prefers `label` and falls
-# back to `value`, so it is never worse and is right in the cases `.label`
-# silently gets wrong -- which makes this a blanket rule with a narrow
-# allowlist for the places that assert on the AX label attribute itself.
-BARE_LABEL = re.compile(r"\.label\b")
-
-ALLOWLIST = {
-    # `readableText`'s own definition -- it is what everything else must use.
-    ("Support/UITestHarness.swift", "label.isEmpty ? (value as? String ?? \"\")"),
-    # The surface inventory's AX-label contract: emptiness here IS the subject
-    # of the assertion, for targets declared `requiresLabel`.
-    ("Support/UITestHarness.swift", "requiresLabel"),
-}
-
-
-def allowed(path, line):
-    """Only the two lines that are *about* the AX label attribute itself."""
-    for suffix, marker in ALLOWLIST:
-        if str(path).endswith(suffix) and marker in line:
-            return True
-    return False
+STATIC_BIND = re.compile(r"\b(?:let|var)\s+(\w+)\s*(?::[^=]+)?=\s*[^\n]*\.staticTexts\[")
+STATIC_MATCH = re.compile(r"\.staticTexts\.(?:matching|containing)\(")
 
 
 def scan(path: pathlib.Path):
@@ -43,21 +23,19 @@ def scan(path: pathlib.Path):
     for swift in sorted(path.rglob("*.swift")):
         text = swift.read_text()
         lines = text.splitlines()
-        bound = set(BIND.findall(text))
-        # A predicate is only suspect if this file matches it against staticTexts.
-        matches_static_texts = ".staticTexts.matching(" in text or ".staticTexts.containing(" in text
+        bound = set(STATIC_BIND.findall(text))
         for n, line in enumerate(lines, 1):
             stripped = line.strip()
             if stripped.startswith("//") or stripped.startswith("///"):
                 continue
-            if BARE_LABEL.search(line) and not allowed(swift, line):
-                problems.append((swift, n, "reads user-visible text through `.label`"))
             if INLINE.search(line):
                 problems.append((swift, n, "reads .label directly off a staticTexts query"))
             for name in bound:
                 if re.search(r"\b%s\s*\.label\b" % re.escape(name), line):
                     problems.append((swift, n, "reads .label on `%s`, bound from staticTexts" % name))
-            if matches_static_texts:
+            # Only reject a label predicate when this same query is explicitly
+            # scoped to staticTexts. Button/container AX labels are valid.
+            if STATIC_MATCH.search(line):
                 for fmt in PREDICATE.findall(line):
                     if "label" in fmt and "value" not in fmt:
                         problems.append(

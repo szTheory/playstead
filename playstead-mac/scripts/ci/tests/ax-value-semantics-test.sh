@@ -42,8 +42,7 @@ import XCTest
 final class BadPredicateTests: XCTestCase {
     func testMatchesOnLabelOnly() {
         let app = XCUIApplication()
-        let p = NSPredicate(format: "label BEGINSWITH %@", "Ready")
-        _ = app.staticTexts.matching(p)
+        _ = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Ready"))
     }
 }
 SWIFT
@@ -52,5 +51,22 @@ if python3 "$detector" "$fixture" >/dev/null 2>&1; then
   printf 'ax-value detector accepted a label-only staticTexts predicate\n' >&2
   exit 1
 fi
+rm "$fixture/BadPredicateTests.swift"
+
+cat >"$fixture/ValidButtonLabelTests.swift" <<'SWIFT'
+import XCTest
+final class ValidButtonLabelTests: XCTestCase {
+    func testButtonAXLabelRemainsAvailable() {
+        let app = XCUIApplication()
+        let action = app.buttons["playstead.action"]
+        XCTAssertEqual(action.label, "Continue")
+        _ = app.buttons.matching(NSPredicate(format: "label == %@", "Continue"))
+    }
+}
+SWIFT
+python3 "$detector" "$fixture" >/dev/null || {
+  printf 'ax-value detector rejected a valid button AX-label assertion\n' >&2
+  exit 1
+}
 
 printf 'macOS AX value semantics in UI tests: passed\n'

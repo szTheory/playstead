@@ -9,7 +9,7 @@ defmodule PlaysteadWeb.Api.V1.PairingController do
 
   use PlaysteadWeb, :controller
 
-  alias Playstead.Pairing
+  alias Playstead.{Operations, Pairing}
 
   action_fallback PlaysteadWeb.Api.V1.FallbackController
 
@@ -36,6 +36,8 @@ defmodule PlaysteadWeb.Api.V1.PairingController do
       json(conn, %{status: request.status})
     else
       {:error, :slow_down} ->
+        record_failure(conn, "pairing", "pairing_slow_down")
+
         PlaysteadWeb.Problem.send_problem(
           conn,
           429,
@@ -44,6 +46,7 @@ defmodule PlaysteadWeb.Api.V1.PairingController do
         )
 
       {:error, :not_found} ->
+        record_failure(conn, "pairing", "pairing_not_found")
         PlaysteadWeb.Problem.send_problem(conn, 404, :not_found, "Pairing request not found.")
     end
   end
@@ -66,9 +69,12 @@ defmodule PlaysteadWeb.Api.V1.PairingController do
         })
 
       {:error, :not_found} ->
+        record_failure(conn, "pairing", "pairing_not_found")
         PlaysteadWeb.Problem.send_problem(conn, 404, :not_found, "Pairing request not found.")
 
       {:error, :pairing_request_expired} ->
+        record_failure(conn, "pairing", "pairing_request_expired")
+
         PlaysteadWeb.Problem.send_problem(
           conn,
           410,
@@ -77,6 +83,8 @@ defmodule PlaysteadWeb.Api.V1.PairingController do
         )
 
       {:error, :pairing_request_already_redeemed} ->
+        record_failure(conn, "pairing", "pairing_request_already_redeemed")
+
         PlaysteadWeb.Problem.send_problem(
           conn,
           409,
@@ -85,6 +93,8 @@ defmodule PlaysteadWeb.Api.V1.PairingController do
         )
 
       {:error, :pairing_request_not_approved} ->
+        record_failure(conn, "pairing", "pairing_request_not_approved")
+
         PlaysteadWeb.Problem.send_problem(
           conn,
           409,
@@ -93,4 +103,7 @@ defmodule PlaysteadWeb.Api.V1.PairingController do
         )
     end
   end
+
+  defp record_failure(conn, subsystem, code),
+    do: Operations.record_failure(conn.assigns.correlation_id, subsystem, code)
 end

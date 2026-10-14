@@ -64,6 +64,9 @@ final class CurationStore {
             VALUES (?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 asset_set_id = excluded.asset_set_id,
+                created_at = excluded.created_at
+            ON CONFLICT(asset_set_id) DO UPDATE SET
+                id = excluded.id,
                 created_at = excluded.created_at;
             """,
             params: [id, assetSetID, createdAt]

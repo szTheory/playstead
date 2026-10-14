@@ -5,19 +5,40 @@ struct FilterChip: Identifiable, Hashable {
     let label: String
 }
 
-/// System/availability filter chips — the controller path to narrowing a
-/// library (03-UI-SPEC.md Navigation & IA). A chip's pressed state is
-/// expressed by shape and by an accessibility trait as well as by color,
-/// never by color alone (QUAL-01).
+/// System/availability filters — also the controller path to narrowing a
+/// library when text entry is unavailable. Selected and controller-focused
+/// states are separate, so focus never changes a filter by itself.
 struct FilterChipRow: View {
     let chips: [FilterChip]
-    let selectedID: String?
-    let onSelect: (String?) -> Void
+    let selectedIDs: Set<String>
+    let controllerFocusedID: String?
+    let onToggle: (String) -> Void
 
-    /// Whether `chip` is the currently pressed/selected chip — pure so
-    /// `FilterTests` can assert the selection model directly, matching
-    /// `StatusLadderTests`' precedent of testing logic, not rendered
-    /// accessibility traits, in this headless-only test target.
+    init(
+        chips: [FilterChip],
+        selectedIDs: Set<String>,
+        controllerFocusedID: String? = nil,
+        onToggle: @escaping (String) -> Void
+    ) {
+        self.chips = chips
+        self.selectedIDs = selectedIDs
+        self.controllerFocusedID = controllerFocusedID
+        self.onToggle = onToggle
+    }
+
+    /// Kept for static snapshot fixtures that model a single selected chip.
+    init(chips: [FilterChip], selectedID: String?, onSelect: @escaping (String?) -> Void) {
+        self.init(
+            chips: chips,
+            selectedIDs: selectedID.map { [$0] } ?? [],
+            onToggle: { onSelect($0) }
+        )
+    }
+
+    static func isSelected(_ chip: FilterChip, selectedIDs: Set<String>) -> Bool {
+        selectedIDs.contains(chip.id)
+    }
+
     static func isSelected(_ chip: FilterChip, selectedID: String?) -> Bool {
         chip.id == selectedID
     }
@@ -27,31 +48,53 @@ struct FilterChipRow: View {
     }
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: DesignTokens.Spacing.sm) {
-                ForEach(chips) { chip in
-                    chipButton(chip)
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: DesignTokens.Spacing.sm) {
+                    ForEach(chips) { chip in
+                        chipButton(chip)
+                            .id(chip.id)
+                    }
                 }
             }
+            .onChange(of: controllerFocusedID) { _, focusedID in
+                guard let focusedID else { return }
+                proxy.scrollTo(focusedID, anchor: .center)
+            }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Library filters")
     }
 
     private func chipButton(_ chip: FilterChip) -> some View {
-        let isSelected = Self.isSelected(chip, selectedID: selectedID)
+        let isSelected = Self.isSelected(chip, selectedIDs: selectedIDs)
+        let isControllerFocused = controllerFocusedID == chip.id
         return Button {
-            onSelect(isSelected ? nil : chip.id)
+            onToggle(chip.id)
         } label: {
             Text(chip.label)
                 .font(.psLabel)
                 .padding(.horizontal, DesignTokens.Spacing.md)
                 .padding(.vertical, DesignTokens.Spacing.xs)
                 .frame(minHeight: DesignTokens.InteractiveTarget.minimum)
-                .background(isSelected ? DesignTokens.focusRing.opacity(0.25) : DesignTokens.border.opacity(0.3))
-                .clipShape(isSelected ? AnyShape(Capsule()) : AnyShape(RoundedRectangle(cornerRadius: 4)))
+                .background {
+                    Capsule().fill(
+                        isControllerFocused
+                            ? DesignTokens.focusRing.opacity(0.24)
+                            : isSelected
+                                ? DesignTokens.focusRing.opacity(0.16)
+                                : DesignTokens.border.opacity(0.3)
+                    )
+                }
+                .overlay {
+                    if isControllerFocused {
+                        Capsule().stroke(DesignTokens.focusRing, lineWidth: 2)
+                    }
+                }
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
         .accessibilityLabel(chip.label)
-        .playsteadFocusable(identifier: Self.accessibilityIdentifier(for: chip.id))
+        .accessibilityIdentifier(Self.accessibilityIdentifier(for: chip.id))
     }
 }

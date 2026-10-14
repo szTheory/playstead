@@ -74,7 +74,8 @@ CNF
       -config "$tls_root/openssl.cnf" -subj "/CN=127.0.0.1"
 
     openssl x509 -req -in "$tls_root/server.csr" \
-      -CA "$tls_root/ca.pem" -CAkey "$tls_root/ca-key.pem" -CAcreateserial \
+      -CA "$tls_root/ca.pem" -CAkey "$tls_root/ca-key.pem" \
+      -CAserial "$tls_root/ca.srl" -CAcreateserial \
       -days 397 -sha256 -extfile "$tls_root/openssl.cnf" -extensions v3_leaf \
       -out "$tls_root/server-leaf.pem"
 

@@ -10,6 +10,12 @@
   ],
   "defaultOptions" : {
     "codeCoverage" : false,
+    "environmentVariableEntries" : [
+      {
+        "key" : "PLAYSTEAD_NOTICE_VOICEOVER_EXTERNAL_ACTION",
+        "value" : "$(PLAYSTEAD_NOTICE_VOICEOVER_EXTERNAL_ACTION)"
+      }
+    ],
     "targetForVariableExpansion" : {
       "containerPath" : "container:Playstead.xcodeproj",
       "identifier" : "44DC10C2CEB44A12A91241F2",
@@ -21,15 +27,29 @@
       "parallelizable" : false,
       "selectedTests" : [
         "BiosRejectionCopyTests",
+        "BiosAcceptanceSeamTests",
         "ConflictResolutionInteractionTests",
+		"ControllerDpadRegressionTests/testControllerTestDpadUpStaysInSettingsAndSettingsReopensAtStorage()",
+		"ControllerHardwareIntegrationTests",
+		        "ControllerNoHIDIntegrationTests/testSimulatedControllerMappingLifecyclePersistsAndResets()",
+        "ControllerNoHIDIntegrationTests/testSimulatedControllerInputAndReconnectPreserveFallback()",
+        "ControllerNoHIDIntegrationTests/testSimulatedDetachShowsNonModalRecoveryAndPreservesFallback()",
+        "ControllerNoHIDIntegrationTests/testRecoveryNoticeKeyboardDismissalPreservesFocusAndBrowsing()",
+        "ControllerNoHIDIntegrationTests/testRecoveryNoticeControllerNavigationDismissesAndReturnsToBrowsing()",
+        "ControllerNoHIDIntegrationTests/testRecoveryNoticeAccessibilityContractAndDismissalPreservesState()",
+        "ControllerRecoveryBannerGeometryTests/testRecoveryBannerGeometryAcrossWindowSizesAndAppearances()",
         "CurationInteractionTests",
         "HostedRunnerCanaryTests/testFullKeyboardAccessCanaryFocusesAndActivatesTwoControls()",
         "HostedRunnerCanaryTests/testScopedFileKeychainStoresLoadsAndDeletesTwice()",
+        "LibraryEmptyStateTests",
         "OnlyCopyInterruptionTests",
         "SaveFrontDoorJourneyTests",
         "StorageInteractionTests",
         "SurfaceAccessibilityTests",
-        "ZeroNetworkPlayFlowTests"
+        "ZeroNetworkPlayFlowTests",
+        "GBGBCUIStateTests/testLibraryReadinessDetailsStates()",
+        "GBGBCUIStateTests/testSaveHistoryAndStatusStates()",
+        "ReadinessRemedyNavigationTests"
       ],
       "target" : {
         "containerPath" : "container:Playstead.xcodeproj",

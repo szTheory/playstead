@@ -29,6 +29,7 @@ defmodule PlaysteadWeb.BrowserScreens do
     :library_collections,
     :library_collection_detail,
     :attention,
+    :operations,
     :exports,
     :reference_packs,
     :saves,
@@ -50,6 +51,7 @@ defmodule PlaysteadWeb.BrowserScreens do
   def path(:library_collections), do: "/library/collections"
   def path(:library_collection_detail), do: "/library/collections/:id"
   def path(:attention), do: "/attention"
+  def path(:operations), do: "/operations"
   def path(:exports), do: "/exports"
   def path(:reference_packs), do: "/reference-packs"
   def path(:saves), do: "/saves"
@@ -243,6 +245,17 @@ defmodule PlaysteadWeb.BrowserScreens do
       session
       |> log_in_via_cookie(user, token_authenticated_at: DateTime.utc_now(:second))
       |> visit_live(path(:attention))
+
+    {session, %{user: user}}
+  end
+
+  def open(session, :operations) do
+    user = owner_fixture()
+
+    session =
+      session
+      |> log_in_via_cookie(user, token_authenticated_at: DateTime.utc_now(:second))
+      |> visit_live(path(:operations))
 
     {session, %{user: user}}
   end

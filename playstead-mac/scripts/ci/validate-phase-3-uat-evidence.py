@@ -29,6 +29,9 @@ AUTOMATED_MAPPINGS = {
     6: (
         "LibraryContractSnapshotTests/testFiveCurationShelfVisualContract",
         "CurationInteractionTests/testContinueShelfRendersHonestEmptyFixture",
+        # The UAT record cites a specific hosted run, whose source revision
+        # used the earlier test identity. The current renamed test is gated
+        # independently by the ordinary Mac test registry.
         "CurationInteractionTests/testFavoritesShelfRendersExactSeededCard",
         "CurationInteractionTests/testCollectionsShelfRendersExactSeededRoute",
         "CurationInteractionTests/testQueueShelfRendersHonestEmptyFixture",
@@ -53,12 +56,51 @@ AUTOMATED_MAPPINGS = {
 # checkpoint still must not decay into a bare `result: pass` with no automated
 # source and no evidence block, which is the rounding-up this validator exists
 # to prevent.
-BLOCKED_CHECKPOINTS = (7, 8, 9)
+BLOCKED_CHECKPOINTS = (8, 9)
 RESOLVED_CHECKPOINTS = (4, 14, 15)
+# Checkpoint 7 was blocked on real-emulator-game-bytes from 2026-08-31 until
+# 2026-09-13, when the owner closed every clause by hand on their own machine:
+# an offline launch with the server stopped, a quit with save capture and
+# delivery, a digest-mismatch refusal, and all three of the pin's exit
+# signatures. It is therefore no longer blocked -- but it is ALSO not automated,
+# and that distinction is the whole point of this category. These checkpoints
+# must pass, must say `source: manual`, and must NEVER claim `source:
+# automated`: a manual pass on one machine is not a regression gate, and the
+# moment someone lets CI take credit for it the phase's evidence stops being
+# auditable. Each entry's tokens are the specific proofs that made the pass
+# real, so they cannot be quietly deleted while the `pass` survives.
+MANUALLY_CLOSED_CHECKPOINTS = {
+    7: (
+        # the offline clause: the server was demonstrably down first
+        "docker compose stop caddy",
+        # the refusal clause: both digests, so the pair cannot be hand-waved
+        "f7f6e37aaf7527e088fd88616ce82f4b16fe4800f5f4cf2de59ff2e0b24ff026",
+        "f2f329b4947baa5082fcaf27ced1e2b21f2999ccf73ca481f22b44c4c87d6640",
+        # the exit-classification clause: all three pin signatures, observed
+        '"Last exit: clean"',
+        '"Last exit: crashed"',
+        '"Last exit: killed"',
+        # the caveat that must not be dropped when this record is edited
+        'unknown(status: 0, reason: "exit")',
+    ),
+}
 ROADMAP_CRITERION = (
     "Linux `compose-smoke` proves deployment topology; native PostgreSQL 17 plus Phoenix "
     "beside XCUITest proves Mac client/server behavior."
 )
+SIMULATED_MAPPINGS = {
+    8: (
+        "ControllerNoHIDIntegrationTests/testSimulatedControllerInputAndReconnectPreserveFallback",
+        "ControllerNoHIDIntegrationTests/testSimulatedDetachShowsNonModalRecoveryAndPreservesFallback",
+    ),
+    9: ("ControllerNoHIDIntegrationTests/testSimulatedControllerMappingLifecyclePersistsAndResets",),
+}
+OBJECTIVE_ACCESSIBILITY_MAPPINGS = (
+    "ControllerNavigationTests/testSidebarUpDownAndRightLeftHandoffUseStableIndexes",
+    "ControllerNavigationTests/testKeyboardDirectionsShareTheControllerTransitionReducer",
+    "SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit",
+)
+UNQUALIFIED_HARDWARE_ID = "ControllerHardwareIntegrationTests/testEntitledVirtualGamepadEnumeratesDetachesAndReconnectsWithoutRelaunch"
 
 
 class ContractError(ValueError):
@@ -101,6 +143,12 @@ def require(condition, message):
         raise ContractError(message)
 
 
+def parent_result(section):
+    parent = section.split("\n#### ", 1)[0]
+    match = re.search(r"(?m)^result:\s*(\S+)\s*$", parent)
+    return None if match is None else match.group(1)
+
+
 def validate_automated_checkpoint(number, section):
     require(re.search(r"(?m)^result: pass\s*$", section) is not None, f"checkpoint {number} must pass")
     require(section.count("source: automated") == 1, f"checkpoint {number} needs exactly one automated source")
@@ -138,14 +186,116 @@ def validate_checkpoint_10(section):
         require(token in blocked, f"checkpoint 10 residual boundary missing: {token}")
 
 
+def validate_simulated_checkpoint(number, section):
+    require(parent_result(section) == "blocked",
+            f"checkpoint {number} parent must remain blocked")
+    require(re.search(r"(?m)^blocked_by: .+$", section) is not None,
+            f"checkpoint {number} parent blocker missing")
+    simulated_marker = "#### Simulated app recovery/lifecycle record"
+    hardware_marker = "#### Unqualified OS/hardware record"
+    simulated_start = section.find(simulated_marker)
+    hardware_start = section.find(hardware_marker)
+    require(0 <= simulated_start < hardware_start,
+            f"checkpoint {number} must separate simulated and OS/hardware records")
+    simulated = section[simulated_start:hardware_start]
+    hardware = section[hardware_start:]
+    require(re.search(r"(?m)^result: pass\s*$", simulated) is not None,
+            f"checkpoint {number} simulated record must pass")
+    require(simulated.count("source: automated") == 1,
+            f"checkpoint {number} simulated record needs one automated source")
+    require("Finite UI_TESTING source proves simulated app behavior only." in simulated,
+            f"checkpoint {number} simulated boundary is missing")
+    for token in ("discovered", "executed once", "non-skipped", "passed"):
+        require(token in simulated, f"checkpoint {number} evidence outcome missing: {token}")
+    for identifier in SIMULATED_MAPPINGS[number]:
+        require(f"`{identifier}`" in simulated,
+                f"checkpoint {number} simulated mapping missing: {identifier}")
+    require(re.search(r"(?m)^result: blocked\s*$", hardware) is not None,
+            f"checkpoint {number} OS/hardware record must remain blocked")
+    require(re.search(r"(?m)^blocked_by: .+$", hardware) is not None,
+            f"checkpoint {number} OS/hardware blocker missing")
+    require("source: human-needed" in hardware,
+            f"checkpoint {number} hardware lane must remain human-needed")
+    require(UNQUALIFIED_HARDWARE_ID in hardware,
+            f"checkpoint {number} must retain the distinct 03-17 entitled identifier")
+    require("DualSense" in hardware and "human-needed" in hardware,
+            f"checkpoint {number} must retain separate DualSense evidence")
+
+
+def validate_checkpoint_13(section):
+    require(parent_result(section) == "issue", "checkpoint 13 historical parent issue row must remain open")
+    require("Choose File" in section and "NSOpenPanel" in section,
+            "checkpoint 13 must name the production Choose File/NSOpenPanel path")
+    require("UITestBiosCandidate" in section,
+            "checkpoint 13 must name the UI_TESTING BIOS candidate seam")
+    require("proprietary bios possession/authenticity" in section.lower(),
+            "checkpoint 13 must retain the proprietary BIOS non-claim")
+    require("emulator consumption" in section and "hardware fidelity" in section,
+            "checkpoint 13 must retain emulator/hardware non-claims")
+    require("non-gating non-claims" in section,
+            "checkpoint 13 non-claims must remain explicitly non-gating")
+    for overclaim in (
+        r"proprietary BIOS bytes (?:were|are) accepted",
+        r"BIOS authenticity (?:was|is) verified",
+        r"emulator consumed the BIOS",
+        r"hardware fidelity (?:was|is) verified",
+    ):
+        require(re.search(overclaim, section, re.IGNORECASE) is None,
+                f"checkpoint 13 contains unsupported claim: {overclaim}")
+    positive_drag_claim = re.search(
+        r"(?i)\b(?:test|candidate|evidence)\s+(?:was\s+)?(?:dragged|dropped|proves?\s+(?:a\s+)?drag(?:-in)?|exercises?\s+(?:a\s+)?drag(?:-in)?)\b",
+        section,
+    )
+    require(positive_drag_claim is None,
+            "checkpoint 13 claims drag evidence without a real drag-session oracle")
+
+
+def validate_manually_closed_checkpoint(number, section, tokens):
+    """A checkpoint closed by hand, not by CI. Fails closed in both directions:
+    the pass must be real (no clause left blocked, evidence intact) and it must
+    not be dressed up as automated."""
+    require(
+        re.search(r"(?m)^result: pass\s*$", section) is not None,
+        f"checkpoint {number} was closed by hand and must still pass",
+    )
+    require(
+        "source: automated" not in section,
+        f"checkpoint {number} was closed by hand and must never claim an automated source",
+    )
+    require(
+        section.count("source: manual") >= 1,
+        f"checkpoint {number} must name at least one manual source",
+    )
+    require(
+        re.search(r"(?m)^evidence: \|\s*$", section) is not None,
+        f"checkpoint {number} must keep its evidence block",
+    )
+    # A sub-record reverting to blocked while the item still reads `pass` is the
+    # exact rounding-up this file exists to prevent.
+    require(
+        re.search(r"(?m)^result: blocked\s*$", section) is None,
+        f"checkpoint {number} reads pass but still carries a blocked sub-record",
+    )
+    require(
+        re.search(r"(?m)^blocked_by: .+$", section) is None,
+        f"checkpoint {number} reads pass but still carries a blocked_by",
+    )
+    for token in tokens:
+        require(token in section, f"checkpoint {number} manual evidence missing: {token}")
+
+
 def validate_uat(document):
     require(frontmatter(document).get("status") == "partial", "Phase 3 UAT status must remain partial")
     sections = numbered_sections(document)
-    for number in (*AUTOMATED_MAPPINGS, *BLOCKED_CHECKPOINTS, *RESOLVED_CHECKPOINTS, 10):
+    for number in (*AUTOMATED_MAPPINGS, *BLOCKED_CHECKPOINTS, *RESOLVED_CHECKPOINTS,
+                   *MANUALLY_CLOSED_CHECKPOINTS, 10, 13):
         require(number in sections, f"checkpoint section missing: {number}")
     for number in AUTOMATED_MAPPINGS:
         validate_automated_checkpoint(number, sections[number])
     for number in BLOCKED_CHECKPOINTS:
+        if number in SIMULATED_MAPPINGS:
+            validate_simulated_checkpoint(number, sections[number])
+            continue
         section = sections[number]
         require(re.search(r"(?m)^result: blocked\s*$", section) is not None, f"checkpoint {number} must remain blocked")
         require(re.search(r"(?m)^blocked_by: .+$", section) is not None, f"checkpoint {number} blocked_by missing")
@@ -164,7 +314,17 @@ def validate_uat(document):
             re.search(r"(?m)^evidence: \|\s*$", section) is not None,
             f"checkpoint {number} must keep its evidence block",
         )
+    for number, tokens in MANUALLY_CLOSED_CHECKPOINTS.items():
+        validate_manually_closed_checkpoint(number, sections[number], tokens)
+    require(parent_result(sections[10]) == "issue", "checkpoint 10 parent must remain open")
     validate_checkpoint_10(sections[10])
+    automated_10 = sections[10][sections[10].find("#### Automated keyboard/live-tree record"):sections[10].find("#### Blocked physical-controller/experiential record")]
+    require("Objective accessibility properties are live-tree labels, roles, state, hierarchy, focus order, and audits." in automated_10,
+            "checkpoint 10 objective accessibility property inventory is missing")
+    for identifier in OBJECTIVE_ACCESSIBILITY_MAPPINGS:
+        require(f"`{identifier}`" in automated_10,
+                f"checkpoint 10 objective accessibility mapping missing: {identifier}")
+    validate_checkpoint_13(sections[13])
 
 
 def heading_sections(document):

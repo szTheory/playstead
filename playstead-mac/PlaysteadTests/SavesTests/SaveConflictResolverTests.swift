@@ -210,6 +210,58 @@ final class SaveConflictResolverTests: XCTestCase {
 
     // MARK: Choosing writes local state + enqueues exactly one outbox entry, in one transaction
 
+    func testFailedSaveChoiceKeepsComparisonOpenAndSuccessfulRetryClearsItsError() throws {
+        try localStore.connection.execute("""
+            CREATE TRIGGER fail_save_choice BEFORE INSERT ON save_fork_dispositions
+            BEGIN SELECT RAISE(ABORT, 'simulated storage failure'); END;
+            """)
+        var feedback = SaveConflictChoiceFeedback()
+        let originalHeads = heads()
+
+        let shouldDismiss = feedback.attempt {
+            try? resolver.chooseSide(saveLineID: "line-1", chosenRevisionID: "r1", headRevisionIDs: ["r1", "r2"], originName: origin)
+        }
+        XCTAssertFalse(shouldDismiss, "A failed local write must not dismiss the comparison")
+        XCTAssertNotNil(feedback.errorMessage)
+        XCTAssertEqual(saveOutbox.count(), 0)
+        XCTAssertEqual(heads(), originalHeads)
+
+        try localStore.connection.execute("DROP TRIGGER fail_save_choice;")
+        XCTAssertTrue(feedback.attempt {
+            try? resolver.chooseSide(saveLineID: "line-1", chosenRevisionID: "r1", headRevisionIDs: ["r1", "r2"], originName: origin)
+        })
+        XCTAssertNil(feedback.errorMessage)
+        XCTAssertEqual(saveOutbox.count(), 1)
+        XCTAssertEqual(heads(), originalHeads)
+        XCTAssertTrue(feedback.attempt {
+            try? resolver.chooseSide(saveLineID: "line-1", chosenRevisionID: "r1", headRevisionIDs: ["r1", "r2"], originName: origin)
+        }, "An idempotent receipt is also a successful choice")
+        XCTAssertEqual(saveOutbox.count(), 1)
+    }
+
+    func testFailedKeepAllChoiceDoesNotDismissOrDiscardVersions() throws {
+        try localStore.connection.execute("""
+            CREATE TRIGGER fail_keep_all BEFORE INSERT ON save_fork_dispositions
+            BEGIN SELECT RAISE(ABORT, 'simulated storage failure'); END;
+            """)
+        var feedback = SaveConflictChoiceFeedback()
+        let originalHeads = heads()
+        XCTAssertFalse(feedback.attempt {
+            try? resolver.keepBoth(saveLineID: "line-1", headRevisionIDs: ["r1", "r2"], thisDeviceOrigin: "This Mac")
+        })
+        XCTAssertNotNil(feedback.errorMessage)
+        XCTAssertNil(saveStore.fetchForkDisposition(saveLineID: "line-1"))
+        XCTAssertEqual(saveOutbox.count(), 0)
+        XCTAssertEqual(heads(), originalHeads)
+
+        try localStore.connection.execute("DROP TRIGGER fail_keep_all;")
+        XCTAssertTrue(feedback.attempt {
+            try? resolver.keepBoth(saveLineID: "line-1", headRevisionIDs: ["r1", "r2"], thisDeviceOrigin: "This Mac")
+        })
+        XCTAssertNil(feedback.errorMessage)
+        XCTAssertEqual(heads(), originalHeads)
+    }
+
     func testChoosingWritesLocalDispositionAndEnqueuesExactlyOneOutboxEntry() throws {
         let result = try resolver.chooseSide(saveLineID: "line-1", chosenRevisionID: "r1", headRevisionIDs: ["r1", "r2"], originName: origin)
         XCTAssertEqual(result, .chose(origin: "This Mac", otherOrigins: ["Living Room Mac"]))

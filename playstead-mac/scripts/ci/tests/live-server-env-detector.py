@@ -16,6 +16,8 @@ import sys
 FIXTURE_MARKER = "scripts/ci/live-server.sh"
 CONFIG_MARKER = "live-server-runtime.json"
 MERGE_MARKER = "merging(configured)"
+RUNTIME_PATH_MARKER = "PLAYSTEAD_TEST_LIVE_SERVER_RUNTIME_CONFIG"
+SCOPE_MARKER = "runtimeConfigurationMatchesRun"
 
 
 def main(root: str) -> int:
@@ -34,6 +36,11 @@ def main(root: str) -> int:
             problems.append(
                 f"{path}: reads {CONFIG_MARKER} but does not merge it over the "
                 "inherited environment, so the runner's PATH cannot win"
+            )
+            continue
+        if RUNTIME_PATH_MARKER not in text or SCOPE_MARKER not in text:
+            problems.append(
+                f"{path}: must use the run-provided config path and verify it belongs to this service root"
             )
     for problem in problems:
         print(problem, file=sys.stderr)

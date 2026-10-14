@@ -53,6 +53,17 @@ jobs:
         working-directory: .
         run: bash scripts/check-uat-tally.sh
 
+      - name: Server workflow contract (must discover tests)
+        working-directory: .
+        run: |
+          set -euo pipefail
+          test -s "$GITHUB_WORKSPACE/playstead-mac/scripts/ci/tests/test_server_workflow_contract.py"
+          contract_output="$(python3 -m unittest discover \
+            -s "$GITHUB_WORKSPACE/playstead-mac/scripts/ci/tests" \
+            -p 'test_server_workflow_contract.py' -v 2>&1)"
+          printf '%s\n' "$contract_output"
+          printf '%s\n' "$contract_output" | grep -Eq '^Ran [1-9][0-9]* tests?'
+
       - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124  # v1.24.1
         with:
           version-file: playstead-server/.tool-versions
@@ -69,41 +80,64 @@ jobs:
           path: |
             playstead-server/deps
             playstead-server/_build
-          key: mix-${{ runner.os }}-${{ hashFiles('playstead-server/.tool-versions') }}-${{ hashFiles('playstead-server/mix.lock') }}
+          key: mix-v2-${{ runner.os }}-${{ runner.arch }}-test-${{ hashFiles('playstead-server/.tool-versions') }}-${{ hashFiles('playstead-server/mix.lock') }}
           restore-keys: |
+            mix-v2-${{ runner.os }}-${{ runner.arch }}-test-${{ hashFiles('playstead-server/.tool-versions') }}-
             mix-${{ runner.os }}-${{ hashFiles('playstead-server/.tool-versions') }}-
 
       - run: mix deps.get
       - run: mix assets.setup
 
+      - name: Verify browser prerequisites and discovery
+        env:
+          WALLABY_CHROME_BINARY: ${{ steps.chrome.outputs.chrome-path }}
+          CHROMEDRIVER_PATH: ${{ steps.chrome.outputs.chromedriver-path }}
+        run: |
+          set -euo pipefail
+          test -x "$WALLABY_CHROME_BINARY"
+          test -x "$CHROMEDRIVER_PATH"
+          "$CHROMEDRIVER_PATH" --version
+          dirname "$CHROMEDRIVER_PATH" >> "$GITHUB_PATH"
+          python3 ../playstead-mac/scripts/ci/discover-browser-tests.py test/playstead_web/browser
+
+      - name: Match PostgreSQL dump client to the test service
+        run: |
+          set -euo pipefail
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error --location \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            --output /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+          printf '%s\n' 'Types: deb' 'URIs: https://apt.postgresql.org/pub/repos/apt' \
+            'Suites: noble-pgdg' 'Components: main' \
+            'Signed-By: /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc' \
+            | sudo tee /etc/apt/sources.list.d/pgdg.sources >/dev/null
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y postgresql-client-17
+          /usr/lib/postgresql/17/bin/pg_dump --version | grep -Eq '^pg_dump \(PostgreSQL\) 17\.'
+          echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"
+
       - run: mix precommit
         env:
           WALLABY_CHROME_BINARY: ${{ steps.chrome.outputs.chrome-path }}
-
-      - name: Upload browser failure screenshots
-        if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
-        with:
-          name: wallaby-screenshots
-          path: playstead-server/tmp/wallaby_screenshots
-          if-no-files-found: ignore
 
       - name: Working tree is clean after the build
         run: |
           git status --porcelain
           test -z "$(git status --porcelain)"
 
-  # Four-layer macOS verification. This job is deliberately unfiltered: a
+  # Ordinary four-layer macOS verification. This job is deliberately unfiltered: a
   # push or pull request may change a server/client contract without touching
-  # the Mac directory, so path filtering would make the evidence vacuous.
+  # the Mac directory, so path filtering would make the evidence vacuous. The
+  # public PR workflow deliberately has no self-hosted runner path.
   mac-verification:
-    name: macOS 26 unit + rendering + UI + live server
+    name: macOS ordinary unit + rendering + UI + live server
     runs-on: macos-26
-    timeout-minutes: 60
+    timeout-minutes: 90
     needs: [test, compose-smoke]
-    if: always()
+    if: ${{ !cancelled() }}
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      PLAYSTEAD_GB_GBC_FIXTURE_REGISTRY: ${{ github.workspace }}/playstead-mac/.build/ci/gb-gbc-fixtures/fixtures.json
       LINUX_TEST_CONCLUSION: ${{ needs.test.result }}
       LINUX_COMPOSE_CONCLUSION: ${{ needs.compose-smoke.result }}
     steps:
@@ -114,35 +148,163 @@ jobs:
           version-file: playstead-server/.tool-versions
           version-type: strict
 
+      - name: Cache server dependencies
+        id: mac-server-cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        with:
+          path: |
+            playstead-server/deps
+            playstead-server/_build
+          key: mix-v2-${{ runner.os }}-${{ runner.arch }}-mac_ci-${{ hashFiles('playstead-server/.tool-versions') }}-${{ hashFiles('playstead-server/mix.lock') }}
+          restore-keys: |
+            mix-v2-${{ runner.os }}-${{ runner.arch }}-mac_ci-${{ hashFiles('playstead-server/.tool-versions') }}-
+
+      - name: Cache pinned Swift packages
+        id: mac-swiftpm-cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        with:
+          path: |
+            playstead-mac/.build/ci/SourcePackages
+            playstead-mac/.build/ci/PackageCache
+          key: swiftpm-${{ runner.os }}-${{ runner.arch }}-xcode26.6-${{ hashFiles('playstead-mac/**/Package.resolved') }}
+          restore-keys: |
+            swiftpm-${{ runner.os }}-${{ runner.arch }}-xcode26.6-
+
       # Static contract guards run BEFORE the ~20-minute build so drift between a
       # guard and the code it guards fails in seconds. Until this step existed,
       # CI invoked exactly one harness flag and reached none of these guards, so
       # two of them had silently drifted out of agreement with shipped code.
+      - name: Install static contract prerequisites
+        run: |
+          set -euo pipefail
+          if ! command -v rg >/dev/null 2>&1; then
+            HOMEBREW_NO_AUTO_UPDATE=1 brew install ripgrep
+          fi
+          rg --version
+
+      - name: Prepare the hosted display for finite window geometry cases
+        working-directory: playstead-mac
+        run: |
+          swift scripts/ci/configure-test-display.swift
+          swift scripts/ci/configure-test-display.swift --check-only
+
       - name: Verify static contract guards
         working-directory: playstead-mac
         run: scripts/ci/run-mac-verification.sh --self-test-contracts
 
-      - name: Run one build and four serial test layers
+      - name: Generate pinned self-authored GB/GBC fixtures
         working-directory: playstead-mac
-        run: scripts/ci/run-mac-verification.sh --run-four-layer-verification
+        run: |
+          umask 077
+          python3 ../.planning/spikes/001-bios-free-gameplay/build_fixture.py --out .build/ci/gb-gbc-fixtures
+          for fixture in gb-mbc1-8k gbc-mbc5-32k gbc-mbc3-rtc; do
+            mkdir -p ".local/gb-gbc-spike/$fixture/screenshots"
+            chmod 700 ".local/gb-gbc-spike/$fixture"
+          done
 
-      - name: Upload complete six-job verification evidence
+      - name: Install pinned mGBA Qt runtime for cartridge continuity cases
+        working-directory: playstead-mac
+        run: scripts/ci/install-pinned-mgba-ci.sh
+
+      - name: Run no-HID ordinary native layers
+        working-directory: playstead-mac
+        run: scripts/ci/run-mac-verification.sh --run-unprivileged-verification
+
+      - name: Upload sanitized ordinary Mac evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
-          name: complete-verification-evidence
-          path: playstead-mac/.build/ci/four-layer/evidence/complete-verification-evidence.json
+          name: mac-ordinary-evidence
+          path: playstead-mac/.build/ci/ordinary-evidence/ordinary-verification-evidence.json
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 7
 
-      - name: Upload sanitized Mac failure evidence
+      - name: Upload sanitized ordinary Mac failure evidence
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
-          name: mac-verification-failure
-          path: playstead-mac/.build/ci/failure-evidence
+          name: mac-ordinary-failure-evidence
+          path: playstead-mac/.build/ci/ordinary-failure-evidence
           # A wrapper/setup failure can precede bundle creation. Preserve the
           # original failing step instead of replacing it with an artifact error.
           if-no-files-found: warn
+          retention-days: 7
+
+      # Keep dependency compilation after an unrelated test failure. These
+      # paths contain no test products, profiles, credentials or evidence.
+      - name: Save compiled Mac server dependencies
+        if: ${{ !cancelled() && steps.mac-server-cache.outputs.cache-primary-key != '' && steps.mac-server-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        with:
+          path: |
+            playstead-server/deps
+            playstead-server/_build
+          key: ${{ steps.mac-server-cache.outputs.cache-primary-key }}
+
+      - name: Save pinned Mac Swift packages
+        if: ${{ !cancelled() && steps.mac-swiftpm-cache.outputs.cache-primary-key != '' && steps.mac-swiftpm-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        with:
+          path: |
+            playstead-mac/.build/ci/SourcePackages
+            playstead-mac/.build/ci/PackageCache
+          key: ${{ steps.mac-swiftpm-cache.outputs.cache-primary-key }}
+
+  # Independent Linux recovery claim. This job owns its throwaway Compose
+  # target; no endpoint, handoff, volume, CA, or raw output crosses to macOS.
+  recovery-fixture:
+    name: Linux isolated recovery fixture
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+
+      - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124  # v1.24.1
+        with:
+          version-file: playstead-server/.tool-versions
+          version-type: strict
+
+      - name: Cache server dependencies
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        with:
+          path: |
+            playstead-server/deps
+            playstead-server/_build
+          key: mix-v2-${{ runner.os }}-${{ runner.arch }}-dev-${{ hashFiles('playstead-server/.tool-versions') }}-${{ hashFiles('playstead-server/mix.lock') }}
+          restore-keys: |
+            mix-v2-${{ runner.os }}-${{ runner.arch }}-dev-${{ hashFiles('playstead-server/.tool-versions') }}-
+
+      - name: Resolve server dependencies
+        working-directory: playstead-server
+        run: mix deps.get
+
+      - name: Compile recovery task and dependencies
+        working-directory: playstead-server
+        run: mix compile --warnings-as-errors
+
+      - name: Verify privacy and lifecycle contracts
+        run: |
+          bash playstead-server/scripts/tests/recovery-fixture-test.sh
+          bash playstead-server/scripts/tests/recovery-retained-target-test.sh
+          bash playstead-mac/scripts/ci/tests/sanitizer-test.sh
+          bash playstead-server/scripts/ci/recovery-fixture.sh --self-test
+
+      - name: Run isolated restore fixture
+        run: |
+          mkdir -m 700 "$RUNNER_TEMP/recovery-input"
+          timeout 20m bash playstead-server/scripts/ci/recovery-fixture.sh --output "$RUNNER_TEMP/recovery-input/evidence"
+
+      - name: Sanitize recovery evidence
+        run: bash playstead-mac/scripts/ci/sanitize-evidence.sh --input "$RUNNER_TEMP/recovery-input" --output "$RUNNER_TEMP/recovery-sanitized"
+
+      - name: Upload sanitized Linux recovery evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: linux-recovery-evidence
+          path: ${{ runner.temp }}/recovery-sanitized/recovery-e2e.json
+          if-no-files-found: error
           retention-days: 7
 
   # Cold-start deployment proof (docker build + compose up from destroyed
@@ -152,23 +314,23 @@ jobs:
     name: docker compose cold start
     runs-on: ubuntu-24.04
     timeout-minutes: 25
-    # The parser fixture inventory runs `mix test` before the production image
-    # is built. Give it the same isolated Postgres service as the main test job.
+    env:
+      MIX_ENV: test
+    outputs:
+      infra_changed: ${{ steps.changes.outputs.infra }}
     services:
       postgres:
         image: public.ecr.aws/docker/library/postgres:17.2
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: playstead_test
+          POSTGRES_DB: postgres
         ports: ["5432:5432"]
         options: >-
           --health-cmd pg_isready
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-    env:
-      MIX_ENV: test
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
@@ -176,6 +338,16 @@ jobs:
         with:
           version-file: playstead-server/.tool-versions
           version-type: strict
+
+      - name: Cache server dependencies
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        with:
+          path: |
+            playstead-server/deps
+            playstead-server/_build
+          key: mix-v2-${{ runner.os }}-${{ runner.arch }}-test-${{ hashFiles('playstead-server/.tool-versions') }}-${{ hashFiles('playstead-server/mix.lock') }}
+          restore-keys: |
+            mix-v2-${{ runner.os }}-${{ runner.arch }}-test-${{ hashFiles('playstead-server/.tool-versions') }}-
 
       - name: Resolve parser fixture test dependencies
         working-directory: playstead-server
@@ -209,8 +381,6 @@ jobs:
               - '.github/workflows/ci.yml'
 
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3.12.0
-        # Docker's official BuildKit image mirrored in ECR Public. Pin its
-        # OCI index so hosted smoke builds do not depend on Docker Hub.
         with:
           driver-opts: |
             image=public.ecr.aws/xqdo/hub/moby/buildkit@sha256:751921dc37d2f842de38c9387f891fe6ae7d80f03d050ea98f780d7e0874ba00

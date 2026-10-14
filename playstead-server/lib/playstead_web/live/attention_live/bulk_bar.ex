@@ -18,9 +18,9 @@ defmodule PlaysteadWeb.AttentionLive.BulkBar do
       id="bulk-toolbar"
       role="toolbar"
       aria-label="Bulk actions"
-      class="sticky top-0 z-10 flex flex-wrap items-center gap-3 rounded-lg border border-[#334155] bg-[#0F172A] p-4"
+      class="sticky top-0 z-10 flex flex-wrap items-center gap-3 rounded-lg border border-app-border bg-app-canvas p-4"
     >
-      <span id="bulk-selected-count" class="text-sm text-[#F1F5F9]">
+      <span id="bulk-selected-count" class="text-sm text-app-text">
         {@selected_count} selected
       </span>
 
@@ -29,7 +29,7 @@ defmodule PlaysteadWeb.AttentionLive.BulkBar do
         id="bulk-exclude"
         phx-click="bulk-exclude"
         data-confirm={"Exclude #{@selected_count} items? Their bytes stay in your library and are restorable from the excluded filter."}
-        class="h-9 rounded-md border border-[#EF4444] px-3 text-sm font-semibold text-[#EF4444] hover:bg-[#EF4444]/10"
+        class="h-9 rounded-md border border-app-danger px-3 text-sm font-semibold text-app-danger hover:bg-app-danger/10"
       >
         Exclude
       </button>
@@ -39,7 +39,7 @@ defmodule PlaysteadWeb.AttentionLive.BulkBar do
         id="bulk-retain"
         phx-click="bulk-retain"
         data-confirm={"Retain #{@selected_count} items as custom content?"}
-        class="h-9 rounded-md border border-[#334155] px-3 text-sm font-semibold text-[#F1F5F9] hover:border-[#38BDF8]"
+        class="h-9 rounded-md border border-app-border px-3 text-sm font-semibold text-app-text hover:border-app-accent"
       >
         Retain as custom
       </button>
@@ -49,17 +49,17 @@ defmodule PlaysteadWeb.AttentionLive.BulkBar do
         id="bulk-retry"
         phx-click="bulk-retry"
         data-confirm={"Retry safe processing for #{@selected_count} items?"}
-        class="h-9 rounded-md border border-[#334155] px-3 text-sm font-semibold text-[#F1F5F9] hover:border-[#38BDF8]"
+        class="h-9 rounded-md border border-app-border px-3 text-sm font-semibold text-app-text hover:border-app-accent"
       >
         Retry
       </button>
 
       <form phx-submit="bulk-assign-system" class="flex items-center gap-2">
-        <label for="bulk-assign-system-select" class="text-sm text-[#94A3B8]">Assign system</label>
+        <label for="bulk-assign-system-select" class="text-sm text-app-muted">Assign system</label>
         <select
           id="bulk-assign-system-select"
           name="system_id"
-          class="h-9 rounded-md bg-[#1E293B] text-sm text-[#F1F5F9]"
+          class="h-9 rounded-md bg-app-surface text-sm text-app-text"
         >
           <option value="gba">GBA</option>
           <option value="gb">GB</option>
@@ -73,7 +73,7 @@ defmodule PlaysteadWeb.AttentionLive.BulkBar do
           type="submit"
           id="bulk-assign-system"
           data-confirm={"Assign this system to #{@selected_count} items?"}
-          class="h-9 rounded-md bg-[#38BDF8] px-3 text-sm font-semibold text-[#0F172A] hover:opacity-90"
+          class="h-9 rounded-md bg-app-accent px-3 text-sm font-semibold text-app-canvas hover:opacity-90"
         >
           Apply
         </button>

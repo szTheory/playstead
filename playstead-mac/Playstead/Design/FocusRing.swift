@@ -4,12 +4,8 @@ import SwiftUI
 /// Selection remains a separate state owned by each control; this modifier
 /// reads only actual SwiftUI focus ownership.
 enum PlaysteadFocusRing {
-    static let colorHex = "#38BDF8"
-    static let color = Color(
-        red: 0x38 / 255.0,
-        green: 0xBD / 255.0,
-        blue: 0xF8 / 255.0
-    )
+    static let colorRole = "systemAccent"
+    static let color = Color(nsColor: .controlAccentColor)
     static let lineWidth: CGFloat = 2
     static let cornerRadius: CGFloat = 8
 
@@ -58,7 +54,7 @@ private struct PlaysteadBoundFocusableModifier: ViewModifier {
 }
 
 extension View {
-    /// Adds stable identity, keyboard focus ownership, and the locked cyan ring.
+    /// Adds stable identity, keyboard focus ownership, and the native accent ring.
     func playsteadFocusable(identifier: String) -> some View {
         modifier(PlaysteadFocusableModifier(identifier: identifier))
     }

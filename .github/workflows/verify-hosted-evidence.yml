@@ -1,13 +1,8 @@
 # Closes T-03.5-01 and T-03.5-20.
 #
-# `run-mac-verification.sh --verify-hosted-run complete` binds a run's evidence
-# manifest to its real identity: workflow, event, branch, run id, head SHA,
-# completion, conclusion, both Linux job conclusions, the four Mac layers, and
-# per-layer non-vacuity. It was fully implemented and correct, but nothing ever
-# invoked it — CI uploaded `complete-verification-evidence.json` and no
-# automated step checked that the artifact actually belonged to the run that
-# claimed it. The threat model described this validator as *the* fail-closed
-# control, with no human carve-out, so an opt-in CLI was weaker than claimed.
+# The triggering run's SHA and artifact are untrusted data. The verifier checks
+# out validator code from the trusted default branch, binds the artifact to the
+# Actions API record, and parses only the allowlisted JSON evidence.
 #
 # It cannot run inside `ci` itself: it asserts the run's `conclusion`, and a job
 # cannot observe its own run's conclusion while that run is still in progress.
@@ -22,83 +17,54 @@ on:
 permissions:
   contents: read
   actions: read
+  pull-requests: read
 
 jobs:
   verify-hosted-evidence:
     name: bind hosted evidence to its run
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    # A failed `ci` run produces no evidence artifact and has already reported
-    # failure, so there is nothing to bind. Every SUCCESSFUL run must be
-    # validated -- that is the case this gate exists for, and it is why the
-    # condition tests for success rather than excluding a specific failure.
+    # Only successful producer runs need evidence validation.
     if: github.event.workflow_run.conclusion == 'success'
     steps:
-      # Check out the exact commit that produced the evidence, so the validator
-      # is the one that shipped with it rather than whatever is on HEAD now.
+      # Never check out workflow_run.head_sha: it may be controlled by a fork.
+      # workflow_run workflows execute the default-branch version; pin checkout
+      # to that trusted branch and disable credential persistence.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: main
           persist-credentials: false
 
-      - name: Download the evidence manifest from the triggering run
+      - name: Download evidence and query the triggering run
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_EVENT: ${{ github.event.workflow_run.event }}
+          PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
         run: |
           set -euo pipefail
           mkdir -p hosted-evidence
-          # Fail closed: a successful ci run that uploaded no manifest is
-          # exactly the missing-evidence case this gate must catch.
+          # Artifacts are data only. Do not execute or source files from the
+          # triggering run. Missing evidence from a successful run must fail.
           gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" \
-            --name complete-verification-evidence --dir hosted-evidence
-          test -s hosted-evidence/complete-verification-evidence.json
-
-      - name: Bind the manifest to the run's real identity
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RUN_ID: ${{ github.event.workflow_run.id }}
-        run: |
-          set -euo pipefail
+            --name mac-ordinary-evidence --dir hosted-evidence
+          test -s hosted-evidence/ordinary-verification-evidence.json
           gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" \
             --json databaseId,workflowName,event,headBranch,headSha,status,conclusion,url,jobs \
             > hosted-evidence/run-view.json
+          if [ "$RUN_EVENT" = pull_request ]; then
+            [[ "$PR_NUMBER" =~ ^[0-9]+$ ]] || { echo "missing PR identity for pull_request run" >&2; exit 1; }
+            gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files" \
+              --jq '.[].filename' > hosted-evidence/changed-files.txt
+            test -s hosted-evidence/changed-files.txt
+          else
+            : > hosted-evidence/changed-files.txt
+          fi
 
-          # The record is DERIVED from the API view, never hand-authored: the
-          # validator's job is to prove the manifest agrees with the run, so
-          # both of its identity inputs must come from GitHub, not from us.
-          python3 - hosted-evidence/run-view.json hosted-evidence/run-record.json <<'PY'
-          import json, pathlib, sys
-
-          view = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
-          names = {
-              "mix precommit (unit + LiveView + browser + integration)": "test",
-              "docker compose cold start": "compose-smoke",
-              "macOS 26 unit + rendering + UI + live server": "mac-verification",
-          }
-          jobs = {}
-          for job in view.get("jobs", []):
-              key = names.get(job.get("name"))
-              if key:
-                  jobs[key] = job.get("conclusion")
-          record = {
-              "schema_version": 1,
-              "run_id": view["databaseId"],
-              "workflow": view["workflowName"],
-              "event": view["event"],
-              "head_branch": view["headBranch"],
-              "head_sha": view["headSha"],
-              "status": view["status"],
-              "conclusion": view["conclusion"],
-              "url": view["url"],
-              "jobs": jobs,
-          }
-          pathlib.Path(sys.argv[2]).write_text(
-              json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-          )
-          PY
-
-          playstead-mac/scripts/ci/run-mac-verification.sh --verify-hosted-run complete \
-            --run-record hosted-evidence/run-record.json \
+      - name: Validate ordinary evidence against trusted run identity
+        run: |
+          set -euo pipefail
+          python3 playstead-mac/scripts/ci/verify-hosted-evidence.py \
             --run-view hosted-evidence/run-view.json \
-            --manifest hosted-evidence/complete-verification-evidence.json
+            --manifest hosted-evidence/ordinary-verification-evidence.json \
+            --changed-files hosted-evidence/changed-files.txt

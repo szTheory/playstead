@@ -136,6 +136,34 @@ final class PinnedTrustEvaluationTests: XCTestCase {
         XCTAssertEqual(delegate.disposition(for: try makeLeafTrust()), .useCredential)
     }
 
+    func testSuppliedRecoveryAnchorAcceptsOnlyItsMatchingCA() throws {
+        let matchingCapture = PinnedCertificateCapture(suppliedTrustAnchorData: caADER)
+        XCTAssertEqual(matchingCapture.disposition(for: try makeLeafTrust()), .useCredential)
+
+        let mismatchedCapture = PinnedCertificateCapture(suppliedTrustAnchorData: caBDER)
+        XCTAssertEqual(mismatchedCapture.disposition(for: try makeLeafTrust()), .cancelAuthenticationChallenge)
+    }
+
+    func testRecoveryCertificateFileAcceptsDERAndSinglePEMButRejectsGarbage() throws {
+        let pem = try Data(contentsOf: URL(fileURLWithPath: path("caA.pem")))
+
+        XCTAssertEqual(PinnedCertificateCapture.certificateData(fromRecoveryFile: caADER), caADER)
+        XCTAssertEqual(PinnedCertificateCapture.certificateData(fromRecoveryFile: pem), caADER)
+        XCTAssertNil(PinnedCertificateCapture.certificateData(fromRecoveryFile: Data("not a certificate".utf8)))
+    }
+
+    func testAbsentRecoveryAnchorRetainsDefaultHandlingAndInvalidAnchorFailsClosed() throws {
+        XCTAssertEqual(
+            PinnedCertificateCapture().disposition(for: try makeLeafTrust()),
+            .performDefaultHandling
+        )
+        XCTAssertEqual(
+            PinnedCertificateCapture(suppliedTrustAnchorData: Data("not a certificate".utf8))
+                .disposition(for: try makeLeafTrust()),
+            .cancelAuthenticationChallenge
+        )
+    }
+
     func testDifferentCAWithTheSameSubjectIsRejected() throws {
         XCTAssertNotEqual(caADER, caBDER, "fixture generation must produce two distinct certificates, not the same one twice")
 

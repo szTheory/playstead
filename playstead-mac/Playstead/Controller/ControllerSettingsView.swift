@@ -9,25 +9,50 @@ struct ControllerSettingsView: View {
     let connectedControllers: [ControllerDescriptor]
     let assignedControllerID: String?
     let mapping: ControllerMapping
-    var onAssign: (String) -> Void = { _ in }
-    var onRemap: (String, String) -> Void = { _, _ in }
-    var onReset: () -> Void = {}
-    var onOpenTestView: () -> Void = {}
+    let mappingError: String?
+    var liveInputs: Set<String> = []
+    var showsMappingControls = false
+    let onAssign: (String) -> Void
+    let onRemap: (String, String) -> Void
+    let onReset: () -> Void
+    let onOpenTestView: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             if connectedControllers.isEmpty {
-                Text("No controller connected. Keyboard and pointer remain fully available.")
+                Text("No controller connected. Keyboard controls are available.")
                     .font(.psBody)
                     .foregroundStyle(DesignTokens.textMuted)
+#if UI_TESTING
+                Button("Test controller", action: onOpenTestView)
+                    .accessibilityIdentifier("playstead.controller.test.open")
+#endif
             } else {
                 assignmentSection
-                mappingSection
-                HStack {
-                    Button("Test controller", action: onOpenTestView)
-                    Spacer()
-                    Button("Reset to defaults", action: onReset)
+                if let controller = connectedControllers.first(where: { $0.id == assignedControllerID }),
+                   let style = controller.buttonStyle, style != .generic {
+                    ControllerDiagram(style: style, liveInputs: liveInputs, availableInputs: controller.availableInputs)
                 }
+                Button("Test controller", action: onOpenTestView)
+                    .accessibilityIdentifier("playstead.controller.test.open")
+                if showsMappingControls {
+                    mappingSection
+                    HStack {
+                        Spacer()
+                        Button("Reset to defaults", action: onReset)
+                            .accessibilityIdentifier("playstead.controller.mapping.reset")
+                    }
+                } else {
+                    Text("mGBA uses its own controller bindings. Playstead button remapping is unavailable for this adapter; configure controls in mGBA's settings.")
+                        .font(.psLabel)
+                        .foregroundStyle(DesignTokens.textMuted)
+                }
+            }
+            if let mappingError {
+                Text(mappingError)
+                    .font(.psLabel)
+                    .foregroundStyle(DesignTokens.textMuted)
+                    .accessibilityIdentifier("playstead.controller.mapping-error")
             }
         }
         .padding(DesignTokens.Spacing.md)
@@ -53,6 +78,10 @@ struct ControllerSettingsView: View {
         }
     }
 
+    private var buttonStyle: ControllerButtonStyle {
+        connectedControllers.first(where: { $0.id == assignedControllerID })?.buttonStyle ?? .generic
+    }
+
     private var mappingSection: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
             Text("Button mapping").font(.psLabelEmphasized).foregroundStyle(DesignTokens.textPrimary)
@@ -60,12 +89,14 @@ struct ControllerSettingsView: View {
                 HStack {
                     Text(adapterInput).font(.psLabel).foregroundStyle(DesignTokens.textPrimary)
                     Spacer()
-                    Menu(mapping.controllerInput(for: adapterInput) ?? "Unassigned") {
+                    Menu(mapping.controllerInput(for: adapterInput).map { ControllerInputLabel.displayName(for: $0, style: buttonStyle) } ?? "Unassigned") {
                         ForEach(ControllerDescriptor.defaultInputs, id: \.self) { candidate in
-                            Button(candidate) { onRemap(adapterInput, candidate) }
+                            Button(ControllerInputLabel.displayName(for: candidate, style: buttonStyle)) { onRemap(adapterInput, candidate) }
+                                .accessibilityIdentifier("playstead.controller.mapping.choice.\(candidate)")
                         }
                     }
-                    .accessibilityLabel("\(adapterInput) mapped to \(mapping.controllerInput(for: adapterInput) ?? "nothing")")
+                    .accessibilityLabel("\(adapterInput) mapped to \(mapping.controllerInput(for: adapterInput).map { ControllerInputLabel.displayName(for: $0, style: buttonStyle) } ?? "nothing")")
+                    .accessibilityIdentifier("playstead.controller.mapping.\(adapterInput)")
                 }
             }
         }

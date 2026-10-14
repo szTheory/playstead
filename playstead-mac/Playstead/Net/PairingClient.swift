@@ -41,6 +41,10 @@ enum PairingError: Error, Equatable {
     /// refuses to report success — the just-stored credential is rolled
     /// back rather than left behind with no pin (VERIFICATION gap 1 / CR-02).
     case certificatePinFailed
+    /// The server certificate could not be trusted before pairing. This is
+    /// distinct from a network outage: the user may select a recovery CA,
+    /// but the app must never silently weaken TLS to proceed.
+    case certificateTrustFailed
 }
 
 /// The `POST /api/v1/device-pairing/requests` response (D-07): the
@@ -82,12 +86,27 @@ struct RedeemedCredential: Equatable {
 /// later `APIClient` request agree on what is being trusted.
 actor PairingClient {
     private let session: URLSession
+    /// Delegate provenance only; it cannot expose URLs, certificates,
+    /// request IDs, credentials, or response bodies to this boundary.
+    private let consumeSuppliedTrustAnchorRejection: @Sendable () -> Bool
+    /// The most recent server-supplied Problem reference, reduced at the
+    /// pairing boundary before it reaches ceremony state. It never carries
+    /// device codes, credentials, endpoints, headers, or response payloads.
+    private var lastProblemDiagnosticEvidence: EligibleDiagnosticEvidence?
+
+    var lastFailureDiagnosticEvidence: EligibleDiagnosticEvidence? {
+        lastProblemDiagnosticEvidence
+    }
 
     /// Production callers supply a session built with a shared
     /// `PinnedCertificateCapture` delegate (see `PairingCoordinator`).
     /// Tests supply a `StubURLProtocol`-backed session instead.
-    init(session: URLSession) {
+    init(
+        session: URLSession,
+        consumeSuppliedTrustAnchorRejection: @escaping @Sendable () -> Bool = { false }
+    ) {
         self.session = session
+        self.consumeSuppliedTrustAnchorRejection = consumeSuppliedTrustAnchorRejection
     }
 
     /// 32 cryptographically random bytes, base64url-encoded, generated
@@ -132,7 +151,7 @@ actor PairingClient {
             url: baseURL.appendingPathComponent("api/v1/device-pairing/requests"),
             body: body
         )
-        try Self.throwIfNotSuccess(response: response, data: data)
+        try await throwIfNotSuccess(response: response, data: data)
 
         struct Payload: Decodable {
             let id: String
@@ -166,7 +185,7 @@ actor PairingClient {
             url: baseURL.appendingPathComponent("api/v1/device-pairing/requests/\(requestID)"),
             body: nil
         )
-        try Self.throwIfNotSuccess(response: response, data: data)
+        try await throwIfNotSuccess(response: response, data: data)
 
         struct Payload: Decodable { let status: String }
         guard let payload = try? JSONDecoder().decode(Payload.self, from: data) else {
@@ -194,7 +213,7 @@ actor PairingClient {
             url: baseURL.appendingPathComponent("api/v1/device-pairing/requests/\(requestID)/redeem"),
             body: body
         )
-        try Self.throwIfNotSuccess(response: response, data: data)
+        try await throwIfNotSuccess(response: response, data: data)
 
         struct Payload: Decodable {
             let deviceID: String
@@ -227,19 +246,45 @@ actor PairingClient {
         do {
             return try await session.data(for: request)
         } catch {
-            throw PairingError.transport(error.localizedDescription)
+            throw Self.transportError(error, certificateTrustWasRejected: consumeSuppliedTrustAnchorRejection())
+        }
+    }
+
+    static func transportError(_ error: Error, certificateTrustWasRejected: Bool = false) -> PairingError {
+        let code = (error as? URLError)?.code
+        switch code {
+        case .serverCertificateHasBadDate, .serverCertificateHasUnknownRoot,
+             .serverCertificateNotYetValid,
+             .serverCertificateUntrusted:
+            return .certificateTrustFailed
+        case .cancelled where certificateTrustWasRejected:
+            return .certificateTrustFailed
+        default:
+            return .transport(error.localizedDescription)
         }
     }
 
     /// Maps a non-2xx response to the exact typed `PairingError` the
     /// server distinguished, from its RFC 9457 `code` field — never from
     /// the free-text `title`/`detail`.
-    private static func throwIfNotSuccess(response: URLResponse, data: Data) throws {
+    private func throwIfNotSuccess(response: URLResponse, data: Data) throws {
         guard let http = response as? HTTPURLResponse else { throw PairingError.invalidResponse }
-        guard !(200..<300).contains(http.statusCode) else { return }
+        guard !(200..<300).contains(http.statusCode) else {
+            lastProblemDiagnosticEvidence = nil
+            return
+        }
 
-        struct Problem: Decodable { let code: String? }
-        let code = (try? JSONDecoder().decode(Problem.self, from: data))?.code
+        struct Problem: Decodable {
+            let code: String?
+            let correlationID: String?
+            enum CodingKeys: String, CodingKey {
+                case code
+                case correlationID = "correlation_id"
+            }
+        }
+        let problem = try? JSONDecoder().decode(Problem.self, from: data)
+        lastProblemDiagnosticEvidence = EligibleDiagnosticEvidence(correlationID: problem?.correlationID)
+        let code = problem?.code
 
         switch (http.statusCode, code) {
         case (410, _): throw PairingError.expired

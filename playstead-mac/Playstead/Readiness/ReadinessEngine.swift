@@ -53,6 +53,9 @@ struct ReadinessEngine {
     let hasKeyboard: () -> Bool
     let saveDirectoryURL: URL
     let now: () -> Date
+    /// Cartridge qualification is supplied by the production composition;
+    /// pure engine callers that predate this policy omit it.
+    let systemSupport: (() -> ReadinessCheck)?
     /// The navigational Save row's current reading (D-37). Defaults to
     /// `.noSavesYet` so every pre-existing call site that doesn't pass
     /// this keeps compiling and keeps reporting `.ready` for this row.
@@ -68,7 +71,8 @@ struct ReadinessEngine {
         hasKeyboard: @escaping () -> Bool = { true },
         saveDirectoryURL: URL,
         now: @escaping () -> Date = Date.init,
-        saveReadiness: @escaping () -> SaveReadinessCase = { .noSavesYet }
+        saveReadiness: @escaping () -> SaveReadinessCase = { .noSavesYet },
+        systemSupport: (() -> ReadinessCheck)? = nil
     ) {
         self.cas = cas
         self.downloadQueue = downloadQueue
@@ -80,6 +84,7 @@ struct ReadinessEngine {
         self.saveDirectoryURL = saveDirectoryURL
         self.now = now
         self.saveReadiness = saveReadiness
+        self.systemSupport = systemSupport
     }
 
     /// The fixed declaration order every evaluation starts from — also
@@ -87,12 +92,12 @@ struct ReadinessEngine {
     /// severity, which is what keeps repeated evaluations on unchanged
     /// inputs producing an identical report.
     private static let kindOrder: [ReadinessCheckKind] = [
-        .gameAssets, .cacheVerification, .emulator, .bios, .controllerAndInput, .saveDirectory, .saveState
+        .gameAssets, .cacheVerification, .systemSupport, .emulator, .bios, .controllerAndInput, .saveDirectory, .saveState
     ]
 
     func evaluate(assetSetID: String, requiredMembers: [RequiredMember]) -> ReadinessReport {
         let (assetsCheck, cacheCheck) = evaluateAssetsAndCache(assetSetID: assetSetID, requiredMembers: requiredMembers)
-        let checks = [
+        var checks = [
             assetsCheck,
             cacheCheck,
             evaluateEmulator(),
@@ -101,6 +106,9 @@ struct ReadinessEngine {
             evaluateSaveDirectory(),
             evaluateSaveState()
         ]
+        if let systemSupport {
+            checks.append(systemSupport())
+        }
         return ReadinessReport(checks: order(checks))
     }
 
@@ -297,33 +305,29 @@ struct ReadinessEngine {
             return blocked
         }
 
-        // `targetName` is a fixed, well-known name — not a fresh random
-        // name per evaluation — because the operation launch actually
-        // needs is REPLACING a name that may already be occupied. An
-        // existing immutable `.sav` sitting at a fixed target name is
-        // exactly the case a plain writability check cannot see; a
-        // brand-new random target name every time could never collide
-        // with anything already on disk and would prove nothing beyond
-        // "an empty name is available", which `isWritableFile` already
-        // (weakly) proved.
+        // Exercise replacement against a target created exclusively by
+        // this evaluation. A readiness probe must never overwrite or
+        // remove a pre-existing save-directory entry.
+        let probeID = UUID().uuidString
         let probeURL = saveDirectoryURL.appendingPathComponent(
-            ".playstead-readiness-probe-\(UUID().uuidString)", isDirectory: false
+            ".playstead-readiness-probe-\(probeID)", isDirectory: false
         )
         let targetURL = saveDirectoryURL.appendingPathComponent(
-            ".playstead-readiness-write-probe-target", isDirectory: false
+            ".playstead-readiness-write-probe-target-\(probeID)", isDirectory: false
         )
+        var probeCreated = false
+        var targetCreated = false
 
         defer {
-            try? fm.removeItem(at: probeURL)
-            try? fm.removeItem(at: targetURL)
+            if probeCreated { try? fm.removeItem(at: probeURL) }
+            if targetCreated { try? fm.removeItem(at: targetURL) }
         }
 
         do {
-            try Data().write(to: probeURL)
-            // `replaceItemAt` creates `targetURL` when it doesn't
-            // already exist, and atomically replaces it when it does —
-            // exactly the operation the launch path performs against a
-            // real `.sav`.
+            try Data().write(to: targetURL, options: .withoutOverwriting)
+            targetCreated = true
+            try Data().write(to: probeURL, options: .withoutOverwriting)
+            probeCreated = true
             _ = try fm.replaceItemAt(targetURL, withItemAt: probeURL)
         } catch {
             return blocked

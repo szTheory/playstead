@@ -178,6 +178,31 @@ final class SaveSessionCoordinatorTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: localPath)), played)
     }
 
+    func testQualifiedCaptureFormat() async throws {
+        let lineID = try makeLine()
+        let expectedFormat = CartridgeQualification.mbc3RTCDeclaration.saveFormat
+        let provenance = SaveCaptureProvenance(
+            adapterID: "mgba", adapterVersion: "0.10.5",
+            saveFormat: expectedFormat, formatConfidence: "exact"
+        )
+        var bytes = Data(repeating: 0x37, count: 32_816)
+        for index in 32_768..<32_816 { bytes[index] = UInt8(0xA0 + index - 32_768) }
+        let coordinator = makeCoordinator(provenance: provenance)
+        await begin(coordinator, lineID: lineID)
+        try write(bytes)
+        await coordinator.end()
+
+        let promoted = try XCTUnwrap(saveStore.fetchRevisions(saveLineID: lineID).first {
+            $0.tier == SaveCaptureTier.promoted.rawValue
+        })
+        XCTAssertEqual(promoted.saveFormat, expectedFormat)
+        XCTAssertEqual(promoted.formatConfidence, "exact")
+        XCTAssertEqual(promoted.adapterID, "mgba")
+        XCTAssertEqual(promoted.adapterVersion, "0.10.5")
+        XCTAssertEqual(promoted.sizeBytes, 32_816)
+        XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: try XCTUnwrap(promoted.localPath))), bytes)
+    }
+
     /// A promoted revision parents onto the head the session began from,
     /// so the line stays a single chain rather than forking against
     /// itself.

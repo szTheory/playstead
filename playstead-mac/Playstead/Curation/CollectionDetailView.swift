@@ -8,6 +8,8 @@ struct CollectionDetailView: View {
     let viewModel: CollectionsViewModel
     let collectionID: String
     let catalogueByAssetSetID: [String: CatalogueEntry]
+    var controllerFocusedAssetSetID: String? = nil
+    var controllerCommand: LibraryControllerCommand? = nil
     @State private var selectedMemberID: String?
     @FocusState private var memberListHasFocus: Bool
 #if UI_TESTING
@@ -23,10 +25,11 @@ struct CollectionDetailView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
             if members.isEmpty {
-                Text(Self.emptyExplanation)
-                    .font(.psBody)
-                    .foregroundStyle(DesignTokens.textMuted)
-                    .accessibilityLabel(Self.emptyExplanation)
+                ContentUnavailableView {
+                    Label("Collection is empty", systemImage: "rectangle.stack")
+                } description: {
+                    Text(Self.emptyExplanation)
+                }
             } else {
                 keyboardReorderCommands
 
@@ -51,7 +54,8 @@ struct CollectionDetailView: View {
                 .accessibilityIdentifier("playstead.test.curation.evidence")
 #endif
         }
-        .padding(.vertical, DesignTokens.Spacing.lg)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(.top, DesignTokens.Spacing.sm)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Collection detail")
         .accessibilityIdentifier(AccessibilityIdentifiers.Surface.collectionDetail)
@@ -93,10 +97,19 @@ struct CollectionDetailView: View {
     }
 
     private func memberRow(_ member: CurationCollectionMemberRow, at index: Int) -> some View {
-        let title = catalogueByAssetSetID[member.assetSetID]?.displayTitle ?? member.assetSetID
+        let title = catalogueByAssetSetID[member.assetSetID]?.displayTitle ?? "Game unavailable"
         return HStack(spacing: DesignTokens.Spacing.sm) {
-            Text(title)
-            Spacer()
+            if let entry = catalogueByAssetSetID[member.assetSetID] {
+                GameRowView(
+                    entry: entry,
+                    presentation: .collection,
+                    isControllerFocused: controllerFocusedAssetSetID == entry.id,
+                    controllerCommand: controllerCommand
+                )
+            } else {
+                Text("Game unavailable").foregroundStyle(.secondary)
+                Spacer()
+            }
             reorderButton(member, title: title, index: index, direction: .up)
             reorderButton(member, title: title, index: index, direction: .down)
         }

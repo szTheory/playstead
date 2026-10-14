@@ -25,10 +25,10 @@ defmodule PlaysteadWeb.RecoveryLoginLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen flex items-center justify-center bg-[#0F172A] font-sans">
-      <div class="w-full max-w-md rounded-lg bg-[#1E293B] p-8 shadow-xl">
-        <h1 class="text-display font-semibold text-[#F1F5F9]">Log in with a recovery code</h1>
-        <p class="mt-2 text-sm text-[#94A3B8]">
+    <div class="min-h-screen flex items-center justify-center bg-app-canvas font-sans">
+      <div class="w-full max-w-md rounded-lg bg-app-surface p-8 shadow-xl">
+        <h1 class="text-display font-semibold text-app-text">Log in with a recovery code</h1>
+        <p class="mt-2 text-sm text-app-muted">
           Enter one of the ten single-use codes you saved at setup.
         </p>
 
@@ -42,7 +42,7 @@ defmodule PlaysteadWeb.RecoveryLoginLive do
           class="mt-6 space-y-4"
         >
           <div>
-            <label for={f[:code].id} class="block text-sm font-semibold text-[#F1F5F9]">
+            <label for={f[:code].id} class="block text-sm font-semibold text-app-text">
               Recovery code
             </label>
             <input
@@ -53,9 +53,9 @@ defmodule PlaysteadWeb.RecoveryLoginLive do
               spellcheck="false"
               required
               phx-mounted={JS.focus()}
-              class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0F172A] px-3 py-2 text-base font-mono text-[#F1F5F9] focus:border-[#38BDF8] focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
+              class="mt-1 block w-full rounded-md border border-app-border bg-app-canvas px-3 py-2 text-base font-mono text-app-text focus:border-app-accent focus:outline-none focus:ring-2 focus:ring-app-accent"
             />
-            <p :if={@error} id="recovery_error" data-role="error" class="mt-2 text-sm text-[#EF4444]">
+            <p :if={@error} id="recovery_error" data-role="error" class="mt-2 text-sm text-app-danger">
               {@error}
             </p>
           </div>
@@ -64,7 +64,7 @@ defmodule PlaysteadWeb.RecoveryLoginLive do
             type="submit"
             id="recovery_submit"
             phx-disable-with="Logging in..."
-            class="w-full rounded-md bg-[#38BDF8] px-4 py-2 text-base font-semibold text-[#0F172A] hover:opacity-90 disabled:opacity-60"
+            class="w-full rounded-md bg-app-accent px-4 py-2 text-base font-semibold text-app-canvas hover:opacity-90 disabled:opacity-60"
           >
             Log in
           </button>

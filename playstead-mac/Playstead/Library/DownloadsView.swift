@@ -26,7 +26,8 @@ struct DownloadsView: View {
     let onCancel: (String) -> Void
     let onMoveUp: (String) -> Void
     let onMoveDown: (String) -> Void
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    var onBrowseLibrary: () -> Void = {}
+    var testStartEvidence: String = ""
 
     /// A single-line summary of queue activity — pure, so it's directly
     /// testable without hosting the view.
@@ -57,12 +58,33 @@ struct DownloadsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+#if UI_TESTING
+            if UITestBootstrap.isDownloadProgressProfile() {
+                Text(UITestDownloadURLProtocol.evidenceValue)
+                    .accessibilityValue(UITestDownloadURLProtocol.evidenceValue)
+                    .accessibilityIdentifier("playstead.test.download.evidence")
+                Text(testStartEvidence)
+                    .accessibilityValue(testStartEvidence)
+                    .accessibilityIdentifier("playstead.test.download.start-evidence")
+            }
+#endif
             if rows.isEmpty {
-                Text("Add a game to your queue to keep it in mind.")
-                    .font(.psBody)
-                    .foregroundStyle(DesignTokens.textMuted)
-                    .padding(DesignTokens.Spacing.lg)
+                ContentUnavailableView {
+                    Label("No Downloads", systemImage: "arrow.down.circle")
+                } description: {
+                    Text("Downloaded games appear here while they transfer to this Mac.")
+                } actions: {
+                    Button("Browse Library", action: onBrowseLibrary)
+                }
             } else {
+#if UI_TESTING
+                if UITestBootstrap.isDownloadProgressProfile() {
+                    Button("Continue test transfer") {
+                        UITestDownloadURLProtocol.releaseHeldTransfer()
+                    }
+                    .accessibilityIdentifier("playstead.test.download.release")
+                }
+#endif
                 Text(Self.summary(for: rows))
                     .font(.psLabel)
                     .foregroundStyle(.secondary)
@@ -90,18 +112,11 @@ struct DownloadsView: View {
                 }
             }
         }
-        .animation(
-            .easeInOut(duration: StorageMotionContract.duration(for: .status, reduceMotion: reduceMotion)),
-            value: rows.map(\.state)
-        )
-        .animation(
-            .easeInOut(duration: StorageMotionContract.duration(for: .completion, reduceMotion: reduceMotion)),
-            value: rows.map(\.progressPercent)
-        )
     }
 }
 
 private struct DownloadQueueRowView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let row: DownloadRow
     let automationSlot: Int
     let onPause: (String) -> Void
@@ -132,6 +147,8 @@ private struct DownloadQueueRowView: View {
                 Text(stateLabel)
                     .font(.psLabel)
                     .foregroundStyle(.secondary)
+                    .contentTransition(.opacity)
+                    .animation(StorageMotionContract.animation(for: .status, reduceMotion: reduceMotion), value: row.state)
                     .accessibilityLabel("Download state")
                     .accessibilityValue(row.state.rawValue)
                     .accessibilityIdentifier(DownloadsView.Automation.state(automationSlot))

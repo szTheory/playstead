@@ -86,7 +86,6 @@ struct OnlyCopyInterruptiveSheet: View {
         .padding(DesignTokens.Spacing.lg)
         .frame(minWidth: 480)
         .background(DesignTokens.background.ignoresSafeArea())
-        .preferredColorScheme(.dark)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(SaveVocabulary.dangerInterruptiveTitle) \(bodyText)")
         .accessibilityIdentifier(Automation.surface)

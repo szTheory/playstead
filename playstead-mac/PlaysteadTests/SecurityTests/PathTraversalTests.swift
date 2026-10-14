@@ -106,10 +106,17 @@ final class PathTraversalTests: XCTestCase {
             FileManager.default.fileExists(atPath: tempRoot.appendingPathComponent("evil.txt").path),
             "traversal target was created"
         )
-        XCTAssertTrue(
-            try FileManager.default.contentsOfDirectory(atPath: paths.launchDirectory(forAssetSet: "set-1").path).isEmpty,
-            "no member may be materialized when one is unsafe"
-        )
+        // Validation now precedes every mutation, so the refusal happens
+        // before the launch directory is even created (WINDOWS #78). Either
+        // outcome satisfies the invariant under test — nothing materialized
+        // — so this accepts an absent directory as well as an empty one.
+        let launchDirectory = paths.launchDirectory(forAssetSet: "set-1")
+        if FileManager.default.fileExists(atPath: launchDirectory.path) {
+            XCTAssertTrue(
+                try FileManager.default.contentsOfDirectory(atPath: launchDirectory.path).isEmpty,
+                "no member may be materialized when one is unsafe"
+            )
+        }
     }
 
     func testMaterializeRejectsDeclaredNameContainingSeparator() throws {

@@ -36,6 +36,96 @@ final class SaveUploadLaneTests: XCTestCase {
         try super.tearDownWithError()
     }
 
+    func testQualifiedBatteryArtifactsRemainComplete() async throws {
+        let cases: [(CartridgeSupportDeclaration, Int)] = [
+            (CartridgeQualification.mbc1Declaration, 8_192),
+            (CartridgeQualification.mbc5Declaration, 32_768),
+            (CartridgeQualification.mbc3RTCDeclaration, 32_816)
+        ]
+        var expectedByDigest: [String: Data] = [:]
+        var expectedFormats: Set<String> = []
+        var revisions: [SaveRevisionRow] = []
+        for (declaration, size) in cases {
+            var bytes = Data(repeating: UInt8(truncatingIfNeeded: size / 257), count: size)
+            if size == 32_816 {
+                for index in 32_768..<32_816 { bytes[index] = UInt8(0x80 + index - 32_768) }
+            }
+            let revision = try makeLocalOnlyRevision(bytes: bytes, saveFormat: declaration.saveFormat)
+            revisions.append(revision)
+            expectedByDigest[revision.blobSHA256] = bytes
+            expectedFormats.insert(declaration.saveFormat)
+        }
+        let capturedBodies = HTTPBodyRecorder()
+
+        StubURLProtocol.responder = { request in
+            guard let body = Self.body(of: request) else {
+                XCTFail("upload request must expose its complete body to the test transport")
+                return StubURLProtocol.Stub(statusCode: 500, headers: [:], body: Data())
+            }
+            capturedBodies.append(method: request.httpMethod ?? "", body: body)
+            guard request.httpMethod == "POST",
+                  let object = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+                  let lineID = object["save_line_id"] as? String else {
+                return StubURLProtocol.Stub(statusCode: 200, headers: [:], body: Data())
+            }
+            return StubURLProtocol.Stub(
+                statusCode: 201, headers: ["Content-Type": "application/json"],
+                body: Data("{\"save_line_id\":\"\(lineID)\",\"recorded_at\":\"2026-10-11T00:00:00Z\"}".utf8)
+            )
+        }
+
+        let lane = SaveUploadLane(apiClient: apiClient, saveStore: saveStore)
+        let result = await lane.drainOnce()
+        XCTAssertEqual(result.sent, 3)
+        XCTAssertFalse(result.stoppedForRetry)
+
+        let requests = StubURLProtocol.requestLog
+        let uploads = requests.filter { $0.httpMethod == "PUT" }
+        let metadata = requests.filter { $0.httpMethod == "POST" }
+        XCTAssertEqual(uploads.count, 3)
+        XCTAssertEqual(metadata.count, 3)
+        var uploadedBytes: Set<String> = []
+        let captured = capturedBodies.snapshot()
+        for (request, body) in zip(uploads, captured.filter { $0.method == "PUT" }.map(\.body)) {
+            let digest = SHA256HexHelper.digest(of: body)
+            XCTAssertEqual(body, try XCTUnwrap(expectedByDigest[digest]), "the full immutable request body must match its captured array")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Length"), String(body.count))
+            uploadedBytes.insert(digest)
+        }
+        XCTAssertEqual(uploadedBytes, Set(expectedByDigest.keys))
+
+        var uploadedFormats: Set<String> = []
+        for body in captured.filter({ $0.method == "POST" }).map(\.body) {
+            let object = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            uploadedFormats.insert(try XCTUnwrap(object["save_format"] as? String))
+        }
+        XCTAssertEqual(uploadedFormats, expectedFormats, "source format must travel with each queued artifact")
+        XCTAssertTrue(revisions.allSatisfy { saveStore.fetchRevision(id: $0.id)?.durability == SaveDurability.uploaded.rawValue })
+
+        let requestCount = requests.count
+        let duplicateDrain = await lane.drainOnce()
+        XCTAssertEqual(duplicateDrain.sent, 0)
+        XCTAssertEqual(StubURLProtocol.requestLog.count, requestCount, "an already uploaded revision is not submitted twice")
+    }
+
+    private static func body(of request: URLRequest) -> Data? {
+        if let body = request.httpBody { return body }
+        guard let stream = request.httpBodyStream else { return nil }
+        stream.open()
+        defer { stream.close() }
+        var data = Data()
+        let bufferSize = 16 * 1024
+        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
+        defer { buffer.deallocate() }
+        while stream.hasBytesAvailable {
+            let count = stream.read(buffer, maxLength: bufferSize)
+            if count < 0 { return nil }
+            if count == 0 { break }
+            data.append(buffer, count: count)
+        }
+        return data
+    }
+
     // MARK: - Test doubles
 
     /// A byte source a test drives by hand -- returns whatever `next`
@@ -217,6 +307,37 @@ final class SaveUploadLaneTests: XCTestCase {
         }
     }
 
+    func test_overlappingDrainCallsShareAnInFlightRevisionUpload() async throws {
+        let revision = try makeLocalOnlyRevision(bytes: Data(repeating: 0x65, count: 4096))
+        let requestMethods = StringRecorder()
+
+        StubURLProtocol.responder = { request in
+            let method = request.httpMethod ?? ""
+            requestMethods.append(method)
+            // Keep the first transport operation suspended long enough for
+            // the overlapping drain to enter the actor at its HTTP await.
+            Thread.sleep(forTimeInterval: 0.15)
+            return StubURLProtocol.Stub(
+                statusCode: method == "PUT" ? 200 : 201,
+                headers: ["Content-Type": "application/json"],
+                body: Data("{\"save_line_id\":\"\(revision.saveLineID)\",\"recorded_at\":\"2026-09-03T00:00:00Z\"}".utf8)
+            )
+        }
+
+        let lane = SaveUploadLane(apiClient: apiClient, saveStore: saveStore)
+        async let first = lane.drainOnce()
+        async let second = lane.drainOnce()
+        let (firstResult, secondResult) = await (first, second)
+
+        XCTAssertEqual(firstResult.sent, 1, "the initiating drain records the shared upload outcome")
+        XCTAssertEqual(secondResult.sent, 1, "an overlapping drain observes the same completed revision")
+        XCTAssertFalse(firstResult.stoppedForRetry)
+        XCTAssertFalse(secondResult.stoppedForRetry)
+        XCTAssertEqual(requestMethods.snapshot().filter { $0 == "PUT" }.count, 1)
+        XCTAssertEqual(requestMethods.snapshot().filter { $0 == "POST" }.count, 1)
+        XCTAssertEqual(saveStore.fetchRevision(id: revision.id)?.durability, SaveDurability.uploaded.rawValue)
+    }
+
     // MARK: - A lane entry that exhausts its attempts stays visible and
     // is retried on the next cycle, never going silent.
 
@@ -253,6 +374,61 @@ final class SaveUploadLaneTests: XCTestCase {
     /// This is the mechanism behind the SaveEndToEndTests flake (runs
     /// 34648546919 and 34658266643, 2 failures in 5). Proving it here means
     /// it never again costs a 40-minute hosted run to observe.
+    /// WINDOWS #87: a pass's own verdict must not be readable only from a
+    /// cell a later pass overwrites.
+    ///
+    /// `lastFailureClassification` is a nonisolated read of one
+    /// last-writer-wins cell. WINDOWS #67's fix made the save-e2e harness
+    /// share the *app's* lane, and the app drains on the reachability
+    /// transition at pairing time -- so two passes write that cell while a
+    /// caller reads it out-of-band. This reproduces that in one test: a
+    /// failing pass, then a succeeding pass that resets the cell to
+    /// `.none`. Afterwards the cell says "nothing is wrong" while the first
+    /// pass genuinely was refused.
+    ///
+    /// The last assertion is the one that fails without the fix, because
+    /// before it there was no per-pass classification to read at all.
+    func test_aLaterSuccessfulPassDoesNotRewriteTheFailedPassOwnClassification() async throws {
+        let revision = try makeLocalOnlyRevision(bytes: Data(repeating: 0x33, count: 1024))
+
+        // 401 -> `.revokedAuth`, one of D-40's four unfixable reasons, so
+        // this is precisely the verdict the harness refuses to retry on.
+        let attempts = Counter()
+        StubURLProtocol.responder = { request in
+            if attempts.next() == 1 {
+                return StubURLProtocol.Stub(
+                    statusCode: 401, headers: [:], body: Data("{\"code\":\"unauthorized\"}".utf8)
+                )
+            }
+            return StubURLProtocol.Stub(
+                statusCode: request.httpMethod == "PUT" ? 200 : 201,
+                headers: ["Content-Type": "application/json"],
+                body: Data("{\"save_line_id\":\"\(revision.saveLineID)\",\"recorded_at\":\"2026-09-03T00:00:00Z\"}".utf8)
+            )
+        }
+
+        let lane = SaveUploadLane(apiClient: apiClient, saveStore: saveStore)
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+
+        // One clause per fact: CI keeps file:line and drops assertion text.
+        let refused = await lane.drainOnce(at: start)
+        XCTAssertEqual(refused.sent, 0, "a refused upload sends nothing")
+        XCTAssertTrue(refused.stoppedForRetry, "the lane stopped after the refusal")
+        XCTAssertEqual(refused.failureClassification, .revokedAuth, "the failing pass must report its own verdict")
+
+        let succeeded = await lane.drainOnce(at: start.addingTimeInterval(3600))
+        XCTAssertEqual(succeeded.sent, 1, "the second pass uploads once the server stops refusing")
+        XCTAssertEqual(succeeded.failureClassification, .none, "a pass that did not fail classifies nothing")
+
+        // The shared cell has now moved to `.none`, which reads as
+        // retryable -- exactly the misreport #87 records, in reverse.
+        XCTAssertEqual(lane.lastFailureClassification, .none, "the shared cell tracks only the most recent pass")
+        XCTAssertEqual(
+            refused.failureClassification, .revokedAuth,
+            "the first pass's verdict must survive a later pass overwriting the shared cell"
+        )
+    }
+
     func test_oneTransientFailure_makesASinglePassSendNothing_thoughTheNextPassSucceeds() async throws {
         let revision = try makeLocalOnlyRevision(bytes: Data(repeating: 0x22, count: 1024))
 
@@ -261,7 +437,11 @@ final class SaveUploadLaneTests: XCTestCase {
         // because escalating a condition that fixes itself is what D-40
         // forbids.
         let attempts = Counter()
+        let uploadPaths = StringRecorder()
         StubURLProtocol.responder = { request in
+            if request.httpMethod == "PUT", let path = request.url?.path {
+                uploadPaths.append(path)
+            }
             if attempts.next() == 1 {
                 return StubURLProtocol.Stub(
                     statusCode: 503, headers: [:], body: Data("{\"code\":\"unavailable\"}".utf8)
@@ -285,14 +465,20 @@ final class SaveUploadLaneTests: XCTestCase {
         XCTAssertEqual(first.httpStatus, 503)
         XCTAssertEqual(first.apiCode, .other, "unrecognized API codes leave the lane only as the fixed other token")
         XCTAssertEqual(lane.lastFailureClassification, .none, "a 503 is retryable and must never escalate")
+        XCTAssertNotNil(saveStore.fetchRevision(id: revision.id)?.uploadCommandID, "the command ID is durable before the first request")
 
         now = now.addingTimeInterval(3600) // past any backoff
-        let second = await lane.drainOnce(at: now)
+        // A fresh lane models an app restart: idempotent replay must retain
+        // the exact command ID from the local revision row.
+        let resumedLane = SaveUploadLane(apiClient: apiClient, saveStore: saveStore)
+        let second = await resumedLane.drainOnce(at: now)
         XCTAssertEqual(second.sent, 1, "same server, one pass later — the upload was never broken")
         XCTAssertFalse(second.stoppedForRetry)
         XCTAssertNil(second.httpStatus)
         XCTAssertNil(second.apiCode)
         XCTAssertEqual(saveStore.fetchRevision(id: revision.id)?.durability, SaveDurability.uploaded.rawValue)
+        XCTAssertEqual(uploadPaths.snapshot().count, 2, "the failed and replayed upload requests were both observed")
+        XCTAssertEqual(Set(uploadPaths.snapshot()).count, 1, "a replay keeps the same command URL across app restarts")
     }
 
     func test_passDiagnosticRemainsBoundToFailureAfterLaterPassSucceeds() async throws {
@@ -377,9 +563,37 @@ final class SaveUploadLaneTests: XCTestCase {
         }
     }
 
+    private final class StringRecorder: @unchecked Sendable {
+        private let lock = NSLock()
+        private var values: [String] = []
+
+        func append(_ value: String) {
+            lock.lock(); defer { lock.unlock() }
+            values.append(value)
+        }
+
+        func snapshot() -> [String] {
+            lock.lock(); defer { lock.unlock() }
+            return values
+        }
+    }
+
+    private final class HTTPBodyRecorder: @unchecked Sendable {
+        private let lock = NSLock()
+        private var values: [(method: String, body: Data)] = []
+        func append(method: String, body: Data) {
+            lock.lock(); defer { lock.unlock() }
+            values.append((method, body))
+        }
+        func snapshot() -> [(method: String, body: Data)] {
+            lock.lock(); defer { lock.unlock() }
+            return values
+        }
+    }
+
 
     @discardableResult
-    private func makeLocalOnlyRevision(bytes: Data) throws -> SaveRevisionRow {
+    private func makeLocalOnlyRevision(bytes: Data, saveFormat: String = "sram") throws -> SaveRevisionRow {
         let dir = tempRoot.appendingPathComponent("captured-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let fileURL = dir.appendingPathComponent("save.sav")
@@ -401,7 +615,7 @@ final class SaveUploadLaneTests: XCTestCase {
             captureMethod: "poll",
             adapterID: "mgba",
             adapterVersion: "1.0",
-            saveFormat: "sram",
+            saveFormat: saveFormat,
             formatConfidence: "exact",
             playSessionID: nil,
             durability: SaveDurability.localOnly.rawValue,

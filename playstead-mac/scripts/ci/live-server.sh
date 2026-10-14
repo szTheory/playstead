@@ -51,7 +51,7 @@ validated_marker() {
 write_failure_stage() {
   case "$stage" in
     validate-input|resolve-server-root|create-control-root|create-server-control|secure-roots) ;;
-    provision-domain|request-pairing|approve-pairing|redeem-pairing|add-second-sentinel|verify-evidence) ;;
+    provision-domain|request-pairing|approve-pairing|redeem-pairing|add-second-sentinel|import-gb-fixture|import-aerevenadvance|verify-evidence) ;;
     *) return ;;
   esac
 
@@ -191,6 +191,25 @@ handoff_path.write_text(json.dumps(handoff), encoding="utf-8")
 os.chmod(handoff_path, 0o600)
 request_path.unlink()
 code_path.unlink()
+# Read the existing catalogue before the app launches; preserve prior imports.
+snapshot_request = urllib.request.Request(
+    "https://127.0.0.1:4010/api/v1/snapshot",
+    headers={"Authorization": "Bearer " + redeemed["credential"]})
+with urllib.request.urlopen(snapshot_request, timeout=10, context=context) as response:
+    snapshot = json.loads(response.read(1024 * 1024 + 1))
+catalogue = snapshot["catalogue"]
+if snapshot["has_more"] or not isinstance(catalogue, list) or len(catalogue) > 200:
+    raise SystemExit("fixture catalogue exceeded the finite test bound")
+baseline_catalogue = {entry["id"]: entry["display_title"] for entry in catalogue}
+first = json.loads((handoff_path.parent / "control/first-sentinel.json").read_text())["sentinel"]
+if baseline_catalogue.get(first["asset_set_id"]) != first["title"]:
+    raise SystemExit("fixture snapshot did not contain its authored sentinel")
+log = pathlib.Path(os.environ["PLAYSTEAD_MAC_CI_ROOT"]).parent / "phoenix.log"
+stat = log.stat()
+baseline_path = handoff_path.parent / "control/request-baseline.json"
+baseline_path.write_text(json.dumps({"device": stat.st_dev, "inode": stat.st_ino,
+    "offset": stat.st_size, "catalogue": baseline_catalogue}), encoding="utf-8")
+baseline_path.chmod(0o600)
 PY
     ;;
   pair-provision)
@@ -217,6 +236,23 @@ PY
     enter_stage "approve-pairing"
     (cd "$server_root" && PLAYSTEAD_MAC_CI_TASK=1 mix playstead.mac_ci_fixture approve-sole --display-code "$display_code" --device-label "Playstead Hosted Mac") >/dev/null
     ;;
+  gb-import)
+    registry="${PLAYSTEAD_GB_GBC_FIXTURE_REGISTRY:-}"
+    [ -n "$registry" ] && [ -f "$registry" ] || die
+    enter_stage "import-gb-fixture"
+    fixture_name="${4:-gb-mbc1-8k}"
+    [[ "$fixture_name" =~ ^(gb-mbc1-8k|gbc-mbc5-32k|gbc-mbc3-rtc)$ ]] || die
+    (cd "$server_root" && PLAYSTEAD_MAC_CI_TASK=1 mix playstead.mac_ci_fixture import-gb --registry "$registry" --fixture "$fixture_name" --output "$server_control/$fixture_name-import.json") >/dev/null
+    ;;
+  aerevenadvance-import)
+    registry="${PLAYSTEAD_AEREVEN_FIXTURE_REGISTRY:-}"
+    profile_root="${PLAYSTEAD_GB_GBC_SAVE_E2E_PROFILE_ROOT:-}"
+    expected_registry="${profile_root}/aereven-fixture/aerevenadvance.json"
+    [[ "$(basename "$profile_root")" =~ ^playstead-gb-save-e2e\.[A-Za-z0-9]{6}$ ]] || die
+    [ "$registry" = "$expected_registry" ] && [ -f "$registry" ] && [ ! -L "$registry" ] || die
+    enter_stage "import-aerevenadvance"
+    (cd "$server_root" && PLAYSTEAD_MAC_CI_TASK=1 mix playstead.mac_ci_fixture import-aerevenadvance --registry "$registry" --output "$server_control/aerevenadvance-import.json") >/dev/null
+    ;;
   second)
     enter_stage "add-second-sentinel"
     server_second="$server_control/second-sentinel.json"
@@ -227,15 +263,9 @@ PY
     ;;
   verify)
     enter_stage "verify-evidence"
-    # The snapshot-request count is a CUMULATIVE read of a phoenix.log shared
-    # by every test in the LiveServer layer, so it is the calling test's
-    # claim, never a property of the mirror. Hard-coding "exactly two" here
-    # made it LiveServerSnapshotTests' proof silently binding on every other
-    # caller: 04.5-01 added PairingCeremonyTests, which performs a third
-    # snapshot, and SaveEndToEndTests -- which never asserted anything about
-    # snapshot counts -- started failing on someone else's invariant.
-    #
-    # So every caller must now state its own position, and there is
+    # prepare captures a request offset and existing catalogue before app
+    # launch. Earlier tests' downloads/snapshots must not affect this proof.
+    # Every caller must state its own snapshot expectation, and there is
     # deliberately no default: an omitted or malformed argument dies here
     # rather than quietly skipping the check, because a silent skip is how a
     # guard rots into a pass (see reachability-allowlist.txt's header on the
@@ -254,13 +284,35 @@ PY
       *) die ;;
     esac
     python3 - "$root" "$(dirname "$PLAYSTEAD_MAC_CI_ROOT")/phoenix.log" "$expected_snapshots" "$expected_sentinel_set" <<'PY'
-import pathlib, sqlite3, sys
+import json, pathlib, sqlite3, sys
 root, log_path = map(pathlib.Path, sys.argv[1:3])
 expected_snapshots, expected_sentinel_set = sys.argv[3:5]
+result_marker = root / "live-server-verify-result"
+result_marker.write_text("checking", encoding="ascii")
+result_marker.chmod(0o600)
 if not root.is_dir() or not log_path.is_file():
+    result_marker.write_text("verification-input-missing", encoding="ascii")
     raise SystemExit("live-server verification inputs are missing")
 
-lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+baseline_path = root / "control/request-baseline.json"
+if not baseline_path.is_file() or baseline_path.is_symlink():
+    result_marker.write_text("verification-input-missing", encoding="ascii")
+    raise SystemExit("request baseline is missing")
+baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
+stat = log_path.stat()
+offset = baseline.get("offset")
+if type(offset) is not int or not 0 <= offset <= stat.st_size or (
+    baseline.get("device"), baseline.get("inode")
+) != (stat.st_dev, stat.st_ino):
+    result_marker.write_text("verification-input-missing", encoding="ascii")
+    raise SystemExit("request log no longer matches the captured baseline")
+expected_catalogue = baseline["catalogue"]
+if expected_sentinel_set == "both":
+    second = json.loads((root / "control/second-sentinel.json").read_text())["sentinel"]
+    expected_catalogue[second["asset_set_id"]] = second["title"]
+with log_path.open("rb") as log:
+    log.seek(offset)
+    lines = log.read().decode("utf-8", errors="replace").splitlines()
 snapshot_success = 0
 pending_snapshot = False
 blob_requests = 0
@@ -276,32 +328,85 @@ for line in lines:
     elif pending_snapshot and any(method in line for method in ("GET /", "POST /", "PUT /", "PATCH /", "DELETE /")):
         pending_snapshot = False
 
-if expected_snapshots and snapshot_success != int(expected_snapshots):
-    raise SystemExit(
-        f"expected exactly {expected_snapshots} successful snapshot request(s), got {snapshot_success}"
-    )
-if blob_requests != 0:
-    raise SystemExit(f"expected zero blob requests, got {blob_requests}")
-
+# Every observed fact is gathered BEFORE the first check, and every failure
+# carries all of them. This layer reproduces only on hosted CI, so this
+# output is the whole record: WINDOWS #71's two red runs could not say
+# whether the mirror was MISSING a sentinel or carrying an EXTRA row --
+# opposite causes -- because the message named neither the titles nor which
+# of the stage's two callers produced it.
+#
+# One fact per line, deliberately. run-mac-verification.sh's diagnostic
+# printer keeps the last 40 lines but truncates each to 200 characters, so a
+# single wide line loses its tail exactly where the difference sits. It also
+# rewrites absolute paths to <path> and any 32-plus character run to
+# <token>, which is why the caller is identified by its snapshot expectation
+# rather than by the run root (a UUID that would be scrubbed to <token>).
 database = root / "playstead.sqlite3"
-with sqlite3.connect(database) as connection:
-    cursor = connection.execute("SELECT cursor FROM sync_cursor WHERE id = 1").fetchone()
-    titles = {row[0] for row in connection.execute("SELECT display_title FROM catalogue_entries")}
+cursor = None
+titles = None
+database_error = None
+try:
+    with sqlite3.connect(database) as connection:
+        cursor = connection.execute("SELECT cursor FROM sync_cursor WHERE id = 1").fetchone()
+        catalogue = dict(connection.execute("SELECT id, display_title FROM catalogue_entries"))
+        titles = set(catalogue.values())
+except sqlite3.Error as error:
+    database_error = f"{type(error).__name__}: {error}"
+
+expected_titles = {"Playstead CI Sentinel One", "Playstead CI Sentinel Two"}
+
+
+def titles_line(label, values):
+    rendered = ", ".join(sorted(values))
+    return f"  {label}=" + (rendered[:150] + " ...truncated" if len(rendered) > 150 else rendered)
+
+
+def fail(category, message):
+    result_marker.write_text(category, encoding="ascii")
+    caller = (
+        f"asserts-{expected_snapshots}-snapshots" if expected_snapshots
+        else "snapshots-not-asserted-here"
+    )
+    observed = [
+        f"  caller={caller}",
+        f"  snapshots_observed={snapshot_success}",
+        f"  blob_requests={blob_requests}",
+        f"  cursor={'present' if cursor and cursor[0] else 'empty'}",
+    ]
+    if database_error is not None:
+        observed.append(f"  sqlite_error={database_error[:150]}")
+    elif titles is None:
+        observed.append("  titles=unread")
+    else:
+        observed.append(titles_line("titles", titles))
+        observed.append(titles_line("missing", expected_titles - titles))
+        observed.append(titles_line("unexpected", titles - expected_titles))
+    print(f"live-server verify-evidence FAILED: {message}", file=sys.stderr)
+    for line in observed:
+        print(line, file=sys.stderr)
+    raise SystemExit(message)
+
+
+if database_error is not None:
+    fail("mirror-database-unreadable", "could not read the client mirror database")
+if expected_snapshots and snapshot_success != int(expected_snapshots):
+    fail("snapshot-count-mismatch", f"expected exactly {expected_snapshots} successful snapshot request(s), got {snapshot_success}")
+if blob_requests != 0:
+    fail("blob-request-observed", f"expected zero blob requests, got {blob_requests}")
 if not cursor or not cursor[0]:
-    raise SystemExit("stored snapshot cursor is empty")
-expected_titles = {"Playstead CI Sentinel One"}
-if expected_sentinel_set == "both":
-    expected_titles.add("Playstead CI Sentinel Two")
-if titles != expected_titles:
+    fail("snapshot-cursor-empty", "stored snapshot cursor is empty")
+expected_titles = set(expected_catalogue.values())
+if catalogue != expected_catalogue:
     first = "present" if "Playstead CI Sentinel One" in titles else "absent"
     second = "present" if "Playstead CI Sentinel Two" in titles else "absent"
-    raise SystemExit(
+    fail("sentinel-set-mismatch",
         f"mirror sentinel set mismatch: expected={expected_sentinel_set} rows={len(titles)} first={first} second={second}"
     )
 for name in ("objects", "partials"):
     directory = root / name
     if not directory.is_dir() or any(directory.iterdir()):
-        raise SystemExit(f"{name} must exist and remain empty")
+        fail("local-byte-residue", "the local byte store must exist and remain empty")
+result_marker.write_text("passed", encoding="ascii")
 print(
     "live-server: "
     + (f"{expected_snapshots} snapshot(s), " if expected_snapshots else "snapshots not asserted by this caller, ")

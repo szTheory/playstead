@@ -1,4 +1,5 @@
 import XCTest
+import GameController
 @testable import Playstead
 
 /// A fully injectable `ControllerInputSource` — lets every test drive
@@ -8,13 +9,16 @@ final class FakeControllerInputSource: ControllerInputSource {
     var currentControllers: [ControllerDescriptor] = []
     private var onConnect: ((ControllerDescriptor) -> Void)?
     private var onDisconnect: ((ControllerDescriptor) -> Void)?
+    private var onInput: ((ControllerInputEvent) -> Void)?
 
     func startObserving(
         onConnect: @escaping (ControllerDescriptor) -> Void,
-        onDisconnect: @escaping (ControllerDescriptor) -> Void
+        onDisconnect: @escaping (ControllerDescriptor) -> Void,
+        onInput: @escaping (ControllerInputEvent) -> Void
     ) {
         self.onConnect = onConnect
         self.onDisconnect = onDisconnect
+        self.onInput = onInput
     }
 
     func simulateConnect(_ descriptor: ControllerDescriptor) {
@@ -25,6 +29,10 @@ final class FakeControllerInputSource: ControllerInputSource {
     func simulateDisconnect(_ descriptor: ControllerDescriptor) {
         currentControllers.removeAll { $0.id == descriptor.id }
         onDisconnect?(descriptor)
+    }
+
+    func simulateInput(controllerID: String, name: String, active: Bool) {
+        onInput?(ControllerInputEvent(controllerID: controllerID, inputName: name, isActive: active))
     }
 }
 
@@ -52,6 +60,18 @@ final class ControllerHostTests: XCTestCase {
     }
 
     // MARK: - Behavior: connecting publishes a descriptor with name + inputs
+
+    func testInputPresentationNamesEveryDeclaredControlWithoutChangingItsIdentity() {
+        let inputs = ControllerDescriptor.defaultInputs
+        let labels = inputs.map { ControllerInputLabel.displayName(for: $0) }
+        XCTAssertEqual(Set(labels).count, inputs.count, "Distinct controls must remain distinguishable")
+        XCTAssertTrue(labels.allSatisfy { !$0.isEmpty })
+        XCTAssertTrue(zip(inputs, labels).allSatisfy { pair in pair.0 != pair.1 }, "Framework keys must not be player-facing labels")
+        XCTAssertEqual(ControllerInputLabel.displayName(for: "dpadUp"), "D-pad Up")
+        XCTAssertEqual(ControllerInputLabel.displayName(for: "buttonA"), "Lower face button")
+        XCTAssertEqual(ControllerMapping.defaultControllerInputs, inputs, "Presentation must preserve persisted mapping identifiers")
+        XCTAssertEqual(ControllerInputLabel.displayName(for: "futureInput"), "futureInput", "Unknown controls must not be mislabeled as a known button")
+    }
 
     func testConnectingPublishesDescriptorWithNameAndAvailableInputs() {
         let source = FakeControllerInputSource()
@@ -81,6 +101,37 @@ final class ControllerHostTests: XCTestCase {
 
         host.reportInput("dpadUp", active: true)
         XCTAssertTrue(host.liveInputs.contains("dpadUp"))
+    }
+
+    func testInputEventsOnlyUpdateTheAssignedControllerAndKnownVocabulary() {
+        let source = FakeControllerInputSource()
+        let host = ControllerHost(source: source)
+        source.simulateConnect(Self.controllerA)
+        source.simulateConnect(Self.controllerB)
+        host.assign(controllerID: Self.controllerB.id)
+
+        source.simulateInput(controllerID: Self.controllerA.id, name: "buttonA", active: true)
+        XCTAssertFalse(host.liveInputs.contains("buttonA"))
+
+        source.simulateInput(controllerID: Self.controllerB.id, name: "buttonA", active: true)
+        XCTAssertTrue(host.liveInputs.contains("buttonA"))
+
+        source.simulateInput(controllerID: Self.controllerB.id, name: "unknown", active: true)
+        XCTAssertEqual(host.liveInputs, ["buttonA"])
+    }
+
+    func testAssignedDisconnectClearsOnlyThatControllersLiveInputs() {
+        let source = FakeControllerInputSource()
+        let host = ControllerHost(source: source)
+        source.simulateConnect(Self.controllerA)
+        source.simulateConnect(Self.controllerB)
+        host.assign(controllerID: Self.controllerB.id)
+        source.simulateInput(controllerID: Self.controllerB.id, name: "buttonA", active: true)
+        XCTAssertTrue(host.liveInputs.contains("buttonA"))
+
+        source.simulateDisconnect(Self.controllerB)
+        XCTAssertTrue(host.liveInputs.isEmpty)
+        XCTAssertEqual(host.assignedControllerID, Self.controllerA.id)
     }
 
     // MARK: - Behavior: a mapping assigns each adapter input and persists across a restart
@@ -124,6 +175,87 @@ final class ControllerHostTests: XCTestCase {
         let reopened = try LocalStore(paths: paths)
         let reloaded = ControllerMappingStore(localStore: reopened).mapping(forControllerProductID: Self.controllerA.id)
         XCTAssertEqual(reloaded, ControllerMapping.defaultMapping(controllerProductID: Self.controllerA.id))
+    }
+
+    func testAppEnvironmentTransactionsPersistFixedSyntheticMappingAndResetAcrossRelaunch() throws {
+        let descriptor = ControllerDescriptor(
+            id: "ui-test-controller",
+            name: "Playstead Test Controller",
+            availableInputs: ControllerDescriptor.defaultInputs
+        )
+        let source = FakeControllerInputSource()
+        source.currentControllers = [descriptor]
+        let environment = makeEnvironment(controllerSource: source)
+
+        XCTAssertEqual(environment.activeControllerMapping, .defaultMapping(controllerProductID: descriptor.id))
+        XCTAssertTrue(environment.assignController(descriptor.id))
+        XCTAssertTrue(environment.remapActiveController(adapterInput: "A", to: "buttonB"))
+        XCTAssertEqual(environment.activeControllerMapping?.controllerInput(for: "A"), "buttonB")
+        XCTAssertEqual(environment.activeControllerMapping?.controllerInput(for: "B"), "buttonB")
+        XCTAssertEqual(
+            environment.controllerMappingStore.mapping(forControllerProductID: descriptor.id).controllerInput(for: "A"),
+            "buttonB"
+        )
+
+        let relaunchedSource = FakeControllerInputSource()
+        relaunchedSource.currentControllers = [descriptor]
+        let relaunched = makeEnvironment(controllerSource: relaunchedSource)
+        XCTAssertEqual(relaunched.activeControllerMapping?.controllerInput(for: "A"), "buttonB")
+
+        XCTAssertTrue(relaunched.resetActiveControllerMapping())
+        XCTAssertEqual(relaunched.activeControllerMapping, .defaultMapping(controllerProductID: descriptor.id))
+        let resetSource = FakeControllerInputSource()
+        resetSource.currentControllers = [descriptor]
+        let resetRelaunch = makeEnvironment(controllerSource: resetSource)
+        XCTAssertEqual(resetRelaunch.activeControllerMapping, .defaultMapping(controllerProductID: descriptor.id))
+    }
+
+    func testMappingTransactionsRejectUnknownOrDisconnectedRuntimeIDs() {
+        let source = FakeControllerInputSource()
+        source.currentControllers = [Self.controllerA]
+        let environment = makeEnvironment(controllerSource: source)
+        let original = environment.activeControllerMapping
+
+        XCTAssertFalse(environment.assignController("unknown-controller"))
+        XCTAssertFalse(environment.remapActiveController(adapterInput: "Unknown", to: "buttonA"))
+        XCTAssertEqual(environment.activeControllerMapping, original)
+
+        source.simulateDisconnect(Self.controllerA)
+        XCTAssertFalse(environment.remapActiveController(adapterInput: "A", to: "buttonB"))
+        XCTAssertFalse(environment.resetActiveControllerMapping())
+        XCTAssertEqual(environment.controllerHost.inputPathAvailability.keyboardAvailable, true)
+        XCTAssertEqual(environment.controllerHost.inputPathAvailability.pointerAvailable, true)
+    }
+
+    func testMappingWriteFailureKeepsLastCommittedSnapshotAndShowsActionableError() throws {
+        let source = FakeControllerInputSource()
+        source.currentControllers = [Self.controllerA]
+        let environment = makeEnvironment(controllerSource: source)
+        let original = environment.activeControllerMapping
+        try environment.localStore.connection.execute(
+            """
+            CREATE TRIGGER reject_controller_mapping_insert
+            BEFORE INSERT ON controller_mappings
+            BEGIN SELECT RAISE(ABORT, 'injected storage failure'); END;
+            """
+        )
+
+        XCTAssertFalse(environment.remapActiveController(adapterInput: "A", to: "buttonB"))
+        XCTAssertEqual(environment.activeControllerMapping, original)
+        XCTAssertTrue(environment.controllerMappingError?.contains("could not be saved") == true)
+        XCTAssertEqual(
+            environment.controllerMappingStore.mapping(forControllerProductID: Self.controllerA.id),
+            .defaultMapping(controllerProductID: Self.controllerA.id)
+        )
+    }
+
+    private func makeEnvironment(controllerSource: ControllerInputSource) -> AppEnvironment {
+        AppEnvironment(
+            paths: paths,
+            apiClient: APIClient(keychain: KeychainStore(), session: StubURLProtocol.makeSession()),
+            reachability: Reachability(startOnline: false, monitorAutomatically: false),
+            controllerInputSource: controllerSource
+        )
     }
 
     // MARK: - Behavior: disconnecting publishes disconnected state and a non-modal recovery affordance
@@ -236,11 +368,11 @@ final class ControllerHostTests: XCTestCase {
         XCTAssertEqual(host.connectionState, .connected(Self.controllerB))
     }
 
-    // MARK: - Acceptance: the configuration injected into the adapter at launch contains the mapped values
+    // MARK: - The pinned adapter must not claim that unsupported remaps reach mGBA
 
-    func testAdapterHostInjectsMappedControllerValuesIntoLaunchArguments() async throws {
+    func testAdapterHostDoesNotEmitIgnoredControllerOverrides() async throws {
         let pin = try JSONDecoder().decode(AdapterPin.self, from: Data(Self.pinJSON.utf8))
-        let host = AdapterHost(pin: pin, emulatorsRoot: paths.emulators)
+        let host = AdapterHost(pin: pin, emulatorsRoot: paths.emulators, processRegistry: .isolatedForTesting())
 
         var mapping = ControllerMapping.defaultMapping(controllerProductID: Self.controllerA.id)
         mapping = mapping.remapping(adapterInput: "A", to: "buttonB")
@@ -248,14 +380,13 @@ final class ControllerHostTests: XCTestCase {
 
         let args = await host.renderedLaunchArguments(romPath: "/tmp/game.gba", saveDir: "/tmp/saves")
 
-        XCTAssertTrue(args.contains("input.A=buttonB"), "expected the remapped A input in the injected configuration, got \(args)")
-        // Every other input's default mapping is also present.
-        XCTAssertTrue(args.contains("input.Up=dpadUp"))
+        XCTAssertEqual(args, ["-C", "savegamePath=/tmp/saves", "/tmp/game.gba"])
+        XCTAssertFalse(args.contains(where: { $0.hasPrefix("input.") }))
     }
 
     func testAdapterHostLaunchArgumentsUnchangedWithNoActiveMapping() async throws {
         let pin = try JSONDecoder().decode(AdapterPin.self, from: Data(Self.pinJSON.utf8))
-        let host = AdapterHost(pin: pin, emulatorsRoot: paths.emulators)
+        let host = AdapterHost(pin: pin, emulatorsRoot: paths.emulators, processRegistry: .isolatedForTesting())
 
         let args = await host.renderedLaunchArguments(romPath: "/tmp/game.gba", saveDir: "/tmp/saves")
 

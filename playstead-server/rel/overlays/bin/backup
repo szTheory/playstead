@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+
+cd -P -- "$(dirname -- "$0")"
+# Release eval already forwards trailing arguments into System.argv().
+exec ./playstead eval "Playstead.Release.backup(System.argv())" "$@"

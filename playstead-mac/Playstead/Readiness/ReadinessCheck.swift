@@ -6,6 +6,7 @@ import Foundation
 enum ReadinessCheckKind: String, CaseIterable, Equatable, Hashable {
     case gameAssets
     case cacheVerification
+    case systemSupport
     case emulator
     case bios
     case controllerAndInput
@@ -15,6 +16,19 @@ enum ReadinessCheckKind: String, CaseIterable, Equatable, Hashable {
     /// never produce `.blocked`; it only ever routes to the save
     /// history sheet.
     case saveState
+
+    var displayName: String {
+        switch self {
+        case .gameAssets: "Game files"
+        case .cacheVerification: "Local copy"
+        case .systemSupport: "System and cartridge"
+        case .emulator: "Emulator"
+        case .bios: "BIOS"
+        case .controllerAndInput: "Controls"
+        case .saveDirectory: "Save folder"
+        case .saveState: "Saved progress"
+        }
+    }
 }
 
 enum ReadinessOutcome: Equatable {
@@ -26,6 +40,11 @@ enum ReadinessOutcome: Equatable {
         if case .blocked = self { return true }
         return false
     }
+
+    var isIssue: Bool {
+        if case .ready = self { return false }
+        return true
+    }
 }
 
 /// One check's result: a kind, an outcome, a plainly worded finding, and
@@ -35,6 +54,23 @@ struct ReadinessCheck: Equatable {
     let outcome: ReadinessOutcome
     let finding: String
     let remedy: Remedy?
+    /// Optional, already-sanitized facts that are useful for diagnosis but
+    /// should stay behind the readiness row's explicit Details disclosure.
+    let details: [String]
+
+    init(
+        kind: ReadinessCheckKind,
+        outcome: ReadinessOutcome,
+        finding: String,
+        remedy: Remedy?,
+        details: [String] = []
+    ) {
+        self.kind = kind
+        self.outcome = outcome
+        self.finding = finding
+        self.remedy = remedy
+        self.details = details
+    }
 }
 
 /// One member (sha256, expected byte size) `ReadinessEngine` checks for
@@ -61,4 +97,10 @@ struct ReadinessReport: Equatable {
     var blockedCount: Int {
         checks.filter(\.outcome.isBlocking).count
     }
+
+    var issueChecks: [ReadinessCheck] {
+        checks.filter { $0.outcome.isIssue }
+    }
+
+    var hasIssues: Bool { !issueChecks.isEmpty }
 }

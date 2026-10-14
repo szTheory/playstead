@@ -77,6 +77,8 @@ final class StorageContractSnapshotTests: XCTestCase {
         XCTAssertEqual(Set(phases).count, 3)
 
         for phase in phases {
+            XCTAssertNotNil(StorageMotionContract.animation(for: phase, reduceMotion: false))
+            XCTAssertNil(StorageMotionContract.animation(for: phase, reduceMotion: true))
             XCTAssertEqual(
                 StorageMotionContract.duration(for: phase, reduceMotion: false),
                 0.2,

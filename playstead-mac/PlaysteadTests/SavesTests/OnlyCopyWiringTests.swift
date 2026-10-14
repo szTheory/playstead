@@ -128,6 +128,51 @@ final class OnlyCopyWiringTests: XCTestCase {
         return line
     }
 
+    /// The assembled recovery path must do more than retain snapshot
+    /// metadata: when the matching game is already cached, it fetches the
+    /// restored head through the production CAS download wiring so launch
+    /// can remain offline afterwards.
+    func testCleanBootstrapFetchesRestoredSaveBytesThroughProductionWiring() async throws {
+        let romDigest = try seedGame(id: "game-restore", title: "Restore", digest: digest("restore-rom")).members[0].sha256!
+        let saveBytes = Data("restored-save".utf8)
+        let saveDigest = SHA256.hash(data: saveBytes).map { String(format: "%02x", $0) }.joined()
+        let snapshot = Data("""
+        {
+          "entries": [], "cursor": "RESTORE-CURSOR", "has_more": false, "next_after_id": null,
+          "catalogue": [], "job": [], "curation": [],
+          "save": [{
+            "type": "revision", "revision_id": "restored-revision", "save_line_id": "restored-line",
+            "content_key": "\(romDigest)", "save_kind": "battery", "slot": "0",
+            "parent_revision_id": null, "blob_sha256": "\(saveDigest)", "size_bytes": \(saveBytes.count),
+            "origin_device_id": "device-1", "device_captured_at": null, "recorded_at": "2026-09-22T00:00:00Z",
+            "capture_method": "poll", "adapter_id": "mgba", "adapter_version": "0.10",
+            "save_format": "sram", "format_confidence": "exact", "play_session_id": null
+          }]
+        }
+        """.utf8)
+
+        StubURLProtocol.responder = { request in
+            switch request.url?.path {
+            case "/api/v1/snapshot":
+                return StubURLProtocol.Stub(statusCode: 200, headers: ["Content-Type": "application/json"], body: snapshot)
+            case "/api/v1/blobs/\(saveDigest)":
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-token")
+                return StubURLProtocol.Stub(statusCode: 200, headers: ["Content-Type": "application/octet-stream"], body: saveBytes)
+            default:
+                return StubURLProtocol.Stub(statusCode: 404, headers: [:], body: Data())
+            }
+        }
+
+        await environment.syncEngine.syncNow()
+
+        for _ in 0..<100 where !environment.casManager.contains(saveDigest) {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        XCTAssertEqual(environment.saveStore.fetchRevision(id: "restored-revision")?.blobSHA256, saveDigest)
+        XCTAssertTrue(environment.casManager.contains(saveDigest), "the restored bytes must reach the production CAS")
+    }
+
     // MARK: - MC-01: the gate reads real counts from both reclaim surfaces
 
     /// `GameRowView`'s reclaim prompt calls `environment.reclaimCandidateRows()`

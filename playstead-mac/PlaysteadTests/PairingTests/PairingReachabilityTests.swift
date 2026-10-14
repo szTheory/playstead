@@ -85,4 +85,20 @@ final class PairingReachabilityTests: XCTestCase {
         XCTAssertNotEqual(slowDown, PairingView.describe(.expired))
         XCTAssertFalse(slowDown.lowercased().contains("polling"))
     }
+
+    func testPairingTrustRecoveryAndDevicesCopyAreReachableWithoutTLSFallback() throws {
+        let source = try readSource("Playstead/Pairing/PairingView.swift")
+        XCTAssertTrue(source.contains("Choose recovery CA"))
+        XCTAssertTrue(source.contains("Copy Devices URL"))
+        XCTAssertTrue(source.contains("suppliedTrustAnchorData"))
+        XCTAssertTrue(source.contains("Retry pairing"))
+        XCTAssertTrue(source.contains("certificateData(fromRecoveryFile:"))
+        XCTAssertFalse(source.contains("allowsArbitraryLoads"))
+    }
+
+    func testCertificateTrustFailureHasActionableCopy() {
+        let copy = PairingView.describe(.certificateTrustFailed)
+        XCTAssertTrue(copy.contains("certificate"))
+        XCTAssertTrue(copy.contains("recovery CA"))
+    }
 }

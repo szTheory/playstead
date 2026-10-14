@@ -86,6 +86,23 @@ final class ShellWiringTests: XCTestCase {
         XCTAssertTrue(environment.queueViewModel.isQueued(assetSetID: "asset-1"))
     }
 
+    func testQueueToggleIsDeduplicatedAndCanRemoveThenReadd() throws {
+        try seedCatalogue(id: "asset-1", system: "gba", title: "Metroid")
+
+        XCTAssertTrue(environment.toggleQueued(assetSetID: "asset-1"))
+        XCTAssertFalse(environment.queueViewModel.enqueue(assetSetID: "asset-1"), "a repeated enqueue request is a no-op while queued")
+        XCTAssertEqual(environment.curationStore.fetchQueueItems().count, 1)
+        XCTAssertEqual(environment.outbox.listAll().map(\.kind), [.queueEnqueue])
+
+        XCTAssertTrue(environment.toggleQueued(assetSetID: "asset-1"), "the selected queue control removes the title")
+        XCTAssertFalse(environment.queueViewModel.isQueued(assetSetID: "asset-1"))
+        XCTAssertEqual(environment.outbox.listAll().map(\.kind), [.queueEnqueue, .queueDequeue])
+
+        XCTAssertTrue(environment.toggleQueued(assetSetID: "asset-1"), "a removed title can be added again")
+        XCTAssertTrue(environment.queueViewModel.isQueued(assetSetID: "asset-1"))
+        XCTAssertEqual(environment.curationStore.fetchQueueItems().count, 1)
+    }
+
     /// All five curation nouns must share one store and one outbox — a
     /// favorite added on Home has to be visible on the Favorites shelf,
     /// and every intent has to drain from the same queue.
@@ -157,7 +174,7 @@ final class ShellWiringTests: XCTestCase {
 
         let before = environment.drainTrigger.drainCount
         // Exactly what `PlaysteadApp`'s `scenePhase == .active` observer calls.
-        environment.applicationDidBecomeActive()
+        await environment.applicationDidBecomeActive()
         await environment.drainTrigger.awaitPending()
 
         XCTAssertGreaterThan(environment.drainTrigger.drainCount, before)
@@ -165,6 +182,71 @@ final class ShellWiringTests: XCTestCase {
             environment.outbox.listAll().isEmpty,
             "becoming active must actually drain the leftover entry, not just start a pass"
         )
+    }
+
+    func testQueuedDrainTriggerRunsAfterSuspendedPass() async throws {
+        try seedCatalogue(id: "asset-1", system: "gba", title: "Metroid")
+        try seedCatalogue(id: "asset-2", system: "gba", title: "Zelda")
+
+        // Seed the first durable intent without firing its automatic trigger,
+        // then capture the exact result task for each explicit trigger.
+        environment.outbox.onEnqueue = nil
+        try environment.outbox.enqueue(.favoriteAdd(id: "fav-1", assetSetID: "asset-1"))
+
+        let firstRequestStarted = expectation(description: "first outbox request started")
+        let releaseFirstRequest = DispatchSemaphore(value: 0)
+        let requestLock = NSLock()
+        var requestCount = 0
+        StubURLProtocol.responder = { _ in
+            requestLock.lock()
+            requestCount += 1
+            let isFirstRequest = requestCount == 1
+            requestLock.unlock()
+
+            if isFirstRequest {
+                firstRequestStarted.fulfill()
+                releaseFirstRequest.wait()
+            }
+            return StubURLProtocol.Stub(statusCode: 200, headers: [:], body: Data("{}".utf8))
+        }
+
+        let trigger = environment.drainTrigger
+        let firstTriggerResult = trigger.fire()
+        await fulfillment(of: [firstRequestStarted], timeout: 2)
+
+        // This real curation action writes the second intent to the shared
+        // outbox while the first request is held at the transport boundary.
+        environment.outbox.onEnqueue = nil
+        XCTAssertTrue(environment.toggleQueued(assetSetID: "asset-2"))
+        let secondTriggerResult = trigger.fire()
+        XCTAssertEqual(environment.outbox.listAll().map(\.kind), [.favoriteAdd, .queueEnqueue])
+
+        let waiterRegistered = expectation(description: "awaitPending registered its waiter")
+        let waiterReturned = DispatchSemaphore(value: 0)
+        let pendingWaiter = Task {
+            await trigger.awaitPending(onWaiterRegistered: { waiterRegistered.fulfill() })
+            waiterReturned.signal()
+        }
+        await fulfillment(of: [waiterRegistered], timeout: 2)
+        XCTAssertEqual(
+            waiterReturned.wait(timeout: .now()), .timedOut,
+            "awaitPending must remain suspended while the first request is held"
+        )
+
+        releaseFirstRequest.signal()
+        let firstResult = await firstTriggerResult.value
+        let secondResult = await secondTriggerResult.value
+        await pendingWaiter.value
+
+        XCTAssertEqual(firstResult.sent, 1)
+        XCTAssertFalse(firstResult.stoppedForRetry)
+        XCTAssertEqual(secondResult.sent, 1)
+        XCTAssertFalse(secondResult.stoppedForRetry)
+        XCTAssertEqual(
+            StubURLProtocol.requestLog.compactMap { $0.url?.path },
+            ["/api/v1/curation/favorites/asset-1", "/api/v1/curation/queue/asset-2"]
+        )
+        XCTAssertTrue(environment.outbox.listAll().isEmpty)
     }
 
     /// `OutboxWorker.onEntryDelivered` must be wired to

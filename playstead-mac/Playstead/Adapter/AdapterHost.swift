@@ -34,7 +34,29 @@ final class AdapterProcessRegistry: @unchecked Sendable {
 
     private let lock = NSLock()
     private var processes: [ObjectIdentifier: Process] = [:]
-    private var observing = false
+    private var observerToken: NSObjectProtocol?
+
+    /// The center this registry listens to `willTerminateNotification`
+    /// on. Production always uses `.default` — the app has exactly one
+    /// termination event and one registry. A test passes a private
+    /// `NotificationCenter()` so that posting the notification sweeps
+    /// only the processes that test registered: the sweep terminates
+    /// **every** registered process, so a shared center plus a shared
+    /// registry lets one test SIGTERM a concurrently-running test's
+    /// child (WINDOWS #86 — observed as
+    /// `unknown(status: 15, reason: "uncaughtSignal")` where `clean`
+    /// was expected).
+    private let notificationCenter: NotificationCenter
+
+    init(notificationCenter: NotificationCenter = .default) {
+        self.notificationCenter = notificationCenter
+    }
+
+    deinit {
+        if let observerToken {
+            notificationCenter.removeObserver(observerToken)
+        }
+    }
 
     func register(_ process: Process) {
         lock.lock()
@@ -50,9 +72,8 @@ final class AdapterProcessRegistry: @unchecked Sendable {
     }
 
     private func ensureObservingLocked() {
-        guard !observing else { return }
-        observing = true
-        NotificationCenter.default.addObserver(
+        guard observerToken == nil else { return }
+        observerToken = notificationCenter.addObserver(
             forName: NSApplication.willTerminateNotification, object: nil, queue: nil
         ) { [weak self] _ in
             self?.terminateAll()
@@ -144,6 +165,7 @@ actor AdapterHost {
         /// progress (D-65) — the caller should surface this as an
         /// ordinary refusal, not spawn a second process.
         case launchInProgress(assetSetID: String)
+        case controllerInputNotAttested
     }
 
     private let pin: AdapterPin
@@ -163,19 +185,41 @@ actor AdapterHost {
     /// different byte stream, and comparing the two can never succeed.
     private var expectedExecutableSHA256: String?
 
-    /// The controller mapping `ControllerSettingsView`/`ControllerHost`
-    /// currently have active for the assigned controller, injected into
-    /// every subsequent launch's rendered arguments. `nil` (the default)
-    /// launches with no controller-mapping override at all — a mapping
-    /// the emulator never reads would look correct in settings and do
-    /// nothing in the game, so this is read directly by
-    /// `renderedLaunchArguments`, the same method the test suite asserts
-    /// against (plan 03-10).
+    /// The assigned controller's Playstead mapping. The pinned mGBA
+    /// frontend needs SDL numeric bindings in its input configuration;
+    /// GameController element names cannot be passed through `-C`.
+    /// Retained while the SDL identity/binding bridge is implemented.
     private var activeControllerMapping: ControllerMapping?
+    private struct ActiveInputAttestation {
+        let attestation: ControllerAttestation
+        let device: SDLDeviceSnapshot
+        let generation: UInt64
+    }
+    /// Session-scoped identity evidence. Mapping preferences remain the
+    /// source of desired behavior; launch regenerates the numeric config
+    /// from that preference and this attestation immediately before spawn.
+    private var activeInputAttestation: ActiveInputAttestation?
 
-    init(pin: AdapterPin, emulatorsRoot: URL) {
+    /// The registry every launched process is enrolled in, so the app's
+    /// termination sweep can never orphan one. Defaults to the shared
+    /// instance, which is what the app itself uses. Tests that spawn a
+    /// real child inject their own instance (built on a private
+    /// `NotificationCenter`) so one test's sweep cannot terminate
+    /// another test's process — see `AdapterProcessRegistry` above and
+    /// WINDOWS #86.
+    private let processRegistry: AdapterProcessRegistry
+    private let privateConfigurationRoot: URL
+
+    init(
+        pin: AdapterPin,
+        emulatorsRoot: URL,
+        processRegistry: AdapterProcessRegistry = .shared,
+        privateConfigurationRoot: URL = FileManager.default.temporaryDirectory
+    ) {
         self.pin = pin
         self.emulatorsRoot = emulatorsRoot
+        self.processRegistry = processRegistry
+        self.privateConfigurationRoot = privateConfigurationRoot
     }
 
     /// Records which installation (downloaded or user-selected) launch
@@ -203,27 +247,24 @@ actor AdapterHost {
     /// call this whenever the assigned controller or its mapping
     /// changes.
     func setControllerMapping(_ mapping: ControllerMapping?) {
+        if activeControllerMapping?.controllerProductID != mapping?.controllerProductID {
+            activeInputAttestation = nil
+        }
         activeControllerMapping = mapping
     }
 
-    /// Builds the exact argument array `launch(...)` hands to `Process`
-    /// — pure and independently testable, so a test can assert the
-    /// injected configuration contains the active mapping's values
-    /// without spawning a real process.
-    ///
-    /// Renders the pin's own launch template first (unchanged
-    /// behaviour), then appends one `cli_config_override` pair per
-    /// mapped input. The pinned mGBA build's `config_injection.keys`
-    /// records `controller_mapping` as `"not_probed_no_hardware_available"`
-    /// (03-ADAPTER-PIN.json) — the spike never had hardware to confirm a
-    /// real per-button flag syntax — so this falls back to mGBA's own
-    /// documented general `-C key=value` override mechanism (the same
-    /// flag the pin already uses for `savegamePath`), under an
-    /// `input.<adapterInput>` key. Whether mGBA's runtime actually reads
-    /// that specific key name is therefore unverified pending real
-    /// controller hardware; the wiring itself — that the active mapping
-    /// reaches the injected configuration at launch — is what this
-    /// method and its test prove.
+    func setControllerInputAttestation(_ attestation: ControllerAttestation?, device: SDLDeviceSnapshot? = nil, generation: UInt64 = 0) {
+        guard let attestation, let device else {
+            activeInputAttestation = nil
+            return
+        }
+        activeInputAttestation = ActiveInputAttestation(attestation: attestation, device: device, generation: generation)
+    }
+
+    /// Builds the exact argument array `launch(...)` hands to `Process`.
+    /// `-C` only reaches mGBA's core option table, not its SDL input
+    /// configuration. Do not append synthetic `input.*` keys: mGBA
+    /// ignores them and would make an unapplied mapping appear active.
     /// `biosPath` is the resolved path to a validated, managed BIOS file
     /// for the ROM's system, if one exists (`nil` when no BIOS has been
     /// validated) — passed by the caller, since `AdapterHost` holds no
@@ -238,11 +279,6 @@ actor AdapterHost {
                 .replacingOccurrences(of: "{path}", with: biosPath)
                 .split(separator: " ")
                 .map(String.init))
-        }
-        guard let mapping = activeControllerMapping else { return args }
-        for input in mapping.mappings {
-            args.append("-C")
-            args.append("input.\(input.adapterInput)=\(input.controllerInput)")
         }
         return args
     }
@@ -390,8 +426,9 @@ actor AdapterHost {
         /// launch entirely: this type never spawns the emulator over a
         /// save write it could not complete or verify.
         executeSavePlan: (() throws -> Void)? = nil,
+        currentInputIdentity: (() async throws -> (controllerID: String, generation: UInt64, device: SDLDeviceSnapshot))? = nil,
         onExit: @escaping @Sendable (AdapterExit) -> Void
-    ) throws -> Process {
+    ) async throws -> Process {
         let mutex = AdapterLaunchMutex.shared
         guard mutex.tryAcquire(assetSetID: assetSetID) else {
             throw LaunchError.launchInProgress(assetSetID: assetSetID)
@@ -410,14 +447,44 @@ actor AdapterHost {
         try verifyInstalledDigest()
         try executeSavePlan?()
 
+        let generatedInputConfiguration: String?
+        if let mapping = activeControllerMapping {
+            guard let identity = activeInputAttestation else { throw LaunchError.controllerInputNotAttested }
+            let current = try await currentInputIdentity?() ?? (
+                controllerID: identity.attestation.controllerID,
+                generation: identity.generation,
+                device: identity.device
+            )
+            generatedInputConfiguration = try MGBAInputBridge.config(
+                mapping: mapping,
+                attestation: identity.attestation,
+                currentControllerID: current.controllerID,
+                generation: current.generation,
+                device: current.device
+            )
+        } else {
+            generatedInputConfiguration = nil
+        }
+
         let proc = Process()
         proc.executableURL = resolvedExecutableURL
         proc.arguments = renderedLaunchArguments(romPath: romPath, saveDir: saveDir, biosPath: biosPath)
+        let privateConfigRoot: URL?
+        if let configuration = generatedInputConfiguration {
+            let root = try MGBAInputBridge.writePrivateConfig(configuration, under: privateConfigurationRoot)
+            privateConfigRoot = root
+            var environment = ProcessInfo.processInfo.environment
+            environment["XDG_CONFIG_HOME"] = root.path
+            proc.environment = environment
+        } else {
+            privateConfigRoot = nil
+        }
 
         let detection = pin.exitDetection
-        let registry = AdapterProcessRegistry.shared
+        let registry = processRegistry
         proc.terminationHandler = { finished in
             registry.unregister(finished)
+            if let privateConfigRoot { try? FileManager.default.removeItem(at: privateConfigRoot) }
             mutex.release(assetSetID: assetSetID)
             let exit = AdapterExit.classify(
                 status: finished.terminationStatus,
@@ -427,7 +494,12 @@ actor AdapterHost {
             onExit(exit)
         }
 
-        try proc.run()
+        do {
+            try proc.run()
+        } catch {
+            if let privateConfigRoot { try? FileManager.default.removeItem(at: privateConfigRoot) }
+            throw error
+        }
         releaseOnReturn = false
         process = proc
         registry.register(proc)
@@ -438,4 +510,31 @@ actor AdapterHost {
     func terminateIfRunning() {
         process?.terminate()
     }
+
+#if UI_TESTING
+    /// Attests that a recovery UI test's child PID is the exact process this
+    /// host launched from its verified install inside the test profile, or
+    /// from the explicit managed-pinned selection used by the GB/GBC tracer.
+    /// The caller still uses the OS's normal application quit path; this
+    /// query never sends a signal or changes process state.
+    func recoveryUITestProcessIsBound(_ processIdentifier: Int32) -> Bool {
+        guard
+            let process,
+            process.isRunning,
+            process.processIdentifier == processIdentifier,
+            case .installed(_, let verified) = installState,
+            verified,
+            let executableURL = process.executableURL?.standardizedFileURL,
+            executableURL == resolvedExecutableURL.standardizedFileURL
+        else { return false }
+
+        let root = emulatorsRoot.standardizedFileURL.path
+        let executablePath = executableURL.path
+        let profileOwned = executablePath.hasPrefix(root.hasSuffix("/") ? root : root + "/")
+        let explicitlySelectedManagedPin = ProcessInfo.processInfo.environment["PLAYSTEAD_UI_TEST_MANAGED_ADAPTER_SELECTION"]
+            .flatMap { Bundle(url: URL(fileURLWithPath: $0).standardizedFileURL)?.executableURL?.standardizedFileURL }
+            .map { $0 == executableURL } ?? false
+        return profileOwned || explicitlySelectedManagedPin
+    }
+#endif
 }

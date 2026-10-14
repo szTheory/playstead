@@ -24,40 +24,57 @@ struct AdapterSetupView: View {
     var chooseApplication: () -> URL? = AdapterSetupView.defaultChooseApplication
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-                if let card = environment.adapterCapabilityCard {
-                    AdapterCapabilityCardView(card: card)
-                } else {
-                    Text("This build has no pinned adapter, so nothing can be installed.")
-                        .font(.psBody)
-                        .foregroundColor(DesignTokens.textPrimary)
-                }
-
-                statusLine
-
-                HStack(spacing: DesignTokens.Spacing.sm) {
-                    Button(Self.installActionTitle(for: environment.adapterInstallState)) {
-                        Task { await environment.installAdapter() }
+        VStack(alignment: .leading, spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+                    if let card = environment.adapterCapabilityCard {
+                        AdapterCapabilityCardView(card: card)
+                    } else {
+                        Text("This build has no pinned adapter, so nothing can be installed.")
+                            .font(.psBody)
+                            .foregroundColor(DesignTokens.textPrimary)
                     }
-                    .disabled(environment.adapterSetupPhase == .installing || environment.adapterCatalog == nil)
-                    .accessibilityLabel(Self.installActionTitle(for: environment.adapterInstallState))
-                    .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.installAdapter)
 
-                    Button("Choose an installed application…") {
-                        guard let url = chooseApplication() else { return }
-                        Task { await environment.selectExistingAdapter(appURL: url) }
+                    statusLine
+#if UI_TESTING
+                    if UITestBootstrap.isRequested() {
+                        Text(recoveryInstallStatus)
+                            .accessibilityIdentifier("playstead.readout.recovery-adapter-install-status")
+                            .accessibilityValue(recoveryInstallStatus)
                     }
-                    .disabled(environment.adapterSetupPhase == .installing || environment.adapterCatalog == nil)
-                    .accessibilityLabel("Choose an adapter application already installed on this Mac")
-                    .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.chooseAdapter)
+#endif
+
                 }
+                .padding(DesignTokens.Spacing.lg)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(DesignTokens.Spacing.lg)
+
+            // Keep the next action visible while capability facts and long
+            // installation status scroll, including inside readiness setup.
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                Button(Self.installActionTitle(for: environment.adapterInstallState)) {
+                    Task { await environment.installAdapter() }
+                }
+                .disabled(environment.adapterSetupPhase == .installing || environment.adapterCatalog == nil)
+                .accessibilityLabel(Self.installActionTitle(for: environment.adapterInstallState))
+                .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.installAdapter)
+
+                Button("Choose an installed application…") {
+                    guard let url = chooseApplication() else { return }
+                    Task { await environment.selectExistingAdapter(appURL: url) }
+                }
+                .disabled(environment.adapterSetupPhase == .installing || environment.adapterCatalog == nil)
+                .accessibilityLabel("Choose an adapter application already installed on this Mac")
+                .playsteadFocusable(identifier: AccessibilityIdentifiers.Control.chooseAdapter)
+            }
+            .padding(.horizontal, DesignTokens.Spacing.lg)
+            .padding(.top, DesignTokens.Spacing.sm)
+            .padding(.bottom, DesignTokens.Spacing.lg)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Adapter setup")
+        .accessibilityIdentifier(AccessibilityIdentifiers.Surface.adapter)
     }
 
     @ViewBuilder
@@ -76,6 +93,22 @@ struct AdapterSetupView: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(text)
     }
+
+#if UI_TESTING
+    /// A fixed projection of production state for the recovery lane. Paths
+    /// and installer error descriptions stay out of the test's public receipt.
+    private var recoveryInstallStatus: String {
+        switch environment.adapterSetupPhase {
+        case .installing: return "installing"
+        case .failed: return "failed"
+        case .idle:
+            switch environment.adapterInstallState {
+            case .notInstalled: return "not_installed"
+            case .installed(_, let verified): return verified ? "verified" : "unverified"
+            }
+        }
+    }
+#endif
 
     // MARK: - Pure presentation (asserted directly by tests)
 
@@ -111,6 +144,11 @@ struct AdapterSetupView: View {
     }
 
     static func defaultChooseApplication() -> URL? {
+#if UI_TESTING
+        if let managedSelection = UITestBootstrap.managedAdapterSelectionURL() {
+            return managedSelection
+        }
+#endif
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = false

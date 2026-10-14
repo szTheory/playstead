@@ -1,14 +1,19 @@
 # Source: caddyserver.com/docs/automatic-https
 #
 # CADDY_SITE_ADDRESS is derived in docker-compose.yml from
-# PLAYSTEAD_DOMAIN via Compose's ${VAR:-default} (falls back on unset
+# PLAYSTEAD_CADDY_SITE_ADDRESS, falling back to PLAYSTEAD_DOMAIN and
+# then localhost. The first-adopter profile sets it to the server's
+# LAN IP while leaving PLAYSTEAD_DOMAIN empty, so Caddy uses its
+# internal CA and Playstead reports/publishes the correct pinned root.
+# The ordinary deployment continues to derive it from PLAYSTEAD_DOMAIN
+# via Compose's ${VAR:-default} (falls back on unset
 # OR empty), not Caddy's own {$VAR:default} Caddyfile syntax (falls
 # back only when the variable is truly unset — see docker-compose.yml
 # for why that distinction matters here).
 #
 # Caddy's automatic HTTPS already implements D-13 with no extra
 # directives: when the site address is a real, publicly-resolvable
-# domain (PLAYSTEAD_DOMAIN is set), Caddy automatically requests a
+# public domain (PLAYSTEAD_DOMAIN is set), Caddy automatically requests a
 # Let's Encrypt certificate for it. When the address is "localhost"
 # (PLAYSTEAD_DOMAIN unset, the default), Caddy detects that it is not
 # a publicly-resolvable name and automatically issues from its own
@@ -24,6 +29,19 @@
 # documented alternative deployment path (see docs/DEPLOY.md), not a
 # behavior of this Caddyfile.
 
+{
+	http_port {$CADDY_HTTP_PORT:80}
+	https_port {$CADDY_HTTPS_PORT:443}
+	# IP-literal clients commonly omit SNI. Select this configured site's
+	# managed certificate when the ClientHello has no server name.
+	default_sni {$CADDY_SITE_ADDRESS:localhost}
+}
+
 {$CADDY_SITE_ADDRESS} {
+	tls {
+		# Preserve Caddy's normal TLS version range while creating a policy
+		# that can use the global default_sni when clients omit SNI.
+		protocols tls1.2 tls1.3
+	}
 	reverse_proxy app:4000
 }

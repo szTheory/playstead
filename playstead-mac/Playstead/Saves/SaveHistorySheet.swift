@@ -16,10 +16,11 @@ struct SaveHistoryRevisionRow: Identifiable, Equatable {
     /// separate version and any durability at once.
     let isSeparateVersion: Bool
     let relativeTime: String
+    let containsCompleteRTCArtifact: Bool
 
     init(
         id: String, durability: SaveDurability, isCurrent: Bool, isRestoredHere: Bool,
-        isSeparateVersion: Bool = false, relativeTime: String
+        isSeparateVersion: Bool = false, relativeTime: String, containsCompleteRTCArtifact: Bool = false
     ) {
         self.id = id
         self.durability = durability
@@ -27,6 +28,7 @@ struct SaveHistoryRevisionRow: Identifiable, Equatable {
         self.isRestoredHere = isRestoredHere
         self.isSeparateVersion = isSeparateVersion
         self.relativeTime = relativeTime
+        self.containsCompleteRTCArtifact = containsCompleteRTCArtifact
     }
 }
 
@@ -82,6 +84,11 @@ struct SaveHistorySheet: View {
         static let all: Set<String> = [localOnly, waitingToCopy, onServer, current, restored, separateVersion]
     }
 
+    static func boundedSubject(_ value: String, limit: Int = 120) -> String {
+        guard limit > 1, value.count > limit else { return value }
+        return String(value.prefix(limit - 1)) + "…"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             Text(SaveVocabulary.vocabularyRulesNounTimeline)
@@ -114,7 +121,6 @@ struct SaveHistorySheet: View {
         .padding(DesignTokens.Spacing.lg)
         .frame(minWidth: 480, minHeight: 360)
         .background(DesignTokens.background.ignoresSafeArea())
-        .preferredColorScheme(.dark)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(SaveVocabulary.vocabularyRulesNounTimeline) for \(title)")
         .accessibilityIdentifier(Automation.surface)
@@ -185,7 +191,7 @@ private struct SaveHistorySessionView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-            Text(session.deviceName)
+            Text(verbatim: SaveHistorySheet.boundedSubject(session.deviceName))
                 .font(.psLabelEmphasized)
                 .foregroundStyle(DesignTokens.textMuted)
                 .accessibilityIdentifier(SaveHistorySheet.Automation.sessionHeader(sessionSlot))
@@ -201,6 +207,7 @@ private struct SaveHistoryRowView: View {
     let revision: SaveHistoryRevisionRow
     let sessionSlot: Int
     let rowSlot: Int
+    @State private var showsDetails = false
 
     /// The row's own state label -- current/restored/separate-version
     /// win over plain durability, since they're the more specific fact
@@ -243,7 +250,8 @@ private struct SaveHistoryRowView: View {
     }
 
     var body: some View {
-        HStack(spacing: DesignTokens.Spacing.sm) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+          HStack(spacing: DesignTokens.Spacing.sm) {
             // The 28pt leading rail reserved for a future
             // save-progress screenshot (SEED-006, D-39) -- empty today.
             Color.clear
@@ -264,9 +272,20 @@ private struct SaveHistoryRowView: View {
             }
 
             Spacer()
+          }
+          .frame(minHeight: DesignTokens.InteractiveTarget.minimum)
+          if revision.containsCompleteRTCArtifact {
+              Button(showsDetails ? "Hide details" : "Details") { showsDetails.toggle() }
+                  .accessibilityIdentifier("playstead.save-history.session.\(sessionSlot).row.\(rowSlot).details")
+              if showsDetails {
+                  Text(SaveVocabulary.rtcArtifactDetails)
+                      .font(.psLabel)
+                      .foregroundStyle(DesignTokens.textMuted)
+                      .accessibilityIdentifier("playstead.save-history.session.\(sessionSlot).row.\(rowSlot).rtc-detail")
+              }
+          }
         }
-        .frame(minHeight: DesignTokens.InteractiveTarget.minimum)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier(SaveHistorySheet.Automation.row(sessionSlot, rowSlot))
     }
 }
@@ -319,13 +338,18 @@ enum SaveHistorySessionBuilder {
         return sortedGroups.map { key, groupRevisions in
             let deviceName = groupRevisions.first?.originDeviceID ?? thisDeviceName
             let rows = groupRevisions.map { revision in
-                SaveHistoryRevisionRow(
+                let rtcDeclaration = CartridgeQualification.supportedDeclarations.first {
+                    $0.cartridgeID == "mbc3-rtc" && $0.saveFormat == revision.saveFormat
+                }
+                return SaveHistoryRevisionRow(
                     id: revision.id,
                     durability: SaveDurability(rawValue: revision.durability) ?? .localOnly,
                     isCurrent: revision.id == currentID,
                     isRestoredHere: revision.restoredHereAt != nil,
                     isSeparateVersion: isSeparateVersion && headIDs.contains(revision.id),
-                    relativeTime: relativeTime(for: revision.recordedAt)
+                    relativeTime: relativeTime(for: revision.recordedAt),
+                    containsCompleteRTCArtifact: rtcDeclaration?.mediumID == "gbc_sram_32k_rtc"
+                        && rtcDeclaration?.artifactBytes == revision.sizeBytes
                 )
             }
             return SaveHistorySession(id: key, deviceName: deviceName, revisions: rows)

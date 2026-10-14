@@ -84,7 +84,7 @@ defmodule PlaysteadWeb.LibraryLive.StatusSlot do
       role="img"
       aria-label={@accessible_name}
       class={["status-slot", "status-badge-#{shape(@state)}", "status-slot-#{@state}"]}
-      style={"color: var(--status-#{token_suffix(@state)}); border-color: var(--status-#{token_suffix(@state)})"}
+      style={"color: var(--color-status-#{token_suffix(@state)}); border-color: var(--color-status-#{token_suffix(@state)})"}
     >
       <.icon name={glyph(@state)} class={["status-slot-glyph", "status-slot-#{@state}-glyph"]} />
       <span :if={@variant == :list} class="status-slot-label text-label font-semibold">

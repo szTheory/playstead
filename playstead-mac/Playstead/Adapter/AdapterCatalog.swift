@@ -26,17 +26,27 @@ struct AdapterDescriptor: Equatable {
     /// never assumed).
     let biosInjectionSupported: Bool
     let saveContract: AdapterSaveContract
+    let declaredSaveFormats: Set<String>
+    let supportedSystemIDs: Set<String>
+    let cartridgeDeclarations: [CartridgeSupportDeclaration]
 
-    init(pin: AdapterPin) {
+    init(pin: AdapterPin, cartridgeDeclarations: [CartridgeSupportDeclaration] = []) {
         self.system = pin.system
         self.emulatorName = pin.emulator
         self.version = pin.version
         self.downloadURL = pin.downloadURL
         self.expectedSHA256 = pin.sha256
-        self.acceptedContentTypes = [".\(pin.system)"]
+        let declaredSystems = Set(cartridgeDeclarations.map(\.systemID))
+        let systemIDs = [pin.system] + declaredSystems
+            .filter { $0 != pin.system }
+            .sorted()
+        self.acceptedContentTypes = systemIDs.map { ".\($0)" }
         self.biosRequired = false
         self.biosInjectionSupported = pin.configInjection.keys["bios_path"] != nil
         self.saveContract = pin.saveContract
+        self.cartridgeDeclarations = cartridgeDeclarations
+        self.declaredSaveFormats = Set(cartridgeDeclarations.map(\.saveFormat))
+        self.supportedSystemIDs = Set([pin.system]).union(declaredSystems)
     }
 }
 
@@ -50,6 +60,9 @@ struct AdapterCatalog {
     }
 
     var descriptor: AdapterDescriptor {
-        AdapterDescriptor(pin: pin)
+        AdapterDescriptor(
+            pin: pin,
+            cartridgeDeclarations: CartridgeQualification.supportedDeclarations
+        )
     }
 }

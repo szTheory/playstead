@@ -51,6 +51,74 @@ final class PlayPathSaveWiringTests: XCTestCase {
         )
     }
 
+    private func makeGBCRom(cgbFlag: UInt8, cartridgeType: UInt8, ramCode: UInt8) throws -> (URL, String) {
+        var bytes = Data(repeating: 0, count: 32 * 1024)
+        bytes[0x143] = cgbFlag
+        bytes[0x147] = cartridgeType
+        bytes[0x149] = ramCode
+        bytes[0x14D] = (0x134...0x14C).reduce(UInt8(0)) { $0 &- bytes[$1] &- 1 }
+        let url = tempRoot.appendingPathComponent("\(UUID().uuidString).gbc")
+        try bytes.write(to: url)
+        return (url, hex(of: bytes))
+    }
+
+    private func assertQualifiedCapture(
+        systemID: String, cgbFlag: UInt8, cartridgeType: UInt8, ramCode: UInt8,
+        expectedFormat: String, artifactBytes: Int
+    ) async throws {
+        let (romURL, romDigest) = try makeGBCRom(cgbFlag: cgbFlag, cartridgeType: cartridgeType, ramCode: ramCode)
+        let entryID = "asset-\(systemID)-\(UUID().uuidString.lowercased())"
+        let memberName = romURL.lastPathComponent
+        let game = CatalogueEntry(
+            id: entryID, system: systemID, displayTitle: "Qualified \(systemID) fixture", tags: [:],
+            members: [AssetMember(ordinal: 0, role: "rom", required: true, sha256: romDigest,
+                                  size: 32 * 1024, name: memberName)]
+        )
+        let members = [(sha256: romDigest, declaredName: memberName)]
+        let saveDirectory = tempRoot.appendingPathComponent("saves/\(entryID)", isDirectory: true)
+        try FileManager.default.createDirectory(at: saveDirectory, withIntermediateDirectories: true)
+        let launch = GameRowView.buildSaveLaunchPlan(
+            environment: environment, entry: game, members: members, romURL: romURL, saveDir: saveDirectory
+        )
+        let cartridge = try XCTUnwrap(launch.targetCartridge, "GB/GBC Play must qualify the actual launch ROM")
+        XCTAssertEqual(cartridge.systemID, systemID)
+        XCTAssertEqual(cartridge.saveFormat, expectedFormat)
+        XCTAssertEqual(cartridge.artifactBytes, artifactBytes)
+
+        let provenance = try XCTUnwrap(GameRowView.captureProvenance(
+            for: launch.targetCartridge, base: environment.saveCaptureProvenance
+        ))
+        XCTAssertEqual(provenance.saveFormat, expectedFormat)
+        XCTAssertEqual(provenance.formatConfidence, "exact")
+        let capture = try XCTUnwrap(GameRowView.buildSaveCaptureCoordinator(
+            environment: environment, entry: game, members: members,
+            targetURL: launch.targetURL, provenance: provenance
+        ))
+
+        await capture.begin()
+        try Data(repeating: 0x5A, count: artifactBytes).write(to: capture.targetURL)
+        await capture.end()
+
+        let revisions = environment.saveStore.fetchRevisions(saveLineID: capture.saveLineID)
+        let promoted = try XCTUnwrap(revisions.first(where: { $0.tier == SaveCaptureTier.promoted.rawValue }))
+        XCTAssertEqual(promoted.saveFormat, expectedFormat)
+        XCTAssertEqual(promoted.formatConfidence, "exact")
+    }
+
+    func testMBC5PlayCapturePersistsQualifiedGBCFormat() async throws {
+        try await assertQualifiedCapture(
+            systemID: "gbc", cgbFlag: 0xC0, cartridgeType: 0x1B, ramCode: 0x03,
+            expectedFormat: CartridgeQualification.mbc5Declaration.saveFormat, artifactBytes: 32_768
+        )
+    }
+
+    func testMBC3RTCCapturePersistsQualifiedFormatAndFullArtifactSize() async throws {
+        try await assertQualifiedCapture(
+            systemID: "gbc", cgbFlag: 0xC0, cartridgeType: 0x10, ramCode: 0x03,
+            expectedFormat: CartridgeQualification.mbc3RTCDeclaration.saveFormat, artifactBytes: 32_816
+        )
+    }
+
     @discardableResult
     private func commitIntoCAS(_ data: Data) throws -> String {
         let digest = hex(of: data)
@@ -143,17 +211,21 @@ final class PlayPathSaveWiringTests: XCTestCase {
         let source = try String(contentsOf: sourceURL, encoding: .utf8)
 
         XCTAssertTrue(source.contains("SaveSessionRecovery("), "SaveSessionRecovery must be constructed in production")
-        // WINDOWS #57: both save writers take their provenance from one
-        // value the composition root computes, so the live path and the
-        // crash-replay path cannot be handed different answers. Asserted
-        // on the source because the two constructions are in `init`,
-        // where a test cannot observe the arguments themselves.
+        // WINDOWS #57: replay receives the composition-root value directly;
+        // the live coordinator accepts an explicit override but defaults to
+        // the same root value. Assert both distinct call sites instead of
+        // counting one literal spelling twice.
         XCTAssertEqual(
-            source.components(separatedBy: "provenance: saveCaptureProvenance").count - 1, 2,
-            "both SaveSessionRecovery and makeSaveSessionCoordinator must be handed the same provenance value"
+            source.components(separatedBy: "provenance: saveCaptureProvenance").count - 1, 1,
+            "SaveSessionRecovery must receive the composition-root provenance"
         )
+        XCTAssertEqual(
+            source.components(separatedBy: "provenance: provenance ?? saveCaptureProvenance").count - 1, 1,
+            "makeSaveSessionCoordinator must default to the same provenance while preserving explicit overrides"
+        )
+        let normalizedSource = source.split(whereSeparator: \.isWhitespace).joined(separator: " ")
         XCTAssertTrue(
-            source.contains(".task { await appEnvironment.recoverAbandonedSaveSessionsAtLaunch() }"),
+            normalizedSource.contains(".task { await appEnvironment.recoverAbandonedSaveSessionsAtLaunch()"),
             "the production root view must actually run the replay pass at launch"
         )
     }
@@ -301,6 +373,58 @@ final class PlayPathSaveWiringTests: XCTestCase {
         }
         try saveLaunch.executeSavePlan()
         XCTAssertFalse(FileManager.default.fileExists(atPath: saveLaunch.targetURL.path))
+    }
+
+    /// The Play path's current save-head cardinality must come from the same
+    /// real SaveStore snapshot that feeds LaunchSavePlanner. A first launch,
+    /// one restorable revision, and a diverged line have different semantics;
+    /// collapsing them into a nil compatibility verdict would make a stale
+    /// single-head refusal impossible to reconcile safely.
+    func testLaunchBuilderTracksNoHeadSingleHeadAndDivergedSaveStoreStates() throws {
+        let romSHA256 = String(repeating: "8", count: 64)
+        let saveDir = tempRoot.appendingPathComponent("saves/asset-heads", isDirectory: true)
+        try FileManager.default.createDirectory(at: saveDir, withIntermediateDirectories: true)
+        let romURL = tempRoot.appendingPathComponent("launch/asset-heads/game.gba")
+        let testEntry = entry(id: "asset-heads", romSHA256: romSHA256)
+        let members = [(sha256: romSHA256, declaredName: "game.gba")]
+        let saveStore = SaveStore(localStore: environment.localStore)
+
+        let fresh = GameRowView.buildSaveLaunchPlan(
+            environment: environment, entry: testEntry, members: members, romURL: romURL, saveDir: saveDir
+        )
+        XCTAssertEqual(fresh.currentHeadCount, 0)
+        if case .fresh = fresh.plan {} else { XCTFail("no saved head should remain a normal fresh launch") }
+
+        try saveStore.resolveLine(contentKey: romSHA256, saveKind: "battery", slot: "0", placeholderID: "line-heads")
+        let firstBytes = Data(repeating: 0x31, count: 32_768)
+        let firstDigest = try commitIntoCAS(firstBytes)
+        try saveStore.insertRevision(SaveRevisionRow(
+            id: "head-one", saveLineID: "line-heads", parentRevisionID: nil,
+            blobSHA256: firstDigest, sizeBytes: firstBytes.count,
+            originDeviceID: "another-mac", deviceCapturedAt: nil, recordedAt: "2026-01-01T00:00:00Z",
+            captureMethod: nil, adapterID: nil, adapterVersion: nil, saveFormat: nil, formatConfidence: nil,
+            playSessionID: nil, durability: SaveDurability.uploaded.rawValue, localPath: nil
+        ))
+        let single = GameRowView.buildSaveLaunchPlan(
+            environment: environment, entry: testEntry, members: members, romURL: romURL, saveDir: saveDir
+        )
+        XCTAssertEqual(single.currentHeadCount, 1)
+        if case .restore = single.plan {} else { XCTFail("one local uncontested head should retain the existing restore plan") }
+
+        let secondBytes = Data(repeating: 0x32, count: 32_768)
+        let secondDigest = try commitIntoCAS(secondBytes)
+        try saveStore.insertRevision(SaveRevisionRow(
+            id: "head-two", saveLineID: "line-heads", parentRevisionID: nil,
+            blobSHA256: secondDigest, sizeBytes: secondBytes.count,
+            originDeviceID: "third-mac", deviceCapturedAt: nil, recordedAt: "2026-01-02T00:00:00Z",
+            captureMethod: nil, adapterID: nil, adapterVersion: nil, saveFormat: nil, formatConfidence: nil,
+            playSessionID: nil, durability: SaveDurability.uploaded.rawValue, localPath: nil
+        ))
+        let diverged = GameRowView.buildSaveLaunchPlan(
+            environment: environment, entry: testEntry, members: members, romURL: romURL, saveDir: saveDir
+        )
+        XCTAssertEqual(diverged.currentHeadCount, 2)
+        if case .keep = diverged.plan {} else { XCTFail("diverged heads must retain the existing non-destructive keep policy") }
     }
 
     // MARK: - buildSaveCaptureCoordinator: the capture half is wired
@@ -489,7 +613,10 @@ final class PlayPathSaveWiringTests: XCTestCase {
         let emulatorsRoot = tempRoot.appendingPathComponent("emulators")
         let emulatorDir = emulatorsRoot.appendingPathComponent(pin.emulator).appendingPathComponent(pin.version)
         try FileManager.default.createDirectory(at: emulatorDir, withIntermediateDirectories: true)
-        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/usr/bin/true"), to: emulatorDir.appendingPathComponent("true"))
+        try StandInExecutable.install(
+            from: URL(fileURLWithPath: "/usr/bin/true"),
+            to: emulatorDir.appendingPathComponent("true")
+        )
 
         var trueHasher = try StreamingSHA256.resume(from: emulatorDir.appendingPathComponent("true"))
         let trueDigest = trueHasher.finalizeHex()
@@ -497,7 +624,7 @@ final class PlayPathSaveWiringTests: XCTestCase {
             archiveSHA256: pin.sha256, executableSHA256: trueDigest, executablePath: emulatorDir.appendingPathComponent("true").path
         )).write(to: emulatorDir.appendingPathComponent(".install-verify.json"))
 
-        return AdapterHost(pin: pin, emulatorsRoot: emulatorsRoot)
+        return AdapterHost(pin: pin, emulatorsRoot: emulatorsRoot, processRegistry: .isolatedForTesting())
     }
 
     // MARK: - A throwing plan prevents the emulator from spawning

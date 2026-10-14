@@ -6,6 +6,7 @@ import SwiftUI
 /// ready to play. Per D-17, a row exposes the action that is actually
 /// available (Download or Play) — never a disabled Play.
 enum GameRowStatus: Equatable {
+    case checking
     case needsDownload
     case downloading
     case ready
@@ -15,6 +16,36 @@ enum GameRowStatus: Equatable {
     /// string.
     case blocked(ReadinessReport)
     case error(String)
+
+    var hasReadinessBlocker: Bool {
+        if case .blocked = self { return true }
+        return false
+    }
+}
+
+/// The exact local launch inputs needed to re-evaluate a GB/GBC save
+/// compatibility rejection after the readiness sheet is dismissed. This
+/// avoids turning a launch-only safety verdict into Ready on a generic
+/// readiness refresh, while still allowing changed save/ROM facts to clear it.
+private struct IncompatibleLaunchContext {
+    let romURL: URL
+    let saveDirectoryURL: URL
+}
+
+/// Shared single-flight gate for row-triggered download and play requests.
+/// The row owns one gate so controller/button submissions cannot race the
+/// same asset into two production operations.
+@MainActor
+final class GameRowActionGate {
+    private(set) var isInFlight = false
+
+    func begin() -> Bool {
+        guard !isInFlight else { return false }
+        isInFlight = true
+        return true
+    }
+
+    func finish() { isInFlight = false }
 }
 
 /// One selection-scoped command emitted by the library composition root.
@@ -25,24 +56,57 @@ struct LibraryDownloadCommand: Equatable {
     let assetSetID: String
 }
 
-/// A functional (not yet visually designed) row for one catalogue entry:
-/// title, system, and exactly one status-appropriate action. The visual
-/// identity, shelves, sidebar, and status vocabulary are plan 03-06's
-/// work against the UI spec (D-12 through D-17) — this row exists so
-/// the tracer can prove the read-download-play path end to end.
+struct LibraryControllerCommand: Equatable {
+    enum Action: Equatable { case activate, context }
+    let sequence: Int
+    let assetSetID: String
+    let action: Action
+}
+
+/// A readiness-aware catalogue entry shared by compact list rows and
+/// actionable library cards. Both presentations use the same status and
+/// launch/download pipeline so layout does not change game behavior.
 struct GameRowView: View {
+    enum Presentation: Equatable {
+        case list
+        case collection
+        case card
+    }
+
     let entry: CatalogueEntry
-    var downloadCommand: LibraryDownloadCommand?
+    var downloadCommand: LibraryDownloadCommand? = nil
+    var presentation: Presentation = .list
+    var isSelected = false
+    var isControllerFocused = false
+    var controllerCommand: LibraryControllerCommand? = nil
 
     @Environment(AppEnvironment.self) private var environment
-    @State private var status: GameRowStatus = .needsDownload
+    @State private var status: GameRowStatus = .checking
+    @State private var currentReadinessReport: ReadinessReport?
+    @State private var incompatibleLaunchContext: IncompatibleLaunchContext?
+    @State private var incompatibleLaunchReport: ReadinessReport?
+    @State private var readinessRefreshTask: Task<Void, Never>?
+    @State private var readinessReleasedForTest = false
+    @State private var readinessGeneration = 0
+    @State private var actionGate = GameRowActionGate()
     @State private var lastExit: AdapterExit?
     @State private var showsReadinessSheet = false
+    @State private var showsControllerContext = false
+#if UI_TESTING
+    @State private var recoveryEmulatorProcessID: Int32?
+    @State private var recoveryEmulatorProcessState = "idle"
+    @State private var readinessDebugState = "initial"
+#endif
     /// The blocked capacity verdict that stopped the last download
     /// attempt, and the prompt it opens. `nil` whenever nothing is
     /// blocked — the row never remembers a stale refusal.
     @State private var quotaBlock: QuotaVerdict?
     @State private var showsReclaimPrompt = false
+    @State private var queueMutationFailed = false
+    @State private var showsControllerIdentityPrompt = false
+    @State private var controllerIdentityMessage: String?
+    @State private var controllerChallengeTask: Task<Void, Never>?
+    @State private var isControllerChallengeRunning = false
     /// The most recent launch's `SaveLaunchNotice`, when the save plan
     /// carried one (WINDOWS #37). Surfaced inline in the detail view's
     /// Save section once that surface exists — never as a modal, a
@@ -83,61 +147,89 @@ struct GameRowView: View {
         "playstead.game.\(assetSetID).download"
     }
 
+    static func playActionIdentifier(assetSetID: String) -> String {
+        "playstead.game.\(assetSetID).play"
+    }
+
+    static func retryActionIdentifier(assetSetID: String) -> String {
+        "playstead.game.\(assetSetID).retry"
+    }
+
+    /// The list row's status text label (QUAL-01). A stable identifier
+    /// rather than a raw-string query, so the guarantee stays auditable if
+    /// the copy ever changes.
+    static let statusLabelIdentifier = "library.status-label"
+
     static func summaryIdentifier(assetSetID: String) -> String {
         "playstead.game.\(assetSetID).summary"
     }
 
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(entry.displayTitle)
-                    .font(.headline)
-                Text(entry.system)
-                    .font(.caption)
-                    .foregroundStyle(.primary)
-                if case .error(let message) = status {
-                    Text(message)
-                        .font(.caption2)
-                        .foregroundStyle(.red)
-                }
-                if let blockingReport, let first = blockingReport.checks.first(where: { $0.outcome.isBlocking }) {
-                    Text(Self.blockingSummary(first))
-                        .font(.caption2)
-                        .foregroundStyle(.primary)
-                }
-                if let lastExit {
-                    Text("Last exit: \(String(describing: lastExit))")
-                        .font(.caption2)
-                        .foregroundStyle(.primary)
-                }
+        Group {
+            switch presentation {
+            case .list:
+                listContent
+                    .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+                    .padding(.vertical, DesignTokens.Spacing.xs)
+            case .collection:
+                collectionContent
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, DesignTokens.Spacing.xs)
+            case .card:
+                cardContent
+                    .padding(DesignTokens.Spacing.lg)
+                    .frame(width: DesignTokens.CardGeometry.width, height: DesignTokens.CardGeometry.height, alignment: .topLeading)
+                    .background {
+                        RoundedRectangle(cornerRadius: DesignTokens.CardGeometry.cornerRadius)
+                            .fill(DesignTokens.surface)
+                            .overlay {
+                                RoundedRectangle(cornerRadius: DesignTokens.CardGeometry.cornerRadius)
+                                    .strokeBorder(
+                                        isControllerFocused ? Color.accentColor : DesignTokens.border.opacity(0.55),
+                                        lineWidth: isControllerFocused ? 3 : 1
+                                    )
+                            }
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: DesignTokens.CardGeometry.cornerRadius))
             }
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel(rowSummaryAccessibilityLabel)
-            .accessibilityIdentifier(Self.summaryIdentifier(assetSetID: entry.id))
-            Spacer()
-            curationButtons
-            actionButton
         }
-        .padding(.vertical, 4)
+        .fixedSize(horizontal: false, vertical: true)
         .task {
+            refreshStatus()
+        }
+        .onChange(of: environment.downloadQueueRevision) { _, _ in
+            // Keep the readiness-derived action in sync with bytes committed
+            // by the shared queue. While a matching item still exists, the
+            // activity branch below owns the primary action.
+            guard environment.downloadActivity(for: entry) == nil else { return }
             refreshStatus()
         }
         .onChange(of: downloadCommand) { _, command in
             guard command?.assetSetID == entry.id else { return }
             Task { await download() }
         }
+        .onChange(of: controllerCommand) { _, command in
+            guard command?.assetSetID == entry.id else { return }
+            switch command?.action {
+            case .activate: Task { await activatePrimaryAction() }
+            case .context: showsControllerContext = true
+            case nil: break
+            }
+        }
         .sheet(isPresented: $showsReadinessSheet) {
             ReadinessSheetView(
                 entry: entry,
-                report: blockingReport ?? environment.readinessReport(for: entry),
+                report: blockingReport ?? currentReadinessReport ?? environment.readinessReport(for: entry),
+                isCheckingReadiness: status == .checking,
+                onContinueReadinessForTest: {
+#if UI_TESTING
+                    readinessReleasedForTest = true
+#endif
+                },
                 onRefresh: { refreshStatus() },
                 onDownload: {
                     showsReadinessSheet = false
                     Task { await download() }
-                },
-                onPlay: {
-                    showsReadinessSheet = false
-                    Task { await play() }
                 },
                 onClose: {
                     showsReadinessSheet = false
@@ -151,15 +243,332 @@ struct GameRowView: View {
         .sheet(isPresented: $showsReclaimPrompt) {
             reclaimPrompt
         }
+        .alert("Couldn’t update the queue", isPresented: $queueMutationFailed) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Try again in a moment. Your queue has not changed.")
+        }
+        .sheet(isPresented: $showsControllerIdentityPrompt, onDismiss: {
+            controllerChallengeTask?.cancel()
+            controllerChallengeTask = nil
+            isControllerChallengeRunning = false
+        }) {
+            controllerIdentitySheet
+        }
+        .popover(isPresented: $showsControllerContext) {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                Text(entry.displayTitle).font(.psLabelEmphasized)
+                keepOnMacButton
+            }
+            .padding(DesignTokens.Spacing.md)
+        }
+    }
+
+    private var listContent: some View {
+        ViewThatFits(in: .horizontal) {
+            horizontalListContent
+            compactListContent
+        }
+        .background {
+            if isControllerFocused {
+                RoundedRectangle(cornerRadius: DesignTokens.Radius.compact)
+                    .fill(Color.accentColor.opacity(0.16))
+            }
+        }
+    }
+
+    private var controllerIdentitySheet: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+            Text("Check the assigned controller").font(.psHeading)
+            Text(controllerIdentityMessage ?? "Playstead matches the assigned controller to mGBA without switching apps. Keep this window in front. Press and release Cross (×) / A, then press and release L1 (left shoulder).")
+                .fixedSize(horizontal: false, vertical: true)
+            if isControllerChallengeRunning { ProgressView("Listening for both inputs…") }
+            HStack {
+                Button("Cancel") { showsControllerIdentityPrompt = false }
+                Spacer()
+                Button("Start input check") { startControllerIdentityChallenge() }
+                    .disabled(isControllerChallengeRunning)
+                    .accessibilityIdentifier("controller.identity.start")
+            }
+        }
+        .padding(DesignTokens.Spacing.xl)
+        .frame(minWidth: 420)
+    }
+
+    /// The regular-width row gives the title a real minimum before status
+    /// and controls take their natural widths. `ViewThatFits` switches to
+    /// the stacked variant when the split view can no longer honor that
+    /// minimum, instead of squeezing the title into a narrow column.
+    private var horizontalListContent: some View {
+        HStack(spacing: DesignTokens.Spacing.md) {
+            titleColumn
+                .frame(minWidth: 190, maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
+
+            statusPair
+                .fixedSize(horizontal: true, vertical: false)
+
+            listActions
+        }
+    }
+
+    private var compactListContent: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+            titleColumn
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: DesignTokens.Spacing.md) {
+                    statusPair
+                        .fixedSize(horizontal: true, vertical: false)
+                    Spacer(minLength: 0)
+                    listActions
+                }
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+                    statusPair
+                    listActions
+                }
+            }
+        }
+    }
+
+    private var titleColumn: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+            Text(entry.displayTitle)
+                .font(.psLabelEmphasized)
+                .lineLimit(1)
+                .foregroundStyle(rowPrimaryForeground)
+                .accessibilityIdentifier("playstead.game.\(entry.id).title")
+            Text(systemDisplayName)
+                .font(.psLabel)
+                .foregroundStyle(rowSecondaryForeground)
+            if case .error(let message) = status {
+                HStack(spacing: DesignTokens.Spacing.sm) {
+                    Text(message)
+                        .font(.psLabel)
+                        .foregroundStyle(DesignTokens.error)
+                        .textSelection(.enabled)
+                    Button("Copy error") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(message, forType: .string)
+                    }
+                    .controlSize(.small)
+                }
+            }
+            if let blockingReport, let first = blockingReport.checks.first(where: { $0.outcome.isBlocking }) {
+                Text(Self.blockingSummary(first))
+                    .font(.psLabel)
+                    .foregroundStyle(.secondary)
+            }
+            if let lastExit {
+                Text("Last exit: \(String(describing: lastExit))")
+                    .font(.psLabel)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("playstead.game.\(entry.id).last-exit")
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(rowSummaryAccessibilityLabel)
+        .accessibilityIdentifier(Self.summaryIdentifier(assetSetID: entry.id))
+    }
+
+    private var listActions: some View {
+        HStack(spacing: DesignTokens.Spacing.sm) {
+            actionButton
+                .buttonStyle(.borderless)
+                .foregroundStyle(rowPrimaryForeground)
+            favoriteButton
+            queueButton
+            curationMenu
+        }
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+#if UI_TESTING
+    private var recoveryProcessStatus: some View {
+        Group {
+            Text("Emulator process")
+                .accessibilityIdentifier("playstead.test.recovery-emulator-process-id.\(entry.id)")
+                .accessibilityValue(recoveryEmulatorProcessState == "owned_running"
+                    ? String(recoveryEmulatorProcessID ?? 0)
+                    : recoveryEmulatorProcessState)
+            Text(recoveryExitCategory)
+                .accessibilityIdentifier("playstead.test.recovery-emulator-exit-category.\(entry.id)")
+                .accessibilityValue(recoveryExitCategory)
+        }
+    }
+#endif
+
+    /// Collection details share a narrower split-view pane than the main
+    /// library. Stack identity and status above the same production actions
+    /// so the reorder controls remain inside that pane at the default window
+    /// size.
+    private var collectionContent: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+                Text(entry.displayTitle)
+                    .font(.psLabelEmphasized)
+                    .lineLimit(1)
+                    .foregroundStyle(rowPrimaryForeground)
+                    .accessibilityIdentifier("playstead.game.\(entry.id).title")
+                Text(systemDisplayName)
+                    .font(.psLabel)
+                    .foregroundStyle(rowSecondaryForeground)
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(rowSummaryAccessibilityLabel)
+            .accessibilityIdentifier(Self.summaryIdentifier(assetSetID: entry.id))
+
+            statusPair
+
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+                HStack(spacing: DesignTokens.Spacing.sm) {
+                    actionButton
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(rowPrimaryForeground)
+                        .frame(width: 116, alignment: .leading)
+                    favoriteButton
+                }
+                HStack(spacing: DesignTokens.Spacing.sm) {
+                    queueButton
+                    curationMenu
+                }
+            }
+        }
+        .background {
+            if isControllerFocused {
+                RoundedRectangle(cornerRadius: DesignTokens.Radius.compact)
+                    .fill(Color.accentColor.opacity(0.16))
+            }
+        }
+    }
+
+    private var rowPrimaryForeground: Color {
+        Color(nsColor: isSelected ? .alternateSelectedControlTextColor : .labelColor)
+    }
+
+#if UI_TESTING
+    private var recoveryExitCategory: String {
+        switch lastExit {
+        case .clean: "clean"
+        case .crashed: "crashed"
+        case .killed: "killed"
+        case .unknown: "unknown"
+        case nil: "not_exited"
+        }
+    }
+#endif
+
+    private var rowSecondaryForeground: Color {
+        isSelected
+            ? Color(nsColor: .alternateSelectedControlTextColor).opacity(0.78)
+            : DesignTokens.textMuted
+    }
+
+    @MainActor
+    private func activatePrimaryAction() async {
+        switch status {
+        case .needsDownload, .error:
+            await download()
+        case .checking:
+            break
+        case .downloading:
+            break
+        case .ready:
+            await play()
+        case .blocked:
+            showsReadinessSheet = true
+        }
+    }
+
+    private var cardContent: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                Text(entry.displayTitle)
+                    .font(.psHeading)
+                    .lineLimit(2)
+                    .truncationMode(.tail)
+                    .accessibilityIdentifier("playstead.game.\(entry.id).title")
+
+                HStack(spacing: DesignTokens.Spacing.sm) {
+                    SystemMonogramView(systemID: entry.system)
+                    Text(systemDisplayName)
+                        .font(.psLabel)
+                        .foregroundStyle(DesignTokens.textMuted)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(rowSummaryAccessibilityLabel)
+            .accessibilityIdentifier(Self.summaryIdentifier(assetSetID: entry.id))
+
+            statusPair
+
+            Spacer(minLength: 0)
+
+            HStack(spacing: DesignTokens.Spacing.sm) {
+                actionButton
+                favoriteButton
+                queueButton
+                curationMenu
+            }
+        }
+    }
+
+    private var systemDisplayName: String {
+        LibraryViewModel.isUnidentified(entry)
+            ? "Unknown system"
+            : SystemRegistry.entry(for: entry.system).displayName
     }
 
     private var rowSummaryAccessibilityLabel: String {
-        var parts = [entry.displayTitle, SystemRegistry.entry(for: entry.system).displayName]
+        var parts = [entry.displayTitle, systemDisplayName]
         if let blockingReport,
            let first = blockingReport.checks.first(where: { $0.outcome.isBlocking }) {
             parts.append(Self.blockingSummary(first))
         }
         return parts.joined(separator: ", ")
+    }
+
+    /// The real read-time availability ladder for this row (D-21), via the
+    /// one derivation both library layouts share.
+    ///
+    /// `pinRevision` is read here for the same reason `isPinned` reads it:
+    /// pins live in SQLite, so nothing else invalidates this row when one
+    /// is toggled. Cache membership has the same shape of limitation --
+    /// this re-derives whenever the row's body re-evaluates, which a
+    /// completed download does through `refreshStatus()`, not on a timer.
+    private var statuses: [LibraryStatus] {
+        _ = pinRevision
+        return environment.libraryStatuses(for: entry)
+    }
+
+    /// QUAL-01 (03-UI-SPEC.md): a list row pairs the status glyph with its
+    /// own text label, never colour or glyph alone.
+    ///
+    /// Cards and rows share one explicit glyph-plus-label status. The row
+    /// label stays in a stable column and remains visible in either the
+    /// selected or unselected state.
+    @ViewBuilder
+    private var statusPair: some View {
+        let current = statuses
+        if let status = LibraryStatus.highestPriority(among: current) {
+            // Deliberately NOT accessibility-hidden. The glyph beside it
+            // carries the full-sentence name, so hiding this would be
+            // tempting -- but a hidden element is invisible to XCUITest
+            // too, which would make QUAL-01 unauditable at the front
+            // door, and a short text label next to an icon is content, not
+            // decoration.
+            HStack(spacing: DesignTokens.Spacing.xs) {
+                StatusSlotView(statuses: current, title: entry.displayTitle)
+                Text(status.listViewLabel)
+                    .font(.psLabel)
+                    .foregroundStyle(rowSecondaryForeground)
+                    .lineLimit(1)
+                    .accessibilityIdentifier(Self.statusLabelIdentifier)
+            }
+        }
     }
 
     /// The blocked-capacity surface. Every button here does real work
@@ -207,34 +616,73 @@ struct GameRowView: View {
         return text
     }
 
-    /// Favorite and Queue, the two curation mutations reachable from any
-    /// library row. Both go through `AppEnvironment`'s shared view models,
-    /// so the intent lands in the one shared `Outbox` and the drain
-    /// trigger fires — the row is where the curation slice actually
-    /// becomes reachable from the shipped app.
-    @ViewBuilder
-    private var curationButtons: some View {
-        let isFavorited = environment.favoritesViewModel.isFavorited(assetSetID: entry.id)
-        let isQueued = environment.queueViewModel.isQueued(assetSetID: entry.id)
+    private var isFavorited: Bool {
+        environment.favoritesViewModel.isFavorited(assetSetID: entry.id)
+    }
 
-        Button(isFavorited ? "Unfavorite" : "Favorite") {
+    private var isQueued: Bool {
+        environment.queueViewModel.isQueued(assetSetID: entry.id)
+    }
+
+    /// Favorite and Queue are frequent actions, so keep both visible in
+    /// list and card layouts. The star is compact; Queue remains labeled
+    /// so its selected state is clear without relying on color alone.
+    private var favoriteButton: some View {
+        Button {
             environment.toggleFavorite(assetSetID: entry.id)
+        } label: {
+            Image(systemName: isFavorited ? "star.fill" : "star")
+                .frame(minWidth: DesignTokens.InteractiveTarget.minimum,
+                       minHeight: DesignTokens.InteractiveTarget.minimum)
+                .contentShape(Rectangle())
         }
+        .buttonStyle(.borderless)
+        .foregroundStyle(isFavorited && !isSelected ? Color.accentColor : rowPrimaryForeground)
+        .help(isFavorited ? "Remove from Favorites" : "Add to Favorites")
         .accessibilityLabel(Self.favoriteActionLabel(title: entry.displayTitle, isFavorited: isFavorited))
+        .accessibilityAddTraits(isFavorited ? .isSelected : [])
+    }
 
-        Button(isQueued ? "Remove from Queue" : "Add to Queue") {
-            environment.toggleQueued(assetSetID: entry.id)
+    private var queueButton: some View {
+        Button {
+            guard environment.toggleQueued(assetSetID: entry.id) else {
+                queueMutationFailed = true
+                return
+            }
+        } label: {
+            Label(isQueued ? "In Queue" : "Add to Queue",
+                  systemImage: isQueued ? "checkmark" : "text.badge.plus")
+                .lineLimit(1)
+                .fixedSize()
         }
+        .buttonStyle(.borderless)
+        .help(isQueued ? "Remove from Queue" : "Add to Queue")
         .accessibilityLabel(Self.queueActionLabel(title: entry.displayTitle, isQueued: isQueued))
+        .accessibilityAddTraits(isQueued ? .isSelected : [])
+    }
 
+    private var keepOnMacButton: some View {
         // Pinning is the only way a game becomes protected from reclaim
         // and prioritised by the download scheduler — `PinStore` had no
         // reachable caller at all before this button existed.
-        Button(isPinned ? "Unpin" : "Pin") {
+        Button(isPinned ? "Stop keeping on this Mac" : "Keep on this Mac") {
             environment.togglePin(assetSetID: entry.id)
             pinRevision += 1
         }
         .accessibilityLabel(Self.pinActionLabel(title: entry.displayTitle, isPinned: isPinned))
+    }
+
+    private var curationMenu: some View {
+        Menu {
+            keepOnMacButton
+        } label: {
+            Image(systemName: "ellipsis.circle")
+                .frame(minWidth: DesignTokens.InteractiveTarget.minimum,
+                       minHeight: DesignTokens.InteractiveTarget.minimum)
+        }
+        .menuStyle(.borderlessButton)
+        .foregroundStyle(rowPrimaryForeground)
+        .accessibilityLabel("More actions for \(entry.displayTitle)")
     }
 
     /// Accessible names are the action verb plus its subject
@@ -249,12 +697,63 @@ struct GameRowView: View {
     }
 
     static func pinActionLabel(title: String, isPinned: Bool) -> String {
-        isPinned ? "Unpin \(title), allowing it to be reclaimed" : "Pin \(title) to keep it on this Mac"
+        isPinned
+            ? "Stop keeping \(title) on this Mac; it can be removed automatically"
+            : "Keep \(title) on this Mac so it isn't removed automatically"
     }
 
     @ViewBuilder
     private var actionButton: some View {
+        Group {
+        if let activity = environment.downloadActivity(for: entry), !status.hasReadinessBlocker {
+            switch activity.state {
+            case .active:
+                HStack(spacing: DesignTokens.Spacing.xs) {
+                    if let percent = activity.progressPercent {
+                        ProgressView(value: Double(percent), total: 100)
+                            .controlSize(.small)
+                        Text("Downloading — \(percent)%")
+                            .font(.psLabel)
+                    } else {
+                        ProgressView().controlSize(.small)
+                        Text("Downloading")
+                            .font(.psLabel)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(activity.progressPercent.map { "Downloading, \($0) percent complete" } ?? "Downloading")
+                .accessibilityIdentifier("playstead.game.\(entry.id).download-activity")
+            case .waiting:
+                Text("Queued")
+                    .font(.psLabel)
+                    .accessibilityLabel("Queued to download")
+                    .accessibilityIdentifier("playstead.game.\(entry.id).download-activity")
+            case .paused:
+                Text("Paused")
+                    .font(.psLabel)
+                    .accessibilityLabel("Download paused")
+                    .accessibilityIdentifier("playstead.game.\(entry.id).download-activity")
+            case .cancelled:
+                EmptyView()
+            }
+        } else {
         switch status {
+        case .checking:
+            HStack(spacing: DesignTokens.Spacing.xs) {
+                ProgressView().controlSize(.small)
+                Text("Checking")
+                    .font(.psLabel)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Checking readiness")
+            .accessibilityIdentifier("playstead.game.\(entry.id).checking")
+#if UI_TESTING
+            if UITestBootstrap.isRequested(),
+               ProcessInfo.processInfo.environment["PLAYSTEAD_UI_TEST_READINESS_BARRIER"] == "hold" {
+                Button("Continue check") { readinessReleasedForTest = true }
+                    .accessibilityIdentifier("playstead.test.readiness.release.\(entry.id)")
+            }
+#endif
         case .needsDownload:
             Button("Download") { Task { await download() } }
                 .focused($downloadActionHasFocus)
@@ -269,16 +768,59 @@ struct GameRowView: View {
         case .downloading:
             ProgressView().controlSize(.small)
         case .ready:
-            Button("Play") { Task { await play() } }
+            HStack(spacing: DesignTokens.Spacing.xs) {
+                Button {
+                    showsReadinessSheet = true
+                } label: {
+                    Image(systemName: hasReadinessWarning ? "exclamationmark.triangle.fill" : "checkmark.circle")
+                        .frame(minWidth: DesignTokens.InteractiveTarget.minimum,
+                               minHeight: DesignTokens.InteractiveTarget.minimum)
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(hasReadinessWarning ? StatusToken.attention : rowSecondaryForeground)
+                .help("Review game readiness")
+                .accessibilityLabel("Review readiness for \(entry.displayTitle)")
+                .accessibilityIdentifier(AccessibilityIdentifiers.Control.openReadiness)
+                Button {
+                    Task { await play() }
+                } label: {
+                    Label("Play", systemImage: "play.fill")
+                }
+                .accessibilityIdentifier(Self.playActionIdentifier(assetSetID: entry.id))
+            }
         case .blocked:
             // D-17: the row offers the action that is actually available.
             // With something other than the files blocking, that action
             // is seeing the blocker and its remedy — never a disabled
             // Play, and never a Play that fails with a raw error.
-            Button("What's needed") { showsReadinessSheet = true }
+            Button {
+                showsReadinessSheet = true
+            } label: {
+                Label("What's needed", systemImage: "exclamationmark.triangle.fill")
+            }
+            .accessibilityIdentifier(AccessibilityIdentifiers.Control.openReadiness)
         case .error:
             Button("Retry") { Task { await download() } }
+                .accessibilityIdentifier(Self.retryActionIdentifier(assetSetID: entry.id))
         }
+        }
+        }
+#if UI_TESTING
+        .background(alignment: .topLeading) {
+            if UITestBootstrap.isRequested() {
+                VStack(alignment: .leading, spacing: 1) {
+                    recoveryProcessStatus
+                    Text(readinessDebugState)
+                        .accessibilityIdentifier("playstead.game.\(entry.id).readiness-debug")
+                        .accessibilityValue(readinessDebugState)
+                }
+                    .frame(width: 1, height: 1, alignment: .topLeading)
+                    .opacity(0.01)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(false)
+            }
+        }
+#endif
     }
 
     /// Derives the row's action from the real six-check readiness report,
@@ -286,8 +828,142 @@ struct GameRowView: View {
     /// row's own remedy for that blocker — and every other blocking
     /// condition routes to the report and its remedy.
     private func refreshStatus() {
-        guard !requiredMembers.isEmpty else { return }
-        status = Self.status(for: environment.readinessReport(for: entry))
+        guard !requiredMembers.isEmpty else {
+            readinessRefreshTask?.cancel()
+            readinessRefreshTask = nil
+            readinessGeneration += 1
+            let report = environment.readinessReport(for: entry)
+            currentReadinessReport = report
+            status = Self.status(for: report)
+#if UI_TESTING
+            let blockingKinds = report.checks.filter { $0.outcome.isBlocking }.map { $0.kind.rawValue }.joined(separator: ",")
+            readinessDebugState = "entry=\(entry.id) required=0 generation=\(readinessGeneration) outcome=complete blocks=\(blockingKinds)"
+#endif
+            return
+        }
+        readinessRefreshTask?.cancel()
+        readinessGeneration += 1
+        let generation = readinessGeneration
+        status = .checking
+#if UI_TESTING
+        readinessDebugState = "entry=\(entry.id) required=\(requiredMembers.count) generation=\(generation) outcome=evaluating"
+#endif
+#if UI_TESTING
+        let barrier = ProcessInfo.processInfo.environment["PLAYSTEAD_UI_TEST_READINESS_BARRIER"]
+        if UITestBootstrap.isRequested(),
+           (barrier == "hold" || (barrier == "after-initial" && generation > 1)) {
+        readinessRefreshTask = Task { @MainActor in
+            while !readinessReleasedForTest && !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(20))
+            }
+            guard !Task.isCancelled else { return }
+            completeReadinessRefresh(generation: generation)
+            readinessRefreshTask = nil
+        }
+            return
+        }
+#endif
+        completeReadinessRefresh(generation: generation)
+    }
+
+    private func completeReadinessRefresh(generation: Int) {
+        guard generation == readinessGeneration else {
+#if UI_TESTING
+            readinessDebugState = "entry=\(entry.id) generation=\(generation) outcome=stale-current-\(readinessGeneration)"
+#endif
+            return
+        }
+        let report = environment.readinessReport(for: entry)
+        if report.isReady,
+           let launchContext = incompatibleLaunchContext,
+           let launchReport = incompatibleLaunchReport {
+            let currentMembers = entry.members.compactMap { member -> (sha256: String, declaredName: String)? in
+                guard let sha256 = member.sha256, let name = member.name else { return nil }
+                return (sha256, name)
+            }
+            let currentPrimary = entry.members.first { member in
+                member.required && member.role == "primary" &&
+                    URL(fileURLWithPath: member.name ?? "").pathExtension.lowercased() == entry.system
+            }
+            guard let currentPrimary, let currentHash = currentPrimary.sha256,
+                  let currentROM = try? environment.casManager.objectURL(for: currentHash) else {
+                currentReadinessReport = report
+                status = Self.status(for: report)
+                return
+            }
+            let currentSupport = environment.systemSupportCheck(
+                for: entry, verifiedROMURL: currentROM, expectedROMHash: currentHash
+            )
+            guard !currentSupport.outcome.isBlocking else {
+                let currentSupportReport = ReadinessReport(checks: [currentSupport])
+                currentReadinessReport = currentSupportReport
+                status = Self.status(for: currentSupportReport)
+                return
+            }
+            guard let currentMaterialized = try? environment.launchMaterializer.materialize(
+                assetSetID: entry.id, members: currentMembers
+            ),
+                  let materializedROM = currentMaterialized.files.first(where: {
+                      $0.lastPathComponent == currentPrimary.name
+                  }) else {
+                currentReadinessReport = report
+                status = Self.status(for: report)
+                return
+            }
+            let refreshedSavePlan = Self.buildSaveLaunchPlan(
+                environment: environment,
+                entry: entry,
+                members: currentMembers,
+                romURL: materializedROM,
+                saveDir: launchContext.saveDirectoryURL
+            )
+            switch (refreshedSavePlan.currentHeadCount, refreshedSavePlan.compatibilityVerdict) {
+            case (0, _), (_, .some(.exact)), (_, .some(.sameTitle)):
+                // Only a fresh positive compatibility verdict may clear the
+                // retained launch blocker. Changed identity alone is not proof;
+                // no current candidate or a divergent history instead returns
+                // to the existing fresh/conflict readiness policy.
+                incompatibleLaunchContext = nil
+                incompatibleLaunchReport = nil
+            case (let count, _) where count > 1:
+                incompatibleLaunchContext = nil
+                incompatibleLaunchReport = nil
+            case (1, .some(.incompatible)):
+                currentReadinessReport = launchReport
+                status = .blocked(launchReport)
+#if UI_TESTING
+                let blockingKinds = launchReport.checks.filter { $0.outcome.isBlocking }.map { $0.kind.rawValue }.joined(separator: ",")
+                readinessDebugState = "entry=\(entry.id) generation=\(generation) outcome=launch-save-blocked blocks=\(blockingKinds)"
+#endif
+                return
+            case (1, .none):
+                // The pinned descriptor requires a save contract; if there
+                // is no descriptor, the ordinary system-support report is
+                // already blocking above. Keep this defensive fallback
+                // fail-closed if that model contract changes in the future.
+                currentReadinessReport = launchReport
+                status = .blocked(launchReport)
+                return
+            default:
+                // Defensive fallback for an impossible negative head count;
+                // retain the existing refusal rather than infer safety.
+                currentReadinessReport = launchReport
+                status = .blocked(launchReport)
+                return
+            }
+        }
+        currentReadinessReport = report
+        status = Self.status(for: report)
+#if UI_TESTING
+        let blockingKinds = report.checks.filter { $0.outcome.isBlocking }.map { $0.kind.rawValue }.joined(separator: ",")
+        let requiredMembersCached = requiredMembers.filter { environment.casManager.contains($0.sha256) }.count
+        let queueState = environment.downloadActivity(for: entry).map { $0.state.rawValue } ?? "none"
+        readinessDebugState = "entry=\(entry.id) required=\(requiredMembers.count) cached=\(requiredMembersCached) generation=\(generation) outcome=complete blocks=\(blockingKinds) queue=\(queueState)"
+#endif
+    }
+
+    private var hasReadinessWarning: Bool {
+        currentReadinessReport?.issueChecks.contains(where: { !$0.outcome.isBlocking }) == true
     }
 
     /// The row's action, derived from a readiness report — pure, so the
@@ -310,6 +986,13 @@ struct GameRowView: View {
     /// the free-space floor.
     @MainActor
     private func download() async {
+        // A shared queue row already owns this missing member. Controller
+        // activation and one-shot library commands can arrive while the
+        // visible primary action is showing Queued/Downloading, so enforce
+        // the same admission rule inside the handler as well as in the view.
+        guard environment.downloadActivity(for: entry) == nil else { return }
+        guard actionGate.begin() else { return }
+        defer { actionGate.finish() }
         status = .downloading
         switch await environment.attemptDownload(for: entry) {
         case .notPaired:
@@ -327,8 +1010,18 @@ struct GameRowView: View {
 
     @MainActor
     private func play() async {
+        guard actionGate.begin() else { return }
+        defer { actionGate.finish() }
         guard let adapterHost = environment.adapterHost else {
             status = .error("Adapter unavailable")
+            return
+        }
+        guard environment.controllerHost.assignedControllerID != nil else {
+            status = .error("Connect and assign a controller before launching mGBA.")
+            return
+        }
+        guard environment.controllerInputAttestation != nil else {
+            showsControllerIdentityPrompt = true
             return
         }
 
@@ -352,9 +1045,31 @@ struct GameRowView: View {
         var saveCapture: SaveCaptureWiring?
 
         do {
+            try await environment.attestAssignedControllerForGameplay()
             let materialized = try environment.launchMaterializer.materialize(assetSetID: entry.id, members: members)
             guard let romURL = materialized.files.first else {
                 status = .error("No launchable member")
+                return
+            }
+            let romMembers = members.filter { $0.declaredName == romURL.lastPathComponent }
+            guard romMembers.count == 1 else {
+                status = .blocked(ReadinessReport(checks: [
+                    ReadinessCheck(
+                        kind: .systemSupport,
+                        outcome: .blocked("The launch ROM could not be bound to one verified catalogue member."),
+                        finding: "Play requires one uniquely identified ROM member whose bytes match its declared digest.",
+                        remedy: Remedy(title: "Review adapter support", action: .reviewAdapterSupport)
+                    )
+                ]))
+                showsReadinessSheet = true
+                return
+            }
+            let systemCheck = environment.systemSupportCheck(
+                for: entry, verifiedROMURL: romURL, expectedROMHash: romMembers[0].sha256
+            )
+            guard !systemCheck.outcome.isBlocking else {
+                status = .blocked(ReadinessReport(checks: [systemCheck]))
+                showsReadinessSheet = true
                 return
             }
             // The same validated save directory the readiness check just
@@ -371,13 +1086,6 @@ struct GameRowView: View {
             let biosPath = environment.biosStore.managedRecord(forSystem: entry.system)
                 .map { environment.biosStore.managedPath(forSHA256: $0.sha256).path }
 
-            // Recent and Continue exist only because sessions are
-            // recorded; `PlaySessionRecorder` never sits between the user
-            // and the launch (every write inside it swallows its own
-            // failure), so this cannot make a launch fail.
-            let sessionID = environment.playSessionRecorder.began(assetSetID: entry.id)
-            environment.refreshCurationViewModels()
-
             // D-44/WINDOWS #37: build the save plan for this launch and
             // pass it to `executeSavePlan`, the seam `AdapterHost`
             // invokes inside its own per-assetSetID mutex span, right
@@ -389,6 +1097,36 @@ struct GameRowView: View {
                 environment: environment, entry: entry, members: members, romURL: romURL, saveDir: saveDir
             )
             saveLaunchNotice = saveLaunch.notice
+            if (entry.system == "gb" || entry.system == "gbc"),
+               let verdict = saveLaunch.compatibilityVerdict,
+               case .incompatible = verdict {
+                let report = ReadinessReport(checks: [
+                    ReadinessCheck(
+                        kind: .saveState,
+                        outcome: .blocked(SaveVocabulary.blockerIncompatibleSaveFinding),
+                        finding: SaveVocabulary.blockerIncompatibleSaveFinding,
+                        remedy: Remedy(
+                            title: SaveVocabulary.blockerIncompatibleSaveRemedy,
+                            action: .reviewSaveVersions
+                        )
+                    )
+                ])
+                incompatibleLaunchContext = IncompatibleLaunchContext(
+                    romURL: romURL,
+                    saveDirectoryURL: saveDir
+                )
+                incompatibleLaunchReport = report
+                status = .blocked(report)
+                showsReadinessSheet = true
+                return
+            }
+
+            // Recent and Continue exist only because sessions are
+            // recorded; do not open one until the GB/GBC restore contract
+            // has passed. This keeps a rejected restore out of session and
+            // capture history as well as out of the emulator process.
+            let sessionID = environment.playSessionRecorder.began(assetSetID: entry.id)
+            environment.refreshCurationViewModels()
 
             // WINDOWS #45/#44: the symmetric half of the same gap. The
             // restore side above was wired in 04-14; nothing in the
@@ -398,16 +1136,20 @@ struct GameRowView: View {
             // session-start baseline check reads the artifact as the
             // user left it -- before the save plan restores over it.
             saveCapture = GameRowView.buildSaveCaptureCoordinator(
-                environment: environment, entry: entry, members: members, targetURL: saveLaunch.targetURL
+                environment: environment, entry: entry, members: members, targetURL: saveLaunch.targetURL,
+                provenance: GameRowView.captureProvenance(
+                    for: saveLaunch.targetCartridge, base: environment.saveCaptureProvenance
+                )
             )
             await saveCapture?.begin()
 
             // `onExit` is `@Sendable`, and a mutable local cannot cross
             // into it -- the wiring is snapshotted into a `let` first.
             let capturedSession = saveCapture
-            try await adapterHost.launch(
+            let process = try await adapterHost.launch(
                 assetSetID: entry.id, romPath: romURL.path, saveDir: saveDir.path, biosPath: biosPath,
-                executeSavePlan: saveLaunch.executeSavePlan
+                executeSavePlan: saveLaunch.executeSavePlan,
+                currentInputIdentity: { try environment.currentControllerInputIdentity() }
             ) { exit in
                 Task { @MainActor in
                     // D-05's settle-then-promote pass, before the
@@ -416,16 +1158,52 @@ struct GameRowView: View {
                     // finished play session into a visible failure.
                     await capturedSession?.end()
                     lastExit = exit
+#if UI_TESTING
+                    recoveryEmulatorProcessID = nil
+                    recoveryEmulatorProcessState = "exited"
+#endif
                     environment.playSessionRecorder.ended(sessionID)
                     environment.refreshCurationViewModels()
                 }
             }
+#if UI_TESTING
+            recoveryEmulatorProcessID = process.processIdentifier
+            recoveryEmulatorProcessState = await adapterHost.recoveryUITestProcessIsBound(process.processIdentifier)
+                ? "owned_running"
+                : "unbound"
+#endif
         } catch {
             // The emulator never spawned (or never started), so no
             // `onExit` will ever fire -- close the capture session here
             // or its poll loop would run for the rest of the app's life.
             await saveCapture?.end()
             status = .error("Launch failed: \(error)")
+        }
+    }
+
+    @MainActor
+    private func startControllerIdentityChallenge() {
+        guard !isControllerChallengeRunning else { return }
+        isControllerChallengeRunning = true
+        controllerIdentityMessage = "Keep Playstead in front. Press and release Cross (×) / A, then press and release L1 (left shoulder)."
+        controllerChallengeTask = Task { @MainActor in
+            do {
+                try await ControllerChallengeLaunchCoordinator.perform(
+                    challenge: { try await environment.attestAssignedControllerForGameplay() },
+                    resumeLaunch: {
+                        controllerChallengeTask = nil
+                        isControllerChallengeRunning = false
+                        showsControllerIdentityPrompt = false
+                        await play()
+                    }
+                )
+            } catch {
+                guard !Task.isCancelled else { return }
+                controllerChallengeTask = nil
+                isControllerChallengeRunning = false
+                controllerIdentityMessage = error.localizedDescription
+                status = .error(error.localizedDescription)
+            }
         }
     }
 
@@ -446,7 +1224,7 @@ struct GameRowView: View {
         members: [(sha256: String, declaredName: String)],
         romURL: URL,
         saveDir: URL
-    ) -> (plan: SavePlan, targetURL: URL, notice: SaveLaunchNotice?, executeSavePlan: () throws -> Void) {
+    ) -> (plan: SavePlan, targetURL: URL, notice: SaveLaunchNotice?, targetCartridge: QualifiedCartridge?, currentHeadCount: Int, compatibilityVerdict: SaveCompatibilityGate.Verdict?, executeSavePlan: () throws -> Void) {
         // The save contract names this `{saveDir}/{romBaseName}.sav`
         // (SavePlanExecutor's own doc comment) -- `romBaseName` is the
         // materialized ROM's own filename, extension stripped, since no
@@ -464,12 +1242,23 @@ struct GameRowView: View {
         // `entry.id` only guards a members list this codebase's own
         // readiness gate should never allow to reach here empty.
         let contentKey = members.first?.sha256 ?? entry.id
+        let targetROMMembers = members.filter { $0.declaredName == romURL.lastPathComponent }
+        let targetROMHash = targetROMMembers.count == 1 ? targetROMMembers.first?.sha256 : nil
+        let targetCartridge: QualifiedCartridge?
+        if (entry.system == "gb" || entry.system == "gbc"), let targetROMHash {
+            targetCartridge = try? CartridgeQualification.qualify(romURL: romURL, expectedSHA256: targetROMHash)
+        } else {
+            targetCartridge = nil
+        }
 
         let contextBuilder = LaunchSaveContextBuilder(
             saveStore: SaveStore(localStore: environment.localStore),
             casManager: environment.casManager,
             saveContract: environment.adapterCatalog?.descriptor.saveContract,
-            systemID: entry.system
+            systemID: entry.system,
+            targetROMURL: romURL,
+            targetROMExpectedSHA256: targetROMHash,
+            declaredCartridges: environment.adapterCatalog?.descriptor.cartridgeDeclarations ?? []
         )
         let context = contextBuilder.buildContext(contentKey: contentKey, targetURL: targetURL)
         let plan = LaunchSavePlanner.plan(context: context)
@@ -497,7 +1286,13 @@ struct GameRowView: View {
             try? saveStore.markRestoredHere(revisionID: revision.id, at: ISO8601DateFormatter().string(from: Date()))
         }
 
-        return (plan, targetURL, Self.notice(for: plan), executeSavePlan)
+        return (plan, targetURL, Self.notice(for: plan), targetCartridge, context.heads.count, context.compatibilityVerdict, executeSavePlan)
+    }
+
+    static func captureProvenance(
+        for targetCartridge: QualifiedCartridge?, base: SaveCaptureProvenance
+    ) -> SaveCaptureProvenance? {
+        targetCartridge.map(base.qualified(by:))
     }
 
     /// One launch's capture wiring: a fresh `SaveSessionCoordinator`
@@ -520,7 +1315,8 @@ struct GameRowView: View {
         environment: AppEnvironment,
         entry: CatalogueEntry,
         members: [(sha256: String, declaredName: String)],
-        targetURL: URL
+        targetURL: URL,
+        provenance: SaveCaptureProvenance? = nil
     ) -> SaveCaptureWiring? {
         // Same `content_key` resolution as `buildSaveLaunchPlan` (D-10):
         // the ROM's own sha256, never `assetSetID`. The capture half and
@@ -539,7 +1335,7 @@ struct GameRowView: View {
         else { return nil }
 
         return SaveCaptureWiring(
-            coordinator: environment.makeSaveSessionCoordinator(),
+            coordinator: environment.makeSaveSessionCoordinator(provenance: provenance),
             saveLineID: line.id,
             targetURL: targetURL,
             destinationDirectory: captureDirectory,

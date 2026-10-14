@@ -14,11 +14,21 @@ struct ControllerDescriptor: Identifiable, Equatable, Codable {
     let id: String
     let name: String
     let availableInputs: [String]
+    let buttonStyle: ControllerButtonStyle?
+
+    init(id: String, name: String, availableInputs: [String], buttonStyle: ControllerButtonStyle? = nil) {
+        self.id = id
+        self.name = name
+        self.availableInputs = availableInputs
+        self.buttonStyle = buttonStyle
+    }
 
     /// The fixed set every descriptor reports — matches
     /// `ControllerMapping.defaultControllerInputs`, since a mapping can
     /// only ever target an input the controller actually exposes.
     static let defaultInputs = ControllerMapping.defaultControllerInputs
+    /// Extra monitored face buttons leave persisted adapter bindings intact.
+    static let extendedInputs = defaultInputs + ["buttonX", "buttonY"]
 }
 
 /// The controller half of the app's input picture — exactly one of
@@ -61,8 +71,18 @@ protocol ControllerInputSource: AnyObject {
     var currentControllers: [ControllerDescriptor] { get }
     func startObserving(
         onConnect: @escaping (ControllerDescriptor) -> Void,
-        onDisconnect: @escaping (ControllerDescriptor) -> Void
+        onDisconnect: @escaping (ControllerDescriptor) -> Void,
+        onInput: @escaping (ControllerInputEvent) -> Void
     )
+}
+
+/// A normalized GameController transition. Runtime IDs are deliberately
+/// scoped to a connected controller instance; the frozen input vocabulary
+/// is shared with the test surface and mapping model.
+struct ControllerInputEvent: Equatable {
+    let controllerID: String
+    let inputName: String
+    let isActive: Bool
 }
 
 /// The production `ControllerInputSource`: wraps `GCController`'s
@@ -77,6 +97,15 @@ protocol ControllerInputSource: AnyObject {
 final class GCControllerInputSource: ControllerInputSource {
     private static var nextIndex = 0
     private var assignedIDs: [ObjectIdentifier: String] = [:]
+    private var notificationTokens: [NSObjectProtocol] = []
+    private var gamepads: [String: GCExtendedGamepad] = [:]
+    private var activeInputs: [String: Set<String>] = [:]
+    private var onInput: ((ControllerInputEvent) -> Void)?
+
+    deinit {
+        notificationTokens.forEach(NotificationCenter.default.removeObserver)
+        gamepads.values.forEach(Self.removeHandlers(from:))
+    }
 
     private func descriptor(for controller: GCController) -> ControllerDescriptor {
         let key = ObjectIdentifier(controller)
@@ -88,7 +117,23 @@ final class GCControllerInputSource: ControllerInputSource {
             Self.nextIndex += 1
             assignedIDs[key] = id
         }
-        return ControllerDescriptor(id: id, name: controller.vendorName ?? "Controller", availableInputs: ControllerDescriptor.defaultInputs)
+        let gamepad = controller.extendedGamepad
+        let style: ControllerButtonStyle
+        if gamepad is GCDualSenseGamepad {
+            style = .dualSense
+        } else if gamepad is GCDualShockGamepad {
+            style = .dualShock
+        } else if gamepad is GCXboxGamepad {
+            style = .xbox
+        } else {
+            style = .generic
+        }
+        return ControllerDescriptor(
+            id: id,
+            name: controller.vendorName ?? "Controller",
+            availableInputs: gamepad == nil ? ControllerDescriptor.defaultInputs : ControllerDescriptor.extendedInputs,
+            buttonStyle: style
+        )
     }
 
     var currentControllers: [ControllerDescriptor] {
@@ -97,17 +142,73 @@ final class GCControllerInputSource: ControllerInputSource {
 
     func startObserving(
         onConnect: @escaping (ControllerDescriptor) -> Void,
-        onDisconnect: @escaping (ControllerDescriptor) -> Void
+        onDisconnect: @escaping (ControllerDescriptor) -> Void,
+        onInput: @escaping (ControllerInputEvent) -> Void
     ) {
-        NotificationCenter.default.addObserver(forName: .GCControllerDidConnect, object: nil, queue: .main) { [weak self] note in
+        self.onInput = onInput
+        notificationTokens.append(NotificationCenter.default.addObserver(forName: .GCControllerDidConnect, object: nil, queue: .main) { [weak self] note in
             guard let self, let controller = note.object as? GCController else { return }
-            onConnect(self.descriptor(for: controller))
-        }
-        NotificationCenter.default.addObserver(forName: .GCControllerDidDisconnect, object: nil, queue: .main) { [weak self] note in
+            let descriptor = self.descriptor(for: controller)
+            self.installHandlers(for: controller, descriptor: descriptor)
+            onConnect(descriptor)
+        })
+        notificationTokens.append(NotificationCenter.default.addObserver(forName: .GCControllerDidDisconnect, object: nil, queue: .main) { [weak self] note in
             guard let self, let controller = note.object as? GCController else { return }
-            onDisconnect(self.descriptor(for: controller))
+            let descriptor = self.descriptor(for: controller)
+            self.removeHandlers(for: descriptor.id)
+            onDisconnect(descriptor)
+        })
+        GCController.controllers().forEach { controller in
+            installHandlers(for: controller, descriptor: descriptor(for: controller))
         }
         GCController.startWirelessControllerDiscovery(completionHandler: nil)
+    }
+
+    private func installHandlers(for controller: GCController, descriptor: ControllerDescriptor) {
+        guard let gamepad = controller.extendedGamepad,
+              gamepads[descriptor.id] == nil else { return }
+        gamepads[descriptor.id] = gamepad
+        activeInputs[descriptor.id] = []
+
+        let buttons: [(String, GCControllerButtonInput?)] = [
+            ("dpadUp", gamepad.dpad.up), ("dpadDown", gamepad.dpad.down),
+            ("dpadLeft", gamepad.dpad.left), ("dpadRight", gamepad.dpad.right),
+            ("buttonA", gamepad.buttonA), ("buttonB", gamepad.buttonB),
+            ("buttonX", gamepad.buttonX), ("buttonY", gamepad.buttonY),
+            ("leftShoulder", gamepad.leftShoulder), ("rightShoulder", gamepad.rightShoulder),
+            ("buttonMenu", gamepad.buttonMenu), ("buttonOptions", gamepad.buttonOptions)
+        ]
+        for (name, button) in buttons {
+            button?.valueChangedHandler = { [weak self] _, _, isPressed in
+                self?.emit(controllerID: descriptor.id, inputName: name, active: isPressed)
+            }
+        }
+    }
+
+    private func emit(controllerID: String, inputName: String, active: Bool) {
+        guard ControllerDescriptor.extendedInputs.contains(inputName) else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.gamepads[controllerID] != nil else { return }
+            var inputs = self.activeInputs[controllerID, default: []]
+            guard inputs.contains(inputName) != active else { return }
+            if active { inputs.insert(inputName) } else { inputs.remove(inputName) }
+            self.activeInputs[controllerID] = inputs
+            self.onInput?(ControllerInputEvent(controllerID: controllerID, inputName: inputName, isActive: active))
+        }
+    }
+
+    private func removeHandlers(for controllerID: String) {
+        guard let gamepad = gamepads.removeValue(forKey: controllerID) else { return }
+        Self.removeHandlers(from: gamepad)
+        for name in (activeInputs.removeValue(forKey: controllerID) ?? []).sorted() {
+            onInput?(ControllerInputEvent(controllerID: controllerID, inputName: name, isActive: false))
+        }
+    }
+
+    private static func removeHandlers(from gamepad: GCExtendedGamepad) {
+        [gamepad.dpad.up, gamepad.dpad.down, gamepad.dpad.left, gamepad.dpad.right,
+         gamepad.buttonA, gamepad.buttonB, gamepad.buttonX, gamepad.buttonY, gamepad.leftShoulder, gamepad.rightShoulder,
+         gamepad.buttonMenu, gamepad.buttonOptions].forEach { $0?.valueChangedHandler = nil }
     }
 }
 
@@ -120,13 +221,10 @@ final class GCControllerInputSource: ControllerInputSource {
 /// surface reads this type.
 @MainActor
 @Observable
-final class ControllerHost {
+final class ControllerHost: AssignedControllerEventSource {
     private(set) var connectedControllers: [ControllerDescriptor] = []
     private(set) var assignedControllerID: String?
-    /// Live per-input press/release state for `ControllerTestView` —
-    /// driven by `reportInput(_:active:)`, which production code wires
-    /// to real `GCExtendedGamepad` element value-changed handlers and
-    /// tests call directly to simulate a press with no hardware.
+    /// Live per-input press/release state for the assigned controller.
     private(set) var liveInputs: Set<String> = []
     /// True from the instant a previously assigned controller
     /// disconnects until the user dismisses the affordance or a
@@ -148,6 +246,7 @@ final class ControllerHost {
     var onAssignmentChanged: (() -> Void)?
 
     private let source: ControllerInputSource
+    private var assignedInputObservers: [UUID: AsyncStream<AssignedInputEdge>.Continuation] = [:]
 
     init(source: ControllerInputSource = GCControllerInputSource()) {
         self.source = source
@@ -155,7 +254,8 @@ final class ControllerHost {
         assignedControllerID = connectedControllers.first?.id
         source.startObserving(
             onConnect: { [weak self] descriptor in self?.handleConnect(descriptor) },
-            onDisconnect: { [weak self] descriptor in self?.handleDisconnect(descriptor) }
+            onDisconnect: { [weak self] descriptor in self?.handleDisconnect(descriptor) },
+            onInput: { [weak self] event in self?.handleInput(event) }
         )
     }
 
@@ -175,11 +275,25 @@ final class ControllerHost {
 
     var hasAnyController: Bool { !connectedControllers.isEmpty }
 
+    /// A launch-scoped subscriber receives only input edges observed after
+    /// subscribing. No buffered historical press can satisfy an identity
+    /// challenge started later.
+    func inputEdges() -> AsyncStream<AssignedInputEdge> {
+        let id = UUID()
+        return AsyncStream(bufferingPolicy: .bufferingNewest(8)) { continuation in
+            assignedInputObservers[id] = continuation
+            continuation.onTermination = { [weak self] _ in
+                Task { @MainActor in self?.assignedInputObservers.removeValue(forKey: id) }
+            }
+        }
+    }
+
     /// Changes which connected controller is active. Always legal for
     /// any currently connected controller — a user with two controllers
     /// plugged in changes which one drives the game (D-14).
     func assign(controllerID: String) {
         guard connectedControllers.contains(where: { $0.id == controllerID }) else { return }
+        liveInputs.removeAll()
         assignedControllerID = controllerID
         showRecoveryBanner = false
         onAssignmentChanged?()
@@ -191,11 +305,22 @@ final class ControllerHost {
 
     /// Records a live button/axis press or release.
     func reportInput(_ name: String, active: Bool) {
+        guard ControllerDescriptor.extendedInputs.contains(name) else { return }
         if active {
             liveInputs.insert(name)
         } else {
             liveInputs.remove(name)
         }
+    }
+
+    private func handleInput(_ event: ControllerInputEvent) {
+        guard let descriptor = connectedControllers.first(where: { $0.id == event.controllerID }),
+              descriptor.availableInputs.contains(event.inputName),
+              ControllerDescriptor.extendedInputs.contains(event.inputName) else { return }
+        let edge = AssignedInputEdge(controllerID: event.controllerID, input: event.inputName, pressed: event.isActive)
+        assignedInputObservers.values.forEach { $0.yield(edge) }
+        guard event.controllerID == assignedControllerID else { return }
+        reportInput(event.inputName, active: event.isActive)
     }
 
     private func handleConnect(_ descriptor: ControllerDescriptor) {
@@ -217,6 +342,7 @@ final class ControllerHost {
 
     private func handleDisconnect(_ descriptor: ControllerDescriptor) {
         connectedControllers.removeAll { $0.id == descriptor.id }
+        if assignedControllerID == descriptor.id { liveInputs.removeAll() }
         if assignedControllerID == descriptor.id {
             lastDisconnectedControllerName = descriptor.name
             showRecoveryBanner = true

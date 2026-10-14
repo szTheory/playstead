@@ -29,9 +29,9 @@ defmodule PlaysteadWeb.LoginLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen flex items-center justify-center bg-[#0F172A] font-sans">
-      <div class="w-full max-w-md rounded-lg bg-[#1E293B] p-8 shadow-xl">
-        <h1 class="text-display font-semibold text-[#F1F5F9]">Log in</h1>
+    <div class="min-h-screen flex items-center justify-center bg-app-canvas font-sans">
+      <div class="w-full max-w-md rounded-lg bg-app-surface p-8 shadow-xl">
+        <h1 class="text-display font-semibold text-app-text">Log in</h1>
 
         <.form
           :let={f}
@@ -43,7 +43,7 @@ defmodule PlaysteadWeb.LoginLive do
           class="mt-6 space-y-4"
         >
           <div>
-            <label for={f[:email].id} class="block text-sm font-semibold text-[#F1F5F9]">
+            <label for={f[:email].id} class="block text-sm font-semibold text-app-text">
               Email
             </label>
             <input
@@ -54,12 +54,12 @@ defmodule PlaysteadWeb.LoginLive do
               autocomplete="username"
               spellcheck="false"
               required
-              class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0F172A] px-3 py-2 text-base text-[#F1F5F9] focus:border-[#38BDF8] focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
+              class="mt-1 block w-full rounded-md border border-app-border bg-app-canvas px-3 py-2 text-base text-app-text focus:border-app-accent focus:outline-none focus:ring-2 focus:ring-app-accent"
             />
           </div>
 
           <div>
-            <label for={f[:password].id} class="block text-sm font-semibold text-[#F1F5F9]">
+            <label for={f[:password].id} class="block text-sm font-semibold text-app-text">
               Password
             </label>
             <input
@@ -70,12 +70,12 @@ defmodule PlaysteadWeb.LoginLive do
               spellcheck="false"
               required
               phx-mounted={JS.focus()}
-              class="mt-1 block w-full rounded-md border border-[#334155] bg-[#0F172A] px-3 py-2 text-base text-[#F1F5F9] focus:border-[#38BDF8] focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
+              class="mt-1 block w-full rounded-md border border-app-border bg-app-canvas px-3 py-2 text-base text-app-text focus:border-app-accent focus:outline-none focus:ring-2 focus:ring-app-accent"
             />
-            <p id="no-mail-helper" class="mt-2 text-sm text-[#94A3B8]">
+            <p id="no-mail-helper" class="mt-2 text-sm text-app-muted">
               No email will ever be sent — this server never sends mail.
             </p>
-            <p :if={@error} id="login_error" data-role="error" class="mt-2 text-sm text-[#EF4444]">
+            <p :if={@error} id="login_error" data-role="error" class="mt-2 text-sm text-app-danger">
               {@error}
             </p>
           </div>
@@ -84,14 +84,14 @@ defmodule PlaysteadWeb.LoginLive do
             type="submit"
             id="login_submit"
             phx-disable-with="Logging in..."
-            class="w-full rounded-md bg-[#38BDF8] px-4 py-2 text-base font-semibold text-[#0F172A] hover:opacity-90 disabled:opacity-60"
+            class="w-full rounded-md bg-app-accent px-4 py-2 text-base font-semibold text-app-canvas hover:opacity-90 disabled:opacity-60"
           >
             Log in
           </button>
         </.form>
 
-        <p class="mt-4 text-center text-sm text-[#94A3B8]">
-          <.link id="locked-out-link" href={~p"/docs/recovery"} class="underline hover:text-[#F1F5F9]">
+        <p class="mt-4 text-center text-sm text-app-muted">
+          <.link id="locked-out-link" href={~p"/docs/recovery"} class="underline hover:text-app-text">
             Locked out?
           </.link>
         </p>

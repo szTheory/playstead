@@ -8,12 +8,14 @@ import Foundation
 /// than capturing the `@MainActor` `AppEnvironment`, and so a test can
 /// assert that the worker is genuinely running in the assembled app —
 /// `drainCount` is the observable proof, and `awaitPending()` lets a test
-/// await the pass a trigger actually started instead of polling.
+/// await every queued or running pass instead of polling.
 final class OutboxDrainTrigger: @unchecked Sendable {
     private let worker: OutboxWorker
     private let lock = NSLock()
     private var _drainCount = 0
-    private var _lastTask: Task<OutboxDrainResult, Never>?
+    private var _activePasses = 0
+    private var _tailTask: Task<OutboxDrainResult, Never>?
+    private var _waiters: [CheckedContinuation<Void, Never>] = []
 
     init(worker: OutboxWorker) {
         self.worker = worker
@@ -26,24 +28,50 @@ final class OutboxDrainTrigger: @unchecked Sendable {
         return _drainCount
     }
 
-    /// Starts one drain pass. The worker is an actor, so overlapping
-    /// calls serialize rather than racing the same entry.
+    /// Starts one ordered drain pass. A trigger waits for the preceding
+    /// pass to finish before asking the actor to inspect the outbox, keeping
+    /// enqueue order intact across suspended transport requests.
     @discardableResult
     func fire() -> Task<OutboxDrainResult, Never> {
-        let worker = self.worker
-        let task = Task { await worker.drainOnce() }
         lock.lock()
         _drainCount += 1
-        _lastTask = task
+        _activePasses += 1
+        let precedingTask = _tailTask
+        let worker = self.worker
+        let task = Task { [self, worker] in
+            if let precedingTask {
+                _ = await precedingTask.value
+            }
+            defer { finishPass() }
+            return await worker.drainOnce()
+        }
+        _tailTask = task
         lock.unlock()
         return task
     }
 
-    /// Awaits the most recently started pass, if any.
-    func awaitPending() async {
+    /// Awaits all drain passes that are active now, including overlapping
+    /// passes whose worker calls may finish in a different order.
+    func awaitPending(onWaiterRegistered: (@Sendable () -> Void)? = nil) async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            lock.lock()
+            guard _activePasses > 0 else {
+                lock.unlock()
+                continuation.resume()
+                return
+            }
+            _waiters.append(continuation)
+            onWaiterRegistered?()
+            lock.unlock()
+        }
+    }
+
+    private func finishPass() {
         lock.lock()
-        let task = _lastTask
+        _activePasses -= 1
+        let waiters = _activePasses == 0 ? _waiters : []
+        if _activePasses == 0 { _waiters.removeAll() }
         lock.unlock()
-        _ = await task?.value
+        waiters.forEach { $0.resume() }
     }
 }

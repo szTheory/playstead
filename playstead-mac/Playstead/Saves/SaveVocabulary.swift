@@ -36,6 +36,9 @@ enum SaveVocabulary {
     static let rollupHeaderOnServer = "Latest save is on your server."
     static let rollupHeaderNoSaves = "No saves yet."
     static let rollupNoSavesBody = "Play {title} and your progress will show up here."
+    static let rtcArtifactDetails = "This Game Boy Color save includes cartridge clock data. Playstead keeps the complete save artifact with this game's version."
+    static let blockerIncompatibleSaveFinding = "This save doesn't match this game's supported cartridge layout. Nothing was restored."
+    static let blockerIncompatibleSaveRemedy = "Choose a compatible saved version or return to the game."
     static let rollupMutedLineSingular = "1 earlier version is only on this Mac."
     static let rollupMutedLinePlural = "{N} earlier versions are only on this Mac."
     static let rollupFootnote = "Your server holds these versions. Backing up the server itself is separate."
@@ -141,6 +144,9 @@ enum SaveVocabulary {
         "rollup.header.on_server": rollupHeaderOnServer,
         "rollup.header.no_saves": rollupHeaderNoSaves,
         "rollup.no_saves_body": rollupNoSavesBody,
+        "save.rtc_artifact_details": rtcArtifactDetails,
+        "blocker.incompatible_save.finding": blockerIncompatibleSaveFinding,
+        "blocker.incompatible_save.remedy": blockerIncompatibleSaveRemedy,
         "rollup.muted_line_singular": rollupMutedLineSingular,
         "rollup.muted_line_plural": rollupMutedLinePlural,
         "rollup.footnote": rollupFootnote,

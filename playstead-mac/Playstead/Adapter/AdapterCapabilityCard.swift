@@ -48,6 +48,17 @@ struct AdapterCapabilityCard: Equatable {
         return "Battery save persists automatically during play. On-demand save is \(onDemand)."
     }
 
+    var cartridgeSupportText: String? {
+        guard !descriptor.cartridgeDeclarations.isEmpty else { return nil }
+        guard provenance == .pinnedRelease else {
+            return "Game Boy cartridge support applies only to the exact pinned adapter release."
+        }
+        let declarations = descriptor.cartridgeDeclarations.map { declaration in
+            "\(declaration.systemID.uppercased()) \(declaration.cartridgeID.uppercased()) with \(declaration.artifactBytes / 1_024) KB battery SRAM"
+        }
+        return "Qualified cartridges: \(declarations.joined(separator: ", ")). Other cartridges remain blocked."
+    }
+
     var installationLabelText: String {
         switch installState {
         case .notInstalled:
@@ -70,7 +81,7 @@ struct AdapterCapabilityCard: Equatable {
     var renderedText: String {
         [
             systemText, emulatorVersionText, digestText, acceptedContentText,
-            biosPostureText, saveSupportText, installationLabelText
+            biosPostureText, saveSupportText, cartridgeSupportText ?? "", installationLabelText
         ].joined(separator: "\n")
     }
 }
@@ -115,6 +126,11 @@ struct AdapterCapabilityCardView: View {
             Text(card.saveSupportText)
                 .font(.psBody)
                 .foregroundColor(DesignTokens.textPrimary)
+            if let cartridgeSupportText = card.cartridgeSupportText {
+                Text(cartridgeSupportText)
+                    .font(.psBody)
+                    .foregroundColor(DesignTokens.textPrimary)
+            }
             Text(card.installationLabelText)
                 .font(.psLabelEmphasized)
                 .foregroundColor(DesignTokens.textPrimary)

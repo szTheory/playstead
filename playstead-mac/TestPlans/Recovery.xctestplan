@@ -1,0 +1,51 @@
+{
+  "configurations": [
+    {
+      "id": "D5110F06-3431-466E-A90B-CE4803BCCC02",
+      "name": "Recovery",
+      "options": {}
+    }
+  ],
+  "defaultOptions": {
+    "codeCoverage": false,
+    "environmentVariableEntries": [
+      {"key": "PLAYSTEAD_MAC_CI_ROOT", "value": "$(PLAYSTEAD_MAC_CI_ROOT)"},
+      {"key": "PLAYSTEAD_LIVE_SERVER_STAGE_ROOT", "value": "$(PLAYSTEAD_LIVE_SERVER_STAGE_ROOT)"},
+      {"key": "PLAYSTEAD_LIVE_SERVER_STAGE_FILE", "value": "$(PLAYSTEAD_LIVE_SERVER_STAGE_FILE)"},
+      {"key": "MAC_CI_DATABASE_URL", "value": "$(MAC_CI_DATABASE_URL)"},
+      {"key": "MIX_ENV", "value": "$(MIX_ENV)"},
+      {"key": "PORT", "value": "$(PORT)"},
+      {"key": "PLAYSTEAD_TEST_LIVE_SERVER_CA_DER", "value": "$(PLAYSTEAD_TEST_LIVE_SERVER_CA_DER)"},
+      {"key": "PLAYSTEAD_TEST_LIVE_SERVER_CA_SHA256", "value": "$(PLAYSTEAD_TEST_LIVE_SERVER_CA_SHA256)"},
+      {"key": "PLAYSTEAD_TEST_LIVE_SERVER_RUNTIME_CONFIG", "value": "$(PLAYSTEAD_TEST_LIVE_SERVER_RUNTIME_CONFIG)"},
+      {"key": "PLAYSTEAD_SAVE_RELIABILITY_EVIDENCE_PATH", "value": "$(PLAYSTEAD_SAVE_RELIABILITY_EVIDENCE_PATH)"},
+      {"key": "PLAYSTEAD_GB_GBC_FIXTURE_REGISTRY", "value": "$(PLAYSTEAD_GB_GBC_FIXTURE_REGISTRY)"},
+      {"key": "PLAYSTEAD_GB_GBC_SAVE_E2E_PROFILE_ROOT", "value": "$(PLAYSTEAD_GB_GBC_SAVE_E2E_PROFILE_ROOT)"},
+      {"key": "PLAYSTEAD_GB_GBC_SAVE_EVIDENCE_DIRECTORY", "value": "$(PLAYSTEAD_GB_GBC_SAVE_EVIDENCE_DIRECTORY)"},
+      {"key": "PLAYSTEAD_AEREVEN_FIXTURE_REGISTRY", "value": "$(PLAYSTEAD_AEREVEN_FIXTURE_REGISTRY)"}
+    ],
+    "targetForVariableExpansion": {
+      "containerPath": "container:Playstead.xcodeproj",
+      "identifier": "44DC10C2CEB44A12A91241F2",
+      "name": "Playstead"
+    }
+  },
+  "testTargets": [
+    {
+      "parallelizable": false,
+      "selectedTests": [
+        "GBGBCSaveContinuityTests/testGBMBC1FreshProfileGameReadback()",
+        "GBGBCSaveContinuityTests/testGBCMBC5FreshProfileGameReadback()",
+        "GBGBCSaveContinuityTests/testGBCMBC3RTCFreshProfileGameReadback()",
+        "GBGBCSaveContinuityTests/testAerevenAdvanceGBARestoreMenuRegression()",
+        "RecoveryKnownPlayableTests/testPreparedRecoveryTargetLaunchesTheCleanMacAppAndRequestsPairing()"
+      ],
+      "target": {
+        "containerPath": "container:Playstead.xcodeproj",
+        "identifier": "1E0000000000000000000001",
+        "name": "PlaysteadUITests"
+      }
+    }
+  ],
+  "version": 1
+}

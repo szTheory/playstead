@@ -158,7 +158,7 @@ struct OnlyCopyEscalationPanel: View {
         .padding(DesignTokens.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.standard)
                 .strokeBorder(DesignTokens.border, lineWidth: 1)
         )
         .accessibilityElement(children: .contain)

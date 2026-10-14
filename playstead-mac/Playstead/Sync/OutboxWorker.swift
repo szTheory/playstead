@@ -2,13 +2,28 @@ import Foundation
 
 /// Counts from one `OutboxWorker.drainOnce()` pass — used by tests and,
 /// later, by a status indicator.
-struct OutboxDrainResult: Equatable {
+struct OutboxDrainResult: Equatable, Sendable {
     var sent = 0
     var rejected = 0
     /// `true` once this pass hit a transport/5xx/409 failure and stopped
     /// rather than racing ahead of that entry — entries must always send
     /// in the creation order they were enqueued in.
     var stoppedForRetry = false
+    /// How *this pass* classified the failure that stopped it, so a caller
+    /// never has to read `SaveUploadLane.lastFailureClassification` to find
+    /// out. That property is a nonisolated read of one last-writer-wins
+    /// cell, and since WINDOWS #67 made the save-e2e harness share the
+    /// app's lane, a concurrent pass can overwrite it between this pass
+    /// failing and the caller looking (WINDOWS #87). `stoppedForRetry` and
+    /// this field are then guaranteed to describe the same failure.
+    ///
+    /// `.none` whenever the pass did not stop for retry.
+    var failureClassification: SaveUploadFailureClassification = .none
+    /// Closed, privacy-safe cause for a retryable save upload failure.
+    /// Curation outbox passes leave this at `.none`.
+    var saveUploadFailureCause: SaveUploadFailureCause = .none
+    var httpStatus: Int? = nil
+    var apiCode: SafeAPIErrorCode? = nil
 }
 
 /// Drains `Outbox`'s pending entries one at a time, in creation order,
@@ -67,15 +82,34 @@ actor OutboxWorker {
     func drainOnce(at now: Date = Date()) async -> OutboxDrainResult {
         var result = OutboxDrainResult()
 
-        for entry in outbox.listPending(at: now) {
+        for entry in outbox.listUnresolved() {
+            // Entries are ordered by their durable enqueue sequence.
+            // Never pass an unresolved head, even when its retry delay
+            // has not elapsed or another drain currently owns it.
+            guard entry.state == .pending else {
+                result.stoppedForRetry = true
+                return result
+            }
+            if let nextRetryAt = entry.nextRetryAt {
+                guard let retryDate = ISO8601DateFormatter().date(from: nextRetryAt), retryDate <= now else {
+                    result.stoppedForRetry = true
+                    return result
+                }
+            }
+
             guard let intent = entry.intent else {
                 // A kind this build doesn't recognise — nothing this
-                // worker can send; leave it for a newer build.
-                continue
+                // worker can send; leave it for a newer build. It still
+                // blocks later entries to preserve queue ordering.
+                result.stoppedForRetry = true
+                return result
             }
 
             do {
-                try outbox.markInFlight(entry.id)
+                guard try outbox.claimForSending(entry.id, at: now) else {
+                    result.stoppedForRetry = true
+                    return result
+                }
             } catch {
                 // A local persistence failure marking this entry
                 // in-flight. Skipping to the next entry here would send a
@@ -93,7 +127,9 @@ actor OutboxWorker {
                 _ = try await apiClient.send(
                     method: intent.httpMethod,
                     path: intent.path,
-                    body: intent.wireBody,
+                    body: intent.wireBody(
+                        reportSequence: entry.kind.supersedesPending ? entry.enqueueSequence : nil
+                    ),
                     headers: ["Idempotency-Key": entry.idempotencyKey]
                 )
                 onEntryDelivered?(intent)
@@ -101,7 +137,14 @@ actor OutboxWorker {
                 result.sent += 1
             } catch let error as APIClientError {
                 if case .server(let apiError) = error, isPermanentRejection(apiError) {
-                    try? outbox.markRejected(entry.id, intent: intent, code: apiError.code)
+                    do {
+                        try outbox.markRejected(entry.id, intent: intent, code: apiError.code)
+                    } catch {
+                        // The head is still unresolved if persistence of
+                        // its rejection fails, so do not advance the pass.
+                        result.stoppedForRetry = true
+                        return result
+                    }
                     result.rejected += 1
                     if intent.leavesUncorrectableTombstoneOnRejection {
                         onDestructiveRejection?()

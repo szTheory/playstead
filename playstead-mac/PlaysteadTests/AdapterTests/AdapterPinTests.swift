@@ -2,6 +2,19 @@ import XCTest
 @testable import Playstead
 
 final class AdapterPinTests: XCTestCase {
+
+    /// A launch id no other test can collide with.
+    ///
+    /// `AdapterLaunchMutex.shared` is process-global and keyed by asset-set
+    /// id, and its key is released by the spawned process's termination
+    /// handler. Five tests across four suites used the literal
+    /// "test-asset-set", so ONE launch whose process never exited leaked that
+    /// key for the rest of the run and every later test throwing
+    /// `launchInProgress` instead of doing its job -- including
+    /// InstallerTests' digest-mismatch refusal, whose real assertion was
+    /// silently replaced by the wrong error (WINDOWS #86). Unique ids make
+    /// that cross-test coupling impossible.
+    private func uniqueAssetSetID() -> String { "test-asset-set-\(UUID().uuidString)" }
     /// Mirrors `.planning/phases/03-mac-offline-play-vertical-slice/03-ADAPTER-PIN.json`
     /// exactly, so decode-shape assertions don't depend on bundle
     /// resource resolution during the test run.
@@ -32,9 +45,12 @@ final class AdapterPinTests: XCTestCase {
         "worst_case_loss_seconds": 24
       },
       "exit_detection": {
-        "clean": {"terminationStatus": 15, "terminationReason": "uncaughtSignal"},
-        "crash": {"terminationStatus": 11, "terminationReason": "uncaughtSignal"},
-        "killed": {"terminationStatus": 9, "terminationReason": "uncaughtSignal"}
+        "clean": [{"terminationStatus": 0, "terminationReason": "exit"}],
+        "crash": [{"terminationStatus": 11, "terminationReason": "uncaughtSignal"}],
+        "killed": [
+          {"terminationStatus": 9, "terminationReason": "uncaughtSignal"},
+          {"terminationStatus": 15, "terminationReason": "uncaughtSignal"}
+        ]
       }
     }
     """
@@ -61,10 +77,16 @@ final class AdapterPinTests: XCTestCase {
         XCTAssertTrue(rendered.contains("/tmp/launch/game.gba"))
     }
 
+    /// Note what this test can and cannot do: it decodes the fixture below
+    /// and asserts the classification that fixture describes, so it is
+    /// green for any self-consistent pin. That closed loop is why WINDOWS
+    /// #76 survived -- see `AdapterExitBoundaryTests`, which classifies
+    /// real child-process terminations against the pin that actually
+    /// ships.
     func testExitDetectionClassifiesAllThreeKnownSignatures() throws {
         let pin = try JSONDecoder().decode(AdapterPin.self, from: Data(pinJSON.utf8))
 
-        XCTAssertEqual(AdapterExit.classify(status: 15, reason: .uncaughtSignal, against: pin.exitDetection), .clean)
+        XCTAssertEqual(AdapterExit.classify(status: 0, reason: .exit, against: pin.exitDetection), .clean)
         XCTAssertEqual(AdapterExit.classify(status: 11, reason: .uncaughtSignal, against: pin.exitDetection), .crashed)
         XCTAssertEqual(AdapterExit.classify(status: 9, reason: .uncaughtSignal, against: pin.exitDetection), .killed)
         XCTAssertEqual(
@@ -108,10 +130,10 @@ final class AdapterPinTests: XCTestCase {
         )
         try JSONEncoder().encode(mismatchRecord).write(to: emulatorDir.appendingPathComponent(".install-verify.json"))
 
-        let host = AdapterHost(pin: pin, emulatorsRoot: tempRoot.appendingPathComponent("emulators"))
+        let host = AdapterHost(pin: pin, emulatorsRoot: tempRoot.appendingPathComponent("emulators"), processRegistry: .isolatedForTesting())
 
         do {
-            _ = try await host.launch(assetSetID: "test-asset-set", romPath: "/tmp/rom.gba", saveDir: "/tmp/saves") { _ in }
+            _ = try await host.launch(assetSetID: uniqueAssetSetID(), romPath: "/tmp/rom.gba", saveDir: "/tmp/saves") { _ in }
             XCTFail("expected digestMismatch")
         } catch let error as AdapterHost.LaunchError {
             guard case .digestMismatch = error else {

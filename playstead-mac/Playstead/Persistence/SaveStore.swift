@@ -42,6 +42,10 @@ struct SaveRevisionRow: Equatable {
     let formatConfidence: String?
     let playSessionID: String?
     let durability: String
+    /// Stable server upload receipt key for this revision. Once assigned it
+    /// is reused across attempts and app restarts so the revision's
+    /// Idempotency-Key always sees the same command body.
+    let uploadCommandID: String?
     /// The temp-file-turned-durable local copy of the artifact's bytes
     /// at capture time (D-06's write-order result), so the upload lane
     /// can stream from disk without re-reading the live save directory.
@@ -91,6 +95,7 @@ struct SaveRevisionRow: Equatable {
         playSessionID: String?,
         durability: String,
         localPath: String?,
+        uploadCommandID: String? = nil,
         tier: String = SaveCaptureTier.promoted.rawValue,
         origin: String = SaveCaptureOrigin.session.rawValue,
         manifestDigest: String? = nil,
@@ -113,6 +118,7 @@ struct SaveRevisionRow: Equatable {
         self.formatConfidence = formatConfidence
         self.playSessionID = playSessionID
         self.durability = durability
+        self.uploadCommandID = uploadCommandID
         self.localPath = localPath
         self.tier = tier
         self.origin = origin
@@ -220,10 +226,10 @@ final class SaveStore {
                 id, save_line_id, parent_revision_id, blob_sha256, size_bytes,
                 origin_device_id, device_captured_at, recorded_at, capture_method,
                 adapter_id, adapter_version, save_format, format_confidence,
-                play_session_id, durability, local_path, tier, origin, manifest_digest,
+                play_session_id, durability, local_path, upload_command_id, tier, origin, manifest_digest,
                 session_id, artifact_set_json, restored_here_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 save_line_id = excluded.save_line_id,
                 parent_revision_id = excluded.parent_revision_id,
@@ -240,6 +246,7 @@ final class SaveStore {
                 play_session_id = excluded.play_session_id,
                 durability = excluded.durability,
                 local_path = excluded.local_path,
+                upload_command_id = COALESCE(excluded.upload_command_id, save_revision.upload_command_id),
                 tier = excluded.tier,
                 origin = excluded.origin,
                 manifest_digest = COALESCE(excluded.manifest_digest, save_revision.manifest_digest),
@@ -251,10 +258,25 @@ final class SaveStore {
                 row.id, row.saveLineID, row.parentRevisionID, row.blobSHA256, row.sizeBytes,
                 row.originDeviceID, row.deviceCapturedAt, row.recordedAt, row.captureMethod,
                 row.adapterID, row.adapterVersion, row.saveFormat, row.formatConfidence,
-                row.playSessionID, row.durability, row.localPath, row.tier, row.origin, row.manifestDigest,
+                row.playSessionID, row.durability, row.localPath, row.uploadCommandID, row.tier, row.origin, row.manifestDigest,
                 row.sessionID, row.artifactSetJSON, row.restoredHereAt
             ]
         )
+    }
+
+    /// Assigns a UUIDv7 upload command once and returns the durable value.
+    /// A later pass or process restart receives the original ID, preserving
+    /// the exact metadata request fingerprint protected by its idempotency key.
+    func ensureUploadCommandID(revisionID: String, proposed: String) throws -> String? {
+        try localStore.connection.execute(
+            "UPDATE save_revision SET upload_command_id = COALESCE(upload_command_id, ?) WHERE id = ?;",
+            params: [proposed, revisionID]
+        )
+        let values = try localStore.connection.query(
+            "SELECT upload_command_id FROM save_revision WHERE id = ?;",
+            params: [revisionID]
+        ) { $0.string(0) }
+        return values.first ?? nil
     }
 
     func updateDurability(id: String, durability: SaveDurability) throws {
@@ -301,7 +323,8 @@ final class SaveStore {
             SELECT r.id, r.save_line_id, r.parent_revision_id, r.blob_sha256, r.size_bytes,
                    r.origin_device_id, r.device_captured_at, r.recorded_at, r.capture_method,
                    r.adapter_id, r.adapter_version, r.save_format, r.format_confidence,
-                   r.play_session_id, r.durability, r.local_path, r.tier, r.origin, r.manifest_digest,
+                   r.play_session_id, r.durability, r.local_path, r.upload_command_id,
+                   r.tier, r.origin, r.manifest_digest,
                    r.session_id, r.artifact_set_json, r.restored_here_at
             FROM save_revision r
             WHERE r.save_line_id = ?
@@ -325,7 +348,8 @@ final class SaveStore {
             SELECT r.id, r.save_line_id, r.parent_revision_id, r.blob_sha256, r.size_bytes,
                    r.origin_device_id, r.device_captured_at, r.recorded_at, r.capture_method,
                    r.adapter_id, r.adapter_version, r.save_format, r.format_confidence,
-                   r.play_session_id, r.durability, r.local_path, r.tier, r.origin, r.manifest_digest,
+                   r.play_session_id, r.durability, r.local_path, r.upload_command_id,
+                   r.tier, r.origin, r.manifest_digest,
                    r.session_id, r.artifact_set_json, r.restored_here_at
             FROM save_revision r
             WHERE r.save_line_id = ?
@@ -366,7 +390,7 @@ final class SaveStore {
             SELECT id, save_line_id, parent_revision_id, blob_sha256, size_bytes,
                    origin_device_id, device_captured_at, recorded_at, capture_method,
                    adapter_id, adapter_version, save_format, format_confidence,
-                   play_session_id, durability, local_path, tier, origin, manifest_digest,
+                   play_session_id, durability, local_path, upload_command_id, tier, origin, manifest_digest,
                    session_id, artifact_set_json, restored_here_at
             FROM save_revision WHERE \(whereClause) ORDER BY rowid ASC;
             """,
@@ -392,12 +416,13 @@ final class SaveStore {
             playSessionID: row.string(13),
             durability: row.string(14) ?? SaveDurability.localOnly.rawValue,
             localPath: row.string(15),
-            tier: row.string(16) ?? SaveCaptureTier.promoted.rawValue,
-            origin: row.string(17) ?? SaveCaptureOrigin.session.rawValue,
-            manifestDigest: row.string(18),
-            sessionID: row.string(19),
-            artifactSetJSON: row.string(20),
-            restoredHereAt: row.string(21)
+            uploadCommandID: row.string(16),
+            tier: row.string(17) ?? SaveCaptureTier.promoted.rawValue,
+            origin: row.string(18) ?? SaveCaptureOrigin.session.rawValue,
+            manifestDigest: row.string(19),
+            sessionID: row.string(20),
+            artifactSetJSON: row.string(21),
+            restoredHereAt: row.string(22)
         )
     }
 
