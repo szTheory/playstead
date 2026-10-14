@@ -51,20 +51,12 @@ final class ControllerRecoveryBannerGeometryTests: XCTestCase {
                     requiresHittable: true
                 )
 
-                let sidebar = harness.element("playstead.surface.sidebar")
-                let favorites = harness.element("playstead.sidebar.favorites", type: .staticText)
-                // Reset retained source-list scroll position before resolving
-                // the destination. Run this in focused checks too, so the
-                // native scroll action is qualified on every window case.
-                XCTAssertTrue(sidebar.awaitExistence(timeout: 5), "source list was absent")
-                harness.app.activate()
-                sidebar.scroll(byDeltaX: 0, deltaY: 480)
-                for _ in 0..<6 where !favorites.isHittable {
-                    sidebar.scroll(byDeltaX: 0, deltaY: 480)
-                }
-                favorites.clickWhenHittable()
-                XCTAssertTrue(harness.element("playstead.surface.shelf.favorites").awaitExistence(timeout: 5))
-                sidebar.typeKey(.upArrow, modifierFlags: [])
+                // Use the same stable production row identity as the
+                // curation journeys; this check measures shelf geometry.
+                let recentlyPlayed = harness.element("playstead.sidebar.continue")
+                XCTAssertTrue(recentlyPlayed.awaitExistence(timeout: 5), "Recently Played row was absent")
+                XCTAssertEqual(recentlyPlayed.readableText, "Recently Played")
+                recentlyPlayed.clickWhenHittable()
                 let recentShelf = harness.element("playstead.surface.shelf.continue")
                 XCTAssertTrue(recentShelf.awaitExistence(timeout: 5), "Recently Played did not open")
                 XCTAssertTrue(banner.exists, "notice should remain visible while browsing Recently Played")

@@ -61,8 +61,11 @@ runner imports through the existing private Mac CI fixture task, then uses
 separate source and target profiles against one disposable live-server
 composition. Use `scripts/ci/gb-gbc-save-e2e.sh --local-no-hid --all-cases`
 for all registered aliases or `--case <alias>` for one. Raw ROM/save data,
-local registry paths, and screenshots remain private; sanitized receipts carry
-the alias, exact byte lengths, process identity, and oracle outcomes only.
+local registry paths, screenshots, and detailed readback receipts remain
+private. Public CI carries sanitized outcomes and exact required test identities.
+Both full and focused runners supply a mode-700 private output directory through
+`PLAYSTEAD_GB_GBC_SAVE_EVIDENCE_DIRECTORY`; this is independent of the optional
+save-reliability lane and its output setting.
 
 For the AerevenAdvance case, the runner verifies the registered ROM and save
 hashes and sizes, then copies both originals into its mode-700, per-run fixture
@@ -74,6 +77,20 @@ The bounded restore regression qualifies the exact pinned mGBA child PID, path,
 digest, and runtime bundle, then polls its unique XCTest game-window capture for
 both Continue and New game on the first launch and after the app relaunch. The
 menu-only check does not claim GBA in-game readback. XCTest retains the child
-window frame and OCR text in the ignored local result bundle; public CI
-registration alone does not establish that a hosted runner has the required
-macOS Accessibility permission for the separate GB/GBC scripting-menu path.
+window frame and OCR text in the ignored local result bundle.
+
+GB/GBC game readback opens Tools → Scripting through XCTest menu actions on
+that same verified child. It uses the UI testing service and does not call raw
+Accessibility APIs or change system permissions. Keep the compiled no-HID
+controller source enabled: the adapter creates a private controller config at
+launch, which overrides an inherited `XDG_CONFIG_HOME`; a separately seeded Qt
+shortcut is therefore unsuitable for this oracle. Disabling the controller
+source would also change the qualified launch composition.
+
+In an isolated checkout, point `PLAYSTEAD_CI_BUILD_ROOT` at the existing ignored
+build cache and retain the validated authored alias registry. Rebuild test
+products when changing source composition. Require each selected game/readback
+test to be discovered and executed exactly once, with no failures or skips;
+CI registration alone does not establish a passing hosted journey. The source
+and fresh target must still prove real game RAM, rendered pixels, immutable
+save transfer, and exact emulator identity.
