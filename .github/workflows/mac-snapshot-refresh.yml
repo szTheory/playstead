@@ -2,6 +2,12 @@ name: macOS snapshot candidates
 
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        description: Named maintenance check
+        type: choice
+        default: snapshots
+        options: [snapshots, controller-geometry]
 
 permissions:
   contents: read
@@ -9,6 +15,7 @@ permissions:
 jobs:
   snapshot-candidates:
     name: render named snapshot candidates
+    if: inputs.mode == 'snapshots'
     runs-on: macos-26
     timeout-minutes: 30
     env:
@@ -30,3 +37,58 @@ jobs:
           path: playstead-mac/.build/ci/snapshot-candidates
           if-no-files-found: error
           retention-days: 7
+
+  focused-controller-geometry:
+    name: focused no-HID controller-notice geometry
+    if: inputs.mode == 'controller-geometry'
+    runs-on: macos-26
+    timeout-minutes: 20
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+
+      - name: Restore pinned Swift packages
+        id: swiftpm-cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        with:
+          path: |
+            playstead-mac/.build/ci/SourcePackages
+            playstead-mac/.build/ci/PackageCache
+          key: swiftpm-${{ runner.os }}-${{ runner.arch }}-xcode26.6-${{ hashFiles('playstead-mac/**/Package.resolved') }}
+
+      - name: Prepare the finite hosted display
+        working-directory: playstead-mac
+        run: swift scripts/ci/configure-test-display.swift
+
+      - name: Run the one synthetic geometry selector
+        working-directory: playstead-mac
+        run: scripts/ci/run-mac-verification.sh --layers ui --only-testing PlaysteadUITests/ControllerRecoveryBannerGeometryTests/testRecoveryBannerGeometryAcrossWindowSizesAndAppearances
+
+      - name: Sanitize synthetic window diagnostics
+        if: ${{ !cancelled() }}
+        working-directory: playstead-mac
+        run: |
+          if [ -d .build/ci/geometry-navigation/evidence ]; then
+            scripts/ci/sanitize-evidence.sh --input .build/ci/geometry-navigation --output .build/ci/geometry-navigation-sanitized
+          fi
+
+      - name: Preserve focused geometry evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: focused-controller-geometry-macos26
+          path: |
+            playstead-mac/.build/ci/geometry-navigation-sanitized
+            playstead-mac/.build/ci/selected-ui.*/sanitized/ui-tests.json
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Save pinned Swift packages
+        if: ${{ !cancelled() && steps.swiftpm-cache.outputs.cache-primary-key != '' && steps.swiftpm-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        with:
+          path: |
+            playstead-mac/.build/ci/SourcePackages
+            playstead-mac/.build/ci/PackageCache
+          key: ${{ steps.swiftpm-cache.outputs.cache-primary-key }}

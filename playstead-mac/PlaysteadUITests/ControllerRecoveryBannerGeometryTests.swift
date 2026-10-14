@@ -1,4 +1,5 @@
 import XCTest
+import Foundation
 
 @MainActor
 final class ControllerRecoveryBannerGeometryTests: XCTestCase {
@@ -56,6 +57,7 @@ final class ControllerRecoveryBannerGeometryTests: XCTestCase {
                 let recentlyPlayed = harness.element("playstead.sidebar.continue")
                 XCTAssertTrue(recentlyPlayed.awaitExistence(timeout: 5), "Recently Played row was absent")
                 XCTAssertEqual(recentlyPlayed.readableText, "Recently Played")
+                try recordNavigationDiagnostics(row: recentlyPlayed, windowSize: windowSize, appearance: appearance)
                 recentlyPlayed.clickWhenHittable()
                 let recentShelf = harness.element("playstead.surface.shelf.continue")
                 XCTAssertTrue(recentShelf.awaitExistence(timeout: 5), "Recently Played did not open")
@@ -98,6 +100,50 @@ final class ControllerRecoveryBannerGeometryTests: XCTestCase {
                 harness.app.terminate()
             }
         }
+    }
+
+    private func recordNavigationDiagnostics(row: XCUIElement, windowSize: String, appearance: String) throws {
+        // This class only launches the compiled synthetic controller profile.
+        // Export its app window and numeric layout, never a desktop capture,
+        // accessibility tree, filenames, credentials, or arbitrary UI text.
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent(".build/ci/geometry-navigation/evidence", isDirectory: true)
+        let logs = root.appendingPathComponent("logs", isDirectory: true)
+        let screenshots = root.appendingPathComponent("screenshots", isDirectory: true)
+        for directory in [root, logs, screenshots] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
+                                                    attributes: [.posixPermissions: 0o700])
+        }
+        func number(_ value: CGFloat) -> Any {
+            if value.isFinite { return Double(value) }
+            return NSNull()
+        }
+        func frame(_ value: CGRect) -> [String: Any] {
+            ["x": number(value.minX), "y": number(value.minY),
+             "width": number(value.width), "height": number(value.height)]
+        }
+        let sidebar = harness.element("playstead.surface.sidebar")
+        let record: [String: Any] = [
+            "window_size": windowSize, "appearance": appearance,
+            "window": frame(harness.app.windows.firstMatch.frame),
+            "sidebar": frame(sidebar.frame), "row": frame(row.frame),
+            "row_hittable": row.isHittable, "sidebar_hittable": sidebar.isHittable,
+            "readiness_exists": harness.element("playstead.surface.readiness").exists,
+            "banner": frame(harness.element("playstead.controller.recovery-banner").frame)
+        ]
+        let log = logs.appendingPathComponent("app.log")
+        if !FileManager.default.fileExists(atPath: log.path) {
+            try Data().write(to: log, options: .atomic)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: log.path)
+        }
+        let stream = try FileHandle(forWritingTo: log)
+        defer { try? stream.close() }
+        _ = try stream.seekToEnd()
+        try stream.write(contentsOf: JSONSerialization.data(withJSONObject: record, options: [.sortedKeys]))
+        try stream.write(contentsOf: Data("\n".utf8))
+        let image = screenshots.appendingPathComponent("synthetic-controller-recovery-\(windowSize)-\(appearance).png")
+        try harness.app.windows.firstMatch.screenshot().pngRepresentation.write(to: image, options: .atomic)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: image.path)
     }
 
     private func showRecoveryBanner() {
