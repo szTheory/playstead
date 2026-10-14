@@ -4,9 +4,9 @@ milestone: v1.0
 current_phase: "4.7"
 current_phase_name: Optional game artwork and metadata sync
 status: complete
-stopped_at: Phase4.7 complete38/38; next $gsd-ship
-last_updated: "2026-10-13T17:34:21.229Z"
-last_activity: 2026-10-13
+stopped_at: Phase4.7 verified; ordered PR12/PR13 delivery; follow conditional shipping continuation
+last_updated: "2026-10-14T18:09:20.459652+00:00"
+last_activity: 2026-10-14
 state_head: f569981006a7af61721d64e7b65f85814b9eb78c
 progress:
   total_phases: 11
@@ -26,7 +26,7 @@ current_plan: null
 See: `.planning/PROJECT.md` (updated 2026-08-30)
 
 **Core value:** A locally available game and its progress remain effortless to play, safe, understandable, synchronized, and fully under the user's control.
-**Current focus:** Phase 4.7 implementation is complete. Draft prerequisite PR #12 targets main and draft Phase 4.7 PR #13 targets its prerequisite branch. Current-source local closure is retained after CI repairs; hosted exact-head checks remain active. The owner selected recorded audits and no additional review. Next command: `$gsd-ship 4.7` to resume these existing PRs. Apple/HID and retained recovery qualifications remain independently parked.
+**Current focus:** Phase 4.7 is verified and delivered through existing prerequisite PR #12 and Phase PR #13. The owner authorizes ordered squash after green applicable current-head CI; recorded audits/no additional review selected. While either PR is unmerged, resume `$gsd-ship 4.7` without reinitializing. Once both are merged, the exact next command is `$gsd-extract-learnings 4.7`. Resolve the live PR state before repeating shipping. Apple/HID remains independently parked.
 
 ## Current Position
 

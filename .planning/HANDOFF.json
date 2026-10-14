@@ -1,15 +1,15 @@
 {
   "version": "1.0",
-  "timestamp": "2026-10-13T14:21:19.371920+00:00",
-  "context": "Phase4.7 complete38/38; next reviewed delivery via $gsd-ship; independentqualificationlanes parked.",
+  "timestamp": "2026-10-14T18:09:20.459652+00:00",
+  "context": "Phase4.7 verified; existing ordered PR12/PR13 delivery. Resolve conditional continuation from PR merge state before acting.",
   "work_type": "phase",
   "quick_id": null,
   "phase": "4.7",
   "phase_name": "Optional game artwork and metadata sync",
   "phase_dir": ".planning/phases/04.7-optional-game-artwork-and-metadata-sync",
   "handoff_path": ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/continue.md",
-  "status": "complete",
-  "task": "Phase4.7 automated closure",
+  "status": "shipping",
+  "task": "Phase4.7 ordered squash delivery",
   "total_tasks": 10,
   "completed_tasks": [
     0,
@@ -23,14 +23,20 @@
     8,
     9
   ],
-  "remaining_tasks": [],
+  "remaining_tasks": [
+    "Finish current-head PR12 CI and authorized squash",
+    "Reconcile Phase onto squashed main under exact tree/ancestor guards, retarget existing PR13 and qualify final head",
+    "Authorized squash PR13 after all applicable current-head checks pass"
+  ],
   "blockers": [],
   "async_jobs": [],
   "human_actions_pending": [],
-  "next_command": "$gsd-ship",
-  "next_command_ready": true,
-  "next_command_prerequisites": [],
-  "next_action": "Prepare reviewed delivery of completedPhase4.7; keep Apple/HID and otherparked qualifications parked.",
+  "next_command": "$gsd-extract-learnings 4.7",
+  "next_command_ready": false,
+  "next_command_prerequisites": [
+    "PR12 and PR13 merged after green applicable current-head CI"
+  ],
+  "next_action": "Query existing PR12/PR13 merge state. If either is unmerged, resume $gsd-ship 4.7 without initialization, another review or merge-permission question. Once both are merged, continue with $gsd-extract-learnings 4.7.",
   "source_lineage": {
     "source": "ed8710d",
     "audit": "8380a08",
@@ -380,5 +386,31 @@
     "attempt_receipt": ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-09-53-STATE-EVIDENCE.json",
     "live_attempt": ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-09-LIVE-ORACLE-ATTEMPT.json",
     "live_result": "OwYAws exact1/1/0fail/0skip74.347s"
+  },
+  "shipping": {
+    "prerequisite_pr": "https://github.com/szTheory/playstead/pull/12",
+    "phase_pr": "https://github.com/szTheory/playstead/pull/13",
+    "prerequisite_head": "f2a0fd39d30b5de9d46730f48b9ca1bccd8b1d73",
+    "prerequisite_run": 38608541479,
+    "prepared_source_predecessor": "3fd847c8fb449b32b82c2ca8b488eaffbda81eed",
+    "authorization": "Owner explicitly permits ordered squash merges after green applicable current-head CI; recorded audits/no additional review selected. No admin bypass.",
+    "reconciliation": "Require fetched squashed-main full tree equals qualified prerequisite tree and prerequisite is already a Phase ancestor; then ancestry-only merge preserving the complete Phase tree, retarget PR13 main and ordinary push. If guards fail, inspect upstream changes and merge normally; never discard new main changes.",
+    "focused_geometry": {
+      "run": 38608526405,
+      "conclusion": "success",
+      "cases": 4,
+      "discovered": 1,
+      "executed": 1,
+      "skipped": 0,
+      "seconds": 74.4,
+      "independent_process_viewport": "1600x1200"
+    },
+    "verification": "38/38;164coveredfiles;v3:sha256:b88665109ed08b08dde86f00f5641ef177c48ac2d4aa91690c597d249fc99fc5",
+    "source_evidence": ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-SHIP-NATIVE-ORDER-FOLLOWUP.json",
+    "conditional_continuation": {
+      "if_either_pr_unmerged": "$gsd-ship 4.7",
+      "after_both_prs_merged": "$gsd-extract-learnings 4.7"
+    },
+    "parked_lane": "Apple/HID remains independently parked until owner signal and named prerequisites; no polling or repeat request"
   }
 }

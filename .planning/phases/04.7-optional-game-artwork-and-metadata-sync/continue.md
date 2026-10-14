@@ -1,3 +1,11 @@
+# Conditional delivery continuation
+
+Phase 4.7's implementation and 38/38 source-bound goal gate are complete. Existing delivery is prerequisite [PR12](https://github.com/szTheory/playstead/pull/12), then [PR13](https://github.com/szTheory/playstead/pull/13) reconciled onto main. The owner already authorizes ordered squash after green applicable current-head CI and selected recorded audits without additional review.
+
+Check those exact PRs before acting. If either is unmerged, resume `$gsd-ship 4.7` at its remaining CI/merge step; do not initialize another task, recreate PRs, ask merge permission again or repeat qualified tests without a relevant change/failure. Once both are merged, the exact next command is `$gsd-extract-learnings 4.7`. This conditional pointer supersedes historical shipping commands below; `.planning/HANDOFF.json` records it machine-readably.
+
+The f2a0fd3 hosted display repair is qualified by run38608526405: independent-process1600x1200 plus all four original geometry cases,1execution/0skips/74.4seconds. Full prerequisite run38608541479 and final Phase current-head matrix remain merge gates. All3GB/GBC real game/save journeys including RTC passed in prerequisite12d/run38597596600; preserve their source lineage. Exact source/CI records are in `04.7-SHIP-NATIVE-ORDER-FOLLOWUP.json`. All local task apps/services/emulator children are closed. Original owner workspace/private fixtures are preserved; shared caches are intentionally retained. Apple/HID remains parked with its separate conditional command and prerequisites.
+
 # Phase4.7 complete — delivery handoff
 
 Phase4.7 finished on2026-10-13. All ten plans00–09 are complete. `04.7-VERIFICATION.md` passed38/38 and the CLI status is passed with its current covered-input fingerprint. Root sourcefixedexpiry ined8710d; finalaudits8380a08. The owner branch and unrelated dirty files remain preserved.
