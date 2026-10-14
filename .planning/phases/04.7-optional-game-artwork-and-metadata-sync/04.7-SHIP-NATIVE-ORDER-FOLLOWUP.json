@@ -1,13 +1,14 @@
 {
   "schema_version": 1,
   "phase": "4.7",
-  "recorded_at": "2026-10-13T23:49:24.380610+00:00",
+  "recorded_at": "2026-10-14T00:06:40.580882+00:00",
   "human_judgment": false,
   "lineage": {
     "failed_phase_head": "fe57d64d79f0b187bb9ac4023e5cd45aa062ec86",
     "failed_phase_run": 38477073931,
     "prerequisite_repair": "d7f19f94ee5fd03dd803ab05b96311c193542fa4",
-    "local_phase_merge": "5e783f5d6ec5967a2d3d537e838ed4177b1c85de"
+    "local_phase_merge": "5e783f5d6ec5967a2d3d537e838ed4177b1c85de",
+    "native_qualified_phase_commit": "1ae7c16ec71274bce56d0ff0fece082cd03dc8f3"
   },
   "source_sha256": {
     ".github/workflows/ci.yml": "345d1e8407dc2ad7b176539f2351b348bb1819d1ef68655a64d92d82913370bc",
@@ -21,7 +22,10 @@
     "playstead-mac/scripts/ci/hosted-decoder-runtime.sh": "3f0870bca7c52d7bdad4f92fb0ec386236416dc98458c4ad21af09c4a5b80c70",
     "playstead-mac/scripts/ci/live-server.sh": "0474472949982cf30a2a7425924634857f34f0c15af4d4ee04b06a459e0383ba",
     "playstead-mac/scripts/ci/run-mac-verification.sh": "042a8015b8ea74c31e8619fa68a09b07e0d959604743198513eddb0bcc7a0ab9",
-    "playstead-mac/scripts/ci/tests/test_hosted_decoder_runtime.py": "b9430fb3fdb0772f8b76a748319a3173cffdd77691144af8677f664dd89dc9c9"
+    "playstead-mac/scripts/ci/tests/test_hosted_decoder_runtime.py": "b9430fb3fdb0772f8b76a748319a3173cffdd77691144af8677f664dd89dc9c9",
+    "playstead-mac/scripts/ci/mac-ci-tls.sh": "63ff35b86ef6f29e2801e2186c031a1e6a303550c018c51c4983e3d2209be1cf",
+    "playstead-mac/scripts/ci/tests/recovery-browser-trust-test.sh": "381e7e58434b53aef7c852fe408ec76c174f84d119abfac88d9c76a1c7b4450f",
+    "playstead-mac/scripts/ci/tests/test_mac_ci_tls_serial.py": "a2d25f9fa05ba3965c67089a0837efd1878926c83f3dcedbb23d2ba92d4c2c3f"
   },
   "repairs": [
     "Explicit Swift ownership for the rendering fixture window; avoid AppKit release on close",
@@ -70,7 +74,7 @@
         "MetadataCorrectionUITests/testSavingCorrectionUpdatesTheLocalMirrorBeforeServerDelivery"
       ]
     },
-    "static": "98 validator cases/all guards passed; final topology and six hosted-runtime contracts rechecked after the last edit",
+    "static": "99 validator cases/all guards passed after final TLS changes",
     "summary_coverage": "10/10 coverage blocks classifiable",
     "downloaded_linux_decoder": {
       "run": 38477073931,
@@ -78,7 +82,14 @@
       "receipt_verification_exit": 0,
       "claim": "exact public generated context and report receipt validated against unchanged recipe; no local guest/container execution claimed"
     },
-    "retained_phase_goal": "38 original truths, same acceptance identities and earlier source/run evidence; targeted shipping revalidation above"
+    "retained_phase_goal": "38 original truths, same acceptance identities and earlier source/run evidence; targeted shipping revalidation above",
+    "tls_serial_preservation": {
+      "actual_regression": "red before fix, green after fix; certificate chain verifies; scoped serial mode0600; outer serial unchanged",
+      "test_count": 1,
+      "owner_original_counter_checksum_restored": true,
+      "owned_stack_increments_reversed": 4,
+      "system_keychain_changes": false
+    }
   },
   "unknown": [
     "Actual hosted guest startup failed in the old run without a detailed diagnostic; current finite-stage canary and full hosted regression are required",
@@ -93,5 +104,10 @@
     "https://developer.apple.com/documentation/appkit/nswindow/isreleasedwhenclosed",
     "https://raw.githubusercontent.com/abiosoft/colima/main/cmd/start.go",
     "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepstimeout-minutes"
-  ]
+  ],
+  "hosted_retry": {
+    "run": 38486889151,
+    "compose_failure": "Initialize containers: ECR toomanyrequests Data limit exceeded; failure precedes repository test execution",
+    "next": "new final source head retries hosted checks; no registry credentials or gate exception introduced"
+  }
 }
