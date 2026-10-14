@@ -18,6 +18,19 @@ func fits(_ bounds: CGRect) -> Bool {
     bounds.width >= CGFloat(minimumWidth) && bounds.height >= CGFloat(minimumHeight)
 }
 let before = CGDisplayBounds(display)
+let checkOnly = CommandLine.arguments.dropFirst() == ["--check-only"]
+guard CommandLine.arguments.count == 1 || checkOnly else {
+    fputs("usage: configure-test-display.swift [--check-only]\n", stderr)
+    exit(2)
+}
+if checkOnly {
+    guard fits(before) else {
+        fputs("test display did not survive setup process exit: \(Int(before.width))x\(Int(before.height))\n", stderr)
+        exit(1)
+    }
+    print("test display: independent process confirms \(Int(before.width))x\(Int(before.height))")
+    exit(0)
+}
 if !fits(before) {
     let modes = (CGDisplayCopyAllDisplayModes(display, nil) as? [CGDisplayMode] ?? [])
         .filter { $0.width >= minimumWidth && $0.height >= minimumHeight }
@@ -26,9 +39,23 @@ if !fits(before) {
         fputs("test display cannot contain the required 1280x800 content case: \(Int(before.width))x\(Int(before.height))\n", stderr)
         exit(1)
     }
-    let result = CGDisplaySetDisplayMode(display, mode, nil)
+    var configuration: CGDisplayConfigRef?
+    guard CGBeginDisplayConfiguration(&configuration) == .success, let configuration else {
+        fputs("test display configuration could not begin\n", stderr)
+        exit(1)
+    }
+    let result = CGConfigureDisplayWithDisplayMode(configuration, display, mode, nil)
     guard result == .success else {
+        CGCancelDisplayConfiguration(configuration)
         fputs("test display mode change failed: \(result.rawValue)\n", stderr)
+        exit(1)
+    }
+    // A direct CGDisplaySetDisplayMode lasts only until this setup process
+    // exits. Keep the finite viewport for this disposable runner's session.
+    // https://developer.apple.com/documentation/coregraphics/cgconfigureoption
+    let completion = CGCompleteDisplayConfiguration(configuration, .forSession)
+    guard completion == .success else {
+        fputs("test display session configuration failed: \(completion.rawValue)\n", stderr)
         exit(1)
     }
 }

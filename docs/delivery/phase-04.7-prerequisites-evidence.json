@@ -940,5 +940,61 @@
     },
     "cleanup": "Exact app/runner/children/profiles/native services closed; owner head/index/source/private fixtures and ignored serial preserved",
     "next": "Current-head hosted gates must pass before authorized ordered merges; no hardware/system permission change."
+  },
+  "hosted_display_session_followup": {
+    "recorded_at": "2026-10-14T17:39:33.871425+00:00",
+    "human_judgment": false,
+    "hosted_before": {
+      "head": "12d45e85e0735053c42fa54a9d14c04a799805f5",
+      "run": 38597596600,
+      "passed": "823unit/54rendering/10live including all3GB/GBC game/save journeys; all other UI methods",
+      "failure": "RecentlyPlayed navigation in geometry; previous records did not identify which size"
+    },
+    "focused_reproduction": {
+      "head": "e1135fb8132fe48c00ec6cd9ae5cdf007c272185",
+      "run": 38607357823,
+      "artifact_id": 11916472098,
+      "actual_cases": "960x560 light/dark passed;1280x800 light failed, fourth case not reached",
+      "setup_reported": "1024x768 ->1600x1200",
+      "actual_geometry": {
+        "window": {
+          "x": -128,
+          "y": 40,
+          "width": 1280,
+          "height": 852
+        },
+        "sidebar": {
+          "x": -121,
+          "y": 91,
+          "width": 222,
+          "height": 794
+        },
+        "row": {
+          "x": -99,
+          "y": 151,
+          "width": 122,
+          "height": 16
+        },
+        "row_hittable": false,
+        "readiness_exists": false
+      },
+      "cause": "Temporary display setup reverted when setup process exited, leaving large window/row offscreen; not a sheet or failed game oracle"
+    },
+    "repair": "Configure supported display mode using public CoreGraphics transaction for disposable hosted login session; independent --check-only subprocess must observe >=1440x1000 before native work. Existing strict hosted-only guard retained; no local desktop mutation.",
+    "api_reference": "https://developer.apple.com/documentation/coregraphics/cgconfigureoption",
+    "verification": {
+      "swift_typecheck": "passed",
+      "actionlint_shellcheck": "passed",
+      "local_hosted_only_guard": "exit2 before display access",
+      "local_diagnostic_selector": "k3PTzw1discovered/executed/passed0skip69.55sec; bounded window capture sanitizer5files1012876bytes",
+      "hosted_after": "pending focused workflow and full current-head matrix; no pass claim"
+    },
+    "source_sha256": {
+      "playstead-mac/scripts/ci/configure-test-display.swift": "035936117cba2f94f7f81ea5832c5362cfe1bc9f284ec8d094dc6e151b87c1af",
+      ".github/workflows/ci.yml": "40db1262ddedafaf1c9b939590bd840f8deb9765d26520a3440430ecb9ff583e",
+      ".github/workflows/mac-snapshot-refresh.yml": "3c1d9a5991c4f417209de7aa0ae9652d0ea436f15147da61ae6129fa8447870f",
+      "playstead-mac/PlaysteadUITests/ControllerRecoveryBannerGeometryTests.swift": "83a23edf84d79615c99ddb79378cbee93b03cfcf91a5d0ad7b7bb0aadabc3ace"
+    },
+    "qualification_boundary": "All original geometry/game/save assertions retained. Focused diagnostic is not a merge gate substitute; applicable full current-head CI required before owner-authorized squash."
   }
 }

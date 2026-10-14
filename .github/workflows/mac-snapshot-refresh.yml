@@ -59,7 +59,9 @@ jobs:
 
       - name: Prepare the finite hosted display
         working-directory: playstead-mac
-        run: swift scripts/ci/configure-test-display.swift
+        run: |
+          swift scripts/ci/configure-test-display.swift
+          swift scripts/ci/configure-test-display.swift --check-only
 
       - name: Run the one synthetic geometry selector
         working-directory: playstead-mac
