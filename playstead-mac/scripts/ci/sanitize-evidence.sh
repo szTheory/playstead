@@ -318,7 +318,7 @@ def validate_test_evidence(data, relative):
         "XCTAssertTrue", "XCTAssertFalse", "XCTAssertEqual", "XCTAssertNotEqual",
         "XCTAssertNil", "XCTAssertNotNil", "XCTAssertLessThan", "XCTAssertLessThanOrEqual",
         "XCTAssertGreaterThan", "XCTAssertGreaterThanOrEqual", "XCTAssertNoThrow",
-        "XCTAssertThrowsError", "XCTFail", "XCTUnwrap",
+        "XCTAssertThrowsError", "XCTFail", "XCTUnwrap", "XCTIssue",
     }
     for record in diagnostics:
         required_fields = {"test_identifier", "assertion", "source_file", "source_line"}

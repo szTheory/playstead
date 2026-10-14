@@ -790,5 +790,34 @@
       "playstead-mac/scripts/ci/run-mac-verification.sh": "ac45ea1faf4135a31edf267771f983726f9a19e996f1c98a87a209b36bd1db0a",
       "playstead-mac/scripts/ci/tests/four-layer-verifier-test.sh": "b70f799adb5a52f0c3677128b105f0c76eb8286e937a82f02c9f02a556032613"
     }
+  },
+  "native_framework_failure_followup": {
+    "recorded_at": "2026-10-14T12:33:02.590337+00:00",
+    "human_judgment": false,
+    "hosted_run": 38490840584,
+    "hosted_head": "a61159474d434d0ef5a8739de94425fc0a4908fb",
+    "results": {
+      "unit": "823 passed",
+      "rendering": "54 passed",
+      "ui": "146 executed; recovery geometry failed",
+      "live": "10 executed; three GB/GBC tests failed",
+      "compose": "ECR Rate exceeded before tests; other two Linux jobs passed"
+    },
+    "confirmed_gb_cause": "GBGBCSaveContinuityTests.swift:286 Accessibility-trust guard",
+    "geometry_cause": "unknown; no source diagnostic exported",
+    "repair": "A structured TestFailureIssueSummary with a canonical failed test and repository file/line may classify as XCTIssue when the framework does not name an assertion primitive. Raw message and workspace URL stay private.",
+    "source_sha256": {
+      "playstead-mac/scripts/ci/run-mac-verification.sh": "1d88eedf282cbf3784a586b45d0502fffb294fcd91d63eb2bd6fe3062b151b75",
+      "playstead-mac/scripts/ci/sanitize-evidence.sh": "7a50f15f09274380ddc6efbce426798ab8b5d740e1fced03dec2cfc37d2ab2ee",
+      "playstead-mac/scripts/ci/tests/four-layer-verifier-test.sh": "96dd1c2b11725ea2b78a60e2921a6d8c6ed8bf2cc798d5b6490f3ed404501379",
+      "playstead-mac/scripts/ci/tests/sanitizer-test.sh": "a15a868433456f127c1b1e074e88048c493c9bc8e74d44e78baced9756f1f437"
+    },
+    "qualification": {
+      "verifier_contracts": 84,
+      "sanitizer_contracts": 93,
+      "hosted_geometry": "pending; diagnostic support is not a passing assertion or layout fix",
+      "topology": "passed"
+    },
+    "approval_boundary": "GB shortcut proposal remains unapplied awaiting explicit approval after automatic review rejection. No native app or guest started locally."
   }
 }

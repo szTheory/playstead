@@ -482,6 +482,8 @@ json.dump({"issues": {"testFailureSummaries": {"_values": [
     {"_type": [], "testCaseName": []},
     issue("SurfaceAccessibilityTests.testSyntheticFailure()", base,
           "failed - Bearer private-token /Users/private/file.rom"),
+    issue("SurfaceAccessibilityTests.testSyntheticFailure()", base.replace("=137", "=138"),
+          "Failed to get matching snapshot: Bearer private-token /Users/private/file.rom"),
     issue("UnrelatedTests.testOtherFailure()", base, "XCTAssertTrue failed"),
     issue("SurfaceAccessibilityTests.testSyntheticFailure()", base.replace("file://", "https://"), "XCTAssertTrue failed"),
     issue("SurfaceAccessibilityTests.testSyntheticFailure()", base.replace("SurfaceAccessibilityTests.swift", "Secret.swift"), "XCTAssertTrue failed"),
@@ -510,8 +512,16 @@ assert summary["failure_diagnostics"] == [{
     "test_identifier": "SurfaceAccessibilityTests/testSyntheticFailure()",
     "assertion": "XCTFail", "source_file": "PlaysteadUITests/SurfaceAccessibilityTests.swift",
     "source_line": 137,
+}, {
+    "test_identifier": "SurfaceAccessibilityTests/testSyntheticFailure()",
+    "assertion": "XCTIssue", "source_file": "PlaysteadUITests/SurfaceAccessibilityTests.swift",
+    "source_line": 138,
 }]
 PY
+grep -Fx 'unit: FAILURE_DIAGNOSTIC SurfaceAccessibilityTests/testSyntheticFailure() XCTIssue PlaysteadUITests/SurfaceAccessibilityTests.swift:138' "$TMP_ROOT/legacy_issue_only.out" >/dev/null || {
+  printf 'FAIL: framework failure source site was not recovered\n' >&2
+  exit 1
+}
 PASS_COUNT=$((PASS_COUNT + 3))
 cp "$TMP_ROOT/details-summary.json" "$TMP_ROOT/summary.json"
 
