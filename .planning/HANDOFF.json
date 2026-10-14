@@ -392,7 +392,7 @@
     "phase_pr": "https://github.com/szTheory/playstead/pull/13",
     "prerequisite_head": "f2a0fd39d30b5de9d46730f48b9ca1bccd8b1d73",
     "prerequisite_run": 38608541479,
-    "prepared_source_predecessor": "3fd847c8fb449b32b82c2ca8b488eaffbda81eed",
+    "prepared_source_predecessor": "34713ad26c7bd8dc96e8b31c2b9e11eec1a0fd08",
     "authorization": "Owner explicitly permits ordered squash merges after green applicable current-head CI; recorded audits/no additional review selected. No admin bypass.",
     "reconciliation": "Require fetched squashed-main full tree equals qualified prerequisite tree and prerequisite is already a Phase ancestor; then ancestry-only merge preserving the complete Phase tree, retarget PR13 main and ordinary push. If guards fail, inspect upstream changes and merge normally; never discard new main changes.",
     "focused_geometry": {
@@ -405,12 +405,14 @@
       "seconds": 74.4,
       "independent_process_viewport": "1600x1200"
     },
-    "verification": "38/38;164coveredfiles;v3:sha256:b88665109ed08b08dde86f00f5641ef177c48ac2d4aa91690c597d249fc99fc5",
+    "verification": "38/38;164coveredfiles;v3:sha256:e79cef59ca3be9048d93ffbc07f58e82a4b1fb7456c2d6243dc8e22fe2ac608d",
     "source_evidence": ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-SHIP-NATIVE-ORDER-FOLLOWUP.json",
     "conditional_continuation": {
       "if_either_pr_unmerged": "$gsd-ship 4.7",
       "after_both_prs_merged": "$gsd-extract-learnings 4.7"
     },
-    "parked_lane": "Apple/HID remains independently parked until owner signal and named prerequisites; no polling or repeat request"
+    "parked_lane": "Apple/HID remains independently parked until owner signal and named prerequisites; no polling or repeat request",
+    "prerequisite_merged": "ecca50add04386d363315b88720e4598d3aa6ae3",
+    "registry_followup": "Canonical DockerHub postgres17.2 in hosted services; ComposeCI inherits unchanged productiondefault after ECRanonymousdataquota startup failure. Allstatic104validators/29release/8handoff and actualComposeconfig pass. Superseded347run passedproducer+3Linux, cancelledbefore native; exactguestcleanup succeeded. Finalcurrent-headCI required."
   }
 }

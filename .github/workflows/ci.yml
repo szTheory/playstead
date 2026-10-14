@@ -28,7 +28,9 @@ jobs:
     timeout-minutes: 45
     services:
       postgres:
-        image: public.ecr.aws/docker/library/postgres:17.2
+        # Public Docker Hub pulls are rate-limit exempt on GitHub-hosted
+        # runners; the ECR mirror's anonymous data quota blocked startup.
+        image: postgres:17.2
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -392,7 +394,7 @@ jobs:
       infra_changed: ${{ steps.changes.outputs.infra }}
     services:
       postgres:
-        image: public.ecr.aws/docker/library/postgres:17.2
+        image: postgres:17.2
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres

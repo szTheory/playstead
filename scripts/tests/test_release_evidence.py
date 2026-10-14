@@ -646,21 +646,20 @@ class HostedContainerRegistryContracts(unittest.TestCase):
         job = match.group("body")
         self.assertIn("MIX_ENV: test", job)
         self.assertIn("Resolve parser fixture test dependencies", job)
-        self.assertRegex(job, r"(?m)^      postgres:\n        image: public\.ecr\.aws/docker/library/postgres:17\.2$")
+        self.assertRegex(job, r"(?m)^      postgres:\n        image: postgres:17\.2$")
         self.assertIn('ports: ["5432:5432"]', job)
         self.assertIn("--health-cmd pg_isready", job)
 
-    def test_github_actions_uses_official_ecr_mirror_without_changing_deploy_default(self):
+    def test_hosted_postgres_uses_rate_limit_exempt_official_docker_hub_source(self):
         repository_root = Path(__file__).parents[2]
         workflow = (repository_root / ".github/workflows/ci.yml").read_text()
         compose_default = (repository_root / "playstead-server/docker-compose.yml").read_text()
         compose_ci = (repository_root / "playstead-server/docker-compose.ci.yml").read_text()
-        mirror = "public.ecr.aws/docker/library/postgres:17.2"
-
-        self.assertEqual(workflow.count(f"image: {mirror}"), 2)
-        self.assertNotIn("image: postgres:17.2", workflow)
+        self.assertEqual(workflow.count("image: postgres:17.2"), 2)
+        self.assertNotIn("public.ecr.aws/docker/library/postgres", workflow)
         self.assertIn("image: postgres:17.2", compose_default)
-        self.assertIn(f"  db:\n    # Docker Official Image mirrored by AWS ECR Public. Hosted CI avoids\n    # Docker Hub's unauthenticated pull limit without changing deploy defaults.\n    image: {mirror}", compose_ci)
+        self.assertNotIn("\n  db:", compose_ci)
+        self.assertNotIn("public.ecr.aws/docker/library/postgres", compose_ci)
 
     def test_buildkit_builder_uses_pinned_ecr_public_mirror(self):
         repository_root = Path(__file__).parents[2]

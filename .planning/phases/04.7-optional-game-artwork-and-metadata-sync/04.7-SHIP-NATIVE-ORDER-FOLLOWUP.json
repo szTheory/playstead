@@ -547,5 +547,41 @@
     },
     "qualification_boundary": "All original geometry/game/save assertions retained. Focused diagnostic is not a merge gate substitute; applicable full current-head CI required before owner-authorized squash.",
     "phase_scope": "Common prerequisite repair merged into Phase; final source-bound gate refresh follows. Full current-head checks required before ordered authorized squashes."
+  },
+  "registry_quota_followup": {
+    "at": "2026-10-14T19:01:18.677279+00:00",
+    "human_judgment": false,
+    "observed_failure": {
+      "head": "ecca50add04386d363315b88720e4598d3aa6ae3",
+      "run": 38616201556,
+      "job": 116031796934,
+      "step": "Initialize containers",
+      "image": "public.ecr.aws/docker/library/postgres:17.2",
+      "result": "All3Dockerpullattempts rejected:toomanyrequests:Data limit exceeded; source checkout/tests never began"
+    },
+    "primary_source": "https://docs.github.com/en/actions/reference/limits#docker-hubs-rate-limit-for-github-actions",
+    "scope": "Use canonical public DockerHub postgres:17.2 for2hosted services; remove redundant ComposeCI database override so it inherits the same existing productiondefault. PostgreSQL version, pg_dump17 matching, ports, healthchecks, app image and persistent-volume semantics retained; pinned BuildKit mirror remains unchanged.",
+    "reason": "GitHub documents hosted public DockerHub pulls are rate-limit exempt; ECRanonymousdataquota caused repeated startup-only failures. Avoid more retries/duplicate native qualification on infrastructure-only failure.",
+    "superseded_final_run": {
+      "head": "34713ad26c7bd8dc96e8b31c2b9e11eec1a0fd08",
+      "run": 38616297485,
+      "producer": "success",
+      "all3Linux": "success",
+      "Mac": "cancelled during runtimepreflight before native tests",
+      "guest_cleanup": "Close only the run-owned decoder guest step SUCCESS job116039373210"
+    },
+    "validation": {
+      "release_contracts": "29passed; existing registry expectations updated to canonical source/inherited ComposeDB",
+      "actual_compose_config": "postgres:17.2 inherited and prebuilt app preserved; config-only placeholder decoder never activated; no local services started",
+      "decoder_handoff": "8passed",
+      "actionlint_shellcheck_diff": "passed",
+      "full_static_contracts": "All static contract guards and104validators passed; no new local native/service/guest run",
+      "final_current_head_hosted_matrix": "pending"
+    },
+    "source_sha256": {
+      ".github/workflows/ci.yml": "f14b47eba828869c77dfe70579fb6bd5312c4cd12324b248e4c45ccf205bc0d4",
+      "playstead-server/docker-compose.ci.yml": "6b41619266d6bbcdc7994ad09576d5772b27b6418be190215bf9eeb14229d04e",
+      "scripts/tests/test_release_evidence.py": "a1da8fbc4e66298dd8bb913a684d624019666f792bacba782b8a9468fbdc10a0"
+    }
   }
 }
