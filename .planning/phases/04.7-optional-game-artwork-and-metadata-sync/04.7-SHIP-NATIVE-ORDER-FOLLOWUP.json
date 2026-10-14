@@ -209,5 +209,31 @@
       "https://docs.docker.com/engine/storage/containerd/",
       "https://github.com/moby/moby/issues/51934"
     ]
+  },
+  "framework_diagnostic_followup": {
+    "recorded_at": "2026-10-14T12:33:53.475427+00:00",
+    "human_judgment": false,
+    "prerequisite_commit": "64c2ce9",
+    "source_run": 38490840584,
+    "confirmed_gb_cause": "GBGBCSaveContinuityTests.swift:286 Accessibility-trust guard",
+    "geometry_cause": "unknown",
+    "repair": "Carry canonical source locations for structured XCTest framework failures, including failures without a named assertion primitive. All raw messages and workspace paths remain excluded.",
+    "source_sha256": {
+      "playstead-mac/scripts/ci/run-mac-verification.sh": "0ca529ba23c79f51c6cdba6c95bdb7c6e73a0e4ed2dbbd9b989710a7f813198c",
+      "playstead-mac/scripts/ci/sanitize-evidence.sh": "7a50f15f09274380ddc6efbce426798ab8b5d740e1fced03dec2cfc37d2ab2ee",
+      "playstead-mac/scripts/ci/tests/four-layer-verifier-test.sh": "f6102afb8647653dfc8dfc79a50bfa820b749db8279942a636bb3cba9986a27a",
+      "playstead-mac/scripts/ci/tests/sanitizer-test.sh": "a15a868433456f127c1b1e074e88048c493c9bc8e74d44e78baced9756f1f437"
+    },
+    "verification": {
+      "prerequisite_verifier_checks": 84,
+      "sanitizer_checks": 93,
+      "topology": "passed",
+      "composed_phase_checks": {
+        "verifier": 86,
+        "sanitizer": 93,
+        "static_validators": 103
+      }
+    },
+    "gb_experiment": "Prepared proposal remains unapplied pending explicit approval after automatic review rejection; no local native launch or permission change."
   }
 }
