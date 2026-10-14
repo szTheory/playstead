@@ -89,8 +89,9 @@ jobs:
           path: |
             playstead-server/deps
             playstead-server/_build
-          key: mix-${{ runner.os }}-${{ hashFiles('playstead-server/.tool-versions') }}-${{ hashFiles('playstead-server/mix.lock') }}
+          key: mix-v2-${{ runner.os }}-${{ runner.arch }}-test-${{ hashFiles('playstead-server/.tool-versions') }}-${{ hashFiles('playstead-server/mix.lock') }}
           restore-keys: |
+            mix-v2-${{ runner.os }}-${{ runner.arch }}-test-${{ hashFiles('playstead-server/.tool-versions') }}-
             mix-${{ runner.os }}-${{ hashFiles('playstead-server/.tool-versions') }}-
 
       - run: mix deps.get
@@ -175,6 +176,26 @@ jobs:
           version-file: playstead-server/.tool-versions
           version-type: strict
 
+      - name: Cache server dependencies
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        with:
+          path: |
+            playstead-server/deps
+            playstead-server/_build
+          key: mix-v2-${{ runner.os }}-${{ runner.arch }}-mac_ci-${{ hashFiles('playstead-server/.tool-versions') }}-${{ hashFiles('playstead-server/mix.lock') }}
+          restore-keys: |
+            mix-v2-${{ runner.os }}-${{ runner.arch }}-mac_ci-${{ hashFiles('playstead-server/.tool-versions') }}-
+
+      - name: Cache pinned Swift packages
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        with:
+          path: |
+            playstead-mac/.build/ci/SourcePackages
+            playstead-mac/.build/ci/PackageCache
+          key: swiftpm-${{ runner.os }}-${{ runner.arch }}-xcode26.6-${{ hashFiles('playstead-mac/**/Package.resolved') }}
+          restore-keys: |
+            swiftpm-${{ runner.os }}-${{ runner.arch }}-xcode26.6-
+
       # Static contract guards run BEFORE the ~20-minute build so drift between a
       # guard and the code it guards fails in seconds. Until this step existed,
       # CI invoked exactly one harness flag and reached none of these guards, so
@@ -201,7 +222,7 @@ jobs:
           umask 077
           python3 ../.planning/spikes/001-bios-free-gameplay/build_fixture.py --out .build/ci/gb-gbc-fixtures
           for fixture in gb-mbc1-8k gbc-mbc5-32k gbc-mbc3-rtc; do
-            mkdir -m 700 -p ".local/gb-gbc-spike/$fixture/screenshots"
+            mkdir -p ".local/gb-gbc-spike/$fixture/screenshots"
             chmod 700 ".local/gb-gbc-spike/$fixture"
           done
 
@@ -266,6 +287,16 @@ jobs:
         with:
           version-file: playstead-server/.tool-versions
           version-type: strict
+
+      - name: Cache server dependencies
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        with:
+          path: |
+            playstead-server/deps
+            playstead-server/_build
+          key: mix-v2-${{ runner.os }}-${{ runner.arch }}-dev-${{ hashFiles('playstead-server/.tool-versions') }}-${{ hashFiles('playstead-server/mix.lock') }}
+          restore-keys: |
+            mix-v2-${{ runner.os }}-${{ runner.arch }}-dev-${{ hashFiles('playstead-server/.tool-versions') }}-
 
       - name: Resolve server dependencies
         working-directory: playstead-server
@@ -338,6 +369,16 @@ jobs:
         with:
           version-file: playstead-server/.tool-versions
           version-type: strict
+
+      - name: Cache server dependencies
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        with:
+          path: |
+            playstead-server/deps
+            playstead-server/_build
+          key: mix-v2-${{ runner.os }}-${{ runner.arch }}-test-${{ hashFiles('playstead-server/.tool-versions') }}-${{ hashFiles('playstead-server/mix.lock') }}
+          restore-keys: |
+            mix-v2-${{ runner.os }}-${{ runner.arch }}-test-${{ hashFiles('playstead-server/.tool-versions') }}-
 
       - name: Resolve parser fixture test dependencies
         working-directory: playstead-server
