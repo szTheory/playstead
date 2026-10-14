@@ -81,12 +81,26 @@ location = agent.get("location") if isinstance(agent, dict) else None
 if not isinstance(location, str) or not pathlib.Path(location).is_file():
     raise SystemExit("owned decoder requires the installed Linux-x86_64 Lima guest agent")
 PY
+    stage=configure-owned-image-store
+    # The Linux scan receipt identifies the image by its configuration digest.
+    # Docker's containerd store instead exposes a manifest digest as .Id. Keep
+    # the same classic store in this fresh guest; never translate a scanned ID.
+    mkdir -m 0700 "$COLIMA_HOME/media"
+    cat >"$COLIMA_HOME/media/colima.yaml" <<'YAML'
+docker:
+  features:
+    containerd-snapshotter: false
+  storage-driver: overlay2
+YAML
+    chmod 0600 "$COLIMA_HOME/media/colima.yaml"
     # The separate task home and explicit socket never select another daemon.
     stage=start-owned-guest
     colima start media --vm-type qemu --arch x86_64 --cpu-type max --cpu 1 --memory 2 --disk 12 \
       --mount none --ssh-config=false --activate=false
     stage=verify-daemon
     [ "$(docker info --format '{{.OSType}}/{{.Architecture}}')" = linux/x86_64 ]
+    stage=verify-image-store
+    [ "$(docker info --format '{{.Driver}}')" = overlay2 ]
     stage=load-qualified-image
     docker image load --input "$artifact/decoder-image.tar" >/dev/null
     stage=verify-image-custody

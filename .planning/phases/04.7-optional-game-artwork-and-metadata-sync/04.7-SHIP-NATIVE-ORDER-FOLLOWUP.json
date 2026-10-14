@@ -175,5 +175,39 @@
       "https://raw.githubusercontent.com/Homebrew/homebrew-core/master/Formula/l/lima-additional-guestagents.rb",
       "https://raw.githubusercontent.com/lima-vm/lima/v2.2.0/pkg/limainfo/limainfo.go"
     ]
+  },
+  "image_store_followup": {
+    "recorded_at": "2026-10-14T12:30:54.948316+00:00",
+    "human_judgment": false,
+    "failed_run": 38493388963,
+    "failed_head": "86b1c3bd969221283b1d498f15f64288b1b33852",
+    "hosted_linux": "all three jobs passed",
+    "hosted_failure": {
+      "stage": "verify-image-custody",
+      "observed": "Owned x86 guest and Docker started; archive loaded; exact scanned configuration image ID was absent",
+      "cause": "Image-store identity difference is an inference until corrected hosted execution",
+      "cleanup": "owned media guest and home removed"
+    },
+    "archive_check": {
+      "config_digest_matches_receipt": true,
+      "platform": "linux/amd64",
+      "layers": 16
+    },
+    "repair": "Configure only fresh owned guest to use classic overlay2; verify actual driver before loading. Exact scanned image ID remains mandatory; no translation, retagging or scan policy change.",
+    "qualification": {
+      "runtime_contracts": 10,
+      "store_boundary_cases": 3,
+      "actual_guest_execution": "pending current-head CI",
+      "static_validator_tests": 103
+    },
+    "source_sha256": {
+      "playstead-mac/scripts/ci/hosted-decoder-runtime.sh": "39bd0ff5e05c14a699075917c0ffd1bcf50c5e5bf1574c53eb535fe12981cebb",
+      "playstead-mac/scripts/ci/tests/test_hosted_decoder_runtime.py": "c1795ca2ca5a99b4a8149134abe3cb69b7c5c8d67975e7a89a6527b91e36dadc"
+    },
+    "primary_sources": [
+      "https://raw.githubusercontent.com/abiosoft/colima/v0.10.3/embedded/defaults/colima.yaml",
+      "https://docs.docker.com/engine/storage/containerd/",
+      "https://github.com/moby/moby/issues/51934"
+    ]
   }
 }

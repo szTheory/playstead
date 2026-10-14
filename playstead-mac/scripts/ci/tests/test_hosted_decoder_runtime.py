@@ -126,6 +126,49 @@ class HostedDecoderRuntimeTests(unittest.TestCase):
                     self.assertEqual(result.returncode, expected, result.stderr)
                     self.assertNotIn(str(root), result.stderr)
 
+    def test_owned_store_keeps_config_digest_and_rejects_mismatched_runtime(self):
+        helper = HELPER.read_text()
+        self.assertIn('cat >"$COLIMA_HOME/media/colima.yaml"', helper)
+        self.assertIn("containerd-snapshotter: false\n  storage-driver: overlay2", helper)
+        self.assertLess(helper.index("stage=configure-owned-image-store"), helper.index("stage=start-owned-guest"))
+        # Execute the production load/publication boundary. A different store
+        # or ID must fail before it can publish a runtime for the native tests.
+        boundary = "stage=verify-daemon" + helper.split("stage=verify-daemon", 1)[1].split("    ;;", 1)[0]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            docker = root / "docker"
+            docker.write_text('''#!/bin/sh
+printf '%s\\n' "$*" >>"$CALL_LOG"
+case "$*" in
+  "info --format {{.OSType}}/{{.Architecture}}") printf 'linux/x86_64\\n' ;;
+  "info --format {{.Driver}}") printf '%s\\n' "$TEST_DRIVER" ;;
+  "image load --input "*) exit 0 ;;
+  "image inspect --format "*) printf '%s\\n' "$TEST_IMAGE_ID" ;;
+  *) exit 29 ;;
+esac
+''')
+            docker.chmod(0o755)
+            image_id = "sha256:" + "a" * 64
+            for driver, actual_id, succeeds, loaded in [
+                ("overlay2", image_id, True, True),
+                ("overlayfs", image_id, False, False),
+                ("overlay2", "sha256:" + "b" * 64, False, True),
+            ]:
+                with self.subTest(driver=driver, actual_id=actual_id):
+                    calls, exported = root / "calls", root / "github-env"
+                    calls.unlink(missing_ok=True)
+                    exported.unlink(missing_ok=True)
+                    env = dict(os.environ, PATH=str(root) + ":" + os.environ["PATH"], CALL_LOG=str(calls),
+                               TEST_DRIVER=driver, TEST_IMAGE_ID=actual_id, GITHUB_ENV=str(exported),
+                               DOCKER_HOST="unix://owned/docker.sock", DOCKER_CONFIG=str(root / "client"),
+                               image_id=image_id, artifact=str(root / "artifact"))
+                    result = subprocess.run(["/bin/bash", "-eu", "-c", boundary], env=env, capture_output=True, text=True)
+                    self.assertEqual(result.returncode == 0, succeeds, result.stderr)
+                    self.assertEqual("image load --input" in calls.read_text(), loaded)
+                    self.assertEqual(exported.exists(), succeeds)
+                    if succeeds:
+                        self.assertIn("PLAYSTEAD_MEDIA_DECODER_IMAGE=" + image_id, exported.read_text())
+
     def test_failed_setup_reports_only_its_finite_stage_and_keeps_exit(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = pathlib.Path(temporary)
