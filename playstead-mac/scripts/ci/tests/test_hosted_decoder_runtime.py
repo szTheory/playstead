@@ -1,5 +1,6 @@
 """Guard same-run image custody and task-owned hosted guest cleanup."""
 import os
+import json
 import pathlib
 import re
 import subprocess
@@ -98,6 +99,32 @@ class HostedDecoderRuntimeTests(unittest.TestCase):
             self.assertIn("hosted-decoder-stage=validate-socket-path exit=1", result.stderr)
             self.assertNotIn(str(root), result.stderr)
             self.assertFalse((long_root / "playstead-media-runtime").exists())
+
+    def test_cross_arch_guest_agent_must_be_installed_before_vm_start(self):
+        helper = HELPER.read_text()
+        self.assertIn("brew install docker colima qemu lima-additional-guestagents", helper)
+        self.assertIn('LIMA_HOME="$COLIMA_HOME/_lima" limactl info', helper)
+        self.assertLess(helper.index("stage=verify-guest-agent"), helper.index("stage=start-owned-guest"))
+        validation = re.search(r'stage=verify-guest-agent\n.*?<<\x27PY\x27\n(.*?)\nPY', helper, re.S).group(1)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            binary = root / "lima-guestagent.Linux-x86_64.gz"
+            binary.write_bytes(b"fixture-agent")
+            cases = [
+                ({"guestAgents": {"x86_64": {"location": str(binary)}}}, 0),
+                ({"guestAgents": {"aarch64": {"location": str(binary)}}}, 1),
+                ({"guestAgents": {"x86_64": {"location": str(root / "missing")}}}, 1),
+                ({"guestAgents": {"x86_64": {}}}, 1),
+                ([], 1),
+            ]
+            for info, expected in cases:
+                with self.subTest(info=info):
+                    receipt = root / "info.json"
+                    receipt.write_text(json.dumps(info))
+                    result = subprocess.run(["python3", "-c", validation, str(receipt)],
+                                            capture_output=True, text=True)
+                    self.assertEqual(result.returncode, expected, result.stderr)
+                    self.assertNotIn(str(root), result.stderr)
 
     def test_failed_setup_reports_only_its_finite_stage_and_keeps_exit(self):
         with tempfile.TemporaryDirectory() as temporary:

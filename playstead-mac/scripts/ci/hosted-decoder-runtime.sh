@@ -69,7 +69,18 @@ PY
       --receipt "$artifact/decoder-scan-receipt.json" --report "$artifact/decoder-trivy.json" \
       --context "$context" --image-id "$image_id"
     stage=install-runtime
-    HOMEBREW_NO_AUTO_UPDATE=1 brew install docker colima qemu
+    HOMEBREW_NO_AUTO_UPDATE=1 brew install docker colima qemu lima-additional-guestagents
+    stage=verify-guest-agent
+    LIMA_HOME="$COLIMA_HOME/_lima" limactl info >"$RUNTIME_ROOT/lima-info.json"
+    python3 - "$RUNTIME_ROOT/lima-info.json" <<'PY'
+import json, pathlib, sys
+info = json.loads(pathlib.Path(sys.argv[1]).read_text())
+agents = info.get("guestAgents") if isinstance(info, dict) else None
+agent = agents.get("x86_64") if isinstance(agents, dict) else None
+location = agent.get("location") if isinstance(agent, dict) else None
+if not isinstance(location, str) or not pathlib.Path(location).is_file():
+    raise SystemExit("owned decoder requires the installed Linux-x86_64 Lima guest agent")
+PY
     # The separate task home and explicit socket never select another daemon.
     stage=start-owned-guest
     colima start media --vm-type qemu --arch x86_64 --cpu-type max --cpu 1 --memory 2 --disk 12 \

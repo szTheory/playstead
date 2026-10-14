@@ -146,5 +146,34 @@
       "https://raw.githubusercontent.com/abiosoft/colima/v0.10.3/environment/vm/lima/lima.go",
       "https://raw.githubusercontent.com/lima-vm/lima/v2.2.0/pkg/limayaml/validate.go"
     ]
+  },
+  "guest_agent_followup": {
+    "recorded_at": "2026-10-14T01:00:22.234729+00:00",
+    "human_judgment": false,
+    "failed_run": 38491414125,
+    "failed_head": "d7e7e05ce7b30521b20153466dad6498277b6afc",
+    "hosted_linux": "all three jobs passed",
+    "hosted_failure": {
+      "stage": "start-owned-guest",
+      "socket_regression": "resolved; VM instance creation passed prior path validation",
+      "cause": "Homebrew native Lima2.2.0 has no Linux-x86_64 guest agent; runtime explicitly requests lima-additional-guestagents",
+      "cleanup": "exact media guest/home cleanup succeeded"
+    },
+    "repair": "Install declared lima-additional-guestagents with existing development tools; scoped LIMA_HOME info must resolve an actual Linux-x86_64 agent file before VM startup.",
+    "qualification": {
+      "runtime_contracts": 9,
+      "agent_cases": 5,
+      "claim": "synthetic schema/file/ownership preflight; actual corrected guest execution requires hosted CI",
+      "static_validator_tests": 102
+    },
+    "source_sha256": {
+      "playstead-mac/scripts/ci/hosted-decoder-runtime.sh": "9df3a89c3f43669e4a5af4af73903137d3c2ab6bf4dfc4ea3c20084b8451e6f6",
+      "playstead-mac/scripts/ci/tests/test_hosted_decoder_runtime.py": "8af6e5ad39f9ebf706e4903efb6776619cecb29f66a4ba77a780fc7f742c569d"
+    },
+    "primary_sources": [
+      "https://lima-vm.io/docs/installation/",
+      "https://raw.githubusercontent.com/Homebrew/homebrew-core/master/Formula/l/lima-additional-guestagents.rb",
+      "https://raw.githubusercontent.com/lima-vm/lima/v2.2.0/pkg/limainfo/limainfo.go"
+    ]
   }
 }
