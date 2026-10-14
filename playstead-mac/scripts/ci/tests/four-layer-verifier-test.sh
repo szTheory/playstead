@@ -451,6 +451,70 @@ assert summary["failure_diagnostics"] == [{
 PY
 PASS_COUNT=$((PASS_COUNT + 3))
 
+# The real pinned Xcode detail tree can contain only a failed run and source
+# symbols. The legacy issue root carries the missing file/line instead.
+cp "$TMP_ROOT/summary.json" "$TMP_ROOT/details-summary.json"
+cat >"$TMP_ROOT/fake-bin/xcrun" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$1" = xcresulttool ] && [ "$2" = get ] || exit 31
+if [ "$3" = test-results ] && [ "$4" = test-details ]; then
+  cat "$FAKE_XCRESULT_DETAILS"
+elif [ "$3" = object ] && [ "$4" = --legacy ]; then
+  cat "$FAKE_XCRESULT_LEGACY"
+else
+  exit 31
+fi
+SH
+legacy_json="$TMP_ROOT/legacy-issues.json"
+python3 - "$details_json" "$legacy_json" <<'PY'
+import json, sys
+json.dump({"testRuns": [{"nodeType": "Test Case Run", "result": "Failed",
+    "name": "failed - private message", "children": [
+        {"nodeType": "Source Code Reference", "name": "SurfaceAccessibilityTests.testSyntheticFailure()"}
+    ]}]}, open(sys.argv[1], "w"))
+def issue(test, location, message):
+    return {"_type": {"_name": "TestFailureIssueSummary"},
+        "testCaseName": {"_value": test}, "message": {"_value": message},
+        "documentLocationInCreatingWorkspace": {"url": {"_value": location}}}
+base = "file:///Users/private/SurfaceAccessibilityTests.swift#EndingLineNumber=137&StartingLineNumber=137"
+json.dump({"issues": {"testFailureSummaries": {"_values": [
+    {"_type": [], "testCaseName": []},
+    issue("SurfaceAccessibilityTests.testSyntheticFailure()", base,
+          "failed - Bearer private-token /Users/private/file.rom"),
+    issue("UnrelatedTests.testOtherFailure()", base, "XCTAssertTrue failed"),
+    issue("SurfaceAccessibilityTests.testSyntheticFailure()", base.replace("file://", "https://"), "XCTAssertTrue failed"),
+    issue("SurfaceAccessibilityTests.testSyntheticFailure()", base.replace("SurfaceAccessibilityTests.swift", "Secret.swift"), "XCTAssertTrue failed"),
+    issue("SurfaceAccessibilityTests.testSyntheticFailure()", base + "&StartingLineNumber=138", "XCTAssertTrue failed"),
+]}}}, open(sys.argv[2], "w"))
+PY
+verify_fixture_with_legacy() {
+  PATH="$TMP_ROOT/fake-bin:$PATH" \
+    FAKE_XCRESULT_DETAILS="$details_json" FAKE_XCRESULT_LEGACY="$legacy_json" \
+    verify_fixture "$1" --result-bundle /synthetic/result.xcresult
+  "$VERIFIER" --print-failure-diagnostics "$TMP_ROOT/summary.json" unit
+}
+expect_pass legacy_issue_only verify_fixture_with_legacy "$details_only"
+grep -Fx 'unit: FAILURE_DIAGNOSTIC SurfaceAccessibilityTests/testSyntheticFailure() XCTFail PlaysteadUITests/SurfaceAccessibilityTests.swift:137' "$TMP_ROOT/legacy_issue_only.out" >/dev/null || {
+  printf 'FAIL: legacy issue source site was not recovered\n' >&2
+  exit 1
+}
+if grep -E 'Bearer|private-token|/Users/|file\.rom|Secret.swift|UnrelatedTests' "$TMP_ROOT/legacy_issue_only.out" >/dev/null; then
+  printf 'FAIL: legacy issue fallback leaked private or unrelated content\n' >&2
+  exit 1
+fi
+python3 - "$TMP_ROOT/summary.json" <<'PY'
+import json, pathlib, sys
+summary = json.loads(pathlib.Path(sys.argv[1]).read_text())
+assert summary["failure_diagnostics"] == [{
+    "test_identifier": "SurfaceAccessibilityTests/testSyntheticFailure()",
+    "assertion": "XCTFail", "source_file": "PlaysteadUITests/SurfaceAccessibilityTests.swift",
+    "source_line": 137,
+}]
+PY
+PASS_COUNT=$((PASS_COUNT + 3))
+cp "$TMP_ROOT/details-summary.json" "$TMP_ROOT/summary.json"
+
 build_log="$TMP_ROOT/build.log"
 printf '%s:137:9: error: Bearer private-token /Users/private/game.rom must remain raw only\n' \
   "$MAC_ROOT/PlaysteadUITests/SurfaceAccessibilityTests.swift" >"$build_log"
