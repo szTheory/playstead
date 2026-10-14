@@ -423,5 +423,56 @@
     },
     "scope": "All original38Phase acceptance truths/audits and image qualification retained; hosted regression matrix remains separate.",
     "composed_workflow_sha256": "4eb5641f56d535222da4729d31ff93918124028860fa3f1d7d719962ff785348"
+  },
+  "full_runner_output_followup": {
+    "recorded_at": "2026-10-14T16:19:08.201408+00:00",
+    "human_judgment": false,
+    "source_head": "36b4fcb8f3251c7efa0c9a3ee465474bed1a255c",
+    "source_hosted_run": 38584040398,
+    "hosted_results": "823unit/54rendering passed;146UI with geometry scroll failure;10live with3GB/GBC failures at writeRunEvidence before game oracle; both Mac dependency caches saved after failure",
+    "confirmed_causes": {
+      "GB": "Full generated xctestrun omitted output input; focused runner supplied it. The former reliability-output setting is intentionally empty in ordinary LiveServer mode.",
+      "geometry": "Framework failure at native scroll event; exact geometric assertions not reached. Use direct stable Recently Played row as in passing curation journeys."
+    },
+    "changes": [
+      "Dedicated private mode0700 GB receipt directory under raw output; wire concrete path to both full test environments and focused plans without enabling optional reliability probes",
+      "Require existing private directory in GB writer, retain mode0600 files and all game/save assertions; detailed receipts remain excluded from public sanitizer",
+      "Select production Recently Played row directly by stable identity; retain every geometry assertion in all4window/theme cases",
+      "Update fixture guide for XCTest menus, private output, shared build cache and exact execution"
+    ],
+    "verification": {
+      "actual_full_shell_regression": "Previous36b function fails private-output creation assertion; current real shell materializer passes, both test environments concrete and reliability disabled",
+      "environment_writer_tests": 2,
+      "validators": 94,
+      "GB": "nfqeKF exactly1discovered/executed/passed,0skips; source0->1/1edge,target1->1/0edge,four23040-pixel checks,8192-byte save; receipt0600,parent0700; complete wrapper exit0",
+      "geometry": "BJu8R6 exact selector passed1/1/0skip across4window/theme cases,107.3seconds. Overall shell command exited2 after test success because its source was edited while command remained active; not represented as a passing command. Final stable runner later completed GB wrapper exit0 and compiled same geometry source. Hosted geometry still required.",
+      "syntax_topology": "passed"
+    },
+    "source_sha256": {
+      "playstead-mac/PlaysteadUITests/ControllerRecoveryBannerGeometryTests.swift": "4e4716011a07e00319da7b4f4abab6c5e8887d003bfeca79f09c55a51ecbfef5",
+      "playstead-mac/PlaysteadUITests/GBGBCSaveContinuityTests.swift": "94aac0529d9da0a3f88d08395368e681feb9a1605bc373b1e1d3fce21329b28e",
+      "playstead-mac/TestPlans/LiveServer.xctestplan": "7c3e2f25731bb39893feaadf2e4880f67efae82e756a5793a05ead97fed73018",
+      "playstead-mac/TestPlans/Recovery.xctestplan": "5b428c951afbf5016bbbb2b11dffdd316f6c5f2d5935895053f11955fea05bfe",
+      "playstead-mac/docs/TEST-FIXTURES.md": "016ddfe615fe79edbb2c1a1ba9306e8890d1a65b5095894ad5da99db6b56ef0a",
+      "playstead-mac/scripts/ci/run-mac-verification.sh": "52d0da34e968a6a0fb1d4b8409f77942b69678ffc9001f5119f202660e7ed862",
+      "playstead-mac/scripts/ci/tests/four-layer-topology-test.sh": "80ab07ddb6655be784e063d9d3f121af5cd559a2a6dc78bb7a0ee5e629edd6fa",
+      "playstead-mac/scripts/ci/tests/test_live_server_xctestrun_environment.py": "d9c6f1f9ccacdf51677b919aba201d9032312aa0702bd1ce51bd5d8ed8ddef4c"
+    },
+    "cleanup": "Exact app/runner/children/profiles/native services closed; owner head/index/source/private fixtures and ignored serial preserved",
+    "next": "Current-head hosted gates must pass before authorized ordered merges; no hardware/system permission change.",
+    "prerequisite_commit": "12d45e8",
+    "phase_previous_head": "bea760a70fcf9214729f912a860e922ca7f6f60d",
+    "composed_validation": {
+      "all_static_guards": "passed",
+      "validator_tests": 104,
+      "runtime_handoff_tests": 8,
+      "decoder_policy_tests": 12,
+      "release_evidence_tests": 29,
+      "actionlint_shellcheck": "passed",
+      "GB_full_command": "nfqeKF1/1/0skip137.1seconds",
+      "geometry_case": "BJu8R6 testcase1/1/0skip fourcases107.3sec; wrapperexit2after successfulcase due script edit overlap, not a passing wholecommand"
+    },
+    "composed_runner_sha256": "a9616177bfa7988db6043a2b442db6f0509ca3593a45db962ff9cfa308792d94",
+    "remaining": "Current-head hosted CI before PR12 squash; reconcile/retarget Phase to main, qualify final current-head CI before PR13 squash."
   }
 }
