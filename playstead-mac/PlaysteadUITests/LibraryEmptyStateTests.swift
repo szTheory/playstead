@@ -198,7 +198,11 @@ final class LibraryEmptyStateTests: XCTestCase {
     // MARK: - Harness
 
     private func launchLibrary() -> UITestHarness {
-        let harness = UITestHarness(profile: .populatedCurationReorder, persistentSession: true)
+        let harness = UITestHarness(
+            profile: .populatedCurationReorder,
+            persistentSession: true,
+            extraEnvironment: ["PLAYSTEAD_UI_TEST_WINDOW_SIZE": "1280x800"]
+        )
         self.harness = harness
         harness.launch(settledAt: "playstead.surface.library")
         return harness

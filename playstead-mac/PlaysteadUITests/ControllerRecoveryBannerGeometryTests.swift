@@ -55,7 +55,9 @@ final class ControllerRecoveryBannerGeometryTests: XCTestCase {
                 let favorites = harness.element("playstead.sidebar.favorites", type: .staticText)
                 // Visiting Settings can leave the finite-height source list
                 // scrolled to Manage. Reveal the destination before clicking.
-                for _ in 0..<6 where !favorites.isHittable { sidebar.swipeDown() }
+                for _ in 0..<6 where !favorites.isHittable {
+                    sidebar.scroll(byDeltaX: 0, deltaY: 480)
+                }
                 favorites.clickWhenHittable()
                 XCTAssertTrue(harness.element("playstead.surface.shelf.favorites").awaitExistence(timeout: 5))
                 sidebar.typeKey(.upArrow, modifierFlags: [])

@@ -819,5 +819,42 @@
       "topology": "passed"
     },
     "approval_boundary": "GB shortcut proposal remains unapplied awaiting explicit approval after automatic review rejection. No native app or guest started locally."
+  },
+  "efficiency_and_ui_followup": {
+    "recorded_at": "2026-10-14T13:33:39.983844+00:00",
+    "human_judgment": false,
+    "source_run": 38564691275,
+    "source_head": "64c2ce96e98892e5931c15be41208dd765a31689",
+    "hosted_results": {
+      "linux_jobs": "all3passed",
+      "unit": "823/0fail",
+      "rendering": "54/0fail",
+      "ui": "146executed; geometry and search2failed",
+      "live": "10executed; GB3failedAXtrustguard"
+    },
+    "diagnosis": {
+      "geometry": "legacy source line57 is adjacent to the sidebar swipe; replace touch swipe synthesis with the native Mac scroll-wheel API",
+      "search": "Search click could remain unhittable under restored inherited window geometry; give this non-geometry suite an explicit1280x800 window",
+      "gb": "Existing trust prerequisite unchanged; prepared shortcut remains unapplied pending explicit approval"
+    },
+    "changes": [
+      "Native scroll(byDeltaX:deltaY:) in finite sidebar reveal loop",
+      "Explicit finite search-test window",
+      "Server dependency caches for previously uncached recovery/Compose/mac_ci lanes; Linux test/Compose share test key with legacy restore fallback",
+      "Pin SwiftPM checkout/package cache by OS/architecture/Xcode/resolved lock; do not cache test products/profiles/evidence",
+      "Remove redundant mkdir -m with -p under existing umask077"
+    ],
+    "verification": {
+      "actionlint": "passed including ShellCheck",
+      "workflow_contracts": 2,
+      "topology": "passed",
+      "local_native": "selected-ui.GvTkeW compiled and signed then runner failed initialization: timed out enabling automation mode;0executed. No UI pass claimed. Earlier clone-cache attempt EcOIP4 failed sandbox package diagnostics before launch. No repeat until prerequisite changes.",
+      "hosted_affected_selectors": "pending current-head CI"
+    },
+    "source_sha256": {
+      ".github/workflows/ci.yml": "769a5ec7d1f3ba714bace165dd1743ef047747791d49c509a4b3a63cfbcebd7f",
+      "playstead-mac/PlaysteadUITests/ControllerRecoveryBannerGeometryTests.swift": "cfafe82cbc5d90044cdee85385cce7d9f29558e4790a483be3ac30d1dd0fa27d",
+      "playstead-mac/PlaysteadUITests/LibraryEmptyStateTests.swift": "a9384881733f9accf97ad64210c878de9e20cb6e2e10aa92b54163d5bc63b7b6"
+    }
   }
 }
