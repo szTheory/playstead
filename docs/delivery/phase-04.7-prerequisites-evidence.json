@@ -750,5 +750,45 @@
       "owned_native_service_root_removed": true,
       "emulators": "selector-owned children closed, production wrapper verified empty inventories before deleting their profiles"
     }
+  },
+  "native_failure_diagnostic_followup": {
+    "recorded_at": "2026-10-14T00:33:05.076711+00:00",
+    "human_judgment": false,
+    "hosted_run": 38485108358,
+    "hosted_source": "d7f19f94ee5fd03dd803ab05b96311c193542fa4",
+    "hosted_results": {
+      "unit": {
+        "executed": 823,
+        "failed": 0
+      },
+      "rendering": {
+        "executed": 54,
+        "failed": 0
+      },
+      "ui": {
+        "executed": 146,
+        "failed": 1
+      },
+      "live": {
+        "executed": 10,
+        "failed": 3
+      }
+    },
+    "remaining": [
+      "ControllerRecoveryBannerGeometryTests/testRecoveryBannerGeometryAcrossWindowSizesAndAppearances",
+      "three GBGBCSaveContinuityTests readback selectors"
+    ],
+    "cause": "Xcode test-details has no Failure Message/source-line; supported legacy TestFailureIssueSummary retains exact locations. New bounded fallback required to diagnose the hosted predicates.",
+    "verification": {
+      "verifier_contracts": 84,
+      "sanitizer_contracts": 92,
+      "topology": "passed",
+      "actual_failed_bundle_replay": "Recovered exact repository file/line for all three known local raw-AX failures in selected-live-server.2e7l7V; run remains failed, no new gameplay execution."
+    },
+    "next": "Current-head hosted evidence required; no full native pass or geometry repair claimed.",
+    "source_sha256": {
+      "playstead-mac/scripts/ci/run-mac-verification.sh": "ac45ea1faf4135a31edf267771f983726f9a19e996f1c98a87a209b36bd1db0a",
+      "playstead-mac/scripts/ci/tests/four-layer-verifier-test.sh": "b70f799adb5a52f0c3677128b105f0c76eb8286e937a82f02c9f02a556032613"
+    }
   }
 }

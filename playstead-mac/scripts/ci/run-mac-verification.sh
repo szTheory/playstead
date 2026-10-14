@@ -978,6 +978,67 @@ for raw_identifier, test_identifier in failed_test_details[:50]:
             failure_diagnostics.append(diagnostic)
             diagnosed.add(test_identifier)
 
+# The pinned Xcode can put only a failed run and symbol names in test-details,
+# with neither a Failure Message node nor a source line. Its supported legacy
+# issue record still has the exact file/line. Read that root once and emit the
+# same closed diagnostic schema, never its raw message or workspace URL.
+undiagnosed = {identifier for _, identifier in failed_test_details} - diagnosed
+if undiagnosed and result_bundle:
+    import urllib.parse
+
+    try:
+        legacy_result = subprocess.run(
+            ["xcrun", "xcresulttool", "get", "object", "--legacy",
+             "--path", result_bundle, "--format", "json"],
+            capture_output=True, text=True, timeout=15, check=False,
+        )
+        legacy = json.loads(legacy_result.stdout) if legacy_result.returncode == 0 else {}
+    except (OSError, subprocess.SubprocessError, json.JSONDecodeError):
+        legacy = {}
+    issue_root = legacy.get("issues") if isinstance(legacy, dict) else None
+    summaries = issue_root.get("testFailureSummaries") if isinstance(issue_root, dict) else None
+    issues = summaries.get("_values", []) if isinstance(summaries, dict) else []
+    def legacy_value(record, key):
+        field = record.get(key) if isinstance(record, dict) else None
+        return field.get("_value") if isinstance(field, dict) else None
+    for issue in issues[:100] if isinstance(issues, list) else []:
+        kind = issue.get("_type") if isinstance(issue, dict) else None
+        if not isinstance(kind, dict) or kind.get("_name") != "TestFailureIssueSummary":
+            continue
+        test_name = legacy_value(issue, "testCaseName")
+        message = legacy_value(issue, "message")
+        location = legacy_value(issue.get("documentLocationInCreatingWorkspace"), "url")
+        if not all(isinstance(value, str) for value in (test_name, message, location)):
+            continue
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.]*\.[A-Za-z_][A-Za-z0-9_]*\(\)", test_name):
+            continue
+        suite, method = test_name.rsplit(".", 1)
+        test_identifier = canonical(f"{suite}/{method}")
+        if test_identifier not in undiagnosed:
+            continue
+        try:
+            parsed = urllib.parse.urlsplit(location)
+        except ValueError:
+            continue
+        if parsed.scheme != "file" or parsed.netloc not in {"", "localhost"}:
+            continue
+        line_values = urllib.parse.parse_qs(parsed.fragment).get("StartingLineNumber", [])
+        if len(line_values) != 1 or not re.fullmatch(r"[1-9][0-9]{0,6}", line_values[0]):
+            continue
+        assertion = assertion_pattern.search(message)
+        # XCTest serializes XCTFail as 'failed - <message>' in this issue form.
+        assertion_name = assertion.group(1) if assertion else "XCTFail" if message.startswith("failed - ") else None
+        if assertion_name is None:
+            continue
+        diagnostic = bounded_failure_diagnostic({
+            "fileName": urllib.parse.unquote(parsed.path),
+            "lineNumber": int(line_values[0]),
+            "assertion": assertion_name,
+        }, test_identifier)
+        if diagnostic is not None:
+            failure_diagnostics.append(diagnostic)
+            diagnosed.add(test_identifier)
+
 required = [line for line in pathlib.Path(required_path).read_text(encoding="utf-8").splitlines() if line]
 if not nodes and not runner_process_errors:
     raise SystemExit(f"{layer}: result contains zero executed tests")
