@@ -149,13 +149,15 @@ print(path)
 PY
 )"
   [ -n "$target" ] && [ -f "$target" ] || die "generated PlaysteadUITests xctestrun is missing"
+  mkdir -p "${FOUR_LAYER_RAW}/gb-gbc-readback"
+  chmod 0700 "${FOUR_LAYER_RAW}/gb-gbc-readback"
   cp -p "$target" "$backup"
   LIVE_SERVER_XCTESTRUN="$target"
   LIVE_SERVER_XCTESTRUN_BACKUP="$backup"
   LIVE_SERVER_XCTESTRUN_PATCHED=true
   python3 - "$target" \
     "$PLAYSTEAD_MAC_CI_ROOT" "$PLAYSTEAD_LIVE_SERVER_STAGE_ROOT" \
-    "$PLAYSTEAD_LIVE_SERVER_STAGE_FILE" "$MAC_CI_DATABASE_URL" "$MIX_ENV" "$PORT" "$LIVE_SERVER_CA_DER" "$PLAYSTEAD_TEST_LIVE_SERVER_CA_SHA256" "$LIVE_SERVER_RUNTIME_CONFIG" "${PLAYSTEAD_GB_GBC_FIXTURE_REGISTRY:-${MAC_ROOT}/.local/gb-gbc-spike/fixtures/fixtures.json}" "${PLAYSTEAD_GB_GBC_SAVE_E2E_PROFILE_ROOT}" <<'PY'
+    "$PLAYSTEAD_LIVE_SERVER_STAGE_FILE" "$MAC_CI_DATABASE_URL" "$MIX_ENV" "$PORT" "$LIVE_SERVER_CA_DER" "$PLAYSTEAD_TEST_LIVE_SERVER_CA_SHA256" "$LIVE_SERVER_RUNTIME_CONFIG" "${PLAYSTEAD_GB_GBC_FIXTURE_REGISTRY:-${MAC_ROOT}/.local/gb-gbc-spike/fixtures/fixtures.json}" "${PLAYSTEAD_GB_GBC_SAVE_E2E_PROFILE_ROOT}" "${FOUR_LAYER_RAW}/gb-gbc-readback" <<'PY'
 import os, pathlib, plistlib, sys
 
 path = pathlib.Path(sys.argv[1])
@@ -167,6 +169,7 @@ keys = (
     "PLAYSTEAD_TEST_LIVE_SERVER_RUNTIME_CONFIG",
     "PLAYSTEAD_GB_GBC_FIXTURE_REGISTRY",
     "PLAYSTEAD_GB_GBC_SAVE_E2E_PROFILE_ROOT",
+    "PLAYSTEAD_GB_GBC_SAVE_EVIDENCE_DIRECTORY",
 )
 if len(sys.argv) != len(keys) + 2:
     raise SystemExit("live-server test environment argument count drifted")
@@ -178,6 +181,7 @@ for key in (
     "PLAYSTEAD_TEST_LIVE_SERVER_CA_DER", "PLAYSTEAD_TEST_LIVE_SERVER_RUNTIME_CONFIG",
     "PLAYSTEAD_GB_GBC_FIXTURE_REGISTRY",
     "PLAYSTEAD_GB_GBC_SAVE_E2E_PROFILE_ROOT",
+    "PLAYSTEAD_GB_GBC_SAVE_EVIDENCE_DIRECTORY",
 ):
     if not pathlib.PurePath(values[key]).is_absolute():
         raise SystemExit(f"live-server test environment path is not absolute: {key}")
@@ -2746,8 +2750,8 @@ run_selected_layer_tests() {
     -packageCachePath "${BUILD_ROOT}/PackageCache"
     -disableAutomaticPackageResolution
   )
-  mkdir -p "$selected_raw" "$selected_evidence"
-  chmod 0700 "$selected_root" "$selected_raw" "$selected_evidence"
+  mkdir -p "$selected_raw" "$selected_evidence" "$selected_raw/gb-gbc-readback"
+  chmod 0700 "$selected_root" "$selected_raw" "$selected_evidence" "$selected_raw/gb-gbc-readback"
   if [ "$build_only" = true ]; then
     local diagnostics_home="${BUILD_ROOT}/swiftpm-diagnostics-home"
     local module_cache="${BUILD_ROOT}/swift-clang-module-cache"
@@ -2785,6 +2789,7 @@ run_selected_layer_tests() {
       PLAYSTEAD_SAVE_RELIABILITY_EVIDENCE_PATH="${selected_evidence}/save-reliability.json"
       PLAYSTEAD_GB_GBC_FIXTURE_REGISTRY="${PLAYSTEAD_GB_GBC_FIXTURE_REGISTRY:-${MAC_ROOT}/.local/gb-gbc-spike/fixtures/fixtures.json}"
       PLAYSTEAD_GB_GBC_SAVE_E2E_PROFILE_ROOT="$gb_gbc_profile_root"
+      PLAYSTEAD_GB_GBC_SAVE_EVIDENCE_DIRECTORY="$selected_raw/gb-gbc-readback"
       PLAYSTEAD_AEREVEN_FIXTURE_REGISTRY="${PLAYSTEAD_AEREVEN_FIXTURE_REGISTRY:-${MAC_ROOT}/.local/test-fixtures/aerevenadvance.json}"
     )
   fi

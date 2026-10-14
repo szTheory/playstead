@@ -984,13 +984,16 @@ final class GBGBCSaveContinuityTests: XCTestCase {
 
     private func writeRunEvidence(_ evidence: [String: Any]) throws {
         let environment = ProcessInfo.processInfo.environment
-        guard let reliabilityPath = environment["PLAYSTEAD_SAVE_RELIABILITY_EVIDENCE_PATH"],
-              (reliabilityPath as NSString).isAbsolutePath else {
+        guard let outputPath = environment["PLAYSTEAD_GB_GBC_SAVE_EVIDENCE_DIRECTORY"],
+              (outputPath as NSString).isAbsolutePath,
+              let attributes = try? FileManager.default.attributesOfItem(atPath: outputPath),
+              attributes[.type] as? FileAttributeType == .typeDirectory,
+              (attributes[.posixPermissions] as? NSNumber)?.intValue == 0o700 else {
             throw NSError(domain: "GBGBCSaveContinuityTests", code: 3,
-                          userInfo: [NSLocalizedDescriptionKey: "gb-save-e2e=evidence-path-unavailable"])
+                          userInfo: [NSLocalizedDescriptionKey: "gb-save-e2e=evidence-directory-unavailable"])
         }
         let fixture = evidence["fixture"] as? String ?? "unknown"
-        let evidenceURL = URL(fileURLWithPath: reliabilityPath).deletingLastPathComponent()
+        let evidenceURL = URL(fileURLWithPath: outputPath, isDirectory: true)
             .appendingPathComponent("gb-gbc-save-continuity-\(fixture).json")
         let data = try JSONSerialization.data(withJSONObject: evidence, options: [.sortedKeys])
         try data.write(to: evidenceURL, options: .atomic)

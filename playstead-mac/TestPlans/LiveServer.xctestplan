@@ -56,6 +56,10 @@
       {
         "key": "PLAYSTEAD_GB_GBC_SAVE_E2E_PROFILE_ROOT",
         "value": "$(PLAYSTEAD_GB_GBC_SAVE_E2E_PROFILE_ROOT)"
+      },
+      {
+        "key": "PLAYSTEAD_GB_GBC_SAVE_EVIDENCE_DIRECTORY",
+        "value": "$(PLAYSTEAD_GB_GBC_SAVE_EVIDENCE_DIRECTORY)"
       }
     ],
     "targetForVariableExpansion": {
