@@ -12,9 +12,9 @@ set -euo pipefail
 SCRIPT_ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
 REPO_ROOT="$(cd "$SCRIPT_ROOT/.." && pwd -P)"
 RUNTIME_ROOT="${RUNNER_TEMP:?}/playstead-media-runtime"
-export COLIMA_HOME="$RUNTIME_ROOT/colima"
+export COLIMA_HOME="$RUNTIME_ROOT/c"
 export DOCKER_CONFIG="$RUNTIME_ROOT/docker-client"
-export DOCKER_HOST="unix://$COLIMA_HOME/playstead-media-ci/docker.sock"
+export DOCKER_HOST="unix://$COLIMA_HOME/media/docker.sock"
 stage=validate-action
 report_failure_stage() {
   local status=$?
@@ -29,6 +29,15 @@ case "${1:-}" in
   start)
     [[ "$#" = 2 && "$2" = "$RUNNER_TEMP/playstead-media-decoder-runtime" ]] || exit 2
     artifact="$2"
+    stage=validate-socket-path
+    # Lima reserves sixteen suffix bytes for an SSH control socket. Keep its
+    # full path below Darwin's UNIX_PATH_MAX before installing/starting a VM.
+    python3 - "$COLIMA_HOME" <<'PY'
+import os, sys
+path = os.path.join(sys.argv[1], "_lima/colima-media/ssh.sock.1234567890123456")
+if len(os.fsencode(path)) >= 104:
+    raise SystemExit("owned decoder SSH socket path exceeds the macOS limit")
+PY
     stage=create-owned-home
     [ ! -e "$RUNTIME_ROOT" ] || { echo 'hosted decoder runtime root already exists' >&2; exit 1; }
     mkdir -m 0700 "$RUNTIME_ROOT"
@@ -63,7 +72,7 @@ PY
     HOMEBREW_NO_AUTO_UPDATE=1 brew install docker colima qemu
     # The separate task home and explicit socket never select another daemon.
     stage=start-owned-guest
-    colima start playstead-media-ci --vm-type qemu --arch x86_64 --cpu-type max --cpu 1 --memory 2 --disk 12 \
+    colima start media --vm-type qemu --arch x86_64 --cpu-type max --cpu 1 --memory 2 --disk 12 \
       --mount none --ssh-config=false --activate=false
     stage=verify-daemon
     [ "$(docker info --format '{{.OSType}}/{{.Architecture}}')" = linux/x86_64 ]
@@ -78,8 +87,8 @@ PY
   cleanup)
     stage=cleanup-owned-guest
     [ "$#" = 1 ] || exit 2
-    if [ -d "$COLIMA_HOME/playstead-media-ci" ]; then
-      colima delete playstead-media-ci --force --data
+    if [ -d "$COLIMA_HOME/media" ]; then
+      colima delete media --force --data
     fi
     [ ! -e "$RUNTIME_ROOT" ] || rm -rf -- "$RUNTIME_ROOT"
     ;;

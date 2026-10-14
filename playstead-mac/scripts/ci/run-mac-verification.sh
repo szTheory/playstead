@@ -2098,11 +2098,11 @@ start_native_media_decoder() {
   if [ "${GITHUB_ACTIONS:-}" = true ] && [ "${RUNNER_OS:-}" = macOS ]; then
     # The workflow qualifies this exact guest before its expensive Xcode/UI
     # layers and exports the owned socket only after image-custody validation.
-    if [ "${DOCKER_HOST:-}" != "unix://$RUNNER_TEMP/playstead-media-runtime/colima/playstead-media-ci/docker.sock" ]; then
+    if [ "${DOCKER_HOST:-}" != "unix://$RUNNER_TEMP/playstead-media-runtime/c/media/docker.sock" ]; then
       "$SCRIPT_DIR/hosted-decoder-runtime.sh" start "$RUNNER_TEMP/playstead-media-decoder-runtime" \
         >"$NATIVE_ROOT/media-runtime.log" 2>&1 || die "hosted decoder runtime preparation failed"
     fi
-    export DOCKER_HOST="unix://$RUNNER_TEMP/playstead-media-runtime/colima/playstead-media-ci/docker.sock"
+    export DOCKER_HOST="unix://$RUNNER_TEMP/playstead-media-runtime/c/media/docker.sock"
     export DOCKER_CONFIG="$RUNNER_TEMP/playstead-media-runtime/docker-client"
     export PLAYSTEAD_MEDIA_DECODER_EVIDENCE_DIR="$RUNNER_TEMP/playstead-media-decoder-runtime"
   fi

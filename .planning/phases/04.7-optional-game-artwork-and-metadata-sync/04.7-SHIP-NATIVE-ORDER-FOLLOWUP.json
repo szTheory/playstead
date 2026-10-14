@@ -109,5 +109,42 @@
     "run": 38486889151,
     "compose_failure": "Initialize containers: ECR toomanyrequests Data limit exceeded; failure precedes repository test execution",
     "next": "new final source head retries hosted checks; no registry credentials or gate exception introduced"
+  },
+  "socket_and_diagnostic_followup": {
+    "recorded_at": "2026-10-14T00:38:45.644427+00:00",
+    "human_judgment": false,
+    "prerequisite_commit": "a61159474d434d0ef5a8739de94425fc0a4908fb",
+    "failed_phase_run": 38488262815,
+    "failed_phase_head": "d1ff6c79ea574c02c957c974b72702ebb9b3fd7a",
+    "hosted_linux": "all three jobs passed",
+    "guest_failure": {
+      "stage": "start-owned-guest",
+      "cause": "Lima SSH socket path113 bytes exceeds Darwin UNIX_PATH_MAX104",
+      "colima": "0.10.3",
+      "lima": "2.2.0",
+      "qemu": "11.1.1",
+      "cleanup": "exact task guest delete and owned root cleanup succeeded"
+    },
+    "repair": "Short owned Colima home c/profile media; host socket/readiness/cleanup agree; finite path preflight rejects length104+ before runtime creation or installation.",
+    "verification": {
+      "runtime_contracts": 8,
+      "static_validator_cases": 101,
+      "phase_verifier_cases": 86,
+      "sanitizer_cases": 92,
+      "static_run": "Aggregate failed only on sandbox-denied /bin/ps in owned wrapper cleanup; the affected guard then passed with permitted process inventory. Other guard results and101validators retained, no whole failed aggregate claimed passing.",
+      "original_serial": "not mutated by explicit run-owned CAserial fixture",
+      "actual_guest_execution": "unknown; requires corrected current-head hosted canary"
+    },
+    "retained_empty_profile_cleanup": "Exact source/target child inventories empty; four empty directories removed by rmdir, root absence verified.",
+    "source_sha256": {
+      "playstead-mac/scripts/ci/hosted-decoder-runtime.sh": "7ec359f9bd9b15a52da9a88e1d5422a9cc531e68cc1a5bc7aff2c3cb40bb4d26",
+      "playstead-mac/scripts/ci/run-mac-verification.sh": "3053c6638a4c8fbb1e35ab917ecb8d2a24a8412cc2acc7249d0da7f085f3e655",
+      "playstead-mac/scripts/ci/tests/test_hosted_decoder_runtime.py": "8b30fcfabde3a0553e2e4b270f10cc7943e95183bf32f9e347f8ad72cf4502dc",
+      "playstead-mac/scripts/ci/tests/four-layer-verifier-test.sh": "08a29fdcd54e1e7d1a17237895bf60d93395cf4c364a1fb53e3abef09969b13d"
+    },
+    "primary_sources": [
+      "https://raw.githubusercontent.com/abiosoft/colima/v0.10.3/environment/vm/lima/lima.go",
+      "https://raw.githubusercontent.com/lima-vm/lima/v2.2.0/pkg/limayaml/validate.go"
+    ]
   }
 }

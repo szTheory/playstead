@@ -33,7 +33,7 @@ class HostedDecoderRuntimeTests(unittest.TestCase):
             (binaries / "colima").write_text("#!/bin/sh\nprintf '%s\\n' \"$@\" >\"$CALL_LOG\"\n")
             for path in binaries.iterdir():
                 path.chmod(0o755)
-            owned = root / "playstead-media-runtime/colima/playstead-media-ci"
+            owned = root / "playstead-media-runtime/c/media"
             owned.mkdir(parents=True)
             unrelated = root / "unrelated-profile"
             unrelated.mkdir()
@@ -42,14 +42,14 @@ class HostedDecoderRuntimeTests(unittest.TestCase):
                        GITHUB_ACTIONS="true", RUNNER_OS="macOS", GITHUB_REPOSITORY="szTheory/playstead", CALL_LOG=str(calls))
             result = subprocess.run([str(HELPER), "cleanup"], env=env, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(calls.read_text().splitlines(), ["delete", "playstead-media-ci", "--force", "--data"])
+            self.assertEqual(calls.read_text().splitlines(), ["delete", "media", "--force", "--data"])
             self.assertFalse((root / "playstead-media-runtime").exists())
             self.assertTrue(unrelated.is_dir())
 
     def test_recipe_keeps_the_actual_scanned_container_and_software_emulation(self):
         helper = HELPER.read_text()
         for token in ["--vm-type qemu --arch x86_64", "--cpu 1 --memory 2 --disk 12",
-                      'export DOCKER_HOST="unix://$COLIMA_HOME/playstead-media-ci/docker.sock"',
+                      'export DOCKER_HOST="unix://$COLIMA_HOME/media/docker.sock"',
                       'media-decoder-evidence.py" verify', 'docker image load --input',
                       'docker image inspect --format', 'decoder-signing.rsa.pub', 'endswith(".rsa")']:
             self.assertIn(token, helper)
@@ -68,6 +68,36 @@ class HostedDecoderRuntimeTests(unittest.TestCase):
         self.assertIn('hosted-decoder-runtime.sh" start', runner)
         for token in ["--read-only --user 11001:11001 --cap-drop ALL", "--pids-limit 32 --memory 512m", "--security-opt no-new-privileges:true"]:
             self.assertIn(token, runner)
+
+    def test_reported_hosted_ssh_socket_path_fits_the_macos_limit(self):
+        root = pathlib.Path("/Users/runner/work/_temp/playstead-media-runtime")
+        old = root / "colima/_lima/colima-playstead-media-ci/ssh.sock.1234567890123456"
+        self.assertEqual(len(os.fsencode(old)), 113)
+        helper = HELPER.read_text()
+        home = re.search(r'export COLIMA_HOME="\$RUNTIME_ROOT/([^"\n]+)"', helper).group(1)
+        profile = re.search(r"colima start ([a-z0-9-]+) --vm-type", helper).group(1)
+        current = root / home / "_lima" / ("colima-" + profile) / "ssh.sock.1234567890123456"
+        self.assertLess(len(os.fsencode(current)), 104)
+        self.assertIn('export DOCKER_HOST="unix://$COLIMA_HOME/' + profile + '/docker.sock"', helper)
+        self.assertIn('unix://$RUNNER_TEMP/playstead-media-runtime/' + home + '/' + profile + '/docker.sock', RUNNER.read_text())
+
+    def test_overlong_owned_socket_fails_before_creating_runtime_or_starting_vm(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            binaries = root / "bin"
+            binaries.mkdir()
+            (binaries / "uname").write_text("#!/bin/sh\nprintf 'arm64\\n'\n")
+            (binaries / "uname").chmod(0o755)
+            long_root = root / ("x" * 100)
+            long_root.mkdir()
+            env = dict(os.environ, PATH=str(binaries) + ":" + os.environ["PATH"], RUNNER_TEMP=str(long_root),
+                       GITHUB_ACTIONS="true", RUNNER_OS="macOS", GITHUB_REPOSITORY="szTheory/playstead")
+            result = subprocess.run([str(HELPER), "start", str(long_root / "playstead-media-decoder-runtime")],
+                                    env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("hosted-decoder-stage=validate-socket-path exit=1", result.stderr)
+            self.assertNotIn(str(root), result.stderr)
+            self.assertFalse((long_root / "playstead-media-runtime").exists())
 
     def test_failed_setup_reports_only_its_finite_stage_and_keeps_exit(self):
         with tempfile.TemporaryDirectory() as temporary:
