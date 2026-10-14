@@ -235,5 +235,58 @@
       }
     },
     "gb_experiment": "Prepared proposal remains unapplied pending explicit approval after automatic review rejection; no local native launch or permission change."
+  },
+  "nonempty_colima_profile_followup": {
+    "recorded_at": "2026-10-14T13:09:31.594927+00:00",
+    "human_judgment": false,
+    "source_head": "cd5c09600d97711107d93ece396d473904a4b8bf",
+    "source_run": 38564881964,
+    "hosted_linux": "all three jobs passed",
+    "hosted_failure": {
+      "stage": "verify-image-store",
+      "cause": "Owned profile omitted runtime; Colima0.10.3 Config.Empty returns true and start.prepareConfig discards Docker configuration",
+      "cleanup": "Exact owned colima-media deletion confirmed"
+    },
+    "repair": "Declare runtime: docker in the existing owned profile; retain classic overlay2 and unchanged exact image custody checks.",
+    "qualification": {
+      "runtime_contracts": 10,
+      "upstream_config_oracle": {
+        "module": "github.com/abiosoft/colima v0.10.3",
+        "compiler": "go1.26.0 darwin/arm64",
+        "api": "configmanager.LoadFrom and Config.Empty",
+        "before": {
+          "exit": 1,
+          "profile_empty": true,
+          "runtime": "",
+          "containerd_snapshotter": false,
+          "storage_driver": "overlay2"
+        },
+        "after": {
+          "exit": 0,
+          "profile_empty": false,
+          "runtime": "docker",
+          "containerd_snapshotter": false,
+          "storage_driver": "overlay2"
+        },
+        "files_sha256": {
+          "main.go": "1041e6c1dfcbf438c0f86aa1e20aabda1e530bcff833c69162b8702e3d30cc62",
+          "go.mod": "c6b7b221c5dd96a721d18c875209140d7d5a7b3e4e65e4246f7641d06f32a4be",
+          "go.sum": "cac258c434c70bc911d1bd01761ea90611f47089f20e8e695161f1fef49f0dd6",
+          "before.yaml": "83657a571d13001c77649832e9646f2deda44b3cca8004d28f2ea7c62e760dd6",
+          "after.yaml": "66bef03a532a3288b16b027cb5d2f5892857d19b28bdc48dc4d06d3e49303e11"
+        },
+        "boundary": "Pure configuration loading; no guest, app, service or system-permission changes"
+      },
+      "actual_hosted_result": "pending corrected current-head CI"
+    },
+    "source_sha256": {
+      "playstead-mac/scripts/ci/hosted-decoder-runtime.sh": "325005dcaba01aead4c3b0026288025f8b2e637ea2b470e95abc7d7ea129a10c",
+      "playstead-mac/scripts/ci/tests/test_hosted_decoder_runtime.py": "a17adc0be727cdb0d6686dd0c3f1d2857da780b8bec7bd379eb4bc5e205a2ffe"
+    },
+    "primary_sources": [
+      "https://raw.githubusercontent.com/abiosoft/colima/v0.10.3/config/config.go",
+      "https://raw.githubusercontent.com/abiosoft/colima/v0.10.3/cmd/start.go",
+      "https://raw.githubusercontent.com/abiosoft/colima/v0.10.3/config/configmanager/configmanager.go"
+    ]
   }
 }

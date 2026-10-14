@@ -85,8 +85,10 @@ PY
     # The Linux scan receipt identifies the image by its configuration digest.
     # Docker's containerd store instead exposes a manifest digest as .Id. Keep
     # the same classic store in this fresh guest; never translate a scanned ID.
+    # Colima discards the entire profile when its runtime field is absent.
     mkdir -m 0700 "$COLIMA_HOME/media"
     cat >"$COLIMA_HOME/media/colima.yaml" <<'YAML'
+runtime: docker
 docker:
   features:
     containerd-snapshotter: false

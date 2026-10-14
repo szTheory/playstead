@@ -129,6 +129,9 @@ class HostedDecoderRuntimeTests(unittest.TestCase):
     def test_owned_store_keeps_config_digest_and_rejects_mismatched_runtime(self):
         helper = HELPER.read_text()
         self.assertIn('cat >"$COLIMA_HOME/media/colima.yaml"', helper)
+        # Colima Config.Empty() is true without Runtime. Its start command
+        # discards all configured Docker settings for such an empty profile.
+        self.assertIn("runtime: docker\ndocker:", helper)
         self.assertIn("containerd-snapshotter: false\n  storage-driver: overlay2", helper)
         self.assertLess(helper.index("stage=configure-owned-image-store"), helper.index("stage=start-owned-guest"))
         # Execute the production load/publication boundary. A different store
