@@ -25,7 +25,7 @@ subjectAltName=DNS:localhost
 extendedKeyUsage=serverAuth
 basicConstraints=CA:FALSE
 EOF
-openssl x509 -req -in "$ROOT/server.csr" -CA "$ROOT/ca.pem" -CAkey "$ROOT/ca.key" -CAcreateserial -out "$ROOT/server.pem" -days 2 -extfile "$ROOT/ext.cnf" >/dev/null 2>&1
+openssl x509 -req -in "$ROOT/server.csr" -CA "$ROOT/ca.pem" -CAkey "$ROOT/ca.key" -CAserial "$ROOT/ca.srl" -CAcreateserial -out "$ROOT/server.pem" -days 2 -extfile "$ROOT/ext.cnf" >/dev/null 2>&1
 openssl req -x509 -newkey rsa:2048 -nodes -keyout "$ROOT/other.key" -out "$ROOT/other-ca.pem" -days 2 -subj '/CN=Different Test CA' -addext 'basicConstraints=critical,CA:TRUE' -addext 'keyUsage=critical,keyCertSign,cRLSign' >/dev/null 2>&1
 FAILURE_CODE=tls_listener_ready
 python3 - "$ROOT/server.pem" "$ROOT/server.key" "$ROOT/port" <<'PY' >"$ROOT/tls.out" 2>&1 &

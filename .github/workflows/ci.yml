@@ -149,7 +149,8 @@ jobs:
           version-type: strict
 
       - name: Cache server dependencies
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        id: mac-server-cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
           path: |
             playstead-server/deps
@@ -159,7 +160,8 @@ jobs:
             mix-v2-${{ runner.os }}-${{ runner.arch }}-mac_ci-${{ hashFiles('playstead-server/.tool-versions') }}-
 
       - name: Cache pinned Swift packages
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        id: mac-swiftpm-cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
           path: |
             playstead-mac/.build/ci/SourcePackages
@@ -224,6 +226,26 @@ jobs:
           # original failing step instead of replacing it with an artifact error.
           if-no-files-found: warn
           retention-days: 7
+
+      # Keep dependency compilation after an unrelated test failure. These
+      # paths contain no test products, profiles, credentials or evidence.
+      - name: Save compiled Mac server dependencies
+        if: ${{ !cancelled() && steps.mac-server-cache.outputs.cache-primary-key != '' && steps.mac-server-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        with:
+          path: |
+            playstead-server/deps
+            playstead-server/_build
+          key: ${{ steps.mac-server-cache.outputs.cache-primary-key }}
+
+      - name: Save pinned Mac Swift packages
+        if: ${{ !cancelled() && steps.mac-swiftpm-cache.outputs.cache-primary-key != '' && steps.mac-swiftpm-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        with:
+          path: |
+            playstead-mac/.build/ci/SourcePackages
+            playstead-mac/.build/ci/PackageCache
+          key: ${{ steps.mac-swiftpm-cache.outputs.cache-primary-key }}
 
   # Independent Linux recovery claim. This job owns its throwaway Compose
   # target; no endpoint, handoff, volume, CA, or raw output crosses to macOS.

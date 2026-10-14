@@ -856,5 +856,52 @@
       "playstead-mac/PlaysteadUITests/ControllerRecoveryBannerGeometryTests.swift": "cfafe82cbc5d90044cdee85385cce7d9f29558e4790a483be3ac30d1dd0fa27d",
       "playstead-mac/PlaysteadUITests/LibraryEmptyStateTests.swift": "a9384881733f9accf97ad64210c878de9e20cb6e2e10aa92b54163d5bc63b7b6"
     }
+  },
+  "xctest_menu_and_dependency_cache_followup": {
+    "recorded_at": "2026-10-14T14:47:09.983665+00:00",
+    "human_judgment": false,
+    "input_head": "9ab418db2de845de2b590dea08f6aa4cadbaf8ba",
+    "hosted_run": 38573992478,
+    "hosted_result": "823unit/54rendering passed;146UI with geometry1failure at native scroll; search passed;10live with three GB/GBC raw AX guard failures",
+    "owner_approval": "Explicit approval for the test-only raw AX replacement and focused check; no system permission or HID changes",
+    "experiments": [
+      {
+        "attempt": "EihdX3",
+        "result": "1executed/1failed/0skipped",
+        "finding": "Private Qt shortcut is hidden by production controller configuration override; discarded"
+      },
+      {
+        "attempt": "UHgsSg",
+        "result": "1executed/1failed/0skipped",
+        "finding": "Detaching synthetic controller blocks current launch; discarded"
+      }
+    ],
+    "final_changes": [
+      "Use XCTest Tools/Scripting menu activation through the UI testing service, remove unused direct AX helpers and trust guard; preserve synthetic controller launch, exact emulator identity, immutable save transfer, game RAM and raw-pixel oracles",
+      "Wait for source list, foreground app and unconditionally reset native upward scroll before geometry navigation; full hosted confirmation remains pending",
+      "Carry existing explicit owned CAserial fix and real dotted-path regression from Phase into its prerequisite",
+      "Recovery contract permits only the same-run decoder producer when that job exists; rejects unrelated dependency",
+      "Split Mac dependency cache restore/save; retain populated dependency caches after test failures, exclude cancellation and exact hits; test products, profiles, credentials and evidence remain fresh"
+    ],
+    "local_verification": {
+      "gb": "7WUUgq: exactly1 discovered/executed/passed,0skips;104.6seconds; source0->1 with1inputedge, fresh target1->1 with0inputedges; four23040-pixel checks;8192-byte save; real pinned0.10.5 executable",
+      "geometry": "mJYfF7:1discovered/executed/passed,0skips;fourwindow/theme cases;69.9seconds;native upward scroll exercised each case; also compiled final GB test after dead helper removal",
+      "prior_geometry": "V7OKvg and iabnPo passed all4cases; earlier focused run did not exercise conditional upward scroll",
+      "tls_serial": "Real scoped issuer regression passed; owner counter restored to recorded checksum after3owned prerequisite issuance increments; no system trust changes",
+      "validators": 93,
+      "workflow_contracts": 2,
+      "recovery_workflow": "Full coordinator contracts passed; actual new Python check accepts prerequisite and Phase DAG, rejects unrelated needs",
+      "actionlint_shellcheck": "passed"
+    },
+    "source_sha256": {
+      ".github/workflows/ci.yml": "59b2848abeb250a530236da958ede8b6d8b147e4434d403484258d011998d202",
+      "playstead-mac/PlaysteadUITests/GBGBCSaveContinuityTests.swift": "8f3ebf4640f67c198f4b0129d6f6bfb7c6fe58e8bfc83acd277078b970179eb2",
+      "playstead-mac/PlaysteadUITests/ControllerRecoveryBannerGeometryTests.swift": "ec8ab4ab54cacb8ca75e0936bf594b5e87eb06c5ece323e6a516f5a22c85dbc2",
+      "playstead-mac/scripts/ci/mac-ci-tls.sh": "63ff35b86ef6f29e2801e2186c031a1e6a303550c018c51c4983e3d2209be1cf",
+      "playstead-mac/scripts/ci/tests/recovery-browser-trust-test.sh": "381e7e58434b53aef7c852fe408ec76c174f84d119abfac88d9c76a1c7b4450f",
+      "playstead-mac/scripts/ci/tests/test_mac_ci_tls_serial.py": "a2d25f9fa05ba3965c67089a0837efd1878926c83f3dcedbb23d2ba92d4c2c3f",
+      "playstead-server/scripts/tests/recovery-fixture-test.sh": "7ca0bbe03e3eee9ee14901ce7a653b16d91834745126168c12fcc95ec6c83efe"
+    },
+    "remaining": "Applicable current-head hosted CI including both GBC readback selectors and full geometry matrix; no full hosted-green claim"
   }
 }
