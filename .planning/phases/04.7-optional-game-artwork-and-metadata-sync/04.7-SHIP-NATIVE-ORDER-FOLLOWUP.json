@@ -288,5 +288,71 @@
       "https://raw.githubusercontent.com/abiosoft/colima/v0.10.3/cmd/start.go",
       "https://raw.githubusercontent.com/abiosoft/colima/v0.10.3/config/configmanager/configmanager.go"
     ]
+  },
+  "efficiency_followup": {
+    "recorded_at": "2026-10-14T13:40:40.513058+00:00",
+    "human_judgment": false,
+    "prerequisite_commit": "9ab418d",
+    "baseline_run": 38569515748,
+    "baseline_decoder_seconds": {
+      "unit_lane": 531,
+      "recovery_lane": 381,
+      "compose_lane": 450
+    },
+    "baseline_duplicate_runner_seconds": 912,
+    "changes": [
+      "Build/scan exactly once per workflow in decoder-runtime; three Linux lanes and owned Mac guest consume that same-run artifact",
+      "Linux imports reject unsafe archives, another config digest, altered current source/report and wrong actual loaded image before activation; original production receipt verifier still runs",
+      "Mac skips its expensive build when the required decoder qualification failed; it still runs after ordinary Linux test/Compose failures when that decoder passed",
+      "Add version/OS/architecture/lock-keyed server and SwiftPM dependency caches; preserve fresh test products, profiles and all required selectors",
+      "Prerequisite native geometry uses the Mac scroll-wheel API; search suite requests a finite desktop window to avoid inherited autosave geometry"
+    ],
+    "verification": {
+      "shared_runtime_contracts": 8,
+      "decoder_policy_contracts": 12,
+      "release_evidence_contracts": 29,
+      "static_validator_tests": 103,
+      "all_static_contract_guards": "passed",
+      "actionlint_shellcheck": "passed",
+      "real_archive_validation": {
+        "source_run": 38493388963,
+        "image_id": "sha256:d98833581fece8345b6213bd99d2257e14809975bafd199227ec956bf257114f",
+        "archive_report_context_validation": "passed through production importer",
+        "docker_boundary": "stubbed; no actual local image load, guest or native app",
+        "temp_checkout": "removed by owned temporary-directory cleanup",
+        "human_judgment": false
+      },
+      "native_selectors": "Not qualified locally: runner timed out enabling automation before any test executed. Packaged test sources compiled; hosted current-head execution required. No repeated foreground loop.",
+      "timing_limit": "912runner-seconds of duplicate baseline work eliminated structurally; new full-workflow wall time not measured yet"
+    },
+    "source_sha256": {
+      ".github/workflows/ci.yml": "6e7be4b2266379b47ecf396fed21093abd6fd4a875172189e8f2f4110cbc5860",
+      "scripts/ci/import-media-decoder-runtime.sh": "402fca3abda3d266e8c16e9c28043e28896a890e70d16df01f13eeb148a70ab4",
+      "scripts/tests/test_decoder_runtime_reuse.py": "b0c0a54fd4728a57d0f798f22bb757a8ae9aecd092a4bb55c958d5a6485327d0",
+      "playstead-mac/scripts/ci/tests/test_server_workflow_contract.py": "e1bc6c521582201fbccdbabf11aa4a220d371a1ddf0ae8dc79bf443234ed85ac",
+      "playstead-mac/PlaysteadUITests/ControllerRecoveryBannerGeometryTests.swift": "cfafe82cbc5d90044cdee85385cce7d9f29558e4790a483be3ac30d1dd0fa27d",
+      "playstead-mac/PlaysteadUITests/LibraryEmptyStateTests.swift": "a9384881733f9accf97ad64210c878de9e20cb6e2e10aa92b54163d5bc63b7b6"
+    },
+    "remaining": [
+      "Current-head hosted decoder/native regression",
+      "Specific approval for prepared GB shortcut proposal; it remains unapplied",
+      "After green applicable checks, already-authorized ordered squash merges"
+    ],
+    "primary_sources": [
+      "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax",
+      "https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching",
+      "https://docs.github.com/en/actions/reference/workflows-and-actions/expressions"
+    ],
+    "hosted_runtime_qualification": {
+      "run": 38569515748,
+      "head": "7a3ea82987a350d92fc224d08adb9052ce826462",
+      "job": 115878690685,
+      "step": "Qualify the owned decoder runtime before native checks",
+      "conclusion": "success",
+      "started_at": "2026-10-14T13:33:33Z",
+      "native_step_started_at": "2026-10-14T13:43:17Z",
+      "qualified_source_sha256": "325005dcaba01aead4c3b0026288025f8b2e637ea2b470e95abc7d7ea129a10c",
+      "claim": "Actual owned guest boot, classic-store guard and exact scanned image import passed; no full native matrix or parser journey pass inferred"
+    }
   }
 }
