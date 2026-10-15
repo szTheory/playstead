@@ -160,13 +160,21 @@ final class UITestHarness {
             app.descendants(matching: .any).matching(identifier: identifier)
                 .allElementsBoundByIndex.prefix(6).map { element -> [String: Any] in
                     ["identifier": identifier, "type": element.elementType.rawValue,
-                     "hittable": element.isHittable, "frame": frame(element.frame)]
+                     "hittable": element.isHittable, "enabled": element.isEnabled, "frame": frame(element.frame)]
                 }
         }
         let record: [String: Any] = ["window": frame(app.windows.firstMatch.frame),
                                     "screens": NSScreen.screens.map { frame($0.frame) }, "controls": controls]
-        let data = try JSONSerialization.data(withJSONObject: record, options: [.sortedKeys])
-        try data.write(to: logs.appendingPathComponent("app.log"), options: .atomic)
+        var data = try JSONSerialization.data(withJSONObject: record, options: [.sortedKeys])
+        data.append(0x0A)
+        let log = logs.appendingPathComponent("app.log")
+        if !FileManager.default.fileExists(atPath: log.path) {
+            try Data().write(to: log, options: .atomic)
+        }
+        let stream = try FileHandle(forWritingTo: log)
+        defer { try? stream.close() }
+        try stream.seekToEnd()
+        try stream.write(contentsOf: data)
         try app.windows.firstMatch.screenshot().pngRepresentation
             .write(to: screenshots.appendingPathComponent("synthetic-settings-navigation.png"), options: .atomic)
     }

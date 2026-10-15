@@ -68,10 +68,22 @@ jobs:
         working-directory: playstead-mac
         run: scripts/ci/run-mac-verification.sh --layers ui --only-testing PlaysteadUITests/ControllerRecoveryBannerGeometryTests/testRecoveryBannerGeometryAcrossWindowSizesAndAppearances
 
-      - name: Run the one synthetic Settings navigation selector
+      - name: Mount the metadata rendering fixtures before navigation
         if: inputs.mode == 'settings-navigation'
         working-directory: playstead-mac
-        run: scripts/ci/run-mac-verification.sh --layers ui --only-testing PlaysteadUITests/MetadataConsentUITests/testMetadataSettingsRemainInsideSettingsAndShowIndependentCacheBudget
+        run: scripts/ci/run-mac-verification.sh --layers rendering --only-testing PlaysteadTests/MetadataStateRenderingTests/testAllFiftyThreeMetadataControlFixturesMountAndRender
+
+      - name: Run the focused synthetic Settings navigation cohort
+        if: inputs.mode == 'settings-navigation'
+        working-directory: playstead-mac
+        run: |
+          scripts/ci/run-mac-verification.sh --layers ui \
+            --only-testing PlaysteadUITests/ControllerDpadRegressionTests/testControllerTestDpadUpStaysInSettingsAndSettingsReopensAtStorage \
+            --only-testing PlaysteadUITests/ControllerNoHIDIntegrationTests/testRecoveryNoticeAccessibilityContractAndDismissalPreservesState \
+            --only-testing PlaysteadUITests/SurfaceAccessibilityTests/testReadinessRoutesReachBIOSAndControllerSettings \
+            --only-testing PlaysteadUITests/MetadataConsentUITests/testAllFortyFiveMetadataSettingsStatesExposeTheirOwnMeaningAndUsableAction \
+            --only-testing PlaysteadUITests/MetadataConsentUITests/testConsentPreviewRequiresASelectedGameAndUnpairedProfileNeverEnablesProvider \
+            --only-testing PlaysteadUITests/MetadataConsentUITests/testMetadataSettingsRemainInsideSettingsAndShowIndependentCacheBudget
 
       - name: Sanitize synthetic window diagnostics
         if: ${{ !cancelled() }}
