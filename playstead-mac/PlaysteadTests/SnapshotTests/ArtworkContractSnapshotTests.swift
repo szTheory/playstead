@@ -144,7 +144,8 @@ final class ArtworkContractSnapshotTests: XCTestCase {
         _ = try await cache.store(png, mediaID: mediaID, expectedSHA256: digest, expiresAt: expiry)
         let environment = AppEnvironment(
             uiTestingPaths: paths, localStore: store,
-            reachability: Reachability(startOnline: false, monitorAutomatically: false), biosReferences: []
+            reachability: Reachability(startOnline: false, monitorAutomatically: false), biosReferences: [],
+            controllerInputSource: FakeControllerInputSource()
         )
         let host = NSHostingView(rootView: ArtworkThumbnailView(
             assetSetID: "00000000-0000-7000-8000-000000000097", systemID: "gb", reference: reference
@@ -254,7 +255,8 @@ final class ArtworkContractSnapshotTests: XCTestCase {
             uiTestingPaths: paths,
             localStore: store,
             reachability: Reachability(startOnline: false, monitorAutomatically: false),
-            biosReferences: []
+            biosReferences: [],
+            controllerInputSource: FakeControllerInputSource()
         )
         let rootView = GameDetailView(entry: entry, onPlay: {}, onShowReadiness: {})
             .environment(environment)
@@ -308,7 +310,8 @@ final class ArtworkContractSnapshotTests: XCTestCase {
             uiTestingPaths: paths,
             localStore: store,
             reachability: Reachability(startOnline: false, monitorAutomatically: false),
-            biosReferences: []
+            biosReferences: [],
+            controllerInputSource: FakeControllerInputSource()
         )
         let longCaption = String(repeating: "A selected screenshot caption wraps inside its bounded destination. ", count: 12)
         let reference = JSONValue.object([

@@ -86,7 +86,7 @@ final class MetadataStateRenderingTests: XCTestCase {
         try CatalogueStore(localStore: store).upsert(seedEntry)
         let environment = AppEnvironment(uiTestingPaths: paths, localStore: store,
                                          reachability: Reachability(startOnline: false, monitorAutomatically: false),
-                                         biosReferences: [])
+                                         biosReferences: [], controllerInputSource: FakeControllerInputSource())
         let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 900, height: 900),
                               styleMask: .borderless, backing: .buffered, defer: false)
         // Swift owns this window; close removes it without a second release.
