@@ -428,6 +428,14 @@
       "covered_digest": "v3:sha256:8daf9c28ebec8b70464b96ef2032fc36481b50973b070f99bf463411b97f4e1d",
       "status": "requires_full_final_head_ci",
       "transient_cause": "unconfirmed; failure-only numeric diagnostics retained"
+    },
+    "buildkit_registry_quota_followup": {
+      "failed_run": 38668381055,
+      "manifest_sha256": "751921dc37d2f842de38c9387f891fe6ae7d80f03d050ea98f780d7e0874ba00",
+      "registry_only": true,
+      "covered_digest": "v3:sha256:d78500e325876ca25218d1d985a3a8fe6dd60c6bd1c4c89447b1661e14f27e9d",
+      "validation": "29releasecontracts/110validators/allstaticguards/actionlintpass",
+      "requires_new_full_ci": true
     }
   }
 }

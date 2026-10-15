@@ -661,17 +661,18 @@ class HostedContainerRegistryContracts(unittest.TestCase):
         self.assertNotIn("\n  db:", compose_ci)
         self.assertNotIn("public.ecr.aws/docker/library/postgres", compose_ci)
 
-    def test_buildkit_builder_uses_pinned_ecr_public_mirror(self):
+    def test_buildkit_builder_uses_digest_pinned_canonical_public_source(self):
         repository_root = Path(__file__).parents[2]
         workflow = (repository_root / ".github/workflows/ci.yml").read_text()
         image = (
-            "public.ecr.aws/xqdo/hub/moby/buildkit@sha256:"
+            "docker.io/moby/buildkit@sha256:"
             "751921dc37d2f842de38c9387f891fe6ae7d80f03d050ea98f780d7e0874ba00"
         )
 
         self.assertIn("driver-opts: |", workflow)
         self.assertIn(f"            image={image}", workflow)
         self.assertNotIn("image=moby/buildkit:", workflow)
+        self.assertNotIn("image=public.ecr.aws/", workflow)
 
     def test_hosted_image_build_treats_unavailable_external_cache_as_optional(self):
         repository_root = Path(__file__).parents[2]

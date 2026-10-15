@@ -686,7 +686,7 @@
       "selected": "sT5IrW",
       "result": "compiled,0UIexecutions due runner automation-mode initialization timeout; taskprocessinventoryempty; no permission changes or retry",
       "final_build_only": "TOxvav wrapper exit0 with retained cache, no app/service launch",
-      "duplicate_uncached_build": "one exact accidentally uncached build interrupted; no parallel build retained"
+      "duplicate_uncached_build": "One task build selected the pre-existing secondary clone cache by mistake; its exact xcodebuild PID was interrupted and the primary retained owner cache was used successfully. Both older caches are preserved; no new-cache creation is claimed."
     },
     "validation": {
       "static_validators": 110,
@@ -703,5 +703,41 @@
       "playstead-mac/PlaysteadUITests/Support/UITestHarness.swift": "6d93026fea2685d397875c54003921374f0a35df3a62a595de4b0cfc4580cddf"
     },
     "remaining": "Refresh source-bound gate and require all five fresh final-head CI jobs before authorized squashPR13; no root-cause-fix claim for the transient."
+  },
+  "buildkit_registry_quota_followup": {
+    "recorded_at": "2026-10-15T02:08:49.613307+00:00",
+    "human_judgment": false,
+    "failed_head": "02f91f1f6b092fe16bb7e6ae7ba66d690b549e15",
+    "failed_run": 38668381055,
+    "failed_job": 116207594579,
+    "stage": "docker/setup-buildx-action bootstrap before decoder import/Compose tests",
+    "failure": "ECR Public toomanyrequests: Data limit exceeded pulling pinned BuildKit mirror",
+    "old_reference": "public.ecr.aws/xqdo/hub/moby/buildkit@sha256:751921dc37d2f842de38c9387f891fe6ae7d80f03d050ea98f780d7e0874ba00",
+    "new_reference": "docker.io/moby/buildkit@sha256:751921dc37d2f842de38c9387f891fe6ae7d80f03d050ea98f780d7e0874ba00",
+    "identity_proof": {
+      "method": "Read canonical remote OCI index with docker buildx imagetools inspect --raw; independently SHA256 the exact response bytes, no daemon/container activation",
+      "actual_sha256": "751921dc37d2f842de38c9387f891fe6ae7d80f03d050ea98f780d7e0874ba00",
+      "expected_sha256": "751921dc37d2f842de38c9387f891fe6ae7d80f03d050ea98f780d7e0874ba00",
+      "same_digest": true,
+      "image_upgrade": false
+    },
+    "primary_sources": [
+      "https://docs.github.com/en/actions/reference/limits#docker-hubs-rate-limit-for-github-actions",
+      "https://github.com/docker/setup-buildx-action#customizing"
+    ],
+    "change": "Switch only the registry for the identical digest. Contract keeps exact immutable pin and rejects ECR builder images. Public Docker Hub pulls on GitHub-hosted runners are rate-limit exempt. No credentials, mutable tag or policy bypass.",
+    "efficiency": "Cancelled the superseded matrix at the concrete early infrastructure failure before Mac setup, avoiding a known-useless native run. Require all five jobs on the new final head.",
+    "source_sha256": {
+      ".github/workflows/ci.yml": "0e9bbe726bcd8006446b43303e364606601c406830ff908efbd14f4958052e49",
+      "scripts/tests/test_release_evidence.py": "931e8d825c72537063b05d3c9c1cba13b15b1395b8d3ef8fb2651c3fed826013"
+    },
+    "validation": {
+      "release_contracts": 29,
+      "static_validators": 110,
+      "all_static_guards": "passed",
+      "actionlint": "passed for both workflows",
+      "superseded_mac": "cancelled with0executedsteps; no guest/native setup",
+      "superseded_linux_recovery": "success, including normal fixture teardown"
+    }
   }
 }
