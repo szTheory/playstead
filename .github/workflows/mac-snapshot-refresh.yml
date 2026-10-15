@@ -42,7 +42,7 @@ jobs:
     name: focused no-HID controller-notice geometry
     if: inputs.mode == 'controller-geometry' || inputs.mode == 'settings-navigation'
     runs-on: macos-26
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
     steps:
@@ -85,10 +85,62 @@ jobs:
             PLAYSTEAD_STORAGE_SNAPSHOT_CANDIDATE_OUTPUT="$PWD/.build/ci/prefix/storage-candidate/storage-surfaces.actual.png" \
             PLAYSTEAD_SNAPSHOT_RECORDING=0
 
-      - name: Mount the metadata rendering fixtures before navigation
+      - name: Run the complete unit and rendering prefix before navigation
         if: inputs.mode == 'settings-navigation'
         working-directory: playstead-mac
-        run: scripts/ci/run-mac-verification.sh --layers rendering --test-without-building --only-testing PlaysteadTests/MetadataStateRenderingTests/testAllFiftyThreeMetadataControlFixturesMountAndRender
+        run: |
+          for plan in Unit Rendering; do
+            layer="$(printf '%s' "$plan" | tr '[:upper:]' '[:lower:]')"
+            xcodebuild test-without-building -quiet -project Playstead.xcodeproj -scheme Playstead \
+              -testPlan "$plan" -destination 'platform=macOS' -derivedDataPath "$PWD/.build/ci/DerivedData" \
+              -resultBundlePath "$PWD/.build/ci/prefix/$layer.xcresult" \
+              CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= \
+              PLAYSTEAD_UI_TEST_ENTITLEMENTS=PlaysteadUITests/PlaysteadUITests.no-hid.entitlements \
+              PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT="$PWD/.build/ci/prefix/snapshot-triplet" \
+              PLAYSTEAD_STORAGE_SNAPSHOT_CANDIDATE_OUTPUT="$PWD/.build/ci/prefix/storage-candidate/storage-surfaces.actual.png" \
+              PLAYSTEAD_SNAPSHOT_RECORDING=0
+            xcrun xcresulttool get test-results tests --path ".build/ci/prefix/$layer.xcresult" --compact \
+              > ".build/ci/prefix/$layer-raw.json"
+            anchor=PlaysteadTests.MetadataTracerTests/testSQLiteTransactionNotificationDoesNotWaitForMainActor
+            if [ "$layer" = rendering ]; then
+              anchor=PlaysteadTests.MetadataStateRenderingTests/testAllFiftyThreeMetadataControlFixturesMountAndRender
+            fi
+            scripts/ci/run-mac-verification.sh --verify-layer-result ".build/ci/prefix/$layer-raw.json" "$layer" \
+              ".build/ci/prefix/$layer-tests.json" --required-test "$anchor"
+          done
+
+      - name: Check Settings before installing the emulator and VM runtime
+        if: inputs.mode == 'settings-navigation'
+        working-directory: playstead-mac
+        run: scripts/ci/run-mac-verification.sh --layers ui --test-without-building --only-testing PlaysteadUITests/MetadataConsentUITests/testMetadataSettingsRemainInsideSettingsAndShowIndependentCacheBudget
+
+      - name: Reproduce the hosted emulator and VM setup without a decoder image
+        if: inputs.mode == 'settings-navigation'
+        timeout-minutes: 12
+        working-directory: playstead-mac
+        run: |
+          scripts/ci/install-pinned-mgba-ci.sh
+          HOMEBREW_NO_AUTO_UPDATE=1 brew install docker colima qemu lima-additional-guestagents
+          export COLIMA_HOME="$RUNNER_TEMP/ps-settings/c"
+          export DOCKER_CONFIG="$RUNNER_TEMP/ps-settings/docker-client"
+          export DOCKER_HOST="unix://$COLIMA_HOME/media/docker.sock"
+          [ ! -e "$RUNNER_TEMP/ps-settings" ]
+          mkdir -m 0700 "$RUNNER_TEMP/ps-settings" "$COLIMA_HOME" "$DOCKER_CONFIG"
+          mkdir -m 0700 "$COLIMA_HOME/media"
+          cat > "$COLIMA_HOME/media/colima.yaml" <<'YAML'
+          runtime: docker
+          docker:
+            features:
+              containerd-snapshotter: false
+            storage-driver: overlay2
+          YAML
+          chmod 0600 "$COLIMA_HOME/media/colima.yaml"
+          colima start media --vm-type qemu --arch x86_64 --cpu-type max --cpu 1 --memory 2 --disk 12 \
+            --mount none --ssh-config=false --activate=false
+          [ "$(docker info --format '{{.OSType}}/{{.Architecture}}')" = linux/x86_64 ]
+          [ "$(docker info --format '{{.Driver}}')" = overlay2 ]
+          # Synthetic Settings has no media request. This tests setup effects;
+          # the full CI gate still owns scanned image custody and live journeys.
 
       - name: Run the focused synthetic Settings navigation cohort
         if: inputs.mode == 'settings-navigation'
@@ -116,6 +168,19 @@ jobs:
             scripts/ci/sanitize-evidence.sh --input .build/ci/settings-navigation --output .build/ci/settings-navigation-sanitized
           fi
 
+      - name: Close only the diagnostic-owned VM
+        if: ${{ always() && inputs.mode == 'settings-navigation' }}
+        run: |
+          export COLIMA_HOME="$RUNNER_TEMP/ps-settings/c"
+          export DOCKER_CONFIG="$RUNNER_TEMP/ps-settings/docker-client"
+          export DOCKER_HOST="unix://$COLIMA_HOME/media/docker.sock"
+          if [ -d "$COLIMA_HOME/media" ]; then
+            colima delete media --force --data
+          fi
+          if [ -d "$RUNNER_TEMP/ps-settings" ]; then
+            rm -rf -- "$RUNNER_TEMP/ps-settings"
+          fi
+
       - name: Preserve focused geometry evidence
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
@@ -125,6 +190,8 @@ jobs:
             playstead-mac/.build/ci/geometry-navigation-sanitized
             playstead-mac/.build/ci/settings-navigation-sanitized
             playstead-mac/.build/ci/selected-ui.*/sanitized/ui-tests.json
+            playstead-mac/.build/ci/prefix/unit-tests.json
+            playstead-mac/.build/ci/prefix/rendering-tests.json
           if-no-files-found: warn
           retention-days: 7
 
