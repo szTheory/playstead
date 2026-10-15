@@ -1613,6 +1613,72 @@ run_test_layer() {
   fi
 }
 
+diagnose_ordinary_ui_prefix() {
+  [[ "${GITHUB_ACTIONS:-}" = true && "${RUNNER_OS:-}" = macOS &&
+     "${GITHUB_REPOSITORY:-}" = szTheory/playstead ]] ||
+    die "ordinary UI prefix diagnostic requires the disposable hosted Mac"
+  assert_local_app_launch_authorized
+  [ -x "$DERIVED_DATA/Build/Products/Debug/Playstead.app/Contents/MacOS/Playstead" ] ||
+    die "ordinary UI prefix diagnostic requires frozen test products"
+  [ ! -e "$FOUR_LAYER_ROOT" ] || die "ordinary UI prefix evidence already exists"
+  UI_NO_HID=true
+  arm_keyboard_mode_cleanup
+  capture_keyboard_mode
+  mkdir -p "$FOUR_LAYER_RAW" "$FOUR_LAYER_EVIDENCE/logs"
+  # Use the actual aggregate invocation and its complete ordinary selection.
+  # The existing deadline bounds this intentionally partial diagnostic; it
+  # neither replaces the full gate nor changes a test's wait or assertion.
+  run_test_layer ui UI 180 \
+    --required-test PlaysteadUITests.ControllerDpadRegressionTests/testControllerTestDpadUpStaysInSettingsAndSettingsReopensAtStorage
+  local diagnostic_status="$LAYER_STATUS"
+  python3 - "$MAC_ROOT" "$FOUR_LAYER_RAW/ui.log" "$FOUR_LAYER_EVIDENCE/logs/app.log" "$DERIVED_DATA" <<'PY'
+import json, os, pathlib, re, signal, subprocess, sys, time
+root, log, output, derived = map(pathlib.Path, sys.argv[1:])
+allowed = {
+    (path.stem, method)
+    for path in (root / "PlaysteadUITests").glob("*.swift")
+    for method in re.findall(r"\bfunc\s+(test[A-Za-z0-9_]+)\s*\(", path.read_text())
+}
+pattern = re.compile(r"Test Case '-\[PlaysteadUITests\.([A-Za-z0-9_]+) (test[A-Za-z0-9_]+)\]' (started|passed|failed)")
+records = [
+    {"kind": "test_order", "test_identifier": f"{m[0]}/{m[1]}", "event": m[2]}
+    for m in pattern.findall(log.read_text(errors="replace")) if (m[0], m[1]) in allowed
+][:300]
+output.write_text("".join(json.dumps(record, sort_keys=True) + "\n" for record in records))
+os.chmod(output, 0o600)
+# Xcode's deadline may end before the runner's normal teardown. Revalidate
+# exact task product paths before terminating only those two executables.
+owned = {
+    str(derived / "Build/Products/Debug/Playstead.app/Contents/MacOS/Playstead"),
+    str(derived / "Build/Products/Debug/PlaysteadUITests-Runner.app/Contents/MacOS/PlaysteadUITests-Runner"),
+}
+def inventory():
+    text = subprocess.check_output(["/bin/ps", "-axo", "pid=,comm="], text=True)
+    return {int(parts[0]): parts[1] for line in text.splitlines()
+            if len(parts := line.strip().split(None, 1)) == 2 and parts[1] in owned}
+closed = 0
+for pid, path in inventory().items():
+    current = subprocess.run(["/bin/ps", "-p", str(pid), "-o", "comm="], capture_output=True, text=True)
+    if current.returncode == 0 and current.stdout.strip() == path:
+        try:
+            os.kill(pid, signal.SIGTERM)
+            closed += 1
+        except ProcessLookupError:
+            pass
+deadline = time.monotonic() + 10
+while inventory() and time.monotonic() < deadline:
+    time.sleep(0.2)
+if inventory():
+    raise SystemExit("ordinary UI diagnostic left an owned executable running")
+print(f"ordinary UI diagnostic: {len(records)} finite test-order events; {closed} exact task executables closed")
+if not records:
+    raise SystemExit("ordinary UI diagnostic has no test-order evidence")
+PY
+  restore_keyboard_mode
+  printf '%s\n' 'ordinary UI prefix: diagnostic only; partial execution cannot qualify the shipping gate'
+  return "$diagnostic_status"
+}
+
 write_complete_verification_evidence() {
   python3 - "$COMPLETE_EVIDENCE" "$FOUR_LAYER_EVIDENCE/environment-fingerprint.json" <<'PY'
 import json, os, pathlib, sys
@@ -3129,6 +3195,7 @@ Usage:
   run-mac-verification.sh --run-wave-0-adoption
   run-mac-verification.sh --run-four-layer-verification
   run-mac-verification.sh --run-unprivileged-verification
+  run-mac-verification.sh --diagnose-ordinary-ui-prefix
   run-mac-verification.sh --run-entitled-virtual-gamepad-verification
   run-mac-verification.sh --self-test-contracts
   run-mac-verification.sh --run-snapshot-candidates
@@ -3167,6 +3234,7 @@ case "$1" in
   --run-wave-0-adoption) shift; [ "$#" -eq 0 ] || die "unexpected adoption arguments"; run_wave_0_adoption ;;
   --run-four-layer-verification) shift; [ "$#" -eq 0 ] || die "unexpected four-layer arguments"; run_four_layer_verification ;;
   --run-unprivileged-verification) shift; [ "$#" -eq 0 ] || die "unexpected unprivileged verification arguments"; run_four_layer_verification ordinary ;;
+  --diagnose-ordinary-ui-prefix) shift; [ "$#" -eq 0 ] || die "unexpected UI prefix diagnostic arguments"; diagnose_ordinary_ui_prefix ;;
   --run-entitled-virtual-gamepad-verification) shift; [ "$#" -eq 0 ] || die "unexpected virtual-gamepad arguments"; run_entitled_virtual_gamepad_verification ;;
   --run-snapshot-candidates) shift; [ "$#" -eq 0 ] || die "unexpected snapshot candidate arguments"; run_snapshot_candidates ;;
   --verify-layer-result)

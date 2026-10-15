@@ -7,7 +7,7 @@ on:
         description: Named maintenance check
         type: choice
         default: snapshots
-        options: [snapshots, controller-geometry, settings-navigation, settings-accessibility]
+        options: [snapshots, controller-geometry, settings-navigation, settings-accessibility, settings-aggregate]
 
 permissions:
   contents: read
@@ -97,6 +97,11 @@ jobs:
         working-directory: playstead-mac
         run: scripts/ci/run-mac-verification.sh --layers ui --test-without-building --only-testing PlaysteadUITests/SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit
 
+      - name: Diagnose the bounded ordinary UI invocation and test order
+        if: inputs.mode == 'settings-aggregate'
+        working-directory: playstead-mac
+        run: scripts/ci/run-mac-verification.sh --diagnose-ordinary-ui-prefix
+
       - name: Run the complete unit and rendering prefix before navigation
         if: inputs.mode == 'settings-navigation'
         working-directory: playstead-mac
@@ -179,6 +184,9 @@ jobs:
           if [ -d .build/ci/settings-navigation/evidence ]; then
             scripts/ci/sanitize-evidence.sh --input .build/ci/settings-navigation --output .build/ci/settings-navigation-sanitized
           fi
+          if [ '${{ inputs.mode }}' = settings-aggregate ] && [ -d .build/ci/four-layer/evidence ]; then
+            scripts/ci/sanitize-evidence.sh --input .build/ci/four-layer --output .build/ci/settings-aggregate-sanitized
+          fi
 
       - name: Close only the diagnostic-owned VM
         if: ${{ always() && inputs.mode == 'settings-navigation' }}
@@ -210,6 +218,7 @@ jobs:
           path: |
             playstead-mac/.build/ci/geometry-navigation-sanitized
             playstead-mac/.build/ci/settings-navigation-sanitized
+            playstead-mac/.build/ci/settings-aggregate-sanitized
             playstead-mac/.build/ci/selected-ui.*/sanitized/ui-tests.json
             playstead-mac/.build/ci/prefix/unit-tests.json
             playstead-mac/.build/ci/prefix/rendering-tests.json
