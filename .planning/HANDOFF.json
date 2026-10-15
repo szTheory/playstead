@@ -420,6 +420,14 @@
       "regression_cases": 6,
       "covered_digest": "v3:sha256:3e5cc48afa22ae60d554142c8df88cd6ea520c1336fd44ba184069f8d74dd16a",
       "requires_fresh_full_CI": true
+    },
+    "settings_navigation_followup": {
+      "focused_run": 38667755241,
+      "focused_head": "e23052648d5ce3964c4006ffaf03654c3fad2217",
+      "no_delay_methods": 6,
+      "covered_digest": "v3:sha256:8daf9c28ebec8b70464b96ef2032fc36481b50973b070f99bf463411b97f4e1d",
+      "status": "requires_full_final_head_ci",
+      "transient_cause": "unconfirmed; failure-only numeric diagnostics retained"
     }
   }
 }

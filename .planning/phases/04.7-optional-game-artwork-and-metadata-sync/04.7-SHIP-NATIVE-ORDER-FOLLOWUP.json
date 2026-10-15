@@ -92,8 +92,8 @@
     }
   },
   "unknown": [
-    "Actual hosted guest startup failed in the old run without a detailed diagnostic; current finite-stage canary and full hosted regression are required",
-    "GB/GBC local runner lacks Accessibility trust; no current local game readback pass claimed; hosted continuation required"
+    "The single shared Settings-control hittability failure in run38658218016 has no confirmed cause; current no-delay focused checks pass and future timeouts retain numeric geometry.",
+    "Full fresh final-head CI is required before PR13 merge."
   ],
   "cleanup": {
     "task_app_runner": "exact executable inventory empty after final UI",
@@ -637,5 +637,71 @@
       "shellcheck": "passed with existing SC2154 trap-parser warning excluded",
       "diff_check": "passed"
     }
+  },
+  "historical_unknown_before_later_hosted_qualification": [
+    "Actual hosted guest startup failed in the old run without a detailed diagnostic; current finite-stage canary and full hosted regression are required",
+    "GB/GBC local runner lacks Accessibility trust; no current local game readback pass claimed; hosted continuation required"
+  ],
+  "settings_hittability_followup": {
+    "recorded_at": "2026-10-15T01:56:42.201012+00:00",
+    "human_judgment": false,
+    "failed_head": "97d5a709686fc8b13d9c1fd70e7b1feac4613170",
+    "failed_run": 38658218016,
+    "failed_job": 116177573920,
+    "failed_required_ui": 7,
+    "failed_live": 1,
+    "passed": {
+      "decoder": "success",
+      "all_three_linux": "success",
+      "unit": 846,
+      "rendering": 59,
+      "description_live_journey": "passed",
+      "all_three_gb_gbc_game_save_readbacks": "passed"
+    },
+    "symptom": "Settings controller/metadata radio controls did not become hittable before the original ten-second wait. Native app source and runner fingerprint matched earlieraaca full155UI pass. Underlying cause is unconfirmed.",
+    "diagnostic_lineage": [
+      {
+        "head": "e793213",
+        "run": 38665864023,
+        "result": "one exact Settings check passed, all numeric frames/hittability normal; synthetic app-window-only capture"
+      },
+      {
+        "head": "6489a0a",
+        "run": 38666444797,
+        "result": "rendering prefix passed; UI0discovery due repeatedselectorflags; agent corrected CLI format before next run"
+      },
+      {
+        "head": "5854718",
+        "run": 38666814375,
+        "result": "rendering prefix and six UI methods passed,0skip186.3sec; pre-click capture adds time, not final timing qualification"
+      },
+      {
+        "head": "e23052648d5ce3964c4006ffaf03654c3fad2217",
+        "run": 38667755241,
+        "result": "rendering prefix mounts53real controls; six exact UI methods pass once/no skips168.3sec, no pre-click captures, no timeout logs generated"
+      }
+    ],
+    "final_change": "Numeric geometry/control states are recorded only after an actual click timeout; no screenshots, arbitrary text or AX trees. Successful-click timing and original hittability/navigation assertions remain unchanged. Preserve original failure artifact path and add a separate sanitized numeric failure artifact. Manual focused lane reuses pinned packages and existing runner, no Linux/backend/guest setup.",
+    "local_probe": {
+      "selected": "sT5IrW",
+      "result": "compiled,0UIexecutions due runner automation-mode initialization timeout; taskprocessinventoryempty; no permission changes or retry",
+      "final_build_only": "TOxvav wrapper exit0 with retained cache, no app/service launch",
+      "duplicate_uncached_build": "one exact accidentally uncached build interrupted; no parallel build retained"
+    },
+    "validation": {
+      "static_validators": 110,
+      "static_guards": "all pass; topology rerun after original upload path was preserved, no guard weakening",
+      "actionlint": "both workflows pass",
+      "summary_coverage": "10/10 classifiable",
+      "no_delay_focused_methods": 6,
+      "in_test_seconds": 168.3,
+      "discovery": "exactly once each,0skips, no timeout diagnostic generated"
+    },
+    "source_sha256": {
+      ".github/workflows/ci.yml": "3337424f340ca3bc859020796c8368840fb2f3ae68cb2372da988e1bbbb0b80c",
+      ".github/workflows/mac-snapshot-refresh.yml": "a3ad5a0569e3a4cc0ba4a67a4652df5c2a78026ca27f80df6b79bf54be1fa58e",
+      "playstead-mac/PlaysteadUITests/Support/UITestHarness.swift": "6d93026fea2685d397875c54003921374f0a35df3a62a595de4b0cfc4580cddf"
+    },
+    "remaining": "Refresh source-bound gate and require all five fresh final-head CI jobs before authorized squashPR13; no root-cause-fix claim for the transient."
   }
 }

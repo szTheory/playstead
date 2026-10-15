@@ -282,11 +282,18 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: mac-ordinary-failure-evidence
-          path: |
-            playstead-mac/.build/ci/ordinary-failure-evidence
-            playstead-mac/.build/ci/settings-navigation-sanitized
+          path: playstead-mac/.build/ci/ordinary-failure-evidence
           # A wrapper/setup failure can precede bundle creation. Preserve the
           # original failing step instead of replacing it with an artifact error.
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Upload sanitized numeric navigation failure geometry
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: mac-navigation-failure-geometry
+          path: playstead-mac/.build/ci/settings-navigation-sanitized
           if-no-files-found: warn
           retention-days: 7
 
