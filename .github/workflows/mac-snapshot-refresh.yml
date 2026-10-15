@@ -79,11 +79,11 @@ jobs:
         run: |
           scripts/ci/run-mac-verification.sh --layers ui \
             --only-testing PlaysteadUITests/ControllerDpadRegressionTests/testControllerTestDpadUpStaysInSettingsAndSettingsReopensAtStorage \
-            --only-testing PlaysteadUITests/ControllerNoHIDIntegrationTests/testRecoveryNoticeAccessibilityContractAndDismissalPreservesState \
-            --only-testing PlaysteadUITests/SurfaceAccessibilityTests/testReadinessRoutesReachBIOSAndControllerSettings \
-            --only-testing PlaysteadUITests/MetadataConsentUITests/testAllFortyFiveMetadataSettingsStatesExposeTheirOwnMeaningAndUsableAction \
-            --only-testing PlaysteadUITests/MetadataConsentUITests/testConsentPreviewRequiresASelectedGameAndUnpairedProfileNeverEnablesProvider \
-            --only-testing PlaysteadUITests/MetadataConsentUITests/testMetadataSettingsRemainInsideSettingsAndShowIndependentCacheBudget
+            PlaysteadUITests/ControllerNoHIDIntegrationTests/testRecoveryNoticeAccessibilityContractAndDismissalPreservesState \
+            PlaysteadUITests/SurfaceAccessibilityTests/testReadinessRoutesReachBIOSAndControllerSettings \
+            PlaysteadUITests/MetadataConsentUITests/testAllFortyFiveMetadataSettingsStatesExposeTheirOwnMeaningAndUsableAction \
+            PlaysteadUITests/MetadataConsentUITests/testConsentPreviewRequiresASelectedGameAndUnpairedProfileNeverEnablesProvider \
+            PlaysteadUITests/MetadataConsentUITests/testMetadataSettingsRemainInsideSettingsAndShowIndependentCacheBudget
 
       - name: Sanitize synthetic window diagnostics
         if: ${{ !cancelled() }}
