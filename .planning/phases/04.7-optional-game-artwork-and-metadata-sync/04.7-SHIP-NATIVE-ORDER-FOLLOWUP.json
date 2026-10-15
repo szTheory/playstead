@@ -92,8 +92,7 @@
     }
   },
   "unknown": [
-    "The single shared Settings-control hittability failure in run38658218016 has no confirmed cause; current no-delay focused checks pass and future timeouts retain numeric geometry.",
-    "Full fresh final-head CI is required before PR13 merge."
+    "Final full exact-head CI, including all155 ordinary UI and12 live journeys, remains required before PR13 squash merge."
   ],
   "cleanup": {
     "task_app_runner": "exact executable inventory empty after final UI",
@@ -739,5 +738,68 @@
       "superseded_mac": "cancelled with0executedsteps; no guest/native setup",
       "superseded_linux_recovery": "success, including normal fixture teardown"
     }
+  },
+  "settings_prompt_root_cause_followup": {
+    "at": "2026-10-15T05:44:31.490136+00:00",
+    "human_judgment": false,
+    "reproduced_run": 38683945538,
+    "reproduced_head": "37388c51d7cf40188587411ec46901ad366b7abb",
+    "public_artifact": "mac-navigation-failure-geometry/screenshots/synthetic-settings-navigation.png",
+    "finding": "Failed synthetic target-window image shows a Python local-network permission prompt over Controller/Metadata tabs. Numeric geometry had valid foreground controls behind it. The new loopback TLS fixture calls standard HTTPServer.server_bind, which invokes socket.getfqdn even for127.0.0.1.",
+    "repair": "LoopbackHTTPServer binds through TCPServer.server_bind without hostname discovery, rejects any other interface before binding; TLS and all original field revision/identity/refusal/private-receipt assertions remain. No system permission or production UI change.",
+    "regression": {
+      "old_fixture": "New DNS-prohibition regression fails on getfqdn",
+      "new_fixture": "All8 real shell-to-HTTPS cases pass, including DNS-prohibition and nonloopback refusal",
+      "discovery": "Existing static contract test lane; two additional fast cases, no new CI job"
+    },
+    "diagnostics": "Only after original UI timeout: bounded numeric geometry, plus synthetic app-window image guarded to exact public hosted source/home. No preclick delay or original UI assertion change. No local desktop/global notification capture.",
+    "temporary_code": "All copied Settings/native-prefix diagnostic workflow jobs and runner flags removed. Normal full unit900/render600/UI2700/live1800 deadlines and test selections retained.",
+    "rendering_isolation": "All4 metadata rendering AppEnvironment fixtures explicitly inject FakeControllerInputSource; build-for-testing passed. This is independent hardware isolation, not claimed as the prompt cause.",
+    "full_current_head_matrix": "pending; focused passes and bounded diagnostics cannot replace shipping gate",
+    "source_sha256": {
+      "playstead-mac/scripts/ci/tests/test_live_server_metadata_selection.py": "9aa35b55a6a40ea2ef050158dc55eff322344979571e2fa9bb06aeb86fa924cd",
+      "playstead-mac/PlaysteadTests/SavesTests/PlayPathSaveWiringTests.swift": "ebdeff246e1dbb90094c42fbfe0195a78db7442b76645fcfbf095c34e9d07706",
+      "playstead-mac/PlaysteadTests/SnapshotTests/MetadataStateRenderingTests.swift": "7004e88899442c3152a3a9526ac77d85fe037e370649508e8f6ae5650817ef99",
+      "playstead-mac/PlaysteadTests/SnapshotTests/ArtworkContractSnapshotTests.swift": "1ff24ce069fc9768723e196220caa43357705e52321f6f62ef972b2059ff8071",
+      "playstead-mac/PlaysteadUITests/GBGBCSaveContinuityTests.swift": "500714d6d78fd66b8ec951c590efe0801a2d225329aa73f08848e5f1923d0d24",
+      "playstead-mac/scripts/ci/tests/test_gb_process_readiness.py": "bbc954a410dd218dcbcb88a16cc32a32e3b8be6fb207d0d34ea060e23334965d",
+      "playstead-mac/PlaysteadUITests/Support/UITestHarness.swift": "6e2369a1c8de14bdc2ee650a864db56901ca5eb8432d8e1a3724266c7e79c46b",
+      "playstead-mac/scripts/ci/run-mac-verification.sh": "a9616177bfa7988db6043a2b442db6f0509ca3593a45db962ff9cfa308792d94",
+      ".github/workflows/mac-snapshot-refresh.yml": "3c1d9a5991c4f417209de7aa0ae9652d0ea436f15147da61ae6129fa8447870f"
+    },
+    "final_local_validation": {
+      "static_validators": 113,
+      "all_static_guards": "passed",
+      "workflow_actionlint_shellcheck": "passed for CI and restored snapshot workflow",
+      "summary_coverage": "10/10 classifiable",
+      "focused_save_wiring": "17executed,0failed,0skipped",
+      "owner_baseline": "1931files checked; original branch/head/empty index/private fixtures preserved; only three continuation files and preexisting config difference",
+      "local_task_app_runner": "exact executable inventory empty"
+    }
+  },
+  "save_promotion_oracle_followup": {
+    "at": "2026-10-15T05:44:31.490136+00:00",
+    "human_judgment": false,
+    "failed_run": 38683945538,
+    "selector": "PlayPathSaveWiringTests/testAFullSessionThroughTheProductionSeamPromotesARevisionIntoTheAppsSaveStore",
+    "failure": "Old line508 expected localOnly while the production onPromoted hook unconditionally schedules upload. Simulated offline reachability does not stop this lane. Fixture HTTP500 leaves the revision queued.",
+    "repair": "Join the production upload drain and require zero acknowledged sends plus exact queued durability. Keep promoted count, SHA256, adapter identity/version and rollup checks; inject FakeControllerInputSource in test setup.",
+    "qualification": {
+      "run": "selected-unit.ySKyPf",
+      "executed": 17,
+      "failed": 0,
+      "skipped": 0,
+      "seconds": 1.1,
+      "required_class": "PlayPathSaveWiringTests",
+      "repaired_method_seconds": 0.1
+    },
+    "cleanup": "Exact task app/runner process inventory empty after unit run; owner source preserved. Initial sandboxed attempt failed before tests due SwiftPM diagnostic-cache permissions; scoped-cache rerun succeeded."
+  },
+  "gb_process_readiness_followup": {
+    "human_judgment": false,
+    "commit": "e1cc472",
+    "repair": "Three waits require a positive PID, live exact pinned executable/digest and matching registered AppKit bundle/PID instead of value!=idle accepting nil; return to running Playstead before upload review.",
+    "qualification": "16 positive/negative compiled helper controls pass; UI build passes; actual new three game/save journeys await full final CI.",
+    "assertion_boundary": "Exact pinned emulator, original game/save/pixel assertions retained."
   }
 }

@@ -4,17 +4,44 @@ import json
 import os
 import pathlib
 import ssl
+import socketserver
 import subprocess
 import tempfile
 import threading
 import unittest
+import unittest.mock
 
 
 SCRIPT = pathlib.Path(__file__).resolve().parents[1] / "live-server.sh"
 DESCRIPTION = "Synthetic private description survives journal and snapshot reset."
 
 
+class LoopbackHTTPServer(http.server.ThreadingHTTPServer):
+    def server_bind(self):
+        # HTTPServer normally calls getfqdn(), even for a numeric loopback
+        # listener. This local TLS fixture needs no hostname discovery, which
+        # can raise a macOS local-network permission alert over later UI tests.
+        if self.server_address[0] != "127.0.0.1":
+            raise ValueError("metadata fixture requires numeric IPv4 loopback")
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
+
+
 class MetadataSelectionFixtureTests(unittest.TestCase):
+    def test_fixture_rejects_other_interfaces_before_binding(self):
+        with unittest.mock.patch.object(socketserver.TCPServer, "server_bind", side_effect=AssertionError("must reject before binding")):
+            for host in ("", "0.0.0.0", "localhost", "192.0.2.1"):
+                with self.subTest(host=host), self.assertRaisesRegex(ValueError, "numeric IPv4 loopback"):
+                    LoopbackHTTPServer((host, 0), http.server.BaseHTTPRequestHandler)
+
+    def test_loopback_https_fixture_performs_no_hostname_discovery(self):
+        with unittest.mock.patch("socket.getfqdn", side_effect=AssertionError("loopback fixture must not discover hosts")), \
+             unittest.mock.patch("socket.gethostbyaddr", side_effect=AssertionError("loopback fixture must not reverse-resolve hosts")):
+            result, requests, receipt, _mode, _stage = self.run_fixture()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual([request[0] for request in requests], ["GET", "POST"])
+        self.assertIsNotNone(receipt)
+
     def run_fixture(self, *, conflict=False, mismatched_receipt=False,
                     read_status=200, description_revision=7):
         requests = []
@@ -63,7 +90,7 @@ class MetadataSelectionFixtureTests(unittest.TestCase):
                 "-keyout", str(key), "-out", str(certificate),
             ], capture_output=True, timeout=15)
             self.assertEqual(generated.returncode, 0, "synthetic TLS setup failed")
-            server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+            server = LoopbackHTTPServer(("127.0.0.1", 0), Handler)
             context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
             context.load_cert_chain(certificate, key)
             server.socket = context.wrap_socket(server.socket, server_side=True)

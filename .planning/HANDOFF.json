@@ -1,14 +1,14 @@
 {
   "version": "1.0",
-  "timestamp": "2026-10-14T18:09:20.459652+00:00",
-  "context": "Phase4.7 verified; existing ordered PR12/PR13 delivery. Resolve conditional continuation from PR merge state before acting.",
+  "timestamp": "2026-10-15T05:43:41.750840+00:00",
+  "context": "Resume existing Phase4.7 shipping: Python DNS permission prompt identified; loopback fixture/save oracle fixes qualifying; PR12 merged, PR13 pending full final CI.",
   "work_type": "phase",
   "quick_id": null,
   "phase": "4.7",
   "phase_name": "Optional game artwork and metadata sync",
   "phase_dir": ".planning/phases/04.7-optional-game-artwork-and-metadata-sync",
   "handoff_path": ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/continue.md",
-  "status": "shipping",
+  "status": "shipping_root_cause_fixed_pending_final_ci",
   "task": "Phase4.7 ordered squash delivery",
   "total_tasks": 10,
   "completed_tasks": [
@@ -24,19 +24,16 @@
     9
   ],
   "remaining_tasks": [
-    "Finish current-head PR12 CI and authorized squash",
-    "Reconcile Phase onto squashed main under exact tree/ancestor guards, retarget existing PR13 and qualify final head",
-    "Authorized squash PR13 after all applicable current-head checks pass"
+    "Qualify loopback fixture and deterministic save unit repair; refresh source fingerprint",
+    "Require all five exact final-head CI jobs; already-authorized squash PR13; verify main tree and cleanup"
   ],
   "blockers": [],
   "async_jobs": [],
   "human_actions_pending": [],
-  "next_command": "$gsd-extract-learnings 4.7",
-  "next_command_ready": false,
-  "next_command_prerequisites": [
-    "PR12 and PR13 merged after green applicable current-head CI"
-  ],
-  "next_action": "Query existing PR12/PR13 merge state. If either is unmerged, resume $gsd-ship 4.7 without initialization, another review or merge-permission question. Once both are merged, continue with $gsd-extract-learnings 4.7.",
+  "next_command": "$gsd-ship 4.7",
+  "next_command_ready": true,
+  "next_command_prerequisites": [],
+  "next_action": "Complete focused/static qualification, refresh source gate, push final normal-CI commit; squash PR13 only after all five exact-head jobs pass. Then $gsd-extract-learnings 4.7.",
   "source_lineage": {
     "source": "ed8710d",
     "audit": "8380a08",
@@ -436,6 +433,15 @@
       "covered_digest": "v3:sha256:d78500e325876ca25218d1d985a3a8fe6dd60c6bd1c4c89447b1661e14f27e9d",
       "validation": "29releasecontracts/110validators/allstaticguards/actionlintpass",
       "requires_new_full_ci": true
+    },
+    "settings_root_cause": {
+      "run": 38683945538,
+      "finding": "Target-window screenshot shows Python local-network alert over Settings tabs; standard HTTPServer loopback bind calls getfqdn.",
+      "repair": "Numeric loopback-only fixture bind with no hostname discovery; old code fails regression, all8 HTTPS tests pass.",
+      "temporary_diagnostics_removed": true,
+      "permissions_changed": false,
+      "final_ci": "pending"
     }
-  }
+  },
+  "next_command_cwd": "/private/tmp/playstead-04.7-ship/checkout"
 }

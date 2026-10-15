@@ -19,6 +19,16 @@ milestone_name: milestone
 current_plan: null
 ---
 
+Phase 4.7 shipping remains active; PR12 is merged at ecca50a and PR13 is draft/unmerged. Continue `$gsd-ship 4.7` from `/private/tmp/playstead-04.7-ship/checkout`; squash is already authorized after all five final-head CI jobs succeed. Do not recreate PRs, repeat reviews or request merge permission.
+
+The exact CI bootstrap reproduced the Settings failures in run38683945538/37388c5. Its target-window image shows a Python local-network permission prompt covering the Controller/Metadata tabs. The new HTTPS fixture used HTTPServer.server_bind, which calls getfqdn even on 127.0.0.1. The replacement loopback-only server binds directly without discovery; the old implementation fails the new mocked-DNS regression and all eight HTTPS checks pass. No system permission or product layout change is needed. All temporary manual diagnostic jobs and bounded runner flags are removed; normal full gate deadlines and required UI assertions remain intact.
+
+The same diagnostic found a save oracle racing the production upload lane. The test now joins the intentionally failing HTTP500 delivery, requires zero acknowledgements and exact queued durability, retaining promoted byte/count/adapter assertions. The focused unit class is validating with the primary shared cache. Metadata rendering fixtures explicitly use FakeControllerInputSource. The strict positive/live/pinned GB process readiness fix has compiled controls; current-source real GB/live journeys still require the final full CI.
+
+No current shipping head is green. Finish focused/static checks, update the source-bound goal fingerprint, commit without a CI-skip marker, require all five exact-head jobs, then ready/squash PR13 and verify main full-tree equality. Private premerge/finish helpers are still pinned to failed4bde and MUST be refreshed to the new head/tree/run before use. Preserve the original owner branch/head/index/source/fixtures and both preexisting caches. Apple/HID remains independently parked. After actual merge and cleanup the exact next command is `$gsd-extract-learnings 4.7`.
+
+
+
 # Project State
 
 ## Project Reference

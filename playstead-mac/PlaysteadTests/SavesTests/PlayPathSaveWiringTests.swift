@@ -29,7 +29,8 @@ final class PlayPathSaveWiringTests: XCTestCase {
         paths = AppPaths(root: tempRoot)
         let apiClient = APIClient(keychain: KeychainStore(), session: StubURLProtocol.makeSession(), credential: credential)
         environment = AppEnvironment(
-            paths: paths, apiClient: apiClient, reachability: Reachability(startOnline: true, monitorAutomatically: false)
+            paths: paths, apiClient: apiClient, reachability: Reachability(startOnline: true, monitorAutomatically: false),
+            controllerInputSource: FakeControllerInputSource()
         )
     }
 
@@ -464,12 +465,12 @@ final class PlayPathSaveWiringTests: XCTestCase {
     }
 
     /// SAVE-01, at the seam the shipped Play path actually uses: a
-    /// session that writes save bytes leaves a promoted, local-only
-    /// revision in the app's own `SaveStore`.
+    /// session that writes save bytes leaves a promoted revision in the
+    /// app's own `SaveStore`, retained when background delivery fails.
     func testAFullSessionThroughTheProductionSeamPromotesARevisionIntoTheAppsSaveStore() async throws {
-        // This oracle owns local promotion. Keep delivery offline so the
-        // independent upload lane cannot change durability during assertion.
-        environment.reachability.simulate(online: false)
+        // The production promotion hook starts delivery immediately. The
+        // fixture returns HTTP 500, so observe the completed failed pass
+        // instead of racing its localOnly -> queued transition.
         let romSHA256 = String(repeating: "e", count: 64)
         let saveDir = tempRoot.appendingPathComponent("saves/asset-5", isDirectory: true)
         try FileManager.default.createDirectory(at: saveDir, withIntermediateDirectories: true)
@@ -488,6 +489,8 @@ final class PlayPathSaveWiringTests: XCTestCase {
         let played = Data(repeating: 0x7E, count: 512)
         try played.write(to: capture.targetURL)
         await capture.end()
+        let delivery = await environment.saveUploadLane.drainOnce()
+        XCTAssertEqual(delivery.sent, 0, "a failed fixture upload cannot acknowledge this save")
 
         let promoted = environment.saveStore.fetchRevisions(saveLineID: capture.saveLineID)
             .filter { $0.tier == SaveCaptureTier.promoted.rawValue }
@@ -505,7 +508,7 @@ final class PlayPathSaveWiringTests: XCTestCase {
             "a revision the shipped Play path produced must name the adapter that produced it"
         )
         XCTAssertEqual(promoted.first?.adapterVersion, pin.version)
-        XCTAssertEqual(promoted.first?.durability, SaveDurability.localOnly.rawValue)
+        XCTAssertEqual(promoted.first?.durability, SaveDurability.queued.rawValue)
         XCTAssertEqual(environment.onlyOnThisMacCount(forAssetSetID: "asset-5"), 0, "no catalogue entry yet, so no rollup")
     }
 
