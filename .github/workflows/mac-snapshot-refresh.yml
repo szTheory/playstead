@@ -7,7 +7,7 @@ on:
         description: Named maintenance check
         type: choice
         default: snapshots
-        options: [snapshots, controller-geometry]
+        options: [snapshots, controller-geometry, settings-navigation]
 
 permissions:
   contents: read
@@ -40,7 +40,7 @@ jobs:
 
   focused-controller-geometry:
     name: focused no-HID controller-notice geometry
-    if: inputs.mode == 'controller-geometry'
+    if: inputs.mode == 'controller-geometry' || inputs.mode == 'settings-navigation'
     runs-on: macos-26
     timeout-minutes: 20
     env:
@@ -64,8 +64,14 @@ jobs:
           swift scripts/ci/configure-test-display.swift --check-only
 
       - name: Run the one synthetic geometry selector
+        if: inputs.mode == 'controller-geometry'
         working-directory: playstead-mac
         run: scripts/ci/run-mac-verification.sh --layers ui --only-testing PlaysteadUITests/ControllerRecoveryBannerGeometryTests/testRecoveryBannerGeometryAcrossWindowSizesAndAppearances
+
+      - name: Run the one synthetic Settings navigation selector
+        if: inputs.mode == 'settings-navigation'
+        working-directory: playstead-mac
+        run: scripts/ci/run-mac-verification.sh --layers ui --only-testing PlaysteadUITests/MetadataConsentUITests/testMetadataSettingsRemainInsideSettingsAndShowIndependentCacheBudget
 
       - name: Sanitize synthetic window diagnostics
         if: ${{ !cancelled() }}
@@ -73,6 +79,9 @@ jobs:
         run: |
           if [ -d .build/ci/geometry-navigation/evidence ]; then
             scripts/ci/sanitize-evidence.sh --input .build/ci/geometry-navigation --output .build/ci/geometry-navigation-sanitized
+          fi
+          if [ -d .build/ci/settings-navigation/evidence ]; then
+            scripts/ci/sanitize-evidence.sh --input .build/ci/settings-navigation --output .build/ci/settings-navigation-sanitized
           fi
 
       - name: Preserve focused geometry evidence
@@ -82,6 +91,7 @@ jobs:
           name: focused-controller-geometry-macos26
           path: |
             playstead-mac/.build/ci/geometry-navigation-sanitized
+            playstead-mac/.build/ci/settings-navigation-sanitized
             playstead-mac/.build/ci/selected-ui.*/sanitized/ui-tests.json
           if-no-files-found: warn
           retention-days: 7

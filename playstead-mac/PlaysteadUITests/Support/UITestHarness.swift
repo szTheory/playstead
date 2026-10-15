@@ -1,4 +1,5 @@
 import XCTest
+import AppKit
 
 @MainActor
 final class UITestHarness {
@@ -136,6 +137,38 @@ final class UITestHarness {
 
     func element(_ identifier: String, type: XCUIElement.ElementType = .any) -> XCUIElement {
         app.descendants(matching: type)[identifier]
+    }
+
+    /// Finite synthetic-profile geometry only; never serialize an accessibility tree or desktop.
+    func recordSettingsNavigationGeometry() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent(".build/ci/settings-navigation/evidence", isDirectory: true)
+        let logs = root.appendingPathComponent("logs", isDirectory: true)
+        let screenshots = root.appendingPathComponent("screenshots", isDirectory: true)
+        for directory in [root, logs, screenshots] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
+                                                    attributes: [.posixPermissions: 0o700])
+        }
+        func frame(_ value: CGRect) -> [String: Double] {
+            ["x": value.minX, "y": value.minY, "width": value.width, "height": value.height]
+                .mapValues { $0.isFinite ? Double($0) : 0 }
+        }
+        let identifiers = ["playstead.settings", "playstead.settings.content",
+                           "playstead.settings.open.metadata", "playstead.control.open-controller-settings"]
+        let controls = identifiers.flatMap { identifier in
+            app.descendants(matching: .any).matching(identifier: identifier)
+                .allElementsBoundByIndex.prefix(6).map { element -> [String: Any] in
+                    ["identifier": identifier, "type": element.elementType.rawValue,
+                     "hittable": element.isHittable, "frame": frame(element.frame)]
+                }
+        }
+        let record: [String: Any] = ["window": frame(app.windows.firstMatch.frame),
+                                    "screens": NSScreen.screens.map { frame($0.frame) }, "controls": controls]
+        let data = try JSONSerialization.data(withJSONObject: record, options: [.sortedKeys])
+        try data.write(to: logs.appendingPathComponent("app.log"), options: .atomic)
+        try app.windows.firstMatch.screenshot().pngRepresentation
+            .write(to: screenshots.appendingPathComponent("synthetic-settings-navigation.png"), options: .atomic)
     }
 
     func require(_ identifiers: [String]) {

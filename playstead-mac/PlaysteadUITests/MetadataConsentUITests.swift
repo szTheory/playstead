@@ -33,6 +33,7 @@ final class MetadataConsentUITests: XCTestCase {
         harness.launch(settledAt: "playstead.surface.library")
         harness.element("playstead.sidebar.settings").clickWhenHittable()
         XCTAssertTrue(app.descendants(matching: .any)["playstead.settings"].awaitExistence(timeout: 5))
+        try harness.recordSettingsNavigationGeometry()
         harness.element("playstead.settings.open.metadata", type: .radioButton).clickWhenHittable()
         let metadata = app.descendants(matching: .any)["playstead.settings.metadata"]
         XCTAssertTrue(metadata.awaitExistence(timeout: 5))
