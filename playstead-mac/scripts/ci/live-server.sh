@@ -51,7 +51,7 @@ validated_marker() {
 write_failure_stage() {
   case "$stage" in
     validate-input|resolve-server-root|create-control-root|create-server-control|secure-roots) ;;
-    provision-domain|request-pairing|approve-pairing|redeem-pairing|add-second-sentinel|import-gb-fixture|import-aerevenadvance|verify-evidence) ;;
+    provision-domain|request-pairing|approve-pairing|redeem-pairing|add-second-sentinel|import-gb-fixture|import-aerevenadvance|verify-evidence|metadata-selection|snapshot-reset) ;;
     *) return ;;
   esac
 
@@ -412,6 +412,56 @@ print(
     + (f"{expected_snapshots} snapshot(s), " if expected_snapshots else "snapshots not asserted by this caller, ")
     + "Keychain relaunch, and zero blob routes verified"
 )
+PY
+    ;;
+  metadata-select)
+    credential_copy="$root/test-credential.json"
+    sentinel="$root/control/first-sentinel.json"
+    [ -f "$credential_copy" ] && [ -f "$sentinel" ] || die
+    enter_stage "metadata-selection"
+    python3 - "$credential_copy" "$sentinel" "$root/control/metadata-receipt.json" "$PLAYSTEAD_MAC_CI_ROOT/tls/ca.pem" <<'PY'
+import json, os, pathlib, ssl, sys, urllib.error, urllib.request
+credential_path, sentinel_path, receipt_path, ca_path = map(pathlib.Path, sys.argv[1:])
+handoff = json.loads(credential_path.read_text(encoding="utf-8"))
+sentinel = json.loads(sentinel_path.read_text(encoding="utf-8"))["sentinel"]
+asset_set_id = sentinel["asset_set_id"]
+description = "Synthetic private description survives journal and snapshot reset."
+url = f"{handoff['base_url']}/api/v1/metadata/{asset_set_id}"
+headers = {"Authorization": "Bearer " + handoff["credential"]}
+context = ssl.create_default_context(cafile=str(ca_path))
+try:
+    with urllib.request.urlopen(urllib.request.Request(url, headers=headers), context=context, timeout=10) as response:
+        current = json.load(response)
+    base_revision = current["field_revisions"].get("description", 0)
+except urllib.error.HTTPError as error:
+    if error.code != 404:
+        raise
+    base_revision = 0
+if type(base_revision) is not int or base_revision < 0:
+    raise SystemExit("metadata description revision is invalid")
+body = json.dumps({"field": "description", "value": description, "base_revision": base_revision}).encode("utf-8")
+request = urllib.request.Request(
+    url, data=body,
+    headers={**headers,
+             "Content-Type": "application/json", "Idempotency-Key": "metadata-journey-" + os.urandom(16).hex()},
+    method="POST")
+with urllib.request.urlopen(request, context=context, timeout=10) as response:
+    result = json.loads(response.read())
+if response.status != 201 or result.get("description") != description or result.get("asset_set_id") != asset_set_id:
+    raise SystemExit("metadata selection response did not match the authored private description")
+receipt_path.write_text(json.dumps({"asset_set_id": asset_set_id, "description": description, "revision": result.get("revision")}) + "\n", encoding="utf-8")
+os.chmod(receipt_path, 0o600)
+PY
+    ;;
+  reset-cursor)
+    enter_stage "snapshot-reset"
+    python3 - "$root/playstead.sqlite3" <<'PY'
+import pathlib, sqlite3, sys
+database = pathlib.Path(sys.argv[1])
+if not database.is_file() or database.is_symlink():
+    raise SystemExit("owned isolated profile database is missing")
+with sqlite3.connect(database) as connection:
+    connection.execute("DELETE FROM sync_cursor WHERE id = 1")
 PY
     ;;
   *) die ;;

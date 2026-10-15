@@ -75,12 +75,16 @@ final class OutboxDrainTicker: @unchecked Sendable {
         lock.unlock()
     }
 
-    func stop() {
+    /// Requests cancellation. Await the returned task when the caller
+    /// needs to observe the loop and any in-flight callback finishing.
+    @discardableResult
+    func stop() -> Task<Void, Never>? {
         lock.lock()
         let running = task
         task = nil
         lock.unlock()
         running?.cancel()
+        return running
     }
 
     private func recordTick() {

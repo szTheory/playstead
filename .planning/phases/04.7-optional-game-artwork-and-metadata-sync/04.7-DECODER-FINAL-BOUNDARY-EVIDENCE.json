@@ -1,0 +1,47 @@
+{
+  "recorded_at": "2026-10-13T12:51:22.218154+00:00",
+  "human_judgment": false,
+  "status": "passed",
+  "partition": 18480,
+  "required": 4,
+  "executed": 4,
+  "failures": 0,
+  "skips": 0,
+  "identities": [
+    "Playstead.Metadata.MediaDecoderTest::packaged sidecar fully decodes authored PNG and JPEG into metadata-free bounded PNG",
+    "Playstead.Metadata.MediaDecoderTest::hostile and unsupported bytes fail closed without decoder fallback",
+    "Playstead.Metadata.MediaDecoderTest::decoder refuses a missing socket and enforces request byte limit before IPC",
+    "Playstead.Metadata.MediaDecoderTest::mac_ci loopback bridge preserves the bounded decoder wire protocol"
+  ],
+  "log": "/private/tmp/playstead-04.7-decoder-final-18480.log",
+  "log_sha256": "9b33a63f00f59b7b1a5d09f60fa2824fcf73e1a6adbcea0c6fc996c6e33fa497",
+  "immutable_image_id": "sha256:7aa28a5944542a0f9df9f2d380942612c897c129b8493990f7c4f6202ff7ce37",
+  "decoder_context_sha256": "40a5a957b48640cd275bc1175d83b0a67bd371473468735ba95c4674f935820c",
+  "scan_receipt_sha256": "b5dd857178bd227a99128a62033a33fe05987b50cd842519c0410223dcfb62a9",
+  "scan_report_sha256": "8546e031f4e6cec2af12540d826d15a3586309ac49357cf4b871ab81fc7f4a25",
+  "scan": {
+    "high_critical": 0,
+    "license_policy": "passed",
+    "prohibited_licenses": 0,
+    "runtime_packages": 22,
+    "status": "passed",
+    "subject_sha256": "40a5a957b48640cd275bc1175d83b0a67bd371473468735ba95c4674f935820c",
+    "targets_discovered": 3
+  },
+  "source_sha256": {
+    "playstead-server/ops/media-decoder/server.py": "63f7ac79e346d84be597953c2773a1deb0863613f407da1a042aa8d9c144fc32",
+    "playstead-server/lib/playstead/metadata/media_decoder.ex": "8f94f44cac6df24d0cb88e0cd7426cf6119093077c2100cbaac58704000a5247",
+    "playstead-server/config/runtime.exs": "eb0e9ddca6d6dc789914c142956dd23a4a1cb0d617b63e7cfc0916eda1b5c893",
+    "playstead-server/test/playstead/metadata/media_decoder_test.exs": "a188aad870284cf7f34279a4a8166e28c0e747089209980befa473f0da4dd561",
+    "playstead-mac/scripts/ci/run-mac-verification.sh": "9a55becf043c1d6c381179e7d9926c933032be192d03a9453821b18cde278474"
+  },
+  "oracles": [
+    "Exactprepare receipt before image activation",
+    "Real authoredPNG/JPEG through Unixsocket service; metadata-free boundedPNG",
+    "Effective no-network/read-only UID11001 seccomp/nnp CPU1/PIDs32/512MiB + actual OOMKilled probe",
+    "Byte limit/missing socket/hostile input fail closed",
+    "mac_ci loopback wire seam preserves bounded framing"
+  ],
+  "cleanup": "Fullservergatepassed; partition18480 zero connections/dropped/absent; decoder-test containers and volumes inventory empty",
+  "next_command": "$gsd-execute-phase 4.7"
+}

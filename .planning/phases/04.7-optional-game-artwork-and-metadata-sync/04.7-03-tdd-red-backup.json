@@ -1,0 +1,10 @@
+{
+  "command": "cd playstead-server && PLAYSTEAD_EXUNIT_TAP_PATH=/private/tmp/phase-04-7-03-red-backup.tap mix test --trace --formatter Playstead.TestSupport.ExUnitTapFormatter test/playstead/metadata/backup_inventory_test.exs",
+  "exitCode": 2,
+  "targetFile": "playstead-server/test/playstead/metadata/backup_inventory_test.exs",
+  "targetTest": "Playstead.Metadata.BackupInventoryTest::backup inventory preserves original media while derivative reclaim leaves canonical objects intact",
+  "expected": "Canonical backup inventory identifies exact private original bytes with private_media_original custody metadata.",
+  "actual": "The production snapshot inventory included the exact hash but classified it only as generic cas, so the custody assertion failed.",
+  "output": "TAP version 13\nnot ok 1 - Playstead.Metadata.BackupInventoryTest::backup inventory preserves original media while derivative reclaim leaves canonical objects intact\n1..1\n",
+  "semanticAssessment": "The exact registered ExUnit test executed through Sandbox.unboxed_run and the production Recovery.capture path. It failed on the planned private-original inventory classification assertion; snapshot, dump stub, derivative detachment, and CAS writes completed."
+}

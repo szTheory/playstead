@@ -1,0 +1,10 @@
+{
+  "command": "mix test --formatter Playstead.TestSupport.TapFormatter test/playstead/metadata/private_media_test.exs",
+  "exitCode": 2,
+  "output": "TAP version 13\nok 1 - Playstead.Metadata.PrivateMediaTest::test caps each game at ten media items and rejects oversized or invalid text\nok 2 - Playstead.Metadata.PrivateMediaTest::test another owner cannot fetch media and invalid images leave no committed manifest\nnot ok 3 - Playstead.Metadata.PrivateMediaTest::test keeps accepted image originals and decoded derivatives in separate CAS objects\nok 4 - Playstead.Metadata.PrivateMediaTest::test stores exact UTF-8 source bytes in the owner-scoped media manifest\nok 5 - PlaysteadWeb.Api.V1.MetadataMediaControllerTest::test private text media uploads and returns exact original bytes only to its owner\n1..5",
+  "targetTest": "Playstead.Metadata.PrivateMediaTest::test keeps accepted image originals and decoded derivatives in separate CAS objects",
+  "targetFile": "test/playstead/metadata/private_media_test.exs",
+  "expected": "An accepted image must store its original bytes and a distinct decoded derivative.",
+  "actual": "The test failed because the decoder seam was unavailable, before either CAS object or manifest row was committed.",
+  "semanticAssessment": "Valid targeted RED: five tests were discovered; the named image custody test executed and failed on the expected missing decoder seam. The other four tests passed; no setup, import, fixture, or unrelated failure occurred."
+}

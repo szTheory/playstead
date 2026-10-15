@@ -157,6 +157,8 @@ if live_environment != expected_live_environment:
 # b8960d1 and this set was not updated alongside it -- the drift went unseen
 # because CI last ran 2026-09-08, before that commit.
 expected_live = {
+    "MetadataDescriptionJourneyTests/testPrivateDescriptionSurvivesChangeAndReset()",
+    "MetadataPrivateMediaJourneyTests/testPrivateMediaExportAndProviderDisclosureUsePairedProductionRoutes()",
     "HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner()",
     "LiveServerSnapshotTests/testPairedFreshMirrorRendersSnapshotBeforeAnyBlobDownloadAndPersistsKeychainAcrossRelaunch()",
     "PairingCeremonyTests/testAHumanCanPairAFreshMacEntirelyFromInsideTheAppAgainstTheRealServer()",
@@ -318,7 +320,7 @@ if 'classify-xcode-failure.py' not in runner_source or '"$result_log"' not in ru
     raise SystemExit("xcodebuild failures must use the category-only owned-log classifier")
 if re.search(r"(?:sed|tail|cat)\s+[^\n]*\$result_log", runner_source):
     raise SystemExit("the raw xcodebuild log must never be copied into failure output")
-if "trap 'restore_live_server_xctestrun; cleanup_live_server_runtime_config; cleanup_gb_gbc_live_profiles; cleanup_native_services; restore_keyboard_mode' EXIT" not in four_layer:
+if "trap 'stage_native_setup_failure_evidence; restore_live_server_xctestrun; cleanup_live_server_runtime_config; cleanup_gb_gbc_live_profiles; cleanup_native_services; restore_keyboard_mode' EXIT" not in four_layer:
     raise SystemExit("LiveServer xctestrun/config/native cleanup must preserve keyboard-mode restoration")
 stage_preflight = four_layer.find("prepare_live_server_failure_stage")
 if not (0 <= stage_preflight < live_layer):

@@ -1,0 +1,52 @@
+# test_file<TAB>exact ExUnit identity (Module::test title)
+test/playstead/metadata/igdb_test.exs	Playstead.Metadata.IGDBTest::sends only escaped title and mapped system to fixed IGDB endpoint and bounds evidence
+test/playstead/metadata/igdb_test.exs	Playstead.Metadata.IGDBTest::hash lookup is explicitly unsupported and never becomes an outbound search
+test/playstead/metadata/igdb_test.exs	Playstead.Metadata.IGDBTest::unknown system and query injection are rejected before transport
+test/playstead/metadata/consent_test.exs	Playstead.Metadata.ConsentTest::disabled and stale consent make zero provider requests and image access fails closed
+test/playstead/metadata/consent_test.exs	Playstead.Metadata.ConsentTest::consent is owner-scoped and the disclosure records filename-derived title warning
+test/playstead/metadata/consent_test.exs	Playstead.Metadata.ConsentTest::authenticated provider routes expose disclosure and reject another owner's asset
+test/playstead/metadata/consent_test.exs	Playstead.Metadata.ConsentTest::provider selection returns an owner-scoped evidence UUID that can be reset explicitly
+test/playstead/metadata/selection_test.exs	Playstead.Metadata.SelectionTest::explicit metadata mutations require a base revision
+test/playstead/metadata/selection_test.exs	Playstead.Metadata.SelectionTest::wire selections reject cache paths and credential fields
+test/playstead/metadata/selection_test.exs	Playstead.Metadata.SelectionTest::concurrent edits retain both alternatives until an explicit current-revision choice
+test/playstead/metadata/selection_test.exs	Playstead.Metadata.SelectionTest::successive offline edits use the selected field revision after other fields advance
+test/playstead/metadata/selection_test.exs	Playstead.Metadata.SelectionTest::provider refresh leaves corrections intact and field reset requires current evidence
+test/playstead/metadata/sync_contract_test.exs	Playstead.Metadata.SyncContractTest::published OpenAPI and checked examples match the current metadata payload contract
+test/playstead/metadata/sync_contract_test.exs	Playstead.Metadata.SyncContractTest::journal and same-cursor snapshot preserve unresolved alternatives
+test/playstead/metadata_test.exs	PlaysteadWeb.Api.V1.MetadataControllerTest::authenticated owner persists a private description and reads it back
+test/playstead/metadata_test.exs	PlaysteadWeb.Api.V1.MetadataControllerTest::same idempotency key replays one durable revision and journal entry
+test/playstead/metadata_test.exs	PlaysteadWeb.Api.V1.MetadataControllerTest::snapshot reset reconstructs metadata at the advertised cursor
+test/playstead/metadata_test.exs	PlaysteadWeb.Api.V1.MetadataControllerTest::another owner cannot read or replace the selected description
+test/playstead/metadata_test.exs	PlaysteadWeb.Api.V1.MetadataControllerTest::metadata selection leaves game and save identities unchanged
+test/playstead/metadata_test.exs	PlaysteadWeb.Api.V1.MetadataControllerTest::capability negotiates metadata as an optional additive kind
+test/playstead/metadata/media_decoder_test.exs	Playstead.Metadata.MediaDecoderTest::packaged sidecar fully decodes authored PNG and JPEG into metadata-free bounded PNG
+test/playstead/metadata/media_decoder_test.exs	Playstead.Metadata.MediaDecoderTest::hostile and unsupported bytes fail closed without decoder fallback
+test/playstead/metadata/media_decoder_test.exs	Playstead.Metadata.MediaDecoderTest::decoder refuses a missing socket and enforces request byte limit before IPC
+test/playstead/metadata/media_decoder_test.exs	Playstead.Metadata.MediaDecoderTest::mac_ci loopback bridge preserves the bounded decoder wire protocol
+test/playstead_web/controllers/api/v1/capabilities_controller_test.exs	PlaysteadWeb.Api.V1.CapabilitiesControllerTest::GET /api/v1/capabilities returns the frozen envelope
+test/playstead_web/controllers/api/v1/capabilities_controller_test.exs	PlaysteadWeb.Api.V1.CapabilitiesControllerTest::D-19: transfer, cache, and optional metadata app capability ranges
+test/playstead_web/controllers/api/v1/capabilities_controller_test.exs	PlaysteadWeb.Api.V1.CapabilitiesControllerTest::GET /api/v1/capabilities requires no authentication
+test/playstead/metadata/private_media_test.exs	Playstead.Metadata.PrivateMediaTest::stores exact UTF-8 source bytes in the owner-scoped media manifest
+test/playstead/metadata/private_media_test.exs	Playstead.Metadata.PrivateMediaTest::keeps accepted image originals and decoded derivatives in separate CAS objects
+test/playstead/metadata/private_media_test.exs	Playstead.Metadata.PrivateMediaTest::another owner cannot fetch media and invalid images leave no committed manifest
+test/playstead/metadata/private_media_test.exs	Playstead.Metadata.PrivateMediaTest::caps each game at ten media items and rejects oversized or invalid text
+test/playstead/metadata/private_media_test.exs	Playstead.Metadata.PrivateMediaTest::a rejected manifest insert publishes no new canonical media bytes
+test/playstead/metadata/private_media_test.exs	PlaysteadWeb.Api.V1.MetadataMediaControllerTest::private text media uploads and returns exact original bytes only to its owner
+test/playstead/metadata/private_media_test.exs	PlaysteadWeb.Api.V1.MetadataMediaControllerTest::owner can remove a derivative while keeping the exact original
+test/playstead/metadata/custody_round_trip_test.exs	Playstead.Metadata.CustodyRoundTripTest::exports authored private media originals and provenance in verified BagIt and restores them through supported import
+test/playstead/metadata/backup_inventory_test.exs	Playstead.Metadata.BackupInventoryTest::backup inventory preserves original media while derivative reclaim leaves canonical objects intact
+test/playstead/metadata/enrichment_worker_test.exs	Playstead.Metadata.EnrichmentWorkerTest::coalesces consented browse into one durable job and records its resumable state
+test/playstead/metadata/enrichment_worker_test.exs	Playstead.Metadata.EnrichmentWorkerTest::cancels queued work durably and remains canceled after status reload
+test/playstead/metadata/enrichment_worker_test.exs	Playstead.Metadata.EnrichmentWorkerTest::stores only policy-selected image references for minimal and balanced metadata
+test/playstead/metadata/enrichment_worker_test.exs	Playstead.Metadata.EnrichmentWorkerTest::requires selected IDs and a matching visible estimate before bulk enqueue
+test/playstead/metadata/enrichment_worker_test.exs	Playstead.Metadata.EnrichmentWorkerTest::does not make a later provider request after consent is revoked during lookup
+test/playstead/metadata/enrichment_worker_test.exs	Playstead.Metadata.EnrichmentWorkerTest::429 retry-after is honored and transient failures retain queued work
+test/playstead/metadata/enrichment_worker_test.exs	Playstead.Metadata.EnrichmentWorkerTest::permanent media rejection leaves partial results durable for later reads
+test/playstead/metadata/provider_media_cache_test.exs	Playstead.Metadata.ProviderMediaCacheTest::constructs media URLs from validated IDs and fixed size allowlist
+test/playstead/metadata/provider_media_cache_test.exs	Playstead.Metadata.ProviderMediaCacheTest::requires exact private serving rights and invokes the bounded decoder after a fixed-host fetch
+test/playstead/metadata/provider_media_cache_test.exs	Playstead.Metadata.ProviderMediaCacheTest::refuses a decoded cover larger than its independent image cap
+test/playstead/metadata/provider_media_cache_test.exs	Playstead.Metadata.ProviderMediaCacheTest::refuses capacity when the only eligible game-cache object is pinned
+test/playstead/metadata/provider_media_cache_test.exs	Playstead.Metadata.ProviderMediaCacheTest::consent revocation after final authorization prevents derivative publication
+test/playstead/metadata/provider_media_cache_test.exs	Playstead.Metadata.ProviderMediaCacheTest::replaces an expired derivative, purges it on revocation, and retains failed deletions in usage
+test/playstead/metadata/provider_media_cache_test.exs	Playstead.Metadata.ProviderMediaCacheTest::reclaim removes provider derivatives while preserving exact ROM, save, and private-original bytes
+test/playstead/sync/change_journal_test.exs	Playstead.Sync.ChangeJournalTest::EntityKind.all/0 returns the registered entity kinds including optional metadata

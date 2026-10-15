@@ -1,0 +1,49 @@
+{
+  "phase": "04.7",
+  "plan": "09",
+  "human_judgment": false,
+  "recorded_at": "2026-10-13T02:08:32.184824+00:00",
+  "cause": "Absent per-field revision incorrectly fell back to unrelated document revision in direct selections/provider reset/offline corrections.",
+  "red": {
+    "run": "playstead-mac/.build/ci/selected-unit.9CVFIk",
+    "executed": 2,
+    "failed_tests": 2,
+    "status": "fail",
+    "expected_failure": "new field base revision9 versus0"
+  },
+  "green": {
+    "run": "playstead-mac/.build/ci/selected-unit.6sa6y4",
+    "executed": 13,
+    "failures": 0,
+    "skips": 0,
+    "status": "pass",
+    "suites": [
+      "MetadataCoordinatorContractTests",
+      "MetadataOutboxTests",
+      "MetadataJournalTests",
+      "MetadataTracerTests"
+    ]
+  },
+  "live_failure": {
+    "run": "playstead-mac/.build/ci/selected-live-server.LMF3ir",
+    "executed": 1,
+    "failures": 1,
+    "status": "fail",
+    "passed_substeps": [
+      "disclosure/consent/search/title selection",
+      "selected game preparation",
+      "PNG/JPEG/text original upload",
+      "PNG/JPEG exact original export"
+    ],
+    "failed_substep": "Private cover selection",
+    "scope": "substeps are diagnostic evidence, not a passing full journey"
+  },
+  "source_sha256": {
+    "playstead-mac/Playstead/Persistence/MetadataStore.swift": "79ae17aa0e2cdea42bebedf55f820e49e42dceeb215dc4cb5c219aa1cd906403",
+    "playstead-mac/Playstead/Metadata/MetadataCoordinator.swift": "586bd056f6a678cbccb812ffb1c8e38269ae6f511ebb798dbb7174bff425b616",
+    "playstead-mac/Playstead/Sync/Outbox.swift": "388e14373040d06ffa40bad97074605a5a7219e7d16d40f17ef4675494dedfe3",
+    "playstead-mac/PlaysteadTests/MetadataCoordinatorContractTests.swift": "345eba59998a2bbac7884d9f27cc4ba70cd3fa24e0af2bb2dcbd205179765fc8",
+    "playstead-mac/PlaysteadTests/MetadataOutboxTests.swift": "278e07ec36f7824db142601273ae1e3032dc9346f9d6d4d412d90716c2e2d2d2"
+  },
+  "packaged_post_fix": "unknown"
+}

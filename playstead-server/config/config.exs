@@ -44,7 +44,7 @@ config :playstead, Oban,
   # fan-out, so pausing one user's session can never touch another's.
   # Recovery sets are large, destination-bound custody work. One worker keeps
   # retries serialized and prevents competing publication attempts.
-  queues: [default: 10, import: 1, recovery: 1],
+  queues: [default: 10, import: 1, recovery: 1, metadata: 8],
   plugins: [
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
     # D-12: housekeeping-only sweep of stale pending pairing requests.

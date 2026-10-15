@@ -27,18 +27,19 @@ defmodule PlaysteadWeb.Api.V1.CapabilitiesControllerTest do
     end
   end
 
-  test "D-19: transfer and cache advertise max 1.1.0, every other namespace stays at 1.0.0", %{
+  test "D-19: transfer, cache, and optional metadata app capability ranges", %{
     conn: conn
   } do
     conn = get(conn, ~p"/api/v1/capabilities")
     ranges = json_response(conn, 200)["supported_client_ranges"]
 
     assert ranges["transfer"] == %{"min" => "1.0.0", "max" => "1.1.0"}
+    assert ranges["app"] == %{"min" => "1.0.0", "max" => "1.1.0"}
     # Plan 03-13: cache 1.1.0 additively advertises availability-report
     # support (PUT /api/v1/devices/me/availability).
     assert ranges["cache"] == %{"min" => "1.0.0", "max" => "1.1.0"}
 
-    for namespace <- @namespaces, namespace not in ["transfer", "cache"] do
+    for namespace <- @namespaces, namespace not in ["app", "transfer", "cache"] do
       assert ranges[namespace] == %{"min" => "1.0.0", "max" => "1.0.0"}
     end
   end

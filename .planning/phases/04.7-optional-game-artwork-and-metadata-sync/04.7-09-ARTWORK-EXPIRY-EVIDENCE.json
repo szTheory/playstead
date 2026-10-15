@@ -1,0 +1,62 @@
+{
+  "recorded_at": "2026-10-13T14:08:52.179018+00:00",
+  "human_judgment": false,
+  "status": "passed",
+  "source_sha256": {
+    "playstead-mac/Playstead/Library/ArtworkIdentityView.swift": "8660a27d8a6808e168902a19867d663685e5c7a6f61b446c50ac81d850139340",
+    "playstead-mac/Playstead/Cache/MetadataMediaClient.swift": "a1bf495899f57c0a998cc700024e7002a6d8ebdf9418700b137b197035065529",
+    "playstead-mac/Playstead/Cache/MetadataMediaCache.swift": "f8f58297c0400330e6dd45ea174e43c77e21a6bc51a0443b3af15a620ac9d1aa",
+    "playstead-mac/PlaysteadTests/SnapshotTests/ArtworkContractSnapshotTests.swift": "f9fee82f63d602d9a1676e78f7ac4dc62511aa80f9cfac4f24a18a653e0900e6",
+    "playstead-mac/PlaysteadTests/MetadataMediaCacheTests.swift": "dbd5084172f353ddc7e7a01e89409450bffc2dc921b444cdaa3c3fad64a71288"
+  },
+  "runs": [
+    {
+      "layer": "unit",
+      "run": "OQFSEa",
+      "test": "PlaysteadTests/MetadataMediaCacheTests/testCacheValidatesDigestBoundsOfflineHitExpiryAndPinnedCapacity",
+      "summary": "playstead-mac/.build/ci/selected-unit.OQFSEa/evidence/unit-tests.json",
+      "summary_sha256": "594adbb8997b6e92a2f047101581f359967c8aedbf6271b5e00ac3da8931a2be",
+      "required": 1,
+      "executed": 1,
+      "failures": 0,
+      "skips": 0,
+      "status": "passed"
+    },
+    {
+      "layer": "rendering",
+      "run": "3auTsq",
+      "test": "PlaysteadTests/ArtworkContractSnapshotTests/testOnlyDigestBoundSelectedMediaCanBecomeGalleryArtwork",
+      "summary": "playstead-mac/.build/ci/selected-rendering.3auTsq/evidence/rendering-tests.json",
+      "summary_sha256": "a37f2fbb9469f83627afc962342b086f395969303e443e29dd7c4cc348096c73",
+      "required": 1,
+      "executed": 1,
+      "failures": 0,
+      "skips": 0,
+      "status": "passed"
+    }
+  ],
+  "oracles": [
+    "Minimum expiry across selected reference, field source, and linked provider evidence; missing/malformed provider policy fails closed; private user media without expiry remains usable.",
+    "Expired policy rejects and removes only its cache object before network; shorter selection policy reduces the stored lifetime.",
+    "Mounted production thumbnail displays authored cached red pixels offline, then removes already loaded image after the actual deadline.",
+    "Paused old fetch is canceled by selection replacement; its late ordinary transport error leaves the newer loaded image intact.",
+    "Production cache publication resolves the clock after asynchronous ImageIO validation; explicit test clocks remain injectable."
+  ],
+  "failed_attempt": {
+    "run": "selected-unit.qMMfo4",
+    "reason": "New test expected zero aggregate usage despite independent pinned fixture; corrected to exact expired object removal and byte delta.",
+    "status": "failed; excluded from passing evidence"
+  },
+  "unchanged_evidence_reused": [
+    "53 packaged settings/correction states; no settings/correction/fixture source changed.",
+    "Live OwYAws real private upload/export/offlineconflict/reset; changed expiry path independently proves private nil-expiry validity, offline cache and production thumbnail behavior.",
+    "Full server18482 1206tests0fail; no server source changed."
+  ],
+  "foreground_interaction": false,
+  "next_command": "$gsd-execute-phase 4.7",
+  "cleanup": {
+    "task_app_runner_processes": 0,
+    "native_services_started": false,
+    "foreground_used": false
+  }
+}

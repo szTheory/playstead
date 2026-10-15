@@ -1,0 +1,10 @@
+{
+  "command": "cd playstead-server && PLAYSTEAD_EXUNIT_TAP_PATH=/private/tmp/04-7-05-media-red.tap mix test --trace --formatter Playstead.TestSupport.ExUnitTapFormatter test/playstead/metadata/provider_media_cache_test.exs",
+  "exitCode": 2,
+  "output": "TAP version 13\nok 1 - Playstead.Metadata.ProviderMediaCacheTest::refuses a decoded cover larger than its independent image cap\nok 2 - Playstead.Metadata.ProviderMediaCacheTest::refuses capacity when the only eligible game-cache object is pinned\nnot ok 3 - Playstead.Metadata.ProviderMediaCacheTest::constructs media URLs from validated IDs and fixed size allowlist\nok 4 - Playstead.Metadata.ProviderMediaCacheTest::reclaim removes provider derivatives while preserving exact ROM, save, and private-original bytes\nok 5 - Playstead.Metadata.ProviderMediaCacheTest::requires exact private serving rights and invokes the bounded decoder after a fixed-host fetch\n1..5",
+  "targetTest": "Playstead.Metadata.ProviderMediaCacheTest::constructs media URLs from validated IDs and fixed size allowlist",
+  "targetFile": "playstead-server/test/playstead/metadata/provider_media_cache_test.exs",
+  "expected": "A validated image ID and fixed size produce the canonical HTTPS IGDB image URL.",
+  "actual": "The deliberately inverted match assertion failed; the implementation returned the expected valid canonical URL.",
+  "semanticAssessment": "RED is valid: ExUnit discovered and executed all five registered targets, and only the intended canonical URL assertion failed after its expected result was deliberately inverted. This is not a compile, fixture, or unrelated failure. The original assertion was restored before GREEN verification."
+}

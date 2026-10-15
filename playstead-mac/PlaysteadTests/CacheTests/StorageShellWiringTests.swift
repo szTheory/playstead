@@ -425,7 +425,7 @@ final class StorageShellWiringTests: XCTestCase {
         // surface; they are no longer independent modal sheets.
         XCTAssertEqual(LibraryShellView.title(for: SidebarSection.downloads), "Downloads")
         XCTAssertEqual(LibraryShellView.title(for: SidebarSection.settings), "Settings")
-        XCTAssertEqual(Set(LibraryShellView.SettingsPane.allCases.map(\.title)), ["Storage", "Emulator", "Controller"])
+        XCTAssertEqual(Set(LibraryShellView.SettingsPane.allCases.map(\.title)), ["Storage", "Emulator", "Controller", "Metadata"])
     }
 
     /// `StorageView`/`QuotaSettingsView` are handed a snapshot of the real

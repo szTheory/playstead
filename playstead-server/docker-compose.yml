@@ -36,10 +36,15 @@ services:
       PLAYSTEAD_MAX_BROWSER_UPLOAD_BYTES: ${PLAYSTEAD_MAX_BROWSER_UPLOAD_BYTES:-4294967296}
       PLAYSTEAD_MAX_UPLOAD_BYTES: ${PLAYSTEAD_MAX_UPLOAD_BYTES:-8589934592}
       PLAYSTEAD_MAX_SESSION_FILES: ${PLAYSTEAD_MAX_SESSION_FILES:-250000}
+      PLAYSTEAD_MEDIA_DECODER_SOCKET: /run/playstead-media/decoder.sock
+      PLAYSTEAD_MEDIA_DECODER_REQUIRED: "true"
       PORT: "4000"
     depends_on:
       db:
         condition: service_healthy
+      media-decoder:
+        condition: service_healthy
+    group_add: ["11001"]
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:4000/healthz"]
       interval: 5s
@@ -63,6 +68,34 @@ services:
       # D-33: where exported folders are written. Genuinely writable —
       # unlike the inbox, export jobs cannot proceed without it.
       - ${PLAYSTEAD_EXPORT_HOST_PATH:-./exports}:/app/exports
+      - media_decoder_socket:/run/playstead-media
+    restart: unless-stopped
+
+  # One shared, bounded decoder service. It receives only staged request
+  # bytes over this socket; it has no database, canonical blob, or secret mount.
+  media-decoder:
+    image: ${PLAYSTEAD_MEDIA_DECODER_IMAGE:?Run scripts/verified-compose.sh up to build and scan the decoder before activation}
+    network_mode: none
+    read_only: true
+    user: "11001:11001"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=./ops/media-decoder/seccomp.json
+    pids_limit: 32
+    mem_limit: 512m
+    memswap_limit: 512m
+    cpus: 1.0
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
+    volumes:
+      - media_decoder_socket:/run/playstead-media
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import os,socket; s=socket.socket(socket.AF_UNIX); s.connect('/run/playstead-media/decoder.sock'); s.close()"]
+      interval: 2s
+      timeout: 1s
+      retries: 15
+      start_period: 2s
     restart: unless-stopped
 
   caddy:
@@ -94,3 +127,4 @@ volumes:
   playstead_blobs:
   caddy_data:
   caddy_config:
+  media_decoder_socket:

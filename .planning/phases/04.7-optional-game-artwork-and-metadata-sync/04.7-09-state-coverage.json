@@ -1,0 +1,109 @@
+{
+  "plan": "04.7-09",
+  "plannedFixtureCount": 53,
+  "fixtureGroups": {
+    "provider-consent": ["disabled-unfilled", "loading", "rejection-error", "incomplete-credentials", "changed-terms-partial", "overflowing-disclosure", "long-exact-query"],
+    "match-candidates": ["zero", "loading", "error", "populated", "partial", "overflowing", "one-many", "long-title"],
+    "local-media-form": ["unfilled", "uploading", "rejected-error", "accepted", "partial-fields", "overlarge-image", "long-field-source"],
+    "metadata-corrections": ["unchanged", "loading", "failed-submit", "corrected", "partial-conflict", "overflow", "zero-one-many", "long-text"],
+    "delivery-preparation": ["unselected", "estimating", "failed", "ready", "partial-canceled", "overflowing", "zero-one-many", "long-title"],
+    "media-cache-controls": ["empty", "reclaiming", "failed", "under-budget", "pinned-expired-partial", "overflow", "zero-one-many", "long-label"],
+    "metadata-settings-navigation": ["provider-absent", "loading", "error", "enabled-partial-credentials", "overflowing", "zero-one-many-groups", "long-label"]
+  },
+  "verification": {
+    "renderSuite": "PlaysteadTests.MetadataStateRenderingTests/testAllFiftyThreeMetadataControlFixturesMountAndRender",
+    "renderSuiteExecuted": true,
+    "renderRun": ".build/ci/selected-rendering.Nezhb4/sanitized",
+    "renderOutcome": "passed",
+    "renderedAXAndEnabledActionAssertions": false,
+    "apiContractSelectors": [
+      "PlaysteadTests.MetadataAPIContractTests/testConsentSendsOnlyDisclosedTitleAndSystemAndRevocationSendsNoBody",
+      "PlaysteadTests.MetadataAPIContractTests/testProviderSearchRejectionIsPreservedAsServerConsentGate",
+      "PlaysteadTests.MetadataAPIContractTests/testPrivateMediaBoundsAndDecodeFailuresAreRejectedBeforeAnyRequest"
+    ],
+    "apiContractRun": ".build/ci/selected-unit.NaGCih/sanitized",
+    "apiContractOutcome": "3 passed, 0 skipped",
+    "sourceOfTruth": "04.7-09-PLAN.md task 2",
+    "note": "Every identity mounts a shipped SwiftUI control view and paints through NSHostingView, but the test does not yet drive each named category state through production transport or verify per-fixture AX values/actions."
+  },
+  "productionStatePredicates": [
+    {
+      "fixtureIdentities": ["provider-consent/disabled-unfilled", "provider-consent/changed-terms-partial", "provider-consent/incomplete-credentials"],
+      "test": "PlaysteadTests.MetadataCoordinatorContractTests/testCoordinatorRequiresPreviewConsentAndDecodesZeroOneAndManySuggestions",
+      "assertions": ["preview.enabled == false", "preview.queryPreview == disclosed title", "preview.system == disclosed system", "consent request body contains only title/system/disclosure_revision", "revoke request is DELETE with no body"],
+      "status": "covered-at-coordinator-boundary",
+      "human_judgment": false
+    },
+    {
+      "fixtureIdentities": ["provider-consent/loading", "metadata-settings-navigation/loading"],
+      "test": "PlaysteadTests.MetadataCoordinatorContractTests/testHeldPreviewPublishesNoCompletedStateUntilAuthenticatedResponseArrives",
+      "assertions": ["held authenticated response keeps task incomplete", "task completes only after all response chunks arrive"],
+      "status": "covered-at-transport-boundary-ui-progress-unknown",
+      "human_judgment": false
+    },
+    {
+      "fixtureIdentities": ["provider-consent/rejection-error", "match-candidates/error"],
+      "test": "PlaysteadTests.MetadataCoordinatorContractTests/testCoordinatorPreservesServerConsentRejectionWithoutCreatingCandidates",
+      "assertions": ["403 provider_consent_required is preserved", "exactly one request and no candidate result"],
+      "status": "covered-at-api-boundary-ui-error-copy-unknown",
+      "human_judgment": false
+    },
+    {
+      "fixtureIdentities": ["match-candidates/zero", "match-candidates/one-many", "match-candidates/populated", "match-candidates/partial"],
+      "test": "PlaysteadTests.MetadataCoordinatorContractTests/testCoordinatorRequiresPreviewConsentAndDecodesZeroOneAndManySuggestions",
+      "assertions": ["search returns zero, one, then three explicit evidence rows", "confidence maps high/medium/low", "no candidate is selected by search"],
+      "status": "covered-at-coordinator-boundary-rendered-count-and-row-actions-pending",
+      "human_judgment": false
+    },
+    {
+      "fixtureIdentities": ["delivery-preparation/unselected", "delivery-preparation/ready", "delivery-preparation/partial-canceled", "delivery-preparation/zero-one-many"],
+      "test": "PlaysteadTests.MetadataCoordinatorContractTests/testCoordinatorPreparationEstimateJobsCacheAndReclaimUseServerState",
+      "assertions": ["estimate receives selected IDs and explicit minimal mode", "enqueue returns queued job", "refresh returns running", "cancel returns cancelled"],
+      "status": "covered-at-coordinator-boundary-rendered-controls-and-loading-failure-pending",
+      "human_judgment": false
+    },
+    {
+      "fixtureIdentities": ["media-cache-controls/empty", "media-cache-controls/under-budget", "media-cache-controls/pinned-expired-partial"],
+      "test": "PlaysteadTests.MetadataCoordinatorContractTests/testCoordinatorPreparationEstimateJobsCacheAndReclaimUseServerState",
+      "assertions": ["server usage/budget/reclaimable bytes decode", "reclaim route refreshes usage"],
+      "status": "covered-at-coordinator-boundary-device-cache-lru-render-pending",
+      "human_judgment": false
+    },
+    {
+      "fixtureIdentities": ["metadata-corrections/unchanged", "metadata-corrections/corrected"],
+      "test": "PlaysteadTests.MetadataCoordinatorContractTests/testCoordinatorFieldSelectionAndProviderResetUpdateTheLocalMirrorByRevision",
+      "assertions": ["field correction advances durable revision and local mirror", "provider reset restores selected evidence at next revision"],
+      "status": "covered-at-coordinator-boundary-rendered-source-and-reset-action-pending",
+      "human_judgment": false
+    },
+    {
+      "fixtureIdentities": ["metadata-corrections/partial-conflict", "metadata-corrections/failed-submit", "metadata-corrections/loading"],
+      "test": "PlaysteadTests.MetadataOutboxTests/testServerConflictKeepsBothAlternativesAndExplicitResolutionUsesCurrentRevision",
+      "assertions": ["concurrent alternatives remain represented", "explicit resolution uses current revision"],
+      "status": "covered-at-outbox-boundary-rendered-conflict-actions-pending",
+      "human_judgment": false
+    },
+    {
+      "fixtureIdentities": ["metadata-corrections/long-text", "provider-consent/long-exact-query", "match-candidates/long-title", "metadata-settings-navigation/long-label"],
+      "test": "PlaysteadTests.SnapshotTests.MetadataStateRenderingTests/testAllFiftyThreeMetadataControlFixturesMountAndRender",
+      "assertions": ["long-value fixtures mount in actual bounded SwiftUI views and produce pixels"],
+      "status": "rendered-only-values-and-scroll-actions-pending",
+      "human_judgment": false
+    }
+  ],
+  "coordinatorMatrixRun": {
+    "command": "scripts/ci/run-mac-verification.sh --layers unit --only-testing [six exact MetadataCoordinatorContractTests selectors]",
+    "evidence": ".build/ci/selected-unit.Nlxf4V/sanitized",
+    "outcome": "6 required tests across 6 executed tests; zero skips",
+    "durationSeconds": 1.5,
+    "human_judgment": false
+  },
+  "pendingUIOracle": {
+    "test": "PlaysteadUITests.MetadataPrivateMediaJourneyTests/testPrivateMediaExportAndProviderDisclosureUsePairedProductionRoutes",
+    "lastRun": ".build/ci/selected-live-server.WkiVsh/raw/live-server.xcresult",
+    "outcome": "failed-after-eight-unconditional-scroll-swipes-overscrolled-candidate; picker-title-parser-also-failed",
+    "sourceRevision": "before-bounded-scroll-and-exact-asset-identity-test-fix",
+    "nextRunBuild": ".build/ci/selected-recovery.jwSG6A",
+    "status": "unknown-until-rerun-owner-ready-required"
+  }
+}

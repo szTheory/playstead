@@ -435,6 +435,10 @@ final class LiveServerSnapshotTests: XCTestCase {
             XCTAssertEqual(status, 0, "live-server-stage=import-gb-fixture action=\(action)")
         case "import-aerevenadvance":
             XCTAssertEqual(status, 0, "live-server-stage=import-aerevenadvance action=\(action)")
+        case "metadata-selection":
+            XCTAssertEqual(status, 0, "live-server-stage=metadata-selection action=\(action)")
+        case "snapshot-reset":
+            XCTAssertEqual(status, 0, "live-server-stage=snapshot-reset action=\(action)")
         case "verify-evidence":
             XCTAssertEqual(status, 0, "live-server-stage=verify-evidence action=\(action)")
         default:

@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "phase": "4.7",
+  "recorded_at": "2026-10-13T22:17:23.994573+00:00",
+  "human_judgment": false,
+  "lineage": {
+    "failed_hosted_phase_run": 38454531507,
+    "failed_head": "ca1712c20e75f14528eb87a2030fdc4fa790f316",
+    "prerequisite_repair": "cd1c01a577874bc10741fab2b00f1843c9b05ef8",
+    "local_phase_merge": "9e09643"
+  },
+  "source_sha256": {
+    ".github/workflows/ci.yml": "1bc65b8bf93234dcac33874dc99a976b2177f974b7f0ecf02b9937017d35f927",
+    "playstead-mac/Playstead/Settings/MetadataSettingsView.swift": "16341b7d1c6bfeec19514e67258a733ec40d924806dfb400bb1d3c902ba49725",
+    "playstead-mac/PlaysteadTests/CacheTests/StorageShellWiringTests.swift": "ca819ebd271125d5f5e806d5d968bf77dac7566115ca53d34ce3e7f7fd5c46df",
+    "playstead-mac/PlaysteadTests/SavesTests/PlayPathSaveWiringTests.swift": "0a3542c387b86c2d7630500d0fe0239e34203338c56a867e8d4f54368169129d",
+    "playstead-mac/PlaysteadTests/SnapshotTests/__Snapshots__/StorageContractSnapshotTests/storage-surfaces.png": "317f16935a67d168ac3b7dcc58c1e2f3fa94dfd82069bc4aa770841d48f247f5",
+    "playstead-mac/scripts/ci/run-mac-verification.sh": "c179eb6c50d0aee032637acfe20b149cae4b467e69b87d5143f28cc676b4a13d",
+    "playstead-mac/scripts/ci/tests/four-layer-topology-test.sh": "c7ff9d76b08af9512b1ba72ce2e3acb23c44c900985224122eeb7423a898bbd0",
+    "playstead-server/lib/playstead/metadata/providers/igdb.ex": "de456973635085cdbdb85e0f1081213a2172ad87dd8514cb7797316db088d525",
+    "playstead-server/test/playstead/metadata/igdb_test.exs": "0d541449d4be6ef3cb42c4c6065d7aff90e4eeab9e66b51e21448ac13e9e5d91",
+    "playstead-mac/scripts/ci/hosted-decoder-runtime.sh": "47574c766b32e5ee60bc3d73fcce0b5d2e0e397922320e764e8eca9684cb5c53",
+    "playstead-mac/scripts/ci/tests/test_hosted_decoder_runtime.py": "57fec1cbe6d5fd1a9e3a50e20be4344853606cacddf139358491f17e05f6739e"
+  },
+  "qualified": {
+    "metadata_outbox_settings_and_promotion": {
+      "run": "selected-unit.QzFdiM",
+      "executed": 5,
+      "failures": 0,
+      "skips": 0
+    },
+    "offline_promotion_and_renamed_rollback": {
+      "run": "selected-unit.EZc1Wg",
+      "selected_passed": 2,
+      "selected_failures": 0,
+      "selected_skips": 0,
+      "whole_run": "failed on two release-only metadata fixture references; repaired and release qualified separately"
+    },
+    "release_executable_and_symbols": {
+      "run": "selected-unit.tuUJnN",
+      "executed": 1,
+      "failures": 0,
+      "skips": 0
+    },
+    "metadata_rendering_53_states": {
+      "run": "selected-rendering.mOQLDR",
+      "executed": 1,
+      "fixture_count": 53,
+      "failures": 0,
+      "skips": 0
+    },
+    "storage_artwork_budget_snapshot": {
+      "run": "selected-rendering.59z5mJ",
+      "executed": 1,
+      "failures": 0,
+      "skips": 0,
+      "reference_inspected_by": "agent"
+    },
+    "metadata_and_readiness_UI": {
+      "run": "selected-ui.YY3c7x",
+      "executed": 5,
+      "correction_states": 8,
+      "failures": 0,
+      "skips": 0
+    },
+    "provider_boundary": {
+      "command": "MIX_ENV=test mix run --no-start --no-compile with real IGDB ExUnit file",
+      "executed": 3,
+      "failures": 0,
+      "skips": 0,
+      "production_compile": "warnings-as-errors exit0",
+      "format": "exit0"
+    },
+    "reachability": "strict sweep: no unreachable production symbols",
+    "decoder_supply_chain_contracts": {
+      "executed": 12,
+      "failures": 0
+    },
+    "hosted_runtime_and_partial_failure_contracts": {
+      "executed": 5,
+      "failures": 0
+    },
+    "phase_summary_coverage": "10/10 classifiable blocks"
+  },
+  "repairs": [
+    "Required metadata rollback selector now names the actual test",
+    "Settings pane oracle includes Metadata",
+    "Local-promotion oracle holds reachability offline so independent delivery cannot race its durability assertion",
+    "Release metadata views compile-gate both remaining fixture references while preserving the UI-testing behavior",
+    "Storage reference includes the independent artwork cache line",
+    "Remove unreachable hash lookup stub: the provider interface exposes no hash lookup",
+    "Host Mac obtains the same-run scanned immutable Linux decoder plus exact public generated context, verifies its receipt and actual image ID, and runs it in a bounded task-owned QEMU guest",
+    "Preserve partial layer evidence and original exit status on native service setup failure"
+  ],
+  "hosted_runtime": {
+    "status": "unknown",
+    "remaining": "actual hosted QEMU startup and complete native live-server regression after push",
+    "runtime": "Colima QEMU x86_64 max CPU model, one vCPU, 2 GiB RAM, 12 GiB disk",
+    "image": "same-workflow Compose-qualified immutable ID",
+    "production_parser_or_limits_changed": false,
+    "private_signing_key_uploaded": false,
+    "cleanup": "exact isolated Colima home/profile, including failure/cancellation",
+    "sources": [
+      "https://docs.github.com/en/actions/reference/runners/larger-runners",
+      "https://lima-vm.io/docs/config/multi-arch/",
+      "https://colima.run/docs/configuration/"
+    ]
+  },
+  "cleanup": "exact task app/runner inventory empty; no local native service or guest started; provider tests use no app/repo/database startup",
+  "next_command": "$gsd-ship 4.7"
+}

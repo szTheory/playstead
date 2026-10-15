@@ -1,0 +1,10 @@
+{
+  "command": "cd playstead-server && mix test --formatter Playstead.TestSupport.TapFormatter test/playstead/metadata/selection_test.exs",
+  "exitCode": 2,
+  "output": "TAP version 13\nnot ok 1 - Playstead.Metadata.SelectionTest::test explicit metadata mutations require a base revision\n1..1\n",
+  "targetTest": "Playstead.Metadata.SelectionTest::test explicit metadata mutations require a base revision",
+  "targetFile": "selection_test.exs",
+  "expected": "The authenticated metadata endpoint rejects a valid mutation without base_revision with 422.",
+  "actual": "The endpoint accepted the mutation with HTTP 201.",
+  "semanticAssessment": "The exact target executed once and failed at assert_problem/3 because the production endpoint accepted the valid description mutation without a base revision. The failure is the planned missing concurrency precondition, not compilation or fixture setup."
+}

@@ -242,13 +242,13 @@ defmodule Playstead.Recovery.BackupSet do
 
   defp member_entry(%{sha256: sha256, bytes: bytes, kind: kind})
        when is_binary(sha256) and byte_size(sha256) == 64 and is_binary(bytes) and
-              kind in [:game, :save] do
+              kind in [:game, :save, :private_media_original] do
     entry(Path.join(["objects", String.slice(sha256, 0, 2), sha256]), bytes, Atom.to_string(kind))
   end
 
   defp member_entry(%{sha256: sha256, size_bytes: size, source: source, kind: kind})
        when is_binary(sha256) and byte_size(sha256) == 64 and is_integer(size) and size >= 0 and
-              kind in [:game, :save] do
+              kind in [:game, :save, :private_media_original] do
     streamed_entry(
       Path.join(["objects", String.slice(sha256, 0, 2), sha256]),
       sha256,
@@ -268,15 +268,20 @@ defmodule Playstead.Recovery.BackupSet do
   defp materialize_members(inventory, reader) when is_list(inventory) do
     inventory
     |> Enum.reduce_while({:ok, []}, fn
-      %{"sha256" => sha256, "size_bytes" => size, "kind" => _kind}, {:ok, members}
+      %{"sha256" => sha256, "size_bytes" => size, "kind" => kind}, {:ok, members}
       when is_integer(size) and size >= 0 ->
         case reader.(sha256) do
           {:ok, bytes} when is_binary(bytes) ->
-            {:cont, {:ok, [%{sha256: sha256, bytes: bytes, kind: :game} | members]}}
+            {:cont,
+             {:ok, [%{sha256: sha256, bytes: bytes, kind: inventory_kind(kind)} | members]}}
 
           {:ok, stream} ->
             {:cont,
-             {:ok, [%{sha256: sha256, size_bytes: size, source: stream, kind: :game} | members]}}
+             {:ok,
+              [
+                %{sha256: sha256, size_bytes: size, source: stream, kind: inventory_kind(kind)}
+                | members
+              ]}}
 
           {:error, reason} ->
             {:halt, {:error, reason}}
@@ -292,6 +297,9 @@ defmodule Playstead.Recovery.BackupSet do
   end
 
   defp materialize_members(_, _), do: {:error, :invalid_inventory}
+
+  defp inventory_kind("private_media_original"), do: :private_media_original
+  defp inventory_kind(_), do: :game
 
   defp normalize_metadata(metadata) do
     %{

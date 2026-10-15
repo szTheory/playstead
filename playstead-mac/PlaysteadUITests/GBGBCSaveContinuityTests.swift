@@ -228,7 +228,9 @@ final class GBGBCSaveContinuityTests: XCTestCase {
             let processReadout = target.descendants(matching: .any)[
                 "playstead.test.recovery-emulator-process-id.\(importReceipt.assetSetID)"
             ]
-            let started = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value != %@", "idle"), object: processReadout)
+            let started = XCTNSPredicateExpectation(predicate: NSPredicate { [self] _, _ in
+                pinnedApplicationPID(from: processReadout) != nil
+            }, object: nil)
             XCTAssertEqual(XCTWaiter.wait(for: [started], timeout: 30), .completed,
                            "aereven-e2e=restored-child-not-observed")
             guard let pidText = processReadout.value as? String, let pid = Int32(pidText), pid > 1,
@@ -396,7 +398,9 @@ final class GBGBCSaveContinuityTests: XCTestCase {
             startIdentityCheck.click()
         }
         let processReadout = launched.descendants(matching: .any)["playstead.test.recovery-emulator-process-id.\(importReceipt.assetSetID)"]
-        let started = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value != %@", "idle"), object: processReadout)
+        let started = XCTNSPredicateExpectation(predicate: NSPredicate { [self] _, _ in
+            pinnedApplicationPID(from: processReadout) != nil
+        }, object: nil)
         let processWait = XCTWaiter.wait(for: [started], timeout: 30)
         if processWait != .completed {
             let status = launched.staticTexts.matching(identifier: "library.status-label")
@@ -559,7 +563,9 @@ final class GBGBCSaveContinuityTests: XCTestCase {
         let targetIdentityCheck = target.buttons["controller.identity.start"]
         if targetIdentityCheck.awaitExistence(timeout: 5) { targetIdentityCheck.click() }
         let targetProcessReadout = target.descendants(matching: .any)["playstead.test.recovery-emulator-process-id.\(importReceipt.assetSetID)"]
-        let targetStarted = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value != %@", "idle"), object: targetProcessReadout)
+        let targetStarted = XCTNSPredicateExpectation(predicate: NSPredicate { [self] _, _ in
+            pinnedApplicationPID(from: targetProcessReadout) != nil
+        }, object: nil)
         let targetStartResult = XCTWaiter.wait(for: [targetStarted], timeout: 30)
         guard targetStartResult == .completed else {
             let status = target.staticTexts.matching(identifier: "library.status-label")
@@ -801,6 +807,20 @@ final class GBGBCSaveContinuityTests: XCTestCase {
             && configured["PLAYSTEAD_LIVE_SERVER_STAGE_FILE"] == inherited["PLAYSTEAD_LIVE_SERVER_STAGE_FILE"]
     }
 
+    private func pinnedApplicationPID(from readout: XCUIElement) -> pid_t? {
+        // A missing readout has nil value, which also satisfies `value != "idle"`.
+        // A spawned PID can also precede AppKit's application registration.
+        // Wait for the complete original identity, within the existing deadline.
+        guard readout.exists,
+              let text = readout.value as? String, let pid = Int32(text), pid > 1,
+              let path = currentProcessPath(pid: pid_t(pid)),
+              URL(fileURLWithPath: path).standardizedFileURL.path == managedPinnedExecutableURL.standardizedFileURL.path,
+              sha256Hex(at: URL(fileURLWithPath: path)) == "f2f329b4947baa5082fcaf27ced1e2b21f2999ccf73ca481f22b44c4c87d6640",
+              NSRunningApplication.runningApplications(withBundleIdentifier: "com.endrift.mgba-qt")
+                .contains(where: { $0.processIdentifier == pid_t(pid) }) else { return nil }
+        return pid_t(pid)
+    }
+
     private func currentProcessPath(pid: pid_t) -> String? {
         var buffer = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
         let length = buffer.withUnsafeMutableBufferPointer { proc_pidpath(pid, $0.baseAddress, UInt32($0.count)) }
@@ -1001,11 +1021,13 @@ final class GBGBCSaveContinuityTests: XCTestCase {
     }
 
     private func waitForUploadedRevision(in app: XCUIApplication) -> Bool {
+        guard app.state != .notRunning else { return false }
+        app.activate()
         let deadline = Date().addingTimeInterval(120)
         while Date() < deadline {
             let review = app.buttons["playstead.control.open-readiness"]
             guard review.awaitExistence(timeout: 5) else { return false }
-            review.click()
+            review.clickWhenHittable()
             let historyAction = app.buttons["playstead.readiness.open-save-history"]
             guard historyAction.awaitExistence(timeout: 5) else { return false }
             historyAction.click()

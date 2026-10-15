@@ -22,7 +22,7 @@ defmodule Playstead.Sync.EntityKind do
   kind is ever renamed or removed; only additions are legitimate here.
   """
 
-  @kinds ~w(device pairing catalogue job transfer save curation)a
+  @kinds ~w(device pairing catalogue job transfer save curation metadata)a
 
   @doc "The full, frozen set of registered entity kinds."
   @spec all() :: [atom()]

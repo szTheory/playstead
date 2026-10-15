@@ -37,6 +37,7 @@ enum CurationIntentKind: String, Codable, Equatable {
     /// `curation_*` row it creates or targets, only facts read fresh
     /// from `DownloadQueue`/`CASManager`/`PinStore` at report time.
     case availabilityReport = "availability_report"
+    case metadataCorrection = "metadata_correction"
 
     /// True only for `.availabilityReport` (WR-05, plan 03-16 gap
     /// closure). `Outbox.enqueue` consults this to delete any still-
@@ -55,7 +56,7 @@ enum CurationIntentKind: String, Codable, Equatable {
         case .unknown, .favoriteAdd, .favoriteRemove, .collectionCreate, .collectionRename,
              .collectionDelete, .collectionMemberAdd, .collectionMemberRemove, .collectionMemberMove,
              .queueEnqueue, .queueDequeue, .queueMove, .continueDismiss, .playSessionRecord,
-             .playSessionDelete:
+             .playSessionDelete, .metadataCorrection:
             return false
         }
     }
@@ -100,6 +101,17 @@ private struct AvailabilityReportWireBody: Encodable {
     }
 }
 
+private struct MetadataCorrectionWireBody: Encodable {
+    let field: String
+    let value: JSONValue
+    let baseRevision: Int
+
+    private enum CodingKeys: String, CodingKey {
+        case field, value
+        case baseRevision = "base_revision"
+    }
+}
+
 /// The wire-and-storage envelope for one `CurationIntent` — every field
 /// every kind might need, most left `nil` for a given kind. This is what
 /// actually gets persisted as `outbox_entries.payload_json`: not just
@@ -121,6 +133,9 @@ struct CurationIntentEnvelope: Codable, Equatable {
     /// The full-replacement entry list for an `.availabilityReport`
     /// intent only — every other kind leaves this `nil`.
     var availabilityEntries: [AvailabilityReportEntry]?
+    var metadataField: String?
+    var metadataValue: JSONValue?
+    var baseRevision: Int?
 
     private enum CodingKeys: String, CodingKey {
         case kind, id, name, position
@@ -132,6 +147,9 @@ struct CurationIntentEnvelope: Codable, Equatable {
         case startedAt = "started_at"
         case endedAt = "ended_at"
         case availabilityEntries = "availability_entries"
+        case metadataField = "metadata_field"
+        case metadataValue = "metadata_value"
+        case baseRevision = "base_revision"
     }
 }
 
@@ -192,6 +210,7 @@ enum CurationIntent: Equatable {
     /// still derives the wire `Idempotency-Key` from its own
     /// freshly-generated `entryID`, never from this `id`.
     case availabilityReport(id: String, entries: [AvailabilityReportEntry])
+    case metadataCorrection(assetSetID: String, field: String, value: JSONValue, baseRevision: Int)
 
     var kind: CurationIntentKind {
         switch self {
@@ -210,6 +229,7 @@ enum CurationIntent: Equatable {
         case .playSessionRecord: return .playSessionRecord
         case .playSessionDelete: return .playSessionDelete
         case .availabilityReport: return .availabilityReport
+        case .metadataCorrection: return .metadataCorrection
         }
     }
 
@@ -231,6 +251,7 @@ enum CurationIntent: Equatable {
         case .playSessionRecord(let id, _, _, _): return id
         case .playSessionDelete(let id): return id
         case .availabilityReport(let id, _): return id
+        case .metadataCorrection(let assetSetID, _, _, _): return assetSetID
         }
     }
 
@@ -240,7 +261,7 @@ enum CurationIntent: Equatable {
             return "PUT"
         case .favoriteRemove, .collectionDelete, .collectionMemberRemove, .queueDequeue, .playSessionDelete:
             return "DELETE"
-        case .collectionCreate, .playSessionRecord:
+        case .collectionCreate, .playSessionRecord, .metadataCorrection:
             return "POST"
         case .collectionRename, .collectionMemberMove, .queueMove:
             return "PATCH"
@@ -274,6 +295,8 @@ enum CurationIntent: Equatable {
             return "/api/v1/play-sessions/\(id)"
         case .availabilityReport:
             return "/api/v1/devices/me/availability"
+        case .metadataCorrection(let assetSetID, _, _, _):
+            return "/api/v1/metadata/\(assetSetID)"
         }
     }
 
@@ -332,6 +355,10 @@ enum CurationIntent: Equatable {
             return try? JSONEncoder().encode(
                 AvailabilityReportWireBody(entries: entries, reportSequence: reportSequence)
             )
+        case .metadataCorrection(_, let field, let value, let baseRevision):
+            return try? JSONEncoder().encode(MetadataCorrectionWireBody(
+                field: field, value: value, baseRevision: baseRevision
+            ))
         }
     }
 
@@ -373,6 +400,9 @@ enum CurationIntent: Equatable {
             return CurationIntentEnvelope(kind: kind, id: id)
         case .availabilityReport(let id, let entries):
             return CurationIntentEnvelope(kind: kind, id: id, availabilityEntries: entries)
+        case .metadataCorrection(let assetSetID, let field, let value, let baseRevision):
+            return CurationIntentEnvelope(kind: kind, assetSetID: assetSetID, metadataField: field,
+                                          metadataValue: value, baseRevision: baseRevision)
         }
     }
 
@@ -445,6 +475,13 @@ enum CurationIntent: Equatable {
         case .availabilityReport:
             guard let id = envelope.id, let entries = envelope.availabilityEntries else { return nil }
             return .availabilityReport(id: id, entries: entries)
+        case .metadataCorrection:
+            guard let assetSetID = envelope.assetSetID, let field = envelope.metadataField,
+                  let value = envelope.metadataValue, let baseRevision = envelope.baseRevision,
+                  UUID(uuidString: assetSetID) != nil, ["title", "description"].contains(field),
+                  baseRevision >= 0,
+                  value == .null || value.stringValue.map({ $0.utf8.count <= 65_536 }) == true else { return nil }
+            return .metadataCorrection(assetSetID: assetSetID, field: field, value: value, baseRevision: baseRevision)
         case .unknown:
             // Never actually persisted by this build (`kind.rawValue` on
             // enqueue always comes from a real `CurationIntent` case) —
@@ -463,7 +500,11 @@ enum CurationIntent: Equatable {
     /// `JournalApplier`; because both this write and the journal apply
     /// are upserts keyed on the same `localRowID`, that later apply is a
     /// no-op, not a duplicate.
-    func applyOptimistically(to curationStore: CurationStore, at now: Date) throws {
+    func applyOptimistically(
+        to curationStore: CurationStore,
+        metadataStore: MetadataStore? = nil,
+        at now: Date
+    ) throws {
         let nowString = ISO8601DateFormatter().string(from: now)
         switch self {
         case .favoriteAdd(let id, let assetSetID):
@@ -502,6 +543,11 @@ enum CurationIntent: Equatable {
             // No local optimistic write: this intent reports facts read
             // fresh from disk at report time, never a `curation_*` row.
             break
+        case .metadataCorrection(let assetSetID, let field, let value, let baseRevision):
+            guard let metadataStore else { throw MetadataStoreError.invalidSelection }
+            try metadataStore.applyOptimistic(
+                assetSetID: assetSetID, field: field, value: value, baseRevision: baseRevision
+            )
         }
     }
 
@@ -520,7 +566,7 @@ enum CurationIntent: Equatable {
     /// no-op as the only outcome. Rename/move-shaped kinds' rejection
     /// remains a documented, bounded limitation (cosmetic metadata
     /// staleness only) per this plan's SUMMARY.
-    func revertOptimistic(from curationStore: CurationStore) throws {
+    func revertOptimistic(from curationStore: CurationStore, metadataStore: MetadataStore? = nil) throws {
         switch self {
         case .favoriteAdd(let id, _):
             try curationStore.tombstoneFavorite(id: id)
@@ -534,7 +580,7 @@ enum CurationIntent: Equatable {
             try curationStore.tombstoneContinueDismissal(id: id)
         case .favoriteRemove, .collectionRename, .collectionDelete, .collectionMemberRemove,
              .collectionMemberMove, .queueDequeue, .queueMove, .playSessionRecord, .playSessionDelete,
-             .availabilityReport:
+             .availabilityReport, .metadataCorrection:
             break
         }
     }
@@ -558,7 +604,8 @@ enum CurationIntent: Equatable {
         case .favoriteRemove, .collectionDelete, .collectionMemberRemove, .queueDequeue, .playSessionDelete:
             return true
         case .favoriteAdd, .collectionCreate, .collectionRename, .collectionMemberAdd, .collectionMemberMove,
-             .queueEnqueue, .queueMove, .continueDismiss, .playSessionRecord, .availabilityReport:
+             .queueEnqueue, .queueMove, .continueDismiss, .playSessionRecord, .availabilityReport,
+             .metadataCorrection:
             return false
         }
     }

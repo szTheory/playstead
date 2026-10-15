@@ -10,6 +10,22 @@ private let pinnedTrustLog = Logger(subsystem: "dev.playstead.mac", category: "p
 /// Carries the machine-readable `code` field rather than a free-text
 /// message string, so callers can branch on it (`device_revoked` vs a
 /// generic `unauthorized`, for example) instead of string-matching.
+struct MetadataConflictResponse: Decodable, Equatable, Sendable {
+    let field: String
+    let baseRevision: Int
+    let currentRevision: Int
+    let currentAlternative: [String: JSONValue]
+    let incomingAlternative: [String: JSONValue]
+
+    private enum CodingKeys: String, CodingKey {
+        case field
+        case baseRevision = "base_revision"
+        case currentRevision = "current_revision"
+        case currentAlternative = "current_alternative"
+        case incomingAlternative = "incoming_alternative"
+    }
+}
+
 struct APIError: Error, Decodable, Equatable {
     let status: Int
     let code: String
@@ -19,18 +35,23 @@ struct APIError: Error, Decodable, Equatable {
     /// authorization, content identity, or a retry key; callers may retain it
     /// only through `EligibleDiagnosticEvidence`.
     let correlationID: String?
+    let metadataConflict: MetadataConflictResponse?
 
     private enum CodingKeys: String, CodingKey {
         case code, title, detail
         case correlationID = "correlation_id"
+        case metadataConflictType = "type"
+        case field, baseRevision = "base_revision", currentRevision = "current_revision"
+        case currentAlternative = "current_alternative", incomingAlternative = "incoming_alternative"
     }
 
-    init(status: Int, code: String, title: String?, detail: String?, correlationID: String? = nil) {
+    init(status: Int, code: String, title: String?, detail: String?, correlationID: String? = nil, metadataConflict: MetadataConflictResponse? = nil) {
         self.status = status
         self.code = code
         self.title = title
         self.detail = detail
         self.correlationID = correlationID
+        self.metadataConflict = metadataConflict
     }
 
     init(from decoder: Decoder) throws {
@@ -40,6 +61,11 @@ struct APIError: Error, Decodable, Equatable {
         self.title = try container.decodeIfPresent(String.self, forKey: .title)
         self.detail = try container.decodeIfPresent(String.self, forKey: .detail)
         self.correlationID = try container.decodeIfPresent(String.self, forKey: .correlationID)
+        if try container.decodeIfPresent(String.self, forKey: .metadataConflictType) == "metadata_conflict" {
+            metadataConflict = try MetadataConflictResponse(from: decoder)
+        } else {
+            metadataConflict = nil
+        }
     }
 
     static func == (lhs: APIError, rhs: APIError) -> Bool {
@@ -300,7 +326,8 @@ actor APIClient: NSObject {
             throw APIClientError.server(
                 APIError(
                     status: http.statusCode, code: decoded.code, title: decoded.title,
-                    detail: decoded.detail, correlationID: decoded.correlationID
+                    detail: decoded.detail, correlationID: decoded.correlationID,
+                    metadataConflict: decoded.metadataConflict
                 )
             )
         }

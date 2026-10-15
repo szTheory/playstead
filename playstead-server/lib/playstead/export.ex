@@ -14,6 +14,8 @@ defmodule Playstead.Export do
   alias Playstead.Export.{BagitWriter, ExportRecord, Layout, Sanitize, SavesLineage, Worker}
   alias Playstead.Repo
   alias Playstead.Saves
+  alias Playstead.Metadata
+  alias Playstead.Metadata.PrivateMedia
 
   # D-10: the only `save_kind` the Mac client writes today
   # (`PlaysteadApp.swift:938`). `Playstead.Saves.Save.save_kind`
@@ -86,6 +88,8 @@ defmodule Playstead.Export do
       excluded: not is_nil(asset_set.excluded_at),
       provenance: asset_set.provenance || %{},
       saves: saves,
+      private_media: private_media_for(asset_set),
+      metadata_selection: metadata_selection_for(asset_set),
       members:
         Enum.map(asset_set.asset_members, fn m ->
           %{
@@ -98,6 +102,20 @@ defmodule Playstead.Export do
           }
         end)
     }
+  end
+
+  defp private_media_for(asset_set) do
+    case PrivateMedia.list(asset_set.user_id, asset_set.id) do
+      {:ok, media} -> media
+      _ -> []
+    end
+  end
+
+  defp metadata_selection_for(asset_set) do
+    case Metadata.get_description(asset_set.user_id, asset_set.id) do
+      {:ok, selection} -> selection
+      _ -> nil
+    end
   end
 
   @doc """

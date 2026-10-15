@@ -528,6 +528,16 @@ final class AppEnvironment {
     // and its intent would never drain.
 
     let catalogueStore: CatalogueStore
+    let metadataStore: MetadataStore
+    let metadataMediaCache: MetadataMediaCache
+    let metadataMediaClient: MetadataMediaClient
+#if UI_TESTING
+    var uiTestingMetadataFixture: UITestMetadataFixture?
+    /// A local rendered-state seam for deterministic artwork loading/failure.
+    /// It is absent from production builds and cannot replace an API client.
+    var uiTestingMetadataMediaFetchOverride: (() async throws -> URL)?
+#endif
+    private(set) var metadataMediaUsageBytes = 0
     let curationStore: CurationStore
     let cursorStore: CursorStore
     let outbox: Outbox
@@ -607,6 +617,7 @@ final class AppEnvironment {
     /// idempotent by digest, so this is an efficiency guard, not a
     /// correctness one.)
     private var hasRecoveredAbandonedSaveSessions = false
+    @ObservationIgnored private nonisolated(unsafe) var metadataStoreObserverToken: NSObjectProtocol?
 
     /// `paths`, `apiClient`, and `reachability` are injectable purely so a
     /// test can assemble the *real* composition root against a temporary
@@ -749,7 +760,10 @@ final class AppEnvironment {
 
         let catalogueStore = CatalogueStore(localStore: store)
         let curationStore = CurationStore(localStore: store)
-        let outbox = Outbox(localStore: store, curationStore: curationStore)
+        let metadataStore = MetadataStore(localStore: store)
+        let metadataMediaCache = MetadataMediaCache(root: paths.metadataMedia, localStore: store)
+        let metadataMediaClient = MetadataMediaClient(apiClient: client, cache: metadataMediaCache)
+        let outbox = Outbox(localStore: store, curationStore: curationStore, metadataStore: metadataStore)
         // WINDOWS #89: a row left `in_flight` by the previous process is
         // invisible to every subsequent drain -- `listPending` selects
         // `pending` only, and quarantine is reachable only through the
@@ -822,6 +836,7 @@ final class AppEnvironment {
         let worker = OutboxWorker(
             apiClient: client,
             outbox: outbox,
+            metadataStore: metadataStore,
             onEntryDelivered: { intent in
                 if case .playSessionRecord(let sessionID, _, _, _) = intent {
                     recorder.markDelivered(sessionID)
@@ -831,6 +846,9 @@ final class AppEnvironment {
         )
 
         self.catalogueStore = catalogueStore
+        self.metadataStore = metadataStore
+        self.metadataMediaCache = metadataMediaCache
+        self.metadataMediaClient = metadataMediaClient
         self.curationStore = curationStore
         self.cursorStore = CursorStore(localStore: store)
         self.outbox = outbox
@@ -983,16 +1001,56 @@ final class AppEnvironment {
         // must have its mapping applied immediately, not only on the next
         // connect/disconnect/assign transition.
         refreshActiveControllerMapping()
+        metadataStoreObserverToken = NotificationCenter.default.addObserver(
+            // A store notification may be posted while its SQLite transaction
+            // owns the serial queue. Never synchronously wait for the main
+            // queue here; a rendering read can already be waiting on SQLite.
+            forName: MetadataStore.didChangeNotification, object: store, queue: nil
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                await Task.yield()
+                self?.metadataRefreshVersion &+= 1
+            }
+        }
+        Task { [weak self, metadataMediaClient] in
+            self?.metadataMediaUsageBytes = await metadataMediaClient.usedBytes()
+        }
     }
 
     deinit {
         reachability.removeObserver(reachabilityToken)
         outboxDrainTicker.stop()
+        if let metadataStoreObserverToken { NotificationCenter.default.removeObserver(metadataStoreObserverToken) }
     }
 
 #if UI_TESTING
     func blockExternalIOForUITesting() {
         uiTestingBlocksExternalIO = true
+    }
+
+    func installUITestMetadataFixture(identity: String) throws {
+        let fixture = try UITestBootstrap.metadataFixture(identity)
+        uiTestingMetadataFixture = fixture
+        if let selection = fixture.correctionSelection {
+            let revision = max(selection.revision, (metadataStore.selection(for: selection.assetSetID)?.revision ?? -1) + 1)
+            try metadataStore.upsert(MetadataSelection(
+                version: selection.version, type: selection.type, assetSetID: selection.assetSetID,
+                description: selection.description, revision: revision, deletedAt: selection.deletedAt,
+                selections: selection.selections, fieldRevisions: selection.fieldRevisions,
+                fieldSources: selection.fieldSources, deletedFields: selection.deletedFields,
+                conflicts: selection.conflicts, evidence: selection.evidence
+            ))
+        }
+    }
+
+    func advanceUITestMetadataFixture() {
+        guard let current = uiTestingMetadataFixture else { return }
+        let identities = current.surface == "metadata-corrections"
+            ? UITestBootstrap.metadataCorrectionFixtureIDs
+            : UITestBootstrap.metadataSettingsFixtureIDs
+        guard let index = identities.firstIndex(of: current.identity) else { return }
+        do { try installUITestMetadataFixture(identity: identities[(index + 1) % identities.count]) }
+        catch { assertionFailure("Could not install finite metadata UI fixture: \(error)") }
     }
 
     /// Bounded, synthetic-only acceptance evidence exposed by the
@@ -1111,6 +1169,7 @@ final class AppEnvironment {
         // stayed unreachable until some later pass happened to run, and the
         // curation rows that snapshot carried were dropped on the floor.
         await syncEngine.syncNow()
+        metadataRefreshVersion &+= 1
 
         refreshCurationViewModels()
         await libraryViewModel.refreshSyncState()
@@ -1124,6 +1183,69 @@ final class AppEnvironment {
         // own schedule, exactly like every other outbox-backed intent.
         _ = await availabilityReporter.reportAll()
         drainOutbox()
+    }
+
+    private(set) var metadataRefreshVersion = 0
+    private(set) var detailsFocusRequest = 0
+    private(set) var detailsFocusAssetSetID: String?
+
+    func requestDetailsTriggerFocus(assetSetID: String?) {
+        detailsFocusAssetSetID = assetSetID
+        detailsFocusRequest += 1
+    }
+
+    func description(for assetSetID: String) -> String? {
+        _ = metadataRefreshVersion
+        return metadataStore.description(for: assetSetID)
+    }
+
+    /// The last journal or snapshot selection for a game. Reading the refresh
+    /// revision keeps SwiftUI surfaces current after offline edits converge.
+    func metadataSelection(for assetSetID: String) -> MetadataSelection? {
+        _ = metadataRefreshVersion
+        guard let selection = metadataStore.selection(for: assetSetID), selection.deletedAt == nil else {
+            return nil
+        }
+        return selection
+    }
+
+    func displayTitle(for entry: CatalogueEntry) -> String {
+        guard let title = metadataSelection(for: entry.id)?.selections["title"]?.stringValue,
+              !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return entry.displayTitle.isEmpty ? "Untitled game" : entry.displayTitle
+        }
+        return title
+    }
+
+    @discardableResult
+    func setMetadataField(assetSetID: String, field: String, value: JSONValue) throws -> OutboxEntry {
+        try outbox.setMetadata(assetSetID: assetSetID, field: field, value: value)
+    }
+
+    func fetchMetadataMedia(
+        assetSetID: String, mediaID: String, sha256: String, size: Int,
+        expiresAt: Date?, pinned: Bool = false
+    ) async throws -> URL {
+#if UI_TESTING
+        if let override = uiTestingMetadataMediaFetchOverride {
+            return try await override()
+        }
+#endif
+        let url = try await metadataMediaClient.fetchDerived(
+            assetSetID: assetSetID, mediaID: mediaID, sha256: sha256,
+            size: size, expiresAt: expiresAt, pinned: pinned
+        )
+        metadataMediaUsageBytes = await metadataMediaClient.usedBytes()
+        return url
+    }
+
+    func pinMetadataMedia(mediaID: String, pinned: Bool) async throws {
+        try await metadataMediaCache.pin(mediaID: mediaID, isPinned: pinned)
+        metadataMediaUsageBytes = await metadataMediaClient.usedBytes()
+    }
+
+    func metadataMediaUsedBytes() async -> Int {
+        await metadataMediaClient.usedBytes()
     }
 
     /// Loads (or lazily creates) the currently assigned controller's
@@ -2039,6 +2161,7 @@ final class AppEnvironment {
         /// `StorageView` used to be handed. A candidate absent here (or
         /// present with `0`) raises no interruptive modal when reclaimed.
         let onlyOnThisMacCounts: [String: Int]
+        let metadataMediaUsageBytes: Int
     }
 
     func storageSnapshot() -> StorageSnapshot {
@@ -2058,7 +2181,8 @@ final class AppEnvironment {
             pinnedGames: pinned,
             unreferenced: evictionPlanner.unreferencedObjects(),
             quarantined: evictionPlanner.quarantinedPartials(),
-            onlyOnThisMacCounts: counts
+            onlyOnThisMacCounts: counts,
+            metadataMediaUsageBytes: metadataMediaUsageBytes
         )
     }
 

@@ -21,8 +21,10 @@ defmodule Playstead.Import.FolderImport do
   alias Playstead.Blobs
   alias Playstead.Catalogue
   alias Playstead.Catalogue.{AssetMember, AssetSet}
-  alias Playstead.Export.Sidecar
+  alias Playstead.Export.{Sanitize, Sidecar}
   alias Playstead.Import.{Receipt, SourceFile}
+  alias Playstead.Metadata
+  alias Playstead.Metadata.PrivateMedia
   alias Playstead.Repo
   alias Playstead.Sync.ChangeJournal
 
@@ -44,19 +46,103 @@ defmodule Playstead.Import.FolderImport do
       {:ok, content} ->
         entries = parse_manifest(content)
 
+        game_entries = Enum.reject(entries, &String.contains?(&1.relative, "/media/originals/"))
+
         receipts =
-          entries
+          game_entries
           |> Enum.group_by(&Path.dirname(&1.relative))
           |> Enum.flat_map(fn {group_dir, group_entries} ->
             import_group(user_id, bag_dir, group_dir, group_entries)
           end)
 
-        {:ok, receipts}
+        case restore_sidecar_metadata(user_id, bag_dir) do
+          :ok -> {:ok, receipts}
+          {:error, reason} -> {:error, reason}
+        end
 
       {:error, reason} ->
         {:error, reason}
     end
   end
+
+  defp restore_sidecar_metadata(user_id, bag_dir) do
+    bag_dir
+    |> Path.join("tags/**/playstead-set.json")
+    |> Path.wildcard()
+    |> Enum.reduce_while(:ok, fn sidecar_path, :ok ->
+      with {:ok, content} <- File.read(sidecar_path),
+           {:ok, sidecar} <- Sidecar.parse(content),
+           %AssetSet{} = asset_set <-
+             Repo.get_by(AssetSet,
+               user_id: user_id,
+               member_fingerprint: sidecar["member_fingerprint"]
+             ),
+           :ok <- restore_description(user_id, asset_set.id, sidecar["metadata_selection"]),
+           :ok <- restore_media(user_id, asset_set.id, bag_dir, sidecar["media"] || []) do
+        {:cont, :ok}
+      else
+        nil -> {:cont, :ok}
+        :ignore -> {:cont, :ok}
+        {:error, :enoent} -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, reason}}
+        _ -> {:cont, :ok}
+      end
+    end)
+  end
+
+  defp restore_description(_user_id, _asset_set_id, nil), do: :ok
+
+  defp restore_description(user_id, asset_set_id, %{
+         "description" => description,
+         "revision" => revision
+       }) do
+    case Metadata.restore_description(user_id, asset_set_id, description, revision) do
+      {:ok, _} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp restore_description(_, _, _), do: {:error, :invalid_metadata_selection}
+
+  defp restore_media(_user_id, _asset_set_id, _bag_dir, []), do: :ok
+
+  defp restore_media(user_id, asset_set_id, bag_dir, media) when is_list(media) do
+    Enum.reduce_while(media, :ok, fn item, :ok ->
+      path = item["path"]
+
+      safe? =
+        is_binary(path) and Path.type(path) == :relative and
+          not Enum.member?(Path.split(path), "..") and String.starts_with?(path, "data/")
+
+      existing_hashes =
+        case PrivateMedia.list(user_id, asset_set_id) do
+          {:ok, items} -> MapSet.new(items, & &1.original_sha256)
+          _ -> MapSet.new()
+        end
+
+      if MapSet.member?(existing_hashes, item["sha256"]) do
+        {:cont, :ok}
+      else
+        with true <- safe?,
+             {:ok, full_path} <- Sanitize.safe_join(bag_dir, path),
+             {:ok, bytes} <- File.read(full_path),
+             true <- byte_size(bytes) == item["size_bytes"],
+             true <- digest(bytes) == item["sha256"],
+             {:ok, _} <-
+               PrivateMedia.create(user_id, asset_set_id, bytes, item["mime"],
+                 provenance: item["provenance"] || %{}
+               ) do
+          {:cont, :ok}
+        else
+          _ -> {:halt, {:error, :invalid_private_media_entry}}
+        end
+      end
+    end)
+  end
+
+  defp restore_media(_, _, _, _), do: {:error, :invalid_private_media_manifest}
+
+  defp digest(bytes), do: :crypto.hash(:sha256, bytes) |> Base.encode16(case: :lower)
 
   defp parse_manifest(content) do
     content

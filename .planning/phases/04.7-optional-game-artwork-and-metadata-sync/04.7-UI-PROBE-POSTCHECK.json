@@ -1,0 +1,1673 @@
+{
+  "phase": "04.7",
+  "post_checker": true,
+  "human_judgment": false,
+  "ui_spec_sha256": "219f94f46a28440aedabeb8d55b8769bd6db1c2caae51d573b8b3972121c892f",
+  "raw_engine_report": {
+    "items": [
+      {
+        "requirement_id": "artwork-card",
+        "category": "empty",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown when there is no data \u2014 zero items, an unfilled form, or absent media?"
+      },
+      {
+        "requirement_id": "artwork-card",
+        "category": "loading",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown while data or content is still loading (skeleton, spinner, progressive reveal)?"
+      },
+      {
+        "requirement_id": "artwork-card",
+        "category": "error",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown when the load or submit fails (message, retry affordance, partial fallback)?"
+      },
+      {
+        "requirement_id": "artwork-card",
+        "category": "populated",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What does the normal populated (happy-path) state look like at a typical volume of content?"
+      },
+      {
+        "requirement_id": "artwork-card",
+        "category": "partial",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown for partial or incomplete data \u2014 some fields or rows present, others missing?"
+      },
+      {
+        "requirement_id": "artwork-card",
+        "category": "overflow",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What happens when content exceeds its container \u2014 scroll, clip, wrap, or truncate?"
+      },
+      {
+        "requirement_id": "artwork-card",
+        "category": "zero-one-many",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "How does the layout read at zero, one, and many items (singular vs plural copy, spacing)?"
+      },
+      {
+        "requirement_id": "artwork-card",
+        "category": "long-text",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What happens with unusually long text \u2014 truncation, wrapping, ellipsis, or reflow?"
+      },
+      {
+        "requirement_id": "game-title",
+        "category": "empty",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown when there is no data \u2014 zero items, an unfilled form, or absent media?"
+      },
+      {
+        "requirement_id": "game-title",
+        "category": "loading",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown while data or content is still loading (skeleton, spinner, progressive reveal)?"
+      },
+      {
+        "requirement_id": "game-title",
+        "category": "error",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown when the load or submit fails (message, retry affordance, partial fallback)?"
+      },
+      {
+        "requirement_id": "game-title",
+        "category": "populated",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What does the normal populated (happy-path) state look like at a typical volume of content?"
+      },
+      {
+        "requirement_id": "game-title",
+        "category": "partial",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown for partial or incomplete data \u2014 some fields or rows present, others missing?"
+      },
+      {
+        "requirement_id": "game-title",
+        "category": "overflow",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What happens when content exceeds its container \u2014 scroll, clip, wrap, or truncate?"
+      },
+      {
+        "requirement_id": "game-title",
+        "category": "zero-one-many",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "How does the layout read at zero, one, and many items (singular vs plural copy, spacing)?"
+      },
+      {
+        "requirement_id": "game-title",
+        "category": "long-text",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What happens with unusually long text \u2014 truncation, wrapping, ellipsis, or reflow?"
+      },
+      {
+        "requirement_id": "game-detail",
+        "category": "empty",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown when there is no data \u2014 zero items, an unfilled form, or absent media?"
+      },
+      {
+        "requirement_id": "game-detail",
+        "category": "loading",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown while data or content is still loading (skeleton, spinner, progressive reveal)?"
+      },
+      {
+        "requirement_id": "game-detail",
+        "category": "error",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown when the load or submit fails (message, retry affordance, partial fallback)?"
+      },
+      {
+        "requirement_id": "game-detail",
+        "category": "populated",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What does the normal populated (happy-path) state look like at a typical volume of content?"
+      },
+      {
+        "requirement_id": "game-detail",
+        "category": "overflow",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What happens when content exceeds its container \u2014 scroll, clip, wrap, or truncate?"
+      },
+      {
+        "requirement_id": "game-detail",
+        "category": "long-text",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What happens with unusually long text \u2014 truncation, wrapping, ellipsis, or reflow?"
+      },
+      {
+        "requirement_id": "description",
+        "category": "overflow",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What happens when content exceeds its container \u2014 scroll, clip, wrap, or truncate?"
+      },
+      {
+        "requirement_id": "description",
+        "category": "long-text",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What happens with unusually long text \u2014 truncation, wrapping, ellipsis, or reflow?"
+      },
+      {
+        "requirement_id": "representative-screenshot",
+        "category": "empty",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown when there is no data \u2014 zero items, an unfilled form, or absent media?"
+      },
+      {
+        "requirement_id": "representative-screenshot",
+        "category": "loading",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown while data or content is still loading (skeleton, spinner, progressive reveal)?"
+      },
+      {
+        "requirement_id": "representative-screenshot",
+        "category": "error",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown when the load or submit fails (message, retry affordance, partial fallback)?"
+      },
+      {
+        "requirement_id": "representative-screenshot",
+        "category": "populated",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What does the normal populated (happy-path) state look like at a typical volume of content?"
+      },
+      {
+        "requirement_id": "representative-screenshot",
+        "category": "overflow",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What happens when content exceeds its container \u2014 scroll, clip, wrap, or truncate?"
+      },
+      {
+        "requirement_id": "representative-screenshot",
+        "category": "long-text",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What happens with unusually long text \u2014 truncation, wrapping, ellipsis, or reflow?"
+      },
+      {
+        "requirement_id": "screenshot-gallery",
+        "category": "empty",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown when there is no data \u2014 zero items, an unfilled form, or absent media?"
+      },
+      {
+        "requirement_id": "screenshot-gallery",
+        "category": "loading",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown while data or content is still loading (skeleton, spinner, progressive reveal)?"
+      },
+      {
+        "requirement_id": "screenshot-gallery",
+        "category": "error",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown when the load or submit fails (message, retry affordance, partial fallback)?"
+      },
+      {
+        "requirement_id": "screenshot-gallery",
+        "category": "populated",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What does the normal populated (happy-path) state look like at a typical volume of content?"
+      },
+      {
+        "requirement_id": "screenshot-gallery",
+        "category": "partial",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown for partial or incomplete data \u2014 some fields or rows present, others missing?"
+      },
+      {
+        "requirement_id": "screenshot-gallery",
+        "category": "overflow",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What happens when content exceeds its container \u2014 scroll, clip, wrap, or truncate?"
+      },
+      {
+        "requirement_id": "screenshot-gallery",
+        "category": "zero-one-many",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "How does the layout read at zero, one, and many items (singular vs plural copy, spacing)?"
+      },
+      {
+        "requirement_id": "screenshot-gallery",
+        "category": "long-text",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What happens with unusually long text \u2014 truncation, wrapping, ellipsis, or reflow?"
+      },
+      {
+        "requirement_id": "provider-consent",
+        "category": "empty",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown when there is no data \u2014 zero items, an unfilled form, or absent media?"
+      },
+      {
+        "requirement_id": "provider-consent",
+        "category": "loading",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown while data or content is still loading (skeleton, spinner, progressive reveal)?"
+      },
+      {
+        "requirement_id": "provider-consent",
+        "category": "error",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown when the load or submit fails (message, retry affordance, partial fallback)?"
+      },
+      {
+        "requirement_id": "provider-consent",
+        "category": "partial",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown for partial or incomplete data \u2014 some fields or rows present, others missing?"
+      },
+      {
+        "requirement_id": "provider-consent",
+        "category": "overflow",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What happens when content exceeds its container \u2014 scroll, clip, wrap, or truncate?"
+      },
+      {
+        "requirement_id": "provider-consent",
+        "category": "long-text",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What happens with unusually long text \u2014 truncation, wrapping, ellipsis, or reflow?"
+      },
+      {
+        "requirement_id": "match-candidates",
+        "category": "empty",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown when there is no data \u2014 zero items, an unfilled form, or absent media?"
+      },
+      {
+        "requirement_id": "match-candidates",
+        "category": "loading",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown while data or content is still loading (skeleton, spinner, progressive reveal)?"
+      },
+      {
+        "requirement_id": "match-candidates",
+        "category": "error",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown when the load or submit fails (message, retry affordance, partial fallback)?"
+      },
+      {
+        "requirement_id": "match-candidates",
+        "category": "populated",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What does the normal populated (happy-path) state look like at a typical volume of content?"
+      },
+      {
+        "requirement_id": "match-candidates",
+        "category": "partial",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown for partial or incomplete data \u2014 some fields or rows present, others missing?"
+      },
+      {
+        "requirement_id": "match-candidates",
+        "category": "overflow",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What happens when content exceeds its container \u2014 scroll, clip, wrap, or truncate?"
+      },
+      {
+        "requirement_id": "match-candidates",
+        "category": "zero-one-many",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "How does the layout read at zero, one, and many items (singular vs plural copy, spacing)?"
+      },
+      {
+        "requirement_id": "match-candidates",
+        "category": "long-text",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What happens with unusually long text \u2014 truncation, wrapping, ellipsis, or reflow?"
+      },
+      {
+        "requirement_id": "local-media-form",
+        "category": "empty",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown when there is no data \u2014 zero items, an unfilled form, or absent media?"
+      },
+      {
+        "requirement_id": "local-media-form",
+        "category": "loading",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown while data or content is still loading (skeleton, spinner, progressive reveal)?"
+      },
+      {
+        "requirement_id": "local-media-form",
+        "category": "error",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown when the load or submit fails (message, retry affordance, partial fallback)?"
+      },
+      {
+        "requirement_id": "local-media-form",
+        "category": "populated",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What does the normal populated (happy-path) state look like at a typical volume of content?"
+      },
+      {
+        "requirement_id": "local-media-form",
+        "category": "partial",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown for partial or incomplete data \u2014 some fields or rows present, others missing?"
+      },
+      {
+        "requirement_id": "local-media-form",
+        "category": "overflow",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What happens when content exceeds its container \u2014 scroll, clip, wrap, or truncate?"
+      },
+      {
+        "requirement_id": "local-media-form",
+        "category": "long-text",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What happens with unusually long text \u2014 truncation, wrapping, ellipsis, or reflow?"
+      },
+      {
+        "requirement_id": "metadata-corrections",
+        "category": "empty",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown when there is no data \u2014 zero items, an unfilled form, or absent media?"
+      },
+      {
+        "requirement_id": "metadata-corrections",
+        "category": "loading",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown while data or content is still loading (skeleton, spinner, progressive reveal)?"
+      },
+      {
+        "requirement_id": "metadata-corrections",
+        "category": "error",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown when the load or submit fails (message, retry affordance, partial fallback)?"
+      },
+      {
+        "requirement_id": "metadata-corrections",
+        "category": "populated",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What does the normal populated (happy-path) state look like at a typical volume of content?"
+      },
+      {
+        "requirement_id": "metadata-corrections",
+        "category": "partial",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown for partial or incomplete data \u2014 some fields or rows present, others missing?"
+      },
+      {
+        "requirement_id": "metadata-corrections",
+        "category": "overflow",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What happens when content exceeds its container \u2014 scroll, clip, wrap, or truncate?"
+      },
+      {
+        "requirement_id": "metadata-corrections",
+        "category": "zero-one-many",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "How does the layout read at zero, one, and many items (singular vs plural copy, spacing)?"
+      },
+      {
+        "requirement_id": "metadata-corrections",
+        "category": "long-text",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What happens with unusually long text \u2014 truncation, wrapping, ellipsis, or reflow?"
+      },
+      {
+        "requirement_id": "delivery-preparation",
+        "category": "empty",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown when there is no data \u2014 zero items, an unfilled form, or absent media?"
+      },
+      {
+        "requirement_id": "delivery-preparation",
+        "category": "loading",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown while data or content is still loading (skeleton, spinner, progressive reveal)?"
+      },
+      {
+        "requirement_id": "delivery-preparation",
+        "category": "error",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown when the load or submit fails (message, retry affordance, partial fallback)?"
+      },
+      {
+        "requirement_id": "delivery-preparation",
+        "category": "populated",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What does the normal populated (happy-path) state look like at a typical volume of content?"
+      },
+      {
+        "requirement_id": "delivery-preparation",
+        "category": "partial",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown for partial or incomplete data \u2014 some fields or rows present, others missing?"
+      },
+      {
+        "requirement_id": "delivery-preparation",
+        "category": "overflow",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What happens when content exceeds its container \u2014 scroll, clip, wrap, or truncate?"
+      },
+      {
+        "requirement_id": "delivery-preparation",
+        "category": "zero-one-many",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "How does the layout read at zero, one, and many items (singular vs plural copy, spacing)?"
+      },
+      {
+        "requirement_id": "delivery-preparation",
+        "category": "long-text",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What happens with unusually long text \u2014 truncation, wrapping, ellipsis, or reflow?"
+      },
+      {
+        "requirement_id": "media-cache-controls",
+        "category": "empty",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown when there is no data \u2014 zero items, an unfilled form, or absent media?"
+      },
+      {
+        "requirement_id": "media-cache-controls",
+        "category": "loading",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown while data or content is still loading (skeleton, spinner, progressive reveal)?"
+      },
+      {
+        "requirement_id": "media-cache-controls",
+        "category": "error",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown when the load or submit fails (message, retry affordance, partial fallback)?"
+      },
+      {
+        "requirement_id": "media-cache-controls",
+        "category": "populated",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What does the normal populated (happy-path) state look like at a typical volume of content?"
+      },
+      {
+        "requirement_id": "media-cache-controls",
+        "category": "partial",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown for partial or incomplete data \u2014 some fields or rows present, others missing?"
+      },
+      {
+        "requirement_id": "media-cache-controls",
+        "category": "overflow",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What happens when content exceeds its container \u2014 scroll, clip, wrap, or truncate?"
+      },
+      {
+        "requirement_id": "media-cache-controls",
+        "category": "zero-one-many",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "How does the layout read at zero, one, and many items (singular vs plural copy, spacing)?"
+      },
+      {
+        "requirement_id": "media-cache-controls",
+        "category": "long-text",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What happens with unusually long text \u2014 truncation, wrapping, ellipsis, or reflow?"
+      },
+      {
+        "requirement_id": "metadata-settings-navigation",
+        "category": "empty",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown when there is no data \u2014 zero items, an unfilled form, or absent media?"
+      },
+      {
+        "requirement_id": "metadata-settings-navigation",
+        "category": "loading",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown while data or content is still loading (skeleton, spinner, progressive reveal)?"
+      },
+      {
+        "requirement_id": "metadata-settings-navigation",
+        "category": "error",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown when the load or submit fails (message, retry affordance, partial fallback)?"
+      },
+      {
+        "requirement_id": "metadata-settings-navigation",
+        "category": "populated",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What does the normal populated (happy-path) state look like at a typical volume of content?"
+      },
+      {
+        "requirement_id": "metadata-settings-navigation",
+        "category": "partial",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What is shown for partial or incomplete data \u2014 some fields or rows present, others missing?"
+      },
+      {
+        "requirement_id": "metadata-settings-navigation",
+        "category": "overflow",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What happens when content exceeds its container \u2014 scroll, clip, wrap, or truncate?"
+      },
+      {
+        "requirement_id": "metadata-settings-navigation",
+        "category": "zero-one-many",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "How does the layout read at zero, one, and many items (singular vs plural copy, spacing)?"
+      },
+      {
+        "requirement_id": "metadata-settings-navigation",
+        "category": "long-text",
+        "status": "unresolved",
+        "verification": null,
+        "resolution": null,
+        "reason": null,
+        "probe": "What happens with unusually long text \u2014 truncation, wrapping, ellipsis, or reflow?"
+      }
+    ],
+    "coverage": {
+      "applicable": 91,
+      "resolved": 0,
+      "unresolved": 91,
+      "unclassified": 0,
+      "byVerification": {
+        "explicit": 0,
+        "backstop": 0
+      }
+    }
+  },
+  "resolved_report": {
+    "items": [
+      {
+        "requirement_id": "artwork-card",
+        "category": "empty",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "With no data, render the named empty copy and keep game identity and direct action visible.",
+        "reason": null,
+        "probe": "What is shown when there is no data \u2014 zero items, an unfilled form, or absent media?"
+      },
+      {
+        "requirement_id": "artwork-card",
+        "category": "loading",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Keep existing content and Play or Continue visible; show accessible progress only in the affected metadata/media region.",
+        "reason": null,
+        "probe": "What is shown while data or content is still loading (skeleton, spinner, progressive reveal)?"
+      },
+      {
+        "requirement_id": "artwork-card",
+        "category": "error",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Show the affected operation, contextual error, and Retry or next action; enrichment is never an availability blocker.",
+        "reason": null,
+        "probe": "What is shown when the load or submit fails (message, retry affordance, partial fallback)?"
+      },
+      {
+        "requirement_id": "artwork-card",
+        "category": "populated",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Render truthful selected content at preserved aspect ratio with source, evidence, attribution, and cache state.",
+        "reason": null,
+        "probe": "What does the normal populated (happy-path) state look like at a typical volume of content?"
+      },
+      {
+        "requirement_id": "artwork-card",
+        "category": "partial",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Keep successful fields and corrections; mark only unavailable fields and offer field-level retry.",
+        "reason": null,
+        "probe": "What is shown for partial or incomplete data \u2014 some fields or rows present, others missing?"
+      },
+      {
+        "requirement_id": "artwork-card",
+        "category": "overflow",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Scroll within bounded native content; retain fixed card geometry and all action regions.",
+        "reason": null,
+        "probe": "What happens when content exceeds its container \u2014 scroll, clip, wrap, or truncate?"
+      },
+      {
+        "requirement_id": "artwork-card",
+        "category": "zero-one-many",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Show a clear zero state, singular count for one item, and count plus traversal for many items.",
+        "reason": null,
+        "probe": "How does the layout read at zero, one, and many items (singular vs plural copy, spacing)?"
+      },
+      {
+        "requirement_id": "artwork-card",
+        "category": "long-text",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Wrap and scroll detail text; clamp card titles to two lines and keep actions legible.",
+        "reason": null,
+        "probe": "What happens with unusually long text \u2014 truncation, wrapping, ellipsis, or reflow?"
+      },
+      {
+        "requirement_id": "game-title",
+        "category": "empty",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "With no data, render the named empty copy and keep game identity and direct action visible.",
+        "reason": null,
+        "probe": "What is shown when there is no data \u2014 zero items, an unfilled form, or absent media?"
+      },
+      {
+        "requirement_id": "game-title",
+        "category": "loading",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Keep existing content and Play or Continue visible; show accessible progress only in the affected metadata/media region.",
+        "reason": null,
+        "probe": "What is shown while data or content is still loading (skeleton, spinner, progressive reveal)?"
+      },
+      {
+        "requirement_id": "game-title",
+        "category": "error",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Show the affected operation, contextual error, and Retry or next action; enrichment is never an availability blocker.",
+        "reason": null,
+        "probe": "What is shown when the load or submit fails (message, retry affordance, partial fallback)?"
+      },
+      {
+        "requirement_id": "game-title",
+        "category": "populated",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Render truthful selected content at preserved aspect ratio with source, evidence, attribution, and cache state.",
+        "reason": null,
+        "probe": "What does the normal populated (happy-path) state look like at a typical volume of content?"
+      },
+      {
+        "requirement_id": "game-title",
+        "category": "partial",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Keep successful fields and corrections; mark only unavailable fields and offer field-level retry.",
+        "reason": null,
+        "probe": "What is shown for partial or incomplete data \u2014 some fields or rows present, others missing?"
+      },
+      {
+        "requirement_id": "game-title",
+        "category": "overflow",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Scroll within bounded native content; retain fixed card geometry and all action regions.",
+        "reason": null,
+        "probe": "What happens when content exceeds its container \u2014 scroll, clip, wrap, or truncate?"
+      },
+      {
+        "requirement_id": "game-title",
+        "category": "zero-one-many",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Show a clear zero state, singular count for one item, and count plus traversal for many items.",
+        "reason": null,
+        "probe": "How does the layout read at zero, one, and many items (singular vs plural copy, spacing)?"
+      },
+      {
+        "requirement_id": "game-title",
+        "category": "long-text",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Wrap and scroll detail text; clamp card titles to two lines and keep actions legible.",
+        "reason": null,
+        "probe": "What happens with unusually long text \u2014 truncation, wrapping, ellipsis, or reflow?"
+      },
+      {
+        "requirement_id": "game-detail",
+        "category": "empty",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "With no data, render the named empty copy and keep game identity and direct action visible.",
+        "reason": null,
+        "probe": "What is shown when there is no data \u2014 zero items, an unfilled form, or absent media?"
+      },
+      {
+        "requirement_id": "game-detail",
+        "category": "loading",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Keep existing content and Play or Continue visible; show accessible progress only in the affected metadata/media region.",
+        "reason": null,
+        "probe": "What is shown while data or content is still loading (skeleton, spinner, progressive reveal)?"
+      },
+      {
+        "requirement_id": "game-detail",
+        "category": "error",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Show the affected operation, contextual error, and Retry or next action; enrichment is never an availability blocker.",
+        "reason": null,
+        "probe": "What is shown when the load or submit fails (message, retry affordance, partial fallback)?"
+      },
+      {
+        "requirement_id": "game-detail",
+        "category": "populated",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Render truthful selected content at preserved aspect ratio with source, evidence, attribution, and cache state.",
+        "reason": null,
+        "probe": "What does the normal populated (happy-path) state look like at a typical volume of content?"
+      },
+      {
+        "requirement_id": "game-detail",
+        "category": "overflow",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Scroll within bounded native content; retain fixed card geometry and all action regions.",
+        "reason": null,
+        "probe": "What happens when content exceeds its container \u2014 scroll, clip, wrap, or truncate?"
+      },
+      {
+        "requirement_id": "game-detail",
+        "category": "long-text",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Wrap and scroll detail text; clamp card titles to two lines and keep actions legible.",
+        "reason": null,
+        "probe": "What happens with unusually long text \u2014 truncation, wrapping, ellipsis, or reflow?"
+      },
+      {
+        "requirement_id": "description",
+        "category": "overflow",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Scroll within bounded native content; retain fixed card geometry and all action regions.",
+        "reason": null,
+        "probe": "What happens when content exceeds its container \u2014 scroll, clip, wrap, or truncate?"
+      },
+      {
+        "requirement_id": "description",
+        "category": "long-text",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Wrap and scroll detail text; clamp card titles to two lines and keep actions legible.",
+        "reason": null,
+        "probe": "What happens with unusually long text \u2014 truncation, wrapping, ellipsis, or reflow?"
+      },
+      {
+        "requirement_id": "representative-screenshot",
+        "category": "empty",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "With no data, render the named empty copy and keep game identity and direct action visible.",
+        "reason": null,
+        "probe": "What is shown when there is no data \u2014 zero items, an unfilled form, or absent media?"
+      },
+      {
+        "requirement_id": "representative-screenshot",
+        "category": "loading",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Keep existing content and Play or Continue visible; show accessible progress only in the affected metadata/media region.",
+        "reason": null,
+        "probe": "What is shown while data or content is still loading (skeleton, spinner, progressive reveal)?"
+      },
+      {
+        "requirement_id": "representative-screenshot",
+        "category": "error",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Show the affected operation, contextual error, and Retry or next action; enrichment is never an availability blocker.",
+        "reason": null,
+        "probe": "What is shown when the load or submit fails (message, retry affordance, partial fallback)?"
+      },
+      {
+        "requirement_id": "representative-screenshot",
+        "category": "populated",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Render truthful selected content at preserved aspect ratio with source, evidence, attribution, and cache state.",
+        "reason": null,
+        "probe": "What does the normal populated (happy-path) state look like at a typical volume of content?"
+      },
+      {
+        "requirement_id": "representative-screenshot",
+        "category": "overflow",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Scroll within bounded native content; retain fixed card geometry and all action regions.",
+        "reason": null,
+        "probe": "What happens when content exceeds its container \u2014 scroll, clip, wrap, or truncate?"
+      },
+      {
+        "requirement_id": "representative-screenshot",
+        "category": "long-text",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Wrap and scroll detail text; clamp card titles to two lines and keep actions legible.",
+        "reason": null,
+        "probe": "What happens with unusually long text \u2014 truncation, wrapping, ellipsis, or reflow?"
+      },
+      {
+        "requirement_id": "screenshot-gallery",
+        "category": "empty",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "With no data, render the named empty copy and keep game identity and direct action visible.",
+        "reason": null,
+        "probe": "What is shown when there is no data \u2014 zero items, an unfilled form, or absent media?"
+      },
+      {
+        "requirement_id": "screenshot-gallery",
+        "category": "loading",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Keep existing content and Play or Continue visible; show accessible progress only in the affected metadata/media region.",
+        "reason": null,
+        "probe": "What is shown while data or content is still loading (skeleton, spinner, progressive reveal)?"
+      },
+      {
+        "requirement_id": "screenshot-gallery",
+        "category": "error",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Show the affected operation, contextual error, and Retry or next action; enrichment is never an availability blocker.",
+        "reason": null,
+        "probe": "What is shown when the load or submit fails (message, retry affordance, partial fallback)?"
+      },
+      {
+        "requirement_id": "screenshot-gallery",
+        "category": "populated",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Render truthful selected content at preserved aspect ratio with source, evidence, attribution, and cache state.",
+        "reason": null,
+        "probe": "What does the normal populated (happy-path) state look like at a typical volume of content?"
+      },
+      {
+        "requirement_id": "screenshot-gallery",
+        "category": "partial",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Keep successful fields and corrections; mark only unavailable fields and offer field-level retry.",
+        "reason": null,
+        "probe": "What is shown for partial or incomplete data \u2014 some fields or rows present, others missing?"
+      },
+      {
+        "requirement_id": "screenshot-gallery",
+        "category": "overflow",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Scroll within bounded native content; retain fixed card geometry and all action regions.",
+        "reason": null,
+        "probe": "What happens when content exceeds its container \u2014 scroll, clip, wrap, or truncate?"
+      },
+      {
+        "requirement_id": "screenshot-gallery",
+        "category": "zero-one-many",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Show a clear zero state, singular count for one item, and count plus traversal for many items.",
+        "reason": null,
+        "probe": "How does the layout read at zero, one, and many items (singular vs plural copy, spacing)?"
+      },
+      {
+        "requirement_id": "screenshot-gallery",
+        "category": "long-text",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Wrap and scroll detail text; clamp card titles to two lines and keep actions legible.",
+        "reason": null,
+        "probe": "What happens with unusually long text \u2014 truncation, wrapping, ellipsis, or reflow?"
+      },
+      {
+        "requirement_id": "provider-consent",
+        "category": "empty",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "With no data, render the named empty copy and keep game identity and direct action visible.",
+        "reason": null,
+        "probe": "What is shown when there is no data \u2014 zero items, an unfilled form, or absent media?"
+      },
+      {
+        "requirement_id": "provider-consent",
+        "category": "loading",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Keep existing content and Play or Continue visible; show accessible progress only in the affected metadata/media region.",
+        "reason": null,
+        "probe": "What is shown while data or content is still loading (skeleton, spinner, progressive reveal)?"
+      },
+      {
+        "requirement_id": "provider-consent",
+        "category": "error",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Show the affected operation, contextual error, and Retry or next action; enrichment is never an availability blocker.",
+        "reason": null,
+        "probe": "What is shown when the load or submit fails (message, retry affordance, partial fallback)?"
+      },
+      {
+        "requirement_id": "provider-consent",
+        "category": "partial",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Keep successful fields and corrections; mark only unavailable fields and offer field-level retry.",
+        "reason": null,
+        "probe": "What is shown for partial or incomplete data \u2014 some fields or rows present, others missing?"
+      },
+      {
+        "requirement_id": "provider-consent",
+        "category": "overflow",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Scroll within bounded native content; retain fixed card geometry and all action regions.",
+        "reason": null,
+        "probe": "What happens when content exceeds its container \u2014 scroll, clip, wrap, or truncate?"
+      },
+      {
+        "requirement_id": "provider-consent",
+        "category": "long-text",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Wrap and scroll detail text; clamp card titles to two lines and keep actions legible.",
+        "reason": null,
+        "probe": "What happens with unusually long text \u2014 truncation, wrapping, ellipsis, or reflow?"
+      },
+      {
+        "requirement_id": "match-candidates",
+        "category": "empty",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "With no data, render the named empty copy and keep game identity and direct action visible.",
+        "reason": null,
+        "probe": "What is shown when there is no data \u2014 zero items, an unfilled form, or absent media?"
+      },
+      {
+        "requirement_id": "match-candidates",
+        "category": "loading",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Keep existing content and Play or Continue visible; show accessible progress only in the affected metadata/media region.",
+        "reason": null,
+        "probe": "What is shown while data or content is still loading (skeleton, spinner, progressive reveal)?"
+      },
+      {
+        "requirement_id": "match-candidates",
+        "category": "error",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Show the affected operation, contextual error, and Retry or next action; enrichment is never an availability blocker.",
+        "reason": null,
+        "probe": "What is shown when the load or submit fails (message, retry affordance, partial fallback)?"
+      },
+      {
+        "requirement_id": "match-candidates",
+        "category": "populated",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Render truthful selected content at preserved aspect ratio with source, evidence, attribution, and cache state.",
+        "reason": null,
+        "probe": "What does the normal populated (happy-path) state look like at a typical volume of content?"
+      },
+      {
+        "requirement_id": "match-candidates",
+        "category": "partial",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Keep successful fields and corrections; mark only unavailable fields and offer field-level retry.",
+        "reason": null,
+        "probe": "What is shown for partial or incomplete data \u2014 some fields or rows present, others missing?"
+      },
+      {
+        "requirement_id": "match-candidates",
+        "category": "overflow",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Scroll within bounded native content; retain fixed card geometry and all action regions.",
+        "reason": null,
+        "probe": "What happens when content exceeds its container \u2014 scroll, clip, wrap, or truncate?"
+      },
+      {
+        "requirement_id": "match-candidates",
+        "category": "zero-one-many",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Show a clear zero state, singular count for one item, and count plus traversal for many items.",
+        "reason": null,
+        "probe": "How does the layout read at zero, one, and many items (singular vs plural copy, spacing)?"
+      },
+      {
+        "requirement_id": "match-candidates",
+        "category": "long-text",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Wrap and scroll detail text; clamp card titles to two lines and keep actions legible.",
+        "reason": null,
+        "probe": "What happens with unusually long text \u2014 truncation, wrapping, ellipsis, or reflow?"
+      },
+      {
+        "requirement_id": "local-media-form",
+        "category": "empty",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "With no data, render the named empty copy and keep game identity and direct action visible.",
+        "reason": null,
+        "probe": "What is shown when there is no data \u2014 zero items, an unfilled form, or absent media?"
+      },
+      {
+        "requirement_id": "local-media-form",
+        "category": "loading",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Keep existing content and Play or Continue visible; show accessible progress only in the affected metadata/media region.",
+        "reason": null,
+        "probe": "What is shown while data or content is still loading (skeleton, spinner, progressive reveal)?"
+      },
+      {
+        "requirement_id": "local-media-form",
+        "category": "error",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Show the affected operation, contextual error, and Retry or next action; enrichment is never an availability blocker.",
+        "reason": null,
+        "probe": "What is shown when the load or submit fails (message, retry affordance, partial fallback)?"
+      },
+      {
+        "requirement_id": "local-media-form",
+        "category": "populated",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Render truthful selected content at preserved aspect ratio with source, evidence, attribution, and cache state.",
+        "reason": null,
+        "probe": "What does the normal populated (happy-path) state look like at a typical volume of content?"
+      },
+      {
+        "requirement_id": "local-media-form",
+        "category": "partial",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Keep successful fields and corrections; mark only unavailable fields and offer field-level retry.",
+        "reason": null,
+        "probe": "What is shown for partial or incomplete data \u2014 some fields or rows present, others missing?"
+      },
+      {
+        "requirement_id": "local-media-form",
+        "category": "overflow",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Scroll within bounded native content; retain fixed card geometry and all action regions.",
+        "reason": null,
+        "probe": "What happens when content exceeds its container \u2014 scroll, clip, wrap, or truncate?"
+      },
+      {
+        "requirement_id": "local-media-form",
+        "category": "long-text",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Wrap and scroll detail text; clamp card titles to two lines and keep actions legible.",
+        "reason": null,
+        "probe": "What happens with unusually long text \u2014 truncation, wrapping, ellipsis, or reflow?"
+      },
+      {
+        "requirement_id": "metadata-corrections",
+        "category": "empty",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "With no data, render the named empty copy and keep game identity and direct action visible.",
+        "reason": null,
+        "probe": "What is shown when there is no data \u2014 zero items, an unfilled form, or absent media?"
+      },
+      {
+        "requirement_id": "metadata-corrections",
+        "category": "loading",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Keep existing content and Play or Continue visible; show accessible progress only in the affected metadata/media region.",
+        "reason": null,
+        "probe": "What is shown while data or content is still loading (skeleton, spinner, progressive reveal)?"
+      },
+      {
+        "requirement_id": "metadata-corrections",
+        "category": "error",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Show the affected operation, contextual error, and Retry or next action; enrichment is never an availability blocker.",
+        "reason": null,
+        "probe": "What is shown when the load or submit fails (message, retry affordance, partial fallback)?"
+      },
+      {
+        "requirement_id": "metadata-corrections",
+        "category": "populated",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Render truthful selected content at preserved aspect ratio with source, evidence, attribution, and cache state.",
+        "reason": null,
+        "probe": "What does the normal populated (happy-path) state look like at a typical volume of content?"
+      },
+      {
+        "requirement_id": "metadata-corrections",
+        "category": "partial",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Keep successful fields and corrections; mark only unavailable fields and offer field-level retry.",
+        "reason": null,
+        "probe": "What is shown for partial or incomplete data \u2014 some fields or rows present, others missing?"
+      },
+      {
+        "requirement_id": "metadata-corrections",
+        "category": "overflow",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Scroll within bounded native content; retain fixed card geometry and all action regions.",
+        "reason": null,
+        "probe": "What happens when content exceeds its container \u2014 scroll, clip, wrap, or truncate?"
+      },
+      {
+        "requirement_id": "metadata-corrections",
+        "category": "zero-one-many",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Show a clear zero state, singular count for one item, and count plus traversal for many items.",
+        "reason": null,
+        "probe": "How does the layout read at zero, one, and many items (singular vs plural copy, spacing)?"
+      },
+      {
+        "requirement_id": "metadata-corrections",
+        "category": "long-text",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Wrap and scroll detail text; clamp card titles to two lines and keep actions legible.",
+        "reason": null,
+        "probe": "What happens with unusually long text \u2014 truncation, wrapping, ellipsis, or reflow?"
+      },
+      {
+        "requirement_id": "delivery-preparation",
+        "category": "empty",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "With no data, render the named empty copy and keep game identity and direct action visible.",
+        "reason": null,
+        "probe": "What is shown when there is no data \u2014 zero items, an unfilled form, or absent media?"
+      },
+      {
+        "requirement_id": "delivery-preparation",
+        "category": "loading",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Keep existing content and Play or Continue visible; show accessible progress only in the affected metadata/media region.",
+        "reason": null,
+        "probe": "What is shown while data or content is still loading (skeleton, spinner, progressive reveal)?"
+      },
+      {
+        "requirement_id": "delivery-preparation",
+        "category": "error",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Show the affected operation, contextual error, and Retry or next action; enrichment is never an availability blocker.",
+        "reason": null,
+        "probe": "What is shown when the load or submit fails (message, retry affordance, partial fallback)?"
+      },
+      {
+        "requirement_id": "delivery-preparation",
+        "category": "populated",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Render truthful selected content at preserved aspect ratio with source, evidence, attribution, and cache state.",
+        "reason": null,
+        "probe": "What does the normal populated (happy-path) state look like at a typical volume of content?"
+      },
+      {
+        "requirement_id": "delivery-preparation",
+        "category": "partial",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Keep successful fields and corrections; mark only unavailable fields and offer field-level retry.",
+        "reason": null,
+        "probe": "What is shown for partial or incomplete data \u2014 some fields or rows present, others missing?"
+      },
+      {
+        "requirement_id": "delivery-preparation",
+        "category": "overflow",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Scroll within bounded native content; retain fixed card geometry and all action regions.",
+        "reason": null,
+        "probe": "What happens when content exceeds its container \u2014 scroll, clip, wrap, or truncate?"
+      },
+      {
+        "requirement_id": "delivery-preparation",
+        "category": "zero-one-many",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Show a clear zero state, singular count for one item, and count plus traversal for many items.",
+        "reason": null,
+        "probe": "How does the layout read at zero, one, and many items (singular vs plural copy, spacing)?"
+      },
+      {
+        "requirement_id": "delivery-preparation",
+        "category": "long-text",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Wrap and scroll detail text; clamp card titles to two lines and keep actions legible.",
+        "reason": null,
+        "probe": "What happens with unusually long text \u2014 truncation, wrapping, ellipsis, or reflow?"
+      },
+      {
+        "requirement_id": "media-cache-controls",
+        "category": "empty",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "With no data, render the named empty copy and keep game identity and direct action visible.",
+        "reason": null,
+        "probe": "What is shown when there is no data \u2014 zero items, an unfilled form, or absent media?"
+      },
+      {
+        "requirement_id": "media-cache-controls",
+        "category": "loading",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Keep existing content and Play or Continue visible; show accessible progress only in the affected metadata/media region.",
+        "reason": null,
+        "probe": "What is shown while data or content is still loading (skeleton, spinner, progressive reveal)?"
+      },
+      {
+        "requirement_id": "media-cache-controls",
+        "category": "error",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Show the affected operation, contextual error, and Retry or next action; enrichment is never an availability blocker.",
+        "reason": null,
+        "probe": "What is shown when the load or submit fails (message, retry affordance, partial fallback)?"
+      },
+      {
+        "requirement_id": "media-cache-controls",
+        "category": "populated",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Render truthful selected content at preserved aspect ratio with source, evidence, attribution, and cache state.",
+        "reason": null,
+        "probe": "What does the normal populated (happy-path) state look like at a typical volume of content?"
+      },
+      {
+        "requirement_id": "media-cache-controls",
+        "category": "partial",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Keep successful fields and corrections; mark only unavailable fields and offer field-level retry.",
+        "reason": null,
+        "probe": "What is shown for partial or incomplete data \u2014 some fields or rows present, others missing?"
+      },
+      {
+        "requirement_id": "media-cache-controls",
+        "category": "overflow",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Scroll within bounded native content; retain fixed card geometry and all action regions.",
+        "reason": null,
+        "probe": "What happens when content exceeds its container \u2014 scroll, clip, wrap, or truncate?"
+      },
+      {
+        "requirement_id": "media-cache-controls",
+        "category": "zero-one-many",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Show a clear zero state, singular count for one item, and count plus traversal for many items.",
+        "reason": null,
+        "probe": "How does the layout read at zero, one, and many items (singular vs plural copy, spacing)?"
+      },
+      {
+        "requirement_id": "media-cache-controls",
+        "category": "long-text",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Wrap and scroll detail text; clamp card titles to two lines and keep actions legible.",
+        "reason": null,
+        "probe": "What happens with unusually long text \u2014 truncation, wrapping, ellipsis, or reflow?"
+      },
+      {
+        "requirement_id": "metadata-settings-navigation",
+        "category": "empty",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "With no data, render the named empty copy and keep game identity and direct action visible.",
+        "reason": null,
+        "probe": "What is shown when there is no data \u2014 zero items, an unfilled form, or absent media?"
+      },
+      {
+        "requirement_id": "metadata-settings-navigation",
+        "category": "loading",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Keep existing content and Play or Continue visible; show accessible progress only in the affected metadata/media region.",
+        "reason": null,
+        "probe": "What is shown while data or content is still loading (skeleton, spinner, progressive reveal)?"
+      },
+      {
+        "requirement_id": "metadata-settings-navigation",
+        "category": "error",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Show the affected operation, contextual error, and Retry or next action; enrichment is never an availability blocker.",
+        "reason": null,
+        "probe": "What is shown when the load or submit fails (message, retry affordance, partial fallback)?"
+      },
+      {
+        "requirement_id": "metadata-settings-navigation",
+        "category": "populated",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Render truthful selected content at preserved aspect ratio with source, evidence, attribution, and cache state.",
+        "reason": null,
+        "probe": "What does the normal populated (happy-path) state look like at a typical volume of content?"
+      },
+      {
+        "requirement_id": "metadata-settings-navigation",
+        "category": "partial",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Keep successful fields and corrections; mark only unavailable fields and offer field-level retry.",
+        "reason": null,
+        "probe": "What is shown for partial or incomplete data \u2014 some fields or rows present, others missing?"
+      },
+      {
+        "requirement_id": "metadata-settings-navigation",
+        "category": "overflow",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Scroll within bounded native content; retain fixed card geometry and all action regions.",
+        "reason": null,
+        "probe": "What happens when content exceeds its container \u2014 scroll, clip, wrap, or truncate?"
+      },
+      {
+        "requirement_id": "metadata-settings-navigation",
+        "category": "zero-one-many",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Show a clear zero state, singular count for one item, and count plus traversal for many items.",
+        "reason": null,
+        "probe": "How does the layout read at zero, one, and many items (singular vs plural copy, spacing)?"
+      },
+      {
+        "requirement_id": "metadata-settings-navigation",
+        "category": "long-text",
+        "status": "resolved",
+        "verification": "explicit",
+        "resolution": "Wrap and scroll detail text; clamp card titles to two lines and keep actions legible.",
+        "reason": null,
+        "probe": "What happens with unusually long text \u2014 truncation, wrapping, ellipsis, or reflow?"
+      }
+    ],
+    "coverage": {
+      "applicable": 91,
+      "resolved": 91,
+      "unresolved": 0,
+      "unclassified": 0,
+      "byVerification": {
+        "explicit": 91,
+        "backstop": 0
+      }
+    }
+  },
+  "resolution_source": "Final approved UI-SPEC explicit UI Considerations; exact element/category identity set revalidated after checker"
+}

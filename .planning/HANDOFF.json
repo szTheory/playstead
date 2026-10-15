@@ -1,0 +1,455 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-10-15T07:17:47.431339+00:00",
+  "context": "All metadata/UI/live repairs pass atc5117a0; timer cancellation join qualifies by direct-source controlled regression; final CI pending.",
+  "work_type": "phase",
+  "quick_id": null,
+  "phase": "4.7",
+  "phase_name": "Optional game artwork and metadata sync",
+  "phase_dir": ".planning/phases/04.7-optional-game-artwork-and-metadata-sync",
+  "handoff_path": ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/continue.md",
+  "status": "shipping_ticker_fix_qualified_pending_ci",
+  "task": "Phase4.7 ordered squash delivery",
+  "total_tasks": 10,
+  "completed_tasks": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "remaining_tasks": [
+    "Qualify loopback fixture and deterministic save unit repair; refresh source fingerprint",
+    "Require all five exact final-head CI jobs; already-authorized squash PR13; verify main tree and cleanup"
+  ],
+  "blockers": [],
+  "async_jobs": [],
+  "human_actions_pending": [],
+  "next_command": "$gsd-ship 4.7",
+  "next_command_ready": true,
+  "next_command_prerequisites": [],
+  "next_action": "Commit/push qualified ticker join and refreshed source gate; require all5exact-head CI jobs, then guarded authorized PR13 squash/tree/cleanup. Old watcher/finalizer ended; do not reuse their stale pins.",
+  "source_lineage": {
+    "source": "ed8710d",
+    "audit": "8380a08",
+    "owner_branch": "feat/dev-standup-and-uat7-closure",
+    "workspace_composition": true,
+    "unrelated_owner_edits_preserved": true
+  },
+  "evidence": {
+    "verification": ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-VERIFICATION.md",
+    "gates": ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-FINAL-GATES-EVIDENCE.json",
+    "expiry": ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-09-ARTWORK-EXPIRY-EVIDENCE.json",
+    "live": ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-09-LIVE-FINAL-EVIDENCE.json"
+  },
+  "task_process_ownership": {
+    "local_native": [],
+    "hosted": [],
+    "build_sessions": "No Xcode build; Swift CLI compilation and all bounded mGBA/Python sessions completed. Exact-executable inventory has no retained app/build.",
+    "private_evidence_root": "playstead-mac/.local/gb-gbc-spike",
+    "task_profiles_retained": [
+      "gb-mbc1-8k",
+      "gbc-mbc5-32k",
+      "gbc-mbc3-rtc"
+    ],
+    "personal_session_launched": false,
+    "server_stack_created": false,
+    "owner_fixture_mutated": false
+  },
+  "authorization": {
+    "ordinary_local_no_hid_launch": "standing owner authorization; wrapper-scoped inline only when needed",
+    "apple_hid_and_physical": "parked; owner approval signal required; no polling, retries or repeated questions"
+  },
+  "no_repeat": [
+    "261010-v63 implementation, initialization or its passing unchanged software/build evidence",
+    "Phase 05.1 acceptance/release/save/snapshot/debug closure already qualified",
+    "Apple/HID polling or retries without owner signal and prerequisites",
+    "Owner fixture selection, disposable login or pairing setup before existing registry is checked",
+    "Completed GB/GBC spike feasibility and unchanged game/pixel/contract evidence; unknown/new implementation criteria need targeted new proof, not rerunning the spike.",
+    "Completed GB/GBC wrap-up; processed-spike metadata makes subsequent unchanged wrap-ups a no-op. Do not invoke wrap-up again as the active continuation."
+  ],
+  "previous_closed_work": {
+    "phase_05_1": {
+      "completed_at": "2026-10-11T02:17:36.981897+00:00",
+      "uat": "4/4 automated passes, zero human checks",
+      "verification": "fresh passed 6/6 truths",
+      "completion_predicate": "passed with no blockers",
+      "evidence_record": ".planning/phases/05.1-digest-bound-supply-chain-verification/05.1-AUTOMATION-CLOSURE.json",
+      "source_sha": "e115899bd25fca5b9be86488ffece863c8581437",
+      "run_id": 38098375547,
+      "qual_02_whole_requirement_completed": false,
+      "workspace_composition_qualified": false,
+      "next_command": "$gsd-execute-phase 03 --gaps-only",
+      "next_command_ready": false,
+      "owner_direction": "Automate real observable criteria, reuse sufficient evidence and close automatically; do not loop back without relevant change or new failure."
+    },
+    "source_main": "e115899bd25fca5b9be86488ffece863c8581437",
+    "run_id": 38098375547,
+    "resolved_debug_sessions": [
+      ".planning/debug/resolved/live-server-initial-row.md",
+      ".planning/debug/resolved/release-evidence-revalidation.md",
+      ".planning/debug/resolved/save-e2e-upload-server-refused.md"
+    ],
+    "prior_handoff_commit": "f6675c0a28d3514ce80d597435e0b9d840e8d038",
+    "quick_261010_v63": {
+      "status": "complete",
+      "phase_dir": ".planning/quick/261010-v63-polish-controller-button-labels-and-prep",
+      "source_lineage": {
+        "root_head": "f6675c0a28d3514ce80d597435e0b9d840e8d038",
+        "context": "5c78aff18feb1bdc4e2fe11eae1170c9f101f396",
+        "source": "5ddc2fe2c593b50958dfb5f4bb4fe999a8d30c17",
+        "tree": "ac17cf2c4a2995a16afd2210eb782a84a0870e9f",
+        "ref": "refs/heads/checkpoint/controller-preview-261010-v63",
+        "source_paths": 358,
+        "owned_source_paths": [
+          "playstead-mac/Playstead.xcodeproj/project.pbxproj",
+          "playstead-mac/Playstead/Controller/ControllerDiagram.swift",
+          "playstead-mac/Playstead/Controller/ControllerHost.swift",
+          "playstead-mac/Playstead/Controller/ControllerMapping.swift",
+          "playstead-mac/Playstead/Controller/ControllerSettingsView.swift",
+          "playstead-mac/Playstead/Controller/ControllerTestView.swift",
+          "playstead-mac/Playstead/Library/LibraryShellView.swift",
+          "playstead-mac/Playstead/Readiness/ReadinessSheetView.swift",
+          "playstead-mac/PlaysteadTests/ControllerTests/ControllerPresentationTests.swift",
+          "playstead-mac/scripts/ci/build-mgba-sdl-input-bridge.sh",
+          "playstead-mac/scripts/ci/run-mac-verification.sh"
+        ],
+        "source_manifest_sha256": "33617bc92465ba288d7b8b8a3236406232694a7691bd7e507508e4e70280eae9",
+        "root_head_and_index_preserved": true,
+        "published": false
+      },
+      "evidence": {
+        "record": ".planning/quick/261010-v63-polish-controller-button-labels-and-prep/261010-v63-EVIDENCE.json",
+        "verification": ".planning/quick/261010-v63-polish-controller-button-labels-and-prep/261010-v63-VERIFICATION.md",
+        "preview_manifest": "playstead-mac/build/previews/261010-v63/MANIFEST.json"
+      },
+      "task_process_ownership": {
+        "local_native": [],
+        "hosted": [],
+        "build_sessions": "all completed; exact executable absence checked before completion",
+        "root_baseline_head": "f6675c0a28d3514ce80d597435e0b9d840e8d038",
+        "private_evidence_root": "/private/tmp/playstead-preview-v63",
+        "unrelated_preserved_leaf_count": 1606,
+        "personal_session_launched": false
+      }
+    }
+  },
+  "parked_work": {
+    "phase_03": {
+      "plan": "03-30",
+      "next_command": "$gsd-execute-phase 03 --gaps-only",
+      "next_command_ready": false,
+      "prerequisites": [
+        "Owner reports Apple HID approval",
+        "Matching non-expired provisioning is available",
+        "Dedicated protected-main workflow is reviewed and merged"
+      ],
+      "subsequent_command": "$gsd-verify-work 03",
+      "scope": "OS/physical claims remain separate from simulated software tests"
+    },
+    "phase_03_5": "Exact-source hosted evidence remains separate",
+    "phase_05": "Retained restore dependencies; preserve stopped 05-05 lineage",
+    "phase_06": "Existing fixture/HID/current-source hosted gates",
+    "qual_02": "Broader whole requirement not completed by Phase 05.1 or local preview"
+  },
+  "next_work": {
+    "command": "$gsd-ship",
+    "phase": "4.7",
+    "scope": "Reviewed PR/delivery preparation for completedphase; no publication/merge authorized here.",
+    "parked_lanes_unchanged": true
+  },
+  "context_paths": [
+    ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/continue.md",
+    ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-VERIFICATION.md",
+    ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-AUTOMATED-CLOSURE.json"
+  ],
+  "numbered_roadmap_phase_completed": false,
+  "spike_commits": [
+    "469ce9b8436faaf426870bb144677297d6c1a970",
+    "365b1738c06965a6f093915ee4e9afa8478be08a",
+    "f17a2cf32837eb70a583de6b37071a8514e4cd20"
+  ],
+  "production_gb_gbc_support_completed": false,
+  "wrap_up": {
+    "status": "complete",
+    "date": "2026-10-11",
+    "baseline_head": "eec2284b9d32ffa0a6d901de62285e372f230e16",
+    "processed_spikes": [
+      "001-bios-free-gameplay",
+      "002-persistent-battery-saves",
+      "003-playstead-contracts"
+    ],
+    "idea_keys": [
+      "gb-gbc-adapter"
+    ],
+    "feature_areas": [
+      "pinned-gameplay",
+      "battery-rtc-continuity",
+      "production-integration"
+    ],
+    "verbatim_source_copies": 11,
+    "package_files": 17,
+    "original_experiments_repeated": false,
+    "production_support_qualified": false,
+    "human_judgment": false,
+    "routing_commit": "c80201090bb4020005a6f8f94e2d96e966b82bec",
+    "packaging_checks": 35,
+    "verification": ".planning/spikes/WRAP-UP-VERIFICATION.json"
+  },
+  "next_phase_definition": {
+    "description": "Game Boy and Game Boy Color play and persistent saves",
+    "insert_after": "4",
+    "number_assigned": false,
+    "goal": "Explicit supported-system descriptors, cartridge-qualified battery/RTC identity, independent restore expectations and real import/play/capture/upload/fresh-profile restore readback.",
+    "planning_inputs": [
+      ".codex/skills/spike-findings-playstead/SKILL.md",
+      ".planning/spikes/WRAP-UP-SUMMARY.md",
+      ".planning/seeds/SEED-035-game-boy-and-color-support.md"
+    ],
+    "basis": "Completed Phase 02 import, Phase 04 save and Phase 04.5 pairing foundations; reuse Phase 03 implemented software without requiring parked HID qualification.",
+    "verification": "Automated deterministic contracts and real packaged/save E2E composition in existing recurring lanes, with fail-closed missing/skipped/zero-discovery checks."
+  },
+  "updated_at": "2026-10-13T14:21:19.371920+00:00",
+  "artwork_phase_execution": {
+    "completed_plans": [
+      "00",
+      "01",
+      "02",
+      "03",
+      "04",
+      "05",
+      "06",
+      "07",
+      "08",
+      "09"
+    ],
+    "active_plan": null,
+    "next_command": "$gsd-ship",
+    "baseline": "/private/tmp/playstead-04.7-execution-baseline.json",
+    "owner_branch": "feat/dev-standup-and-uat7-closure",
+    "task_processes": [],
+    "evidence": [
+      ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-00-SUMMARY.md",
+      ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-01-SUMMARY.md",
+      ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-02-SUMMARY.md"
+    ],
+    "last_summary_commit": "f2c41c7",
+    "backend_regression": {
+      "evidence": ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-SERVER-REGRESSION-RACE-FINAL-EVIDENCE.json",
+      "result": "1206tests192features13properties0fail current f4e98ac",
+      "cleanup": "18482zero/dropped/absent; previous18480/18481cleaned"
+    },
+    "context_commits": {
+      "controller_dependency": "c2d3ac0",
+      "ui_inherited_context": "f380d62",
+      "source_receipt": "/private/tmp/playstead-04.7-08-context-source.sha256"
+    },
+    "task_agent": "/root",
+    "phase_complete": true,
+    "ui_checkpoint": {
+      "status": "All UI/live/expiry acceptance complete; no pendingReady",
+      "next_command": "$gsd-ship",
+      "focused_command": "cd playstead-mac && PLAYSTEAD_HUMAN_APPROVED_LOCAL_APP_LAUNCH=1 scripts/ci/run-mac-verification.sh --layers live-server --test-without-building --only-testing PlaysteadUITests/MetadataPrivateMediaJourneyTests/testPrivateMediaExportAndProviderDisclosureUsePairedProductionRoutes",
+      "ready_question_pending": false,
+      "remaining": [],
+      "independent_evidence": "99e1dcd six coordinator/API contract selectors passed once unskipped;53 predicate mapping distinguishes remaining UI oracles",
+      "processes": "No task app/runner; verified after timed closure. Decoderpackagebuildworker owns separatepublicbuildprocesses.",
+      "failed_run_causes": [
+        "invalid test Keychain service prefix fixed",
+        "unsupported unknown-system fixture corrected to imported GBC UUID",
+        "foreground Chrome interruption inconclusive",
+        "unconditional swipes overscrolled candidate; corrected bounded frame scrolling built",
+        "Premature isHittable assertion failed before actual click auto-scrolled and advanced; product candidate blockage disproved",
+        "Native mac_ci omitted media decoder endpoint; bounded isolated decoder bridge implemented, packaged verification pending",
+        "Embedded PNG IDAT CRC invalid; valid authored fixture prepared",
+        "Checkbox value cast was nil; replaced with server-backed one-game estimate outcome assertion"
+      ],
+      "crash_dialog_resolution": {
+        "executable": "/System/Library/CoreServices/UserNotificationCenter.app/Contents/MacOS/UserNotificationCenter",
+        "pid": 29384,
+        "automatic_review_initially_rejected": true,
+        "owner_explicit_approval": "Approve stopping PID 29384",
+        "action": "SIGTERM only after exact path/PID revalidation",
+        "result": "original process exited verified; later packaged test reached Settings; no new modal",
+        "authority_scope": "single PID only; no blanket authority to terminate other system services"
+      },
+      "parked_apple_hid": "unchanged",
+      "debug_session": ".planning/debug/resolved/metadata-native-reachability.md",
+      "prepared_build": "/private/tmp/playstead-04.7-packaged-build-live-ax.log",
+      "source_changes": "Fieldrevisionfix61683ba; notificationqueue:nil +metadataunit18/0; APIpartialrevocationcopy; currentUIcounts/rawprepAX/cacheText/consentactions; liveglobalKeepmyeditquery; runnerverifiedimmutabledecoder andnobindoverride.",
+      "withdrawn_ready": "Original Ready released after sandbox database failure. Retry entered test after release and was interrupted; failed/unknown, excluded from acceptance.",
+      "foreground_window": "released; no furtherforegroundrequired",
+      "last_run": "ACBya9 correction8 passed1/1; ih0sGQ settings45 retained at unchanged relevant source",
+      "notification_deadlock": {
+        "sample": "/private/tmp/playstead-04.7-live-stall.sample.txt",
+        "cause": "SQLite transaction posts to main OperationQueue synchronously while rendering waits on SQLite",
+        "fix": "queue:nil observer schedules asynchronous MainActor task",
+        "unit_run": "playstead-mac/.build/ci/selected-unit.9YAorU",
+        "result": "7 tests,0 failures including required production environment deadlock regression and partial revocation contract"
+      },
+      "automatic_review": {
+        "action": "inspect existing UserNotificationCenter",
+        "result": "rejected",
+        "reason": "system-wide notifications may expose unrelated private content",
+        "remaining": "owner dismiss any visible Playstead-related alert before next focused run; no process termination authorization requested"
+      },
+      "ready_question": null,
+      "last_failed_ui": "selected-ui.qnNj99"
+    },
+    "task_agent_status": "All10plans complete; 38/38goalpassed; phaseclosure andcleanup complete",
+    "root_owner": "root handles full live journey, debug source/runner, summary and phase gates",
+    "field_revision_commit": "61683ba",
+    "server_regression_evidence": ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-SERVER-REGRESSION-EVIDENCE.json",
+    "field_revision_evidence": ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-09-FIELD-REVISION-EVIDENCE.json",
+    "security": {
+      "report": ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-SECURITY.md",
+      "threats_open": 0,
+      "actor_worker": null,
+      "scan_worker": "/root/phase_04_7_decoder_scan",
+      "remaining": [],
+      "actor_status": "closed by current-source re-audit10/11; commit7b0f534, exact11/0/0skip receipt",
+      "status": "secured11/11current-source re-audit"
+    },
+    "rendering": {
+      "artwork": "selected-rendering.ztyJDD:4/4passed",
+      "metadata": "Nwefir1required/1exec/0fail/0skip3.11s; exactfactory53bitmaps/mirror receipts. Commit3ff97da.",
+      "attempts": [
+        "ztyJDD",
+        "dBiPqQ",
+        "/private/tmp/playstead-04.7-rendering-ax-name-fix.log"
+      ],
+      "baseline": "/private/tmp/MetadataStateRenderingTests.swift.baseline",
+      "patch": "/private/tmp/metadata-state-rendering-ax-fix.patch"
+    },
+    "review": {
+      "report": ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-REVIEW.md",
+      "blockers": 0,
+      "warnings": 1,
+      "fixer": "/root/phase_04_7_server_review_fixes",
+      "active": "CR03fixed and targetedre-auditclosed; WR02inheritedCASresidualdeferred",
+      "scope": [
+        "provider_media_cache.ex",
+        "consent.ex",
+        "provider_media_cache_test.exs",
+        "exactmanifest/regression evidence"
+      ],
+      "next_full_gate_partition": 18482,
+      "residual": "WR02 inheritedsharedCAScrashboundary documentedwithoutacceptedrisk",
+      "fix_commit": "f4e98ac"
+    },
+    "ui_review": {
+      "report": "04.7-UI-REVIEW.md",
+      "score": 17,
+      "out_of": 24,
+      "blockers": 0,
+      "warnings": 6,
+      "disposition": "04.7-UI-REVIEW-DISPOSITION.md",
+      "expiry_fix": "ed8710d; finalunitOQFSEa/render3auTsq"
+    },
+    "verification": ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-VERIFICATION.md",
+    "source_commit": "ed8710d",
+    "audit_commit": "8380a08"
+  },
+  "latest_plan09_checkpoint": {
+    "ready_received": true,
+    "foreground_window": "released",
+    "task_apps": "closed; verified exact executable inventory empty",
+    "ui_run": "selected-ui.ACBya9",
+    "ui_result": "All53packaged states andrenderingsmoke qualified",
+    "ui_log": "/private/tmp/playstead-04.7-ui-states-current.log",
+    "startup_sample": "/private/tmp/playstead-04.7-ui-launch-stall.sample.txt",
+    "source_investigator": "/root/phase_04_7_ui_coverage",
+    "scanner": "/root/phase_04_7_decoder_scan",
+    "actor_evidence": "04.7-CONFLICT-ACTOR-EVIDENCE.json",
+    "next_command": "$gsd-ship",
+    "security": "11plannedthreatsclosed afterCR03targetedre-audit",
+    "foreground_availability": "No question pending; alltaskapps/servicesclosed",
+    "interrupted_profile_cleanup": "04.7-09-INTERRUPTED-PROFILE-CLEANUP.json: two exact validated synthetic profiles/isolated Keychains removed",
+    "package_prototype": "Superseded: qualified immutable decodera431c1e with real22package scan and4/4productionboundary tests.",
+    "prototype_path": "/private/tmp/playstead-decoder-prototype/wolfi-apk-investigation",
+    "source_changes_this_continuation": [
+      "nativeMacrunner requires verifiedimmutabledecoder ID and no server.pybindoverride",
+      "decoder self-test uses shippedPython child for actualtimeout, noGNU /bin/sleep dependency",
+      "45-stateUI test pins Englishlanguage/locale for explicit1KB oracle; cachedbuildrefreshed"
+    ],
+    "build_log": "/private/tmp/playstead-04.7-packaged-build-correction-copy.log",
+    "canary_command": "cd playstead-mac && PLAYSTEAD_HUMAN_APPROVED_LOCAL_APP_LAUNCH=1 scripts/ci/run-mac-verification.sh --layers ui --only-testing PlaysteadUITests/HostedRunnerCanaryTests/testAdHocSignedAppLaunchesOnHostedRunner",
+    "canary": "selected-ui.o8fCqO passed1/1,0skip",
+    "attempt_receipt": ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-09-53-STATE-EVIDENCE.json",
+    "live_attempt": ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-09-LIVE-ORACLE-ATTEMPT.json",
+    "live_result": "OwYAws exact1/1/0fail/0skip74.347s"
+  },
+  "shipping": {
+    "prerequisite_pr": "https://github.com/szTheory/playstead/pull/12",
+    "phase_pr": "https://github.com/szTheory/playstead/pull/13",
+    "prerequisite_head": "f2a0fd39d30b5de9d46730f48b9ca1bccd8b1d73",
+    "prerequisite_run": 38608541479,
+    "prepared_source_predecessor": "34713ad26c7bd8dc96e8b31c2b9e11eec1a0fd08",
+    "authorization": "Owner explicitly permits ordered squash merges after green applicable current-head CI; recorded audits/no additional review selected. No admin bypass.",
+    "reconciliation": "Require fetched squashed-main full tree equals qualified prerequisite tree and prerequisite is already a Phase ancestor; then ancestry-only merge preserving the complete Phase tree, retarget PR13 main and ordinary push. If guards fail, inspect upstream changes and merge normally; never discard new main changes.",
+    "focused_geometry": {
+      "run": 38608526405,
+      "conclusion": "success",
+      "cases": 4,
+      "discovered": 1,
+      "executed": 1,
+      "skipped": 0,
+      "seconds": 74.4,
+      "independent_process_viewport": "1600x1200"
+    },
+    "verification": "38/38;164coveredfiles;v3:sha256:e79cef59ca3be9048d93ffbc07f58e82a4b1fb7456c2d6243dc8e22fe2ac608d",
+    "source_evidence": ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/04.7-SHIP-NATIVE-ORDER-FOLLOWUP.json",
+    "conditional_continuation": {
+      "if_either_pr_unmerged": "$gsd-ship 4.7",
+      "after_both_prs_merged": "$gsd-extract-learnings 4.7"
+    },
+    "parked_lane": "Apple/HID remains independently parked until owner signal and named prerequisites; no polling or repeat request",
+    "prerequisite_merged": "ecca50add04386d363315b88720e4598d3aa6ae3",
+    "registry_followup": "Canonical DockerHub postgres17.2 in hosted services; ComposeCI inherits unchanged productiondefault after ECRanonymousdataquota startup failure. Allstatic104validators/29release/8handoff and actualComposeconfig pass. Superseded347run passedproducer+3Linux, cancelledbefore native; exactguestcleanup succeeded. Finalcurrent-headCI required.",
+    "metadata_description_fixture_followup": {
+      "failed_run": 38620432044,
+      "failed_head": "aaca32691bf351572a9be6e0fda767c6a3c16897",
+      "regression_cases": 6,
+      "covered_digest": "v3:sha256:3e5cc48afa22ae60d554142c8df88cd6ea520c1336fd44ba184069f8d74dd16a",
+      "requires_fresh_full_CI": true
+    },
+    "settings_navigation_followup": {
+      "focused_run": 38667755241,
+      "focused_head": "e23052648d5ce3964c4006ffaf03654c3fad2217",
+      "no_delay_methods": 6,
+      "covered_digest": "v3:sha256:8daf9c28ebec8b70464b96ef2032fc36481b50973b070f99bf463411b97f4e1d",
+      "status": "requires_full_final_head_ci",
+      "transient_cause": "unconfirmed; failure-only numeric diagnostics retained"
+    },
+    "buildkit_registry_quota_followup": {
+      "failed_run": 38668381055,
+      "manifest_sha256": "751921dc37d2f842de38c9387f891fe6ae7d80f03d050ea98f780d7e0874ba00",
+      "registry_only": true,
+      "covered_digest": "v3:sha256:d78500e325876ca25218d1d985a3a8fe6dd60c6bd1c4c89447b1661e14f27e9d",
+      "validation": "29releasecontracts/110validators/allstaticguards/actionlintpass",
+      "requires_new_full_ci": true
+    },
+    "settings_root_cause": {
+      "run": 38683945538,
+      "finding": "Target-window screenshot shows Python local-network alert over Settings tabs; standard HTTPServer loopback bind calls getfqdn.",
+      "repair": "Numeric loopback-only fixture bind with no hostname discovery; old code fails regression, all8 HTTPS tests pass.",
+      "temporary_diagnostics_removed": true,
+      "permissions_changed": false,
+      "final_ci": "pending"
+    },
+    "ticker_followup": {
+      "failed_run": 38688537833,
+      "repair": "Return existing cancelled task and join in assertions",
+      "direct_source_control": "negative old ordering fails; positive100checks passes withSwift6warnings-as-errors",
+      "static_validators": 113,
+      "local_host": "0tests,closed exact processes",
+      "final_ci": "pending"
+    }
+  },
+  "next_command_cwd": "/private/tmp/playstead-04.7-ship/checkout"
+}

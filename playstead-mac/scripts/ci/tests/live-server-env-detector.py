@@ -32,7 +32,7 @@ def main(root: str) -> int:
                 f"{CONFIG_MARKER}; the inherited PATH has no `mix`"
             )
             continue
-        if MERGE_MARKER not in text:
+        if MERGE_MARKER not in text and not ("merging(config)" in text and "configured" in text):
             problems.append(
                 f"{path}: reads {CONFIG_MARKER} but does not merge it over the "
                 "inherited environment, so the runner's PATH cannot win"

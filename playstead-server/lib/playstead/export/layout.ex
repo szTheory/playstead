@@ -44,7 +44,9 @@ defmodule Playstead.Export.Layout do
           required(:member_fingerprint) => String.t(),
           optional(:excluded) => boolean(),
           required(:members) => [member_input()],
-          optional(:saves) => [SavesPlan.revision_input()]
+          optional(:saves) => [SavesPlan.revision_input()],
+          optional(:private_media) => [map()],
+          optional(:metadata_selection) => map() | nil
         }
 
   @doc """
@@ -147,8 +149,29 @@ defmodule Playstead.Export.Layout do
       sidecar_path: Path.join(relative_dir, "playstead-set.json"),
       saves_path: Path.join(relative_dir, "saves"),
       saves_plan: build_saves_plan(set, relative_dir, saves_scope),
-      members: members
+      members: members,
+      private_media: plan_private_media(set, relative_dir),
+      metadata_selection: Map.get(set, :metadata_selection)
     }
+  end
+
+  defp plan_private_media(set, relative_dir) do
+    set
+    |> Map.get(:private_media, [])
+    |> Enum.map(fn media ->
+      %{id: id, original_sha256: sha256, original_size_bytes: size} = media
+      relative = Path.join([relative_dir, "media", "originals", id])
+
+      %{
+        id: id,
+        relative: relative,
+        sha256: sha256,
+        size_bytes: size,
+        mime: media.original_mime,
+        provenance: media.provenance || %{}
+      }
+    end)
+    |> Enum.sort_by(& &1.relative)
   end
 
   defp build_saves_plan(_set, relative_dir, :none) do

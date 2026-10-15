@@ -57,7 +57,7 @@ struct LibraryDownloadCommand: Equatable {
 }
 
 struct LibraryControllerCommand: Equatable {
-    enum Action: Equatable { case activate, context }
+    enum Action: Equatable { case activate, context, readiness }
     let sequence: Int
     let assetSetID: String
     let action: Action
@@ -79,6 +79,7 @@ struct GameRowView: View {
     var isSelected = false
     var isControllerFocused = false
     var controllerCommand: LibraryControllerCommand? = nil
+    var onOpenDetails: ((CatalogueEntry) -> Void)? = nil
 
     @Environment(AppEnvironment.self) private var environment
     @State private var status: GameRowStatus = .checking
@@ -120,6 +121,7 @@ struct GameRowView: View {
     /// This keeps SwiftUI focus and the final actionable AX button on the
     /// same identity when a row is recycled or its status is refreshed.
     @FocusState private var downloadActionHasFocus: Bool
+    @FocusState private var detailsTriggerHasFocus: Bool
     /// Bumped after a pin toggle so the row re-reads `PinStore` (pins
     /// live in SQLite, not in an observable view model).
     @State private var pinRevision = 0
@@ -213,8 +215,12 @@ struct GameRowView: View {
             switch command?.action {
             case .activate: Task { await activatePrimaryAction() }
             case .context: showsControllerContext = true
+            case .readiness: showsReadinessSheet = true
             case nil: break
             }
+        }
+        .onChange(of: environment.detailsFocusRequest) { _, _ in
+            if environment.detailsFocusAssetSetID == entry.id { detailsTriggerHasFocus = true }
         }
         .sheet(isPresented: $showsReadinessSheet) {
             ReadinessSheetView(
@@ -333,38 +339,46 @@ struct GameRowView: View {
     }
 
     private var titleColumn: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-            Text(entry.displayTitle)
-                .font(.psLabelEmphasized)
-                .lineLimit(1)
-                .foregroundStyle(rowPrimaryForeground)
-                .accessibilityIdentifier("playstead.game.\(entry.id).title")
-            Text(systemDisplayName)
-                .font(.psLabel)
-                .foregroundStyle(rowSecondaryForeground)
-            if case .error(let message) = status {
-                HStack(spacing: DesignTokens.Spacing.sm) {
-                    Text(message)
-                        .font(.psLabel)
-                        .foregroundStyle(DesignTokens.error)
-                        .textSelection(.enabled)
-                    Button("Copy error") {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(message, forType: .string)
+        HStack(alignment: .top, spacing: DesignTokens.Spacing.sm) {
+            ArtworkThumbnailView(
+                assetSetID: entry.id,
+                systemID: entry.system,
+                reference: environment.metadataSelection(for: entry.id)?.selectedCover,
+                frameSize: ArtworkThumbnailView.compactSlotSize
+            )
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+                Text(environment.displayTitle(for: entry))
+                    .font(.psLabelEmphasized)
+                    .lineLimit(1)
+                    .foregroundStyle(rowPrimaryForeground)
+                    .accessibilityIdentifier("playstead.game.\(entry.id).title")
+                Text(systemDisplayName)
+                    .font(.psLabel)
+                    .foregroundStyle(rowSecondaryForeground)
+                if case .error(let message) = status {
+                    HStack(spacing: DesignTokens.Spacing.sm) {
+                        Text(message)
+                            .font(.psLabel)
+                            .foregroundStyle(DesignTokens.error)
+                            .textSelection(.enabled)
+                        Button("Copy error") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(message, forType: .string)
+                        }
+                        .controlSize(.small)
                     }
-                    .controlSize(.small)
                 }
-            }
-            if let blockingReport, let first = blockingReport.checks.first(where: { $0.outcome.isBlocking }) {
-                Text(Self.blockingSummary(first))
-                    .font(.psLabel)
-                    .foregroundStyle(.secondary)
-            }
-            if let lastExit {
-                Text("Last exit: \(String(describing: lastExit))")
-                    .font(.psLabel)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("playstead.game.\(entry.id).last-exit")
+                if let blockingReport, let first = blockingReport.checks.first(where: { $0.outcome.isBlocking }) {
+                    Text(Self.blockingSummary(first))
+                        .font(.psLabel)
+                        .foregroundStyle(.secondary)
+                }
+                if let lastExit {
+                    Text("Last exit: \(String(describing: lastExit))")
+                        .font(.psLabel)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("playstead.game.\(entry.id).last-exit")
+                }
             }
         }
         .accessibilityElement(children: .contain)
@@ -406,7 +420,7 @@ struct GameRowView: View {
     private var collectionContent: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-                Text(entry.displayTitle)
+                Text(environment.displayTitle(for: entry))
                     .font(.psLabelEmphasized)
                     .lineLimit(1)
                     .foregroundStyle(rowPrimaryForeground)
@@ -484,14 +498,14 @@ struct GameRowView: View {
     private var cardContent: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-                Text(entry.displayTitle)
+                Text(environment.displayTitle(for: entry))
                     .font(.psHeading)
                     .lineLimit(2)
                     .truncationMode(.tail)
                     .accessibilityIdentifier("playstead.game.\(entry.id).title")
 
                 HStack(spacing: DesignTokens.Spacing.sm) {
-                    SystemMonogramView(systemID: entry.system)
+                    ArtworkIdentityView(assetSetID: entry.id, systemID: entry.system, description: environment.description(for: entry.id))
                     Text(systemDisplayName)
                         .font(.psLabel)
                         .foregroundStyle(DesignTokens.textMuted)
@@ -674,6 +688,8 @@ struct GameRowView: View {
 
     private var curationMenu: some View {
         Menu {
+            Button("View Game Details") { onOpenDetails?(entry) }
+                .accessibilityIdentifier("playstead.game.\(entry.id).details.trigger")
             keepOnMacButton
         } label: {
             Image(systemName: "ellipsis.circle")
@@ -683,6 +699,8 @@ struct GameRowView: View {
         .menuStyle(.borderlessButton)
         .foregroundStyle(rowPrimaryForeground)
         .accessibilityLabel("More actions for \(entry.displayTitle)")
+        .accessibilityIdentifier("playstead.game.\(entry.id).actions")
+        .focused($detailsTriggerHasFocus)
     }
 
     /// Accessible names are the action verb plus its subject

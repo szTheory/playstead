@@ -1,0 +1,50 @@
+{
+  "recorded_at": "2026-10-13T13:32:10.884766+00:00",
+  "human_judgment": false,
+  "status": "passed",
+  "run": "selected-live-server.OwYAws",
+  "identity": "PlaysteadUITests.MetadataPrivateMediaJourneyTests/testPrivateMediaExportAndProviderDisclosureUsePairedProductionRoutes",
+  "required": 1,
+  "executed": 1,
+  "failures": 0,
+  "skips": 0,
+  "seconds": 74.347,
+  "command": "PLAYSTEAD_HUMAN_APPROVED_LOCAL_APP_LAUNCH=1 scripts/ci/run-mac-verification.sh --layers live-server --test-without-building --only-testing PlaysteadUITests/MetadataPrivateMediaJourneyTests/testPrivateMediaExportAndProviderDisclosureUsePairedProductionRoutes",
+  "source_sha256": {
+    "playstead-mac/PlaysteadUITests/MetadataPrivateMediaJourneyTests.swift": "85b8f332ab7b1ab5959ea81a829041e71619f1d1ffc024cf63ad24cf86e6984c",
+    "playstead-mac/Playstead/Settings/MetadataSettingsView.swift": "aefbbdffc6b69efd52bc8ad2f10cec881b9c2e1a7b65ec999eb146631861a49a",
+    "playstead-mac/Playstead/Library/MetadataCorrectionView.swift": "d278f0823f9a42ccb320fc18744024aaad4134975100f1235ea33f087b92640c",
+    "playstead-mac/Playstead/App/PlaysteadApp.swift": "db9852d283d8d60ac47fd1dade55448842bbac4d28509da863e97d0bf26830fd",
+    "playstead-mac/Playstead/UITesting/UITestBootstrap.swift": "e438221f2039cbd1a616620e2c55eaa489f621cd0463b597af42397a2a31f572",
+    "playstead-mac/scripts/ci/run-mac-verification.sh": "9a55becf043c1d6c381179e7d9926c933032be192d03a9453821b18cde278474",
+    "playstead-server/lib/playstead/metadata/provider_media_cache.ex": "0bbeaeb02a8ef86508dec2c762259d7a1c5139af2af88310b37788ffb0fa58a7",
+    "playstead-server/lib/playstead/metadata/consent.ex": "3594c917f90273f82794f349f97b6f3900256b064f2be6c5006215f17d7afb21"
+  },
+  "artifacts": {
+    "playstead-mac/.build/ci/selected-live-server.OwYAws/raw/live-server-tests.json": "bb5b49c49b1aeae36ae4bde11ca014ac190a30d6ceb418a5e13a7c224d076a58",
+    "playstead-mac/.build/ci/selected-live-server.OwYAws/raw/live-server.log": "78bc51bc1f2301c7669c1f0de1f32b679e83e327a66c67df81febc356be854bd",
+    "playstead-mac/.build/ci/selected-live-server.OwYAws/raw/verification.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "oracles": [
+    "Real authenticated uploads/select cover and SHA256-verified PNG/JPEG/TXT originals",
+    "Exacttitle/systemdisclosure thenexplicitconsent; deterministiclocal IGDBadapter, currentconsentrevision/source, providerimages failclosed",
+    "Server-backed selected-game preparation estimate/enqueue/cancel",
+    "Twofieldofflinecorrections persist inSQLite/outbox withfailure-onlytransport",
+    "Independentrealserver correction creates visible concurrent alternatives",
+    "ExplicitnativeKeepmyedit delivers both fields/currentuserprovenance andemptyserverconflicts",
+    "Cursorreset/relaunch reconstructs correctedtitle, digest-boundArtworkLoaded and unchangedcatalogue/saveIDs"
+  ],
+  "fixture": "Existingvalidatedgbc-mbc5-32k registry alias; importonly, no gameplay/HID/newROM selection",
+  "decoder_receipt": "04.7-DECODER-SUPPLY-CHAIN-EVIDENCE.json",
+  "server_fix_commit": "f4e98ac",
+  "credential_scope": "Private0600handoffcopy andisolatedtestKeychain consumed/removed; no credential content inreceipt",
+  "cleanup": {
+    "task_app_and_runner": 0,
+    "native_root": "absent afterwrappertrap",
+    "decoder_container_and_network": 0,
+    "private_fixture": "teardownremoved profile/Keychain",
+    "foreground_window": "releasedwithin2minute bound"
+  },
+  "supersedes": "04.7-09-LIVE-ORACLE-ATTEMPT.json",
+  "next_command": "$gsd-execute-phase 4.7"
+}

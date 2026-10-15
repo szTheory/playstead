@@ -69,6 +69,9 @@ struct StorageView: View {
     /// permanently dark. Every caller must now supply a real map or fail
     /// to compile.
     var onlyOnThisMacCounts: [String: Int]
+    /// Derived artwork is separately bounded and never counted as game
+    /// bytes in the canonical offline-play quota.
+    var metadataMediaUsageBytes: Int = 0
     /// MC-02: the real escape hatch — invoked with the affected
     /// candidate ids when the user chooses "Export saves…" instead of
     /// the destructive action. Required (no default), for the same
@@ -140,6 +143,11 @@ struct StorageView: View {
                 Text(Self.serverRetainsStatement)
                     .font(.psLabel)
                     .foregroundStyle(.secondary)
+                Text("Artwork cache: \(Self.formatBytes(metadataMediaUsageBytes)) of \(Self.formatBytes(MetadataMediaCache.byteLimit))")
+                    .font(.psLabel)
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel("Derived artwork cache usage")
+                    .accessibilityValue("\(metadataMediaUsageBytes) bytes used of \(MetadataMediaCache.byteLimit) bytes")
             }
 
             if !pinnedGames.isEmpty {

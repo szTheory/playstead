@@ -33,5 +33,5 @@ PLAYSTEAD_CI_BUILD_ROOT="$temporary/reject" PATH="$temporary/bin:$PATH" \
 status=$?
 set -e
 [ "$status" -ne 0 ] || { cat "$temporary/reject.out"; exit 1; }
-rg -q -- '--build-only is supported only for the recovery layer' "$temporary/reject.out"
+rg -q -- '--build-only is supported only for the recovery or live-server layer' "$temporary/reject.out"
 printf '%s\n' 'recovery build-only uses guarded cached build path and rejects other layers'

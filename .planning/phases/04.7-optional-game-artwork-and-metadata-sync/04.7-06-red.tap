@@ -1,0 +1,18 @@
+≈ tailwindcss v4.3.0
+
+/*! 🌼 daisyUI 5.5.20 */
+Done in 65ms
+
+  ../priv/static/assets/js/app.js  327.9kb
+
+⚡ Done in 9ms
+warning: Looks like you're trying to run Wallaby with a mismatched version of Chrome: 154.0.8037 and chromedriver: 152.0.7977.
+Chrome and chromedriver must match to a major, minor, and build version.
+
+  (wallaby 0.31.0) lib/wallaby/chrome.ex:288: Wallaby.Chrome.version_compare/2
+  (wallaby 0.31.0) lib/wallaby.ex:31: Wallaby.start/2
+  (kernel 10.6.1) application_master.erl:299: :application_master.start_it_old/4
+
+TAP version 13
+not ok 1 - Playstead.Metadata.SelectionTest::test explicit metadata mutations require a base revision
+1..1

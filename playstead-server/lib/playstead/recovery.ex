@@ -4,6 +4,7 @@ defmodule Playstead.Recovery do
   import Ecto.Query, warn: false
 
   alias Playstead.Blobs.Blob
+  alias Playstead.Metadata.PrivateMedia.Item
   alias Playstead.Repo
   alias Playstead.Recovery.{BackupSet, Worker}
 
@@ -146,9 +147,16 @@ defmodule Playstead.Recovery do
   end
 
   defp snapshot_inventory do
+    original_hashes =
+      Repo.all(from(media in Item, select: media.original_sha256))
+      |> MapSet.new()
+
     Repo.all(from(blob in Blob, where: blob.scan_state == "clean", order_by: [asc: blob.sha256]))
     |> Enum.map(fn blob ->
-      %{"sha256" => blob.sha256, "size_bytes" => blob.size_bytes, "kind" => "cas"}
+      kind =
+        if MapSet.member?(original_hashes, blob.sha256), do: "private_media_original", else: "cas"
+
+      %{"sha256" => blob.sha256, "size_bytes" => blob.size_bytes, "kind" => kind}
     end)
   end
 

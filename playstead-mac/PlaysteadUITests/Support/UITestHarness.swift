@@ -1,4 +1,5 @@
 import XCTest
+import AppKit
 
 @MainActor
 final class UITestHarness {
@@ -136,6 +137,65 @@ final class UITestHarness {
 
     func element(_ identifier: String, type: XCUIElement.ElementType = .any) -> XCUIElement {
         app.descendants(matching: type)[identifier]
+    }
+
+    /// Failure-only numeric geometry; the public hosted runner may also retain
+    /// its synthetic app window. Never capture a local desktop or unrelated UI.
+    static func recordSettingsNavigationTimeout(for timedOutControl: XCUIElement) throws {
+        let app = XCUIApplication()
+        guard app.state != .notRunning, app.windows.firstMatch.exists else { return }
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent(".build/ci/settings-navigation/evidence", isDirectory: true)
+        let logs = root.appendingPathComponent("logs", isDirectory: true)
+        for directory in [root, logs] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
+                                                    attributes: [.posixPermissions: 0o700])
+        }
+        func frame(_ value: CGRect) -> [String: Double] {
+            ["x": value.minX, "y": value.minY, "width": value.width, "height": value.height]
+                .mapValues { $0.isFinite ? Double($0) : 0 }
+        }
+        let identifiers = ["playstead.settings", "playstead.settings.content",
+                           "playstead.settings.open.metadata", "playstead.control.open-controller-settings"]
+        let controls = identifiers.flatMap { identifier in
+            app.descendants(matching: .any).matching(identifier: identifier)
+                .allElementsBoundByIndex.prefix(6).map { element -> [String: Any] in
+                    ["identifier": identifier, "type": element.elementType.rawValue,
+                     "hittable": element.isHittable, "enabled": element.isEnabled, "frame": frame(element.frame)]
+                }
+        }
+        let record: [String: Any] = ["window": frame(app.windows.firstMatch.frame), "app_state": app.state.rawValue,
+                                    "timed_out_control_exists": timedOutControl.exists,
+                                    "timed_out_control_hittable": timedOutControl.exists && timedOutControl.isHittable,
+                                    "screens": NSScreen.screens.map { frame($0.frame) }, "controls": controls]
+        var data = try JSONSerialization.data(withJSONObject: record, options: [.sortedKeys])
+        data.append(0x0A)
+        let log = logs.appendingPathComponent("app.log")
+        if let size = try? FileManager.default.attributesOfItem(atPath: log.path)[.size] as? NSNumber,
+           size.intValue > 64_000 { return }
+        if !FileManager.default.fileExists(atPath: log.path) {
+            try Data().write(to: log, options: .atomic)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: log.path)
+        }
+        let stream = try FileHandle(forWritingTo: log)
+        defer { try? stream.close() }
+        try stream.seekToEnd()
+        try stream.write(contentsOf: data)
+
+        // This source/home pair identifies the disposable public Actions Mac.
+        // Local runs retain numeric geometry only. Capture exactly the tested
+        // window, after the original wait has already failed, without changing
+        // successful-click timing or the assertion that follows.
+        if root.path.hasPrefix("/Users/runner/work/playstead/playstead/playstead-mac/"),
+           FileManager.default.homeDirectoryForCurrentUser.path == "/Users/runner" {
+            let screenshots = root.appendingPathComponent("screenshots", isDirectory: true)
+            try FileManager.default.createDirectory(at: screenshots, withIntermediateDirectories: true,
+                                                    attributes: [.posixPermissions: 0o700])
+            let screenshot = screenshots.appendingPathComponent("synthetic-settings-navigation.png")
+            try app.windows.firstMatch.screenshot().pngRepresentation.write(to: screenshot, options: .atomic)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: screenshot.path)
+        }
     }
 
     func require(_ identifiers: [String]) {
@@ -446,7 +506,7 @@ extension XCUIElement {
     /// not on this helper: CI keeps file:line and discards assertion
     /// messages, so a shared helper that owned the line number would make
     /// every stuck click in the suite look like the same defect.
-    func clickWhenHittable(
+    @MainActor func clickWhenHittable(
         timeout: TimeInterval = 10,
         file: StaticString = #filePath,
         line: UInt = #line
@@ -454,8 +514,12 @@ extension XCUIElement {
         if !isHittable {
             let ready = NSPredicate(format: "exists == true AND isHittable == true")
             let settled = XCTNSPredicateExpectation(predicate: ready, object: self)
+            let outcome = XCTWaiter.wait(for: [settled], timeout: timeout)
+            if outcome != .completed {
+                try? UITestHarness.recordSettingsNavigationTimeout(for: self)
+            }
             XCTAssertEqual(
-                XCTWaiter.wait(for: [settled], timeout: timeout),
+                outcome,
                 .completed,
                 "control never became hittable, so the click would have been silently dropped",
                 file: file,

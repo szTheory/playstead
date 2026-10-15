@@ -1,0 +1,124 @@
+{
+  "selection_request": {
+    "field": "title",
+    "value": "Owner corrected title",
+    "base_revision": 0
+  },
+  "selection_response": {
+    "asset_set_id": "00000000-0000-4000-8000-000000000001",
+    "description": "",
+    "revision": 1,
+    "selections": {"title": "Owner corrected title"},
+    "field_revisions": {"title": 1},
+    "field_sources": {"title": {"source": "user"}},
+    "deleted_fields": {},
+    "conflicts": [],
+    "evidence": {}
+  },
+  "conflict_response": {
+    "type": "metadata_conflict",
+    "field": "title",
+    "base_revision": 0,
+    "current_revision": 1,
+    "current_alternative": {"value": "First title", "revision": 1},
+    "incoming_alternative": {"value": "Second title", "source": {"source": "user"}}
+  },
+  "private_media_request": {
+    "content_type": "image/png",
+    "provenance": {"source": "user_upload", "validated": true}
+  },
+  "private_media_response": {
+    "id": "00000000-0000-4000-8000-000000000003",
+    "asset_set_id": "00000000-0000-4000-8000-000000000001",
+    "original_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "original_size_bytes": 128,
+    "original_mime": "image/png",
+    "derived_sha256": null,
+    "derived_size_bytes": null
+  },
+  "provider_consent_request": {
+    "title": "Owner supplied title",
+    "system": "gba",
+    "disclosure_revision": "igdb-title-system-v1"
+  },
+  "provider_consent_response": {
+    "provider": "igdb",
+    "enabled": true,
+    "revision": 1,
+    "disclosure_revision": "igdb-title-system-v1"
+  },
+  "provider_consent_revocation_response": {
+    "provider": "igdb",
+    "enabled": false,
+    "revision": 2
+  },
+  "provider_consent_revocation_partial_response": {
+    "provider": "igdb",
+    "enabled": false,
+    "revision": 2,
+    "cache_cleanup": {"status": "failed", "retryable": true}
+  },
+  "preparation_estimate_request": {
+    "selected_asset_set_ids": ["00000000-0000-4000-8000-000000000001"]
+  },
+  "preparation_request": {
+    "mode": "prepare",
+    "selected_asset_set_ids": ["00000000-0000-4000-8000-000000000001"],
+    "estimate": {"requests": 1, "bytes": 0}
+  },
+  "preparation_response": {
+    "jobs": [{"id": "00000000-0000-4000-8000-000000000004", "state": "queued"}],
+    "estimate": {"requests": 1, "bytes": 0, "storage": 0}
+  },
+  "capability_response": {
+    "protocol": {"major": 1, "minor": 0},
+    "server_build": "0.1.0",
+    "supported_client_ranges": {
+      "protocol": {"min": "1.0.0", "max": "1.0.0"},
+      "app": {"min": "1.0.0", "max": "1.1.0"},
+      "cache": {"min": "1.0.0", "max": "1.1.0"},
+      "transfer": {"min": "1.0.0", "max": "1.1.0"},
+      "adapter": {"min": "1.0.0", "max": "1.0.0"},
+      "save": {"min": "1.0.0", "max": "1.0.0"}
+    }
+  },
+  "change_response": {
+    "seq": 1,
+    "entity_kind": "metadata",
+    "entity_id": "00000000-0000-4000-8000-000000000001",
+    "operation": "upsert",
+    "payload": {
+      "version": 1,
+      "type": "description",
+      "asset_set_id": "00000000-0000-4000-8000-000000000001",
+      "description": "Owner authored private description",
+      "revision": 1,
+      "deleted_at": null,
+      "selections": {"description": "Owner authored private description"},
+      "field_revisions": {"description": 1},
+      "field_sources": {"description": {"source": "user"}},
+      "deleted_fields": {},
+      "conflicts": [],
+      "evidence": {}
+    }
+  },
+  "snapshot_response": {
+    "entries": [],
+    "cursor": "opaque-cursor",
+    "has_more": false,
+    "next_after_id": null,
+    "catalogue": [],
+    "job": [],
+    "curation": [],
+    "save": [],
+    "metadata": []
+  },
+  "legacy_mac_metadata_selection": {
+    "version": 1,
+    "type": "description",
+    "asset_set_id": "00000000-0000-4000-8000-000000000001",
+    "description": "Legacy description",
+    "revision": 1,
+    "deleted_at": null
+  }
+}

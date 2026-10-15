@@ -1,0 +1,69 @@
+package:
+  name: glib
+  version: 2.90.1
+  epoch: 0
+  description: GLib with optional mount and SELinux support disabled for the isolated decoder
+  copyright:
+  - license: LGPL-2.1-or-later
+  resources:
+    cpu: 2
+    memory: 4Gi
+environment:
+  contents:
+    packages:
+    - autoconf
+    - automake
+    - build-base
+    - busybox
+    - glibc-2.44-dev
+    - libffi-dev
+    - meson
+    - pcre2-dev
+    - python-3.13
+    - zlib-dev
+    repositories:
+    - https://packages.wolfi.dev/os
+    keyring:
+    - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+pipeline:
+- uses: git-checkout
+  with:
+    repository: https://gitlab.gnome.org/GNOME/glib.git
+    tag: ${{package.version}}
+    expected-commit: e05063ccc6c8f222465a1080927f4c14349f3de6
+- uses: meson/configure
+  with:
+    output-dir: build
+    opts: --default-library=shared -Dman=false -Ddocumentation=false -Dgtk_doc=false -Dtests=false -Dinstalled_tests=false -Dintrospection=disabled -Dlibmount=disabled
+      -Dselinux=disabled -Dnls=disabled
+- name: Compile with exactly two jobs
+  runs: meson compile -C build -j2
+- uses: meson/install
+  with:
+    output-dir: build
+- name: Bundle exact upstream LGPL notice in the runtime APK
+  runs: |
+    root="${{targets.destdir}}"
+    target="$root/usr/share/licenses/${{package.name}}"
+    mkdir -p "$target"
+    cp LICENSES/LGPL-2.1-or-later.txt "$target/LGPL-2.1-or-later.txt"
+    printf '%s  %s\n' 'fa6f36630bb1e0c571d34b2bbdf188d08495c9dbf58f28cac112f303fc1f58fb' "$target/LGPL-2.1-or-later.txt" | sha256sum -c -
+- uses: strip
+subpackages:
+- name: glib-dev
+  description: Development files for the custom GLib variant
+  dependencies:
+    runtime:
+    - glib=${{package.full-version}}
+  pipeline:
+  - uses: split/dev
+test:
+  pipeline:
+  - name: Verify libraries and disabled optional hooks
+    runs: 'glib-compile-schemas --version
+
+      gdbus --version
+
+      '
+update:
+  enabled: false

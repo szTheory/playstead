@@ -1,0 +1,49 @@
+{
+  "recorded_at": "2026-10-13T13:36:17.373221+00:00",
+  "human_judgment": false,
+  "status": "passed",
+  "required": 1,
+  "executed": 1,
+  "failures": 0,
+  "skips": 0,
+  "states": 53,
+  "identity": "PlaysteadTests.MetadataStateRenderingTests/testAllFiftyThreeMetadataControlFixturesMountAndRender",
+  "seconds": 3.49,
+  "run": "selected-rendering.AuRdUQ",
+  "source_sha256": "a958acbccc5bc92a5130012ec4bcf9efec1b586e58c203ab65c7a640648caad5",
+  "artifacts": {
+    "playstead-mac/.build/ci/selected-rendering.AuRdUQ/raw/rendering-tests.json": "bd28fca47b1ad5b56f8f595dae32155dbcaa879c16580a15ae1dc83a98cbdb18",
+    "playstead-mac/.build/ci/selected-rendering.AuRdUQ/raw/rendering.log": "e755dec885b83fa48c90c125fb21da343fd5ac6ade5f07f8dddee2f1de778d2d",
+    "playstead-mac/.build/ci/selected-rendering.AuRdUQ/raw/verification.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "oracles": [
+    "Same UITestBootstrap.metadataFixture and production environment fixture install as packaged53",
+    "Actual bounded nonuniform NSHosting bitmap for each53route",
+    "Installed correction mirror selections/source/evidence/conflicts agree with typedfixture",
+    "Kept sanitized53identity/count attachment"
+  ],
+  "authority": "Rendering/mirror smoke; AX/enabled actions/interactions remain covered by04.7-09-53-STATE-EVIDENCE.json",
+  "previous_attempts": [
+    "Standalone SwiftUI virtualAX unreliable; historicalpatchpreserved",
+    "ixk0X6 failed8 nil settingsidentity assertions oncorrectionfixtures; fixedbranchidentity"
+  ],
+  "baseline": {
+    "path": "/private/tmp/MetadataStateRenderingTests.swift.baseline",
+    "sha256": "8832524f6c2aa8b40549bb987041d5df17b4878c9c89b88252f2ad8ffd8c2c28"
+  },
+  "inherited_context": "Baseline NSWindow rendering scaffold retained with lineage; parallel oldfixturefactory replacedbyexact sharedproductionfixture factory",
+  "owned_patch": {
+    "path": "/private/tmp/phase04.7-plan09-rendering-bitmap-smoke-head.patch",
+    "sha256": "927857dd3e367156839ed7223bc3c7bf37d15d9ca3b9c216f00b5b6108d811f2"
+  },
+  "cleanup": "Exact app/runner inventory empty afterwrapperexit0",
+  "next_command": "$gsd-execute-phase 4.7",
+  "previous_pass_run": "selected-rendering.Nwefir",
+  "visual_audit_capture": {
+    "directory": "/private/tmp/playstead-04.7-ui-audit-images",
+    "png_images": 53,
+    "sanitized_state_receipts": 1,
+    "manifest_sha256": "ef2943785829edc8b8ca78d1fd6bf42c4d7c24961b17e5b67e05fdf9bff9b40c",
+    "scope": "Synthetic typedfixturebitmaps only; no desktopscreenshot/appinteraction"
+  }
+}

@@ -37,7 +37,11 @@ def validate(source):
     mac_job = source.split("  mac-verification:\n", 1)[1].split("\n  recovery-fixture:", 1)[0]
     if not (0 <= mac_job.find("Install static contract prerequisites") < mac_job.find("Verify static contract guards")):
         raise AssertionError("Mac static prerequisites must precede the contract guards")
-    if "if: ${{ !cancelled() }}" not in mac_job:
+    ordinary_condition = "if: ${{ !cancelled() }}"
+    decoder_condition = "if: ${{ !cancelled() && needs.decoder-runtime.result == 'success' }}"
+    if ordinary_condition not in mac_job and not (
+        decoder_condition in mac_job and "needs: [test, compose-smoke, decoder-runtime]" in mac_job
+    ):
         raise AssertionError("Mac verification must survive Linux failure but stop after cancellation")
     if not (0 <= mac_job.find("Prepare the hosted display for finite window geometry cases") < mac_job.find("Verify static contract guards")):
         raise AssertionError("hosted display must be prepared before native geometry tests")
@@ -53,6 +57,7 @@ class ServerWorkflowContractTest(unittest.TestCase):
         validate(source)
         mutations = (
             source.replace("if: ${{ !cancelled() }}", "if: always()", 1),
+            source.replace("if: ${{ !cancelled() && needs.decoder-runtime.result == 'success' }}", "if: always()", 1),
             source.replace("brew install ripgrep", "true", 1),
             source.replace("Suites: noble-pgdg", "Suites: wrong-pgdg", 1),
             source.replace("postgresql-client-17", "postgresql-client-16", 1),
@@ -62,6 +67,8 @@ class ServerWorkflowContractTest(unittest.TestCase):
             source + "\n      - uses: actions/upload-artifact@deadbeef\n        with:\n          path: playstead-server/tmp/wallaby_screenshots\n",
         )
         for index, mutated in enumerate(mutations, start=1):
+            if mutated == source:
+                continue
             with self.subTest(mutation=index), self.assertRaises(AssertionError):
                 validate(mutated)
 

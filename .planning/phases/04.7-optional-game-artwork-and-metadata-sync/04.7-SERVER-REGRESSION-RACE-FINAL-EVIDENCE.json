@@ -1,0 +1,35 @@
+{
+  "recorded_at": "2026-10-13T13:20:44.201014+00:00",
+  "human_judgment": false,
+  "status": "passed",
+  "command": "PLAYSTEAD_MEDIA_DECODER_EVIDENCE_DIR=$PWD/_build/media-decoder-evidence PLAYSTEAD_MEDIA_DECODER_IMAGE=sha256:7aa28a5944542a0f9df9f2d380942612c897c129b8493990f7c4f6202ff7ce37 PATH=$PWD/_build/chrome-for-testing-04.7/chromedriver-mac-arm64:$PATH MIX_TEST_PARTITION=18482 mix precommit",
+  "partition": 18482,
+  "tests": 1206,
+  "features": 192,
+  "properties": 13,
+  "failures": 0,
+  "seconds": 146.8,
+  "exit_code": 0,
+  "log": "/private/tmp/playstead-04.7-server-precommit-race-18482.log",
+  "log_sha256": "c013e3a6917a14bd26f710a79d92f82e7d25a8cfece340b50699edd99c459d6b",
+  "source_sha256": {
+    "playstead-server/lib/playstead/metadata.ex": "244594a494f11bd2f93e54f67330d7d5075ec9285abfaafd4b39aee09513600a",
+    "playstead-server/lib/playstead/metadata/private_media.ex": "83e5902fff59b02a79e7295887bf9e0cb027a09b921414101ed33efe949ab50f",
+    "playstead-server/lib/playstead/metadata/provider_media_cache.ex": "0bbeaeb02a8ef86508dec2c762259d7a1c5139af2af88310b37788ffb0fa58a7",
+    "playstead-server/lib/playstead/metadata/consent.ex": "3594c917f90273f82794f349f97b6f3900256b064f2be6c5006215f17d7afb21",
+    "playstead-server/lib/playstead_web/controllers/api/v1/metadata_controller.ex": "cf67bde6de83cccacb7c378d82d104912a5dccf49c02def3ea0f448d1ef82846",
+    "playstead-server/ops/media-decoder/server.py": "63f7ac79e346d84be597953c2773a1deb0863613f407da1a042aa8d9c144fc32",
+    "playstead-server/test/playstead/metadata/media_decoder_test.exs": "a188aad870284cf7f34279a4a8166e28c0e747089209980befa473f0da4dd561",
+    "playstead-server/priv/repo/migrations/20261013000100_add_metadata_conflict_resolution_actor.exs": "6974daeb52d0067bc8369bed20d3ce21f8cc9694272352678b30df8b891c08b3",
+    "playstead-server/test/playstead/metadata/provider_media_cache_test.exs": "944d69e14f996d6cd56b45e3c5383aad481df9ef4a982b7faa3eeeb7bb286c2b"
+  },
+  "decoder_scan_receipt": "04.7-DECODER-SUPPLY-CHAIN-EVIDENCE.json",
+  "cleanup": {
+    "database": "zero active connections; exact18482dropped/absentconfirmed",
+    "decoder_test_containers": 0,
+    "decoder_test_volumes": 0
+  },
+  "next_command": "$gsd-execute-phase 4.7",
+  "fix_commit": "f4e98ac",
+  "supersedes": "04.7-SERVER-REGRESSION-QUALIFIED-EVIDENCE.json"
+}

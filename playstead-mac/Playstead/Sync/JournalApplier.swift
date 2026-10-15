@@ -153,17 +153,20 @@ struct JournalApplier {
     /// unchanged.
     let saveStore: SaveStore?
     let saveBytesPrefetcher: SaveBytesPrefetcher?
+    let metadataStore: MetadataStore?
 
     init(
         catalogueStore: CatalogueStore,
         curationStore: CurationStore,
         saveStore: SaveStore? = nil,
-        saveBytesPrefetcher: SaveBytesPrefetcher? = nil
+        saveBytesPrefetcher: SaveBytesPrefetcher? = nil,
+        metadataStore: MetadataStore? = nil
     ) {
         self.catalogueStore = catalogueStore
         self.curationStore = curationStore
         self.saveStore = saveStore
         self.saveBytesPrefetcher = saveBytesPrefetcher
+        self.metadataStore = metadataStore
     }
 
     @discardableResult
@@ -187,6 +190,11 @@ struct JournalApplier {
             return applyCuration(entry)
         case "save":
             return applySave(entry)
+        case "metadata":
+            guard let metadataStore else { return false }
+            guard let selection = try? entry.payload.decoded(as: MetadataSelection.self),
+                  selection.assetSetID == entry.entityID else { return false }
+            return (try? metadataStore.upsert(selection)) != nil
         default:
             // An entity kind this client version doesn't recognise —
             // skipped and counted, never a hard failure, so an older

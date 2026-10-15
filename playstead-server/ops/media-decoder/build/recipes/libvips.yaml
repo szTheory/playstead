@@ -1,0 +1,64 @@
+package:
+  name: libvips
+  version: 8.18.7
+  epoch: 1
+  description: libvips custom PNG/JPEG-only decoder build from official upstream source
+  copyright:
+  - license: LGPL-2.1-or-later
+  resources:
+    cpu: 2
+    memory: 6Gi
+environment:
+  contents:
+    packages:
+    - build-base
+    - busybox
+    - expat-dev
+    - glib-dev
+    - glibc-2.44-dev
+    - libjpeg-turbo-dev
+    - libpng-dev
+    - meson
+    - zlib-dev
+    repositories:
+    - packages
+    - https://packages.wolfi.dev/os
+    keyring:
+    - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+pipeline:
+- uses: git-checkout
+  with:
+    repository: https://github.com/libvips/libvips
+    expected-commit: 24ad4d042940e6bf99a68871ba886ca8847c9c82
+    tag: v${{package.version}}
+- uses: meson/configure
+  with:
+    output-dir: build
+    opts: --default-library=shared -Dmodules=disabled -Dintrospection=disabled -Dexamples=false -Ddeprecated=false -Dcplusplus=false -Ddocs=false -Dcpp-docs=false
+      -Dvapi=false -Djpeg=enabled -Dpng=enabled -Dzlib=enabled -Dexif=disabled -Dcfitsio=disabled -Dcgif=disabled -Dfftw=disabled -Dfontconfig=disabled
+      -Darchive=disabled -Dheif=disabled -Dimagequant=disabled -Duhdr=disabled -Djpeg-xl=disabled -Dlcms=disabled -Dmagick=disabled -Dmatio=disabled -Dnifti=disabled
+      -Dopenexr=disabled -Dopenjpeg=disabled -Dopenslide=disabled -Dhighway=disabled -Dorc=disabled -Dpangocairo=disabled -Dpdfium=disabled -Dpoppler=disabled
+      -Dquantizr=disabled -Draw=disabled -Drsvg=disabled -Dspng=disabled -Dtiff=disabled -Dwebp=disabled -Dnsgif=false -Dppm=false -Danalyze=false -Dradiance=false
+- name: Compile with exactly two jobs
+  runs: meson compile -C build -j2
+- uses: meson/install
+  with:
+    output-dir: build
+- name: Bundle exact upstream LGPL notice in the runtime APK
+  runs: |
+    root="${{targets.destdir}}"
+    target="$root/usr/share/licenses/${{package.name}}"
+    mkdir -p "$target"
+    cp LICENSE "$target/LICENSE"
+    printf '%s  %s\n' 'dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551' "$target/LICENSE" | sha256sum -c -
+- name: Remove development pkg-config metadata from the runtime package
+  runs: find "${{targets.destdir}}" -type f -name '*.pc' -delete
+- uses: strip
+test:
+  pipeline:
+  - name: Verify the supported CLI contract and PNG/JPEG only build
+    runs: "vips --version\nvipsheader --version\nvipsthumbnail --version\nvips black /tmp/test.v 24 24\nvips pngsave /tmp/test.v /tmp/test.png\nvipsheader\
+      \ -a /tmp/test.png | grep -F \"width: 24\"\nvips jpegsave /tmp/test.v /tmp/test.jpg\nvipsheader -a /tmp/test.jpg | grep -F \"width: 24\"\nfor op in\
+      \ tiffload svgload heifload; do\n  if vips -l 2>/dev/null | grep -F \"$op\"; then echo \"unexpected optional loader: $op\" >&2; exit 1; fi\ndone\n"
+update:
+  enabled: false

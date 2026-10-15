@@ -45,6 +45,7 @@ defmodule Playstead.Protocol.Capabilities do
   # to advertise a newer feature version within an existing namespace,
   # never a change to envelope/0's frozen key shape.
   @namespace_ranges %{
+    app: {"1.0.0", "1.1.0"},
     transfer: {"1.0.0", "1.1.0"},
     cache: {"1.0.0", "1.1.0"}
   }

@@ -1,0 +1,834 @@
+{
+  "schema_version": 1,
+  "phase": "4.7",
+  "recorded_at": "2026-10-14T17:46:42.120527+00:00",
+  "human_judgment": false,
+  "lineage": {
+    "failed_phase_head": "fe57d64d79f0b187bb9ac4023e5cd45aa062ec86",
+    "failed_phase_run": 38477073931,
+    "prerequisite_repair": "d7f19f94ee5fd03dd803ab05b96311c193542fa4",
+    "local_phase_merge": "5e783f5d6ec5967a2d3d537e838ed4177b1c85de",
+    "native_qualified_phase_commit": "1ae7c16ec71274bce56d0ff0fece082cd03dc8f3"
+  },
+  "source_sha256": {
+    ".github/workflows/ci.yml": "345d1e8407dc2ad7b176539f2351b348bb1819d1ef68655a64d92d82913370bc",
+    ".planning/spikes/001-bios-free-gameplay/verify_pixels.py": "88a3ef41c6dca4ee4046f798856031cc5f2e77fbe864f8901a61a1521754447b",
+    "playstead-mac/Playstead/Library/GameRowView.swift": "7ce6bba22f75438bcb94ae49d7cc58a67c7394a97cb3a57f071f47a2b4696746",
+    "playstead-mac/PlaysteadTests/SnapshotTests/MetadataStateRenderingTests.swift": "17ba2f3e69164fc26383f460dd96ce22ef530cbe280f1f59732ab20858b81e50",
+    "playstead-mac/PlaysteadTests/SnapshotTests/__Snapshots__/LibraryContractSnapshotTests/library-list-row-width-adaptation.png": "67c9ef832bec3a06e67fed428281911fc2b3f6d9b831b5acb72a9315e60cf5d4",
+    "playstead-mac/PlaysteadUITests/MetadataConsentUITests.swift": "f2320a1c78b40fd89c0e091f01eab924827a2eb4a2d8f997e6e475582520305c",
+    "playstead-mac/PlaysteadUITests/MetadataCorrectionUITests.swift": "ec9833c423cae9d230a5be8e1ef001fd5aa45b5a1aa5e1c31322168d8c06c1db",
+    "playstead-mac/TestPlans/LiveServer.xctestplan": "b40b830bcbc0c35a59971f1c905057f4c23aa406ba7c51244e962320b496685d",
+    "playstead-mac/scripts/ci/hosted-decoder-runtime.sh": "3f0870bca7c52d7bdad4f92fb0ec386236416dc98458c4ad21af09c4a5b80c70",
+    "playstead-mac/scripts/ci/live-server.sh": "0474472949982cf30a2a7425924634857f34f0c15af4d4ee04b06a459e0383ba",
+    "playstead-mac/scripts/ci/run-mac-verification.sh": "042a8015b8ea74c31e8619fa68a09b07e0d959604743198513eddb0bcc7a0ab9",
+    "playstead-mac/scripts/ci/tests/test_hosted_decoder_runtime.py": "b9430fb3fdb0772f8b76a748319a3173cffdd77691144af8677f664dd89dc9c9",
+    "playstead-mac/scripts/ci/mac-ci-tls.sh": "63ff35b86ef6f29e2801e2186c031a1e6a303550c018c51c4983e3d2209be1cf",
+    "playstead-mac/scripts/ci/tests/recovery-browser-trust-test.sh": "381e7e58434b53aef7c852fe408ec76c174f84d119abfac88d9c76a1c7b4450f",
+    "playstead-mac/scripts/ci/tests/test_mac_ci_tls_serial.py": "a2d25f9fa05ba3965c67089a0837efd1878926c83f3dcedbb23d2ba92d4c2c3f"
+  },
+  "repairs": [
+    "Explicit Swift ownership for the rendering fixture window; avoid AppKit release on close",
+    "Phase-only library list reference includes inspected current artwork thumbnails and retained narrow-pane actions",
+    "Stable game actions menu identifier and exact native menu/control roles; finite scrolling reveals correction actions for the long imported title",
+    "Metadata UI selectors fail at their first violated predicate and terminate their owned app",
+    "Same-run decoder guest preflight now precedes expensive native checks; it emits a finite failure stage and preserves exit status; no host mounts, SSH-config edits or default Docker-context activation"
+  ],
+  "qualification": {
+    "rendering_fixture": {
+      "run": "selected-rendering.KT7u7O",
+      "passed_selector": "MetadataStateRenderingTests/testAllFiftyThreeMetadataControlFixturesMountAndRender",
+      "fixture_count": 53,
+      "skipped": 0,
+      "whole_run": "failed on old list reference, repaired separately"
+    },
+    "list_reference": {
+      "run": "selected-rendering.spqShY",
+      "executed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "visual_inspection": "both themes, wide/narrow panes; artwork fallback and all footer actions visible"
+    },
+    "ui_cohort": {
+      "run": "selected-ui.oAcDL7",
+      "executed": 8,
+      "selected_passed": 6,
+      "whole_run": "failed on two offscreen correction actions; repaired and requalified separately",
+      "passed_selectors": [
+        "ControllerDpadRegressionTests/testControllerTestDpadUpStaysInSettingsAndSettingsReopensAtStorage",
+        "ControllerRecoveryBannerGeometryTests/testRecoveryBannerGeometryAcrossWindowSizesAndAppearances",
+        "MetadataConsentUITests/testMetadataSettingsRemainInsideSettingsAndShowIndependentCacheBudget",
+        "MetadataCorrectionUITests/testAllEightCorrectionStatesRenderProvenanceConflictsAndEnabledActions",
+        "SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit",
+        "SurfaceAccessibilityTests/testReadinessRoutesReachBIOSAndControllerSettings"
+      ]
+    },
+    "correction_retry": {
+      "run": "selected-ui.N060uZ",
+      "executed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "in_test_seconds": 47.7,
+      "selectors": [
+        "MetadataCorrectionUITests/testCorrectionFormShowsPerFieldSourceAndOnlyExplicitSaveAction",
+        "MetadataCorrectionUITests/testSavingCorrectionUpdatesTheLocalMirrorBeforeServerDelivery"
+      ]
+    },
+    "static": "99 validator cases/all guards passed after final TLS changes",
+    "summary_coverage": "10/10 coverage blocks classifiable",
+    "downloaded_linux_decoder": {
+      "run": 38477073931,
+      "image_id": "sha256:5673cad7ed6218361873a824cd61b93e18ebfedd677aae0d51f954024468395d",
+      "receipt_verification_exit": 0,
+      "claim": "exact public generated context and report receipt validated against unchanged recipe; no local guest/container execution claimed"
+    },
+    "retained_phase_goal": "38 original truths, same acceptance identities and earlier source/run evidence; targeted shipping revalidation above",
+    "tls_serial_preservation": {
+      "actual_regression": "red before fix, green after fix; certificate chain verifies; scoped serial mode0600; outer serial unchanged",
+      "test_count": 1,
+      "owner_original_counter_checksum_restored": true,
+      "owned_stack_increments_reversed": 4,
+      "system_keychain_changes": false
+    }
+  },
+  "unknown": [
+    "Final full exact-head CI, including all155 ordinary UI and12 live journeys, remains required before PR13 squash merge."
+  ],
+  "cleanup": {
+    "task_app_runner": "exact executable inventory empty after final UI",
+    "native_services": "all local task native stacks torn down; no Docker guest was started locally",
+    "original_fixture_bytes": "preserved"
+  },
+  "primary_sources": [
+    "https://developer.apple.com/documentation/appkit/nswindow/isreleasedwhenclosed",
+    "https://raw.githubusercontent.com/abiosoft/colima/main/cmd/start.go",
+    "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepstimeout-minutes"
+  ],
+  "hosted_retry": {
+    "run": 38486889151,
+    "compose_failure": "Initialize containers: ECR toomanyrequests Data limit exceeded; failure precedes repository test execution",
+    "next": "new final source head retries hosted checks; no registry credentials or gate exception introduced"
+  },
+  "socket_and_diagnostic_followup": {
+    "recorded_at": "2026-10-14T00:38:45.644427+00:00",
+    "human_judgment": false,
+    "prerequisite_commit": "a61159474d434d0ef5a8739de94425fc0a4908fb",
+    "failed_phase_run": 38488262815,
+    "failed_phase_head": "d1ff6c79ea574c02c957c974b72702ebb9b3fd7a",
+    "hosted_linux": "all three jobs passed",
+    "guest_failure": {
+      "stage": "start-owned-guest",
+      "cause": "Lima SSH socket path113 bytes exceeds Darwin UNIX_PATH_MAX104",
+      "colima": "0.10.3",
+      "lima": "2.2.0",
+      "qemu": "11.1.1",
+      "cleanup": "exact task guest delete and owned root cleanup succeeded"
+    },
+    "repair": "Short owned Colima home c/profile media; host socket/readiness/cleanup agree; finite path preflight rejects length104+ before runtime creation or installation.",
+    "verification": {
+      "runtime_contracts": 8,
+      "static_validator_cases": 101,
+      "phase_verifier_cases": 86,
+      "sanitizer_cases": 92,
+      "static_run": "Aggregate failed only on sandbox-denied /bin/ps in owned wrapper cleanup; the affected guard then passed with permitted process inventory. Other guard results and101validators retained, no whole failed aggregate claimed passing.",
+      "original_serial": "not mutated by explicit run-owned CAserial fixture",
+      "actual_guest_execution": "unknown; requires corrected current-head hosted canary"
+    },
+    "retained_empty_profile_cleanup": "Exact source/target child inventories empty; four empty directories removed by rmdir, root absence verified.",
+    "source_sha256": {
+      "playstead-mac/scripts/ci/hosted-decoder-runtime.sh": "7ec359f9bd9b15a52da9a88e1d5422a9cc531e68cc1a5bc7aff2c3cb40bb4d26",
+      "playstead-mac/scripts/ci/run-mac-verification.sh": "3053c6638a4c8fbb1e35ab917ecb8d2a24a8412cc2acc7249d0da7f085f3e655",
+      "playstead-mac/scripts/ci/tests/test_hosted_decoder_runtime.py": "8b30fcfabde3a0553e2e4b270f10cc7943e95183bf32f9e347f8ad72cf4502dc",
+      "playstead-mac/scripts/ci/tests/four-layer-verifier-test.sh": "08a29fdcd54e1e7d1a17237895bf60d93395cf4c364a1fb53e3abef09969b13d"
+    },
+    "primary_sources": [
+      "https://raw.githubusercontent.com/abiosoft/colima/v0.10.3/environment/vm/lima/lima.go",
+      "https://raw.githubusercontent.com/lima-vm/lima/v2.2.0/pkg/limayaml/validate.go"
+    ]
+  },
+  "guest_agent_followup": {
+    "recorded_at": "2026-10-14T01:00:22.234729+00:00",
+    "human_judgment": false,
+    "failed_run": 38491414125,
+    "failed_head": "d7e7e05ce7b30521b20153466dad6498277b6afc",
+    "hosted_linux": "all three jobs passed",
+    "hosted_failure": {
+      "stage": "start-owned-guest",
+      "socket_regression": "resolved; VM instance creation passed prior path validation",
+      "cause": "Homebrew native Lima2.2.0 has no Linux-x86_64 guest agent; runtime explicitly requests lima-additional-guestagents",
+      "cleanup": "exact media guest/home cleanup succeeded"
+    },
+    "repair": "Install declared lima-additional-guestagents with existing development tools; scoped LIMA_HOME info must resolve an actual Linux-x86_64 agent file before VM startup.",
+    "qualification": {
+      "runtime_contracts": 9,
+      "agent_cases": 5,
+      "claim": "synthetic schema/file/ownership preflight; actual corrected guest execution requires hosted CI",
+      "static_validator_tests": 102
+    },
+    "source_sha256": {
+      "playstead-mac/scripts/ci/hosted-decoder-runtime.sh": "9df3a89c3f43669e4a5af4af73903137d3c2ab6bf4dfc4ea3c20084b8451e6f6",
+      "playstead-mac/scripts/ci/tests/test_hosted_decoder_runtime.py": "8af6e5ad39f9ebf706e4903efb6776619cecb29f66a4ba77a780fc7f742c569d"
+    },
+    "primary_sources": [
+      "https://lima-vm.io/docs/installation/",
+      "https://raw.githubusercontent.com/Homebrew/homebrew-core/master/Formula/l/lima-additional-guestagents.rb",
+      "https://raw.githubusercontent.com/lima-vm/lima/v2.2.0/pkg/limainfo/limainfo.go"
+    ]
+  },
+  "image_store_followup": {
+    "recorded_at": "2026-10-14T12:30:54.948316+00:00",
+    "human_judgment": false,
+    "failed_run": 38493388963,
+    "failed_head": "86b1c3bd969221283b1d498f15f64288b1b33852",
+    "hosted_linux": "all three jobs passed",
+    "hosted_failure": {
+      "stage": "verify-image-custody",
+      "observed": "Owned x86 guest and Docker started; archive loaded; exact scanned configuration image ID was absent",
+      "cause": "Image-store identity difference is an inference until corrected hosted execution",
+      "cleanup": "owned media guest and home removed"
+    },
+    "archive_check": {
+      "config_digest_matches_receipt": true,
+      "platform": "linux/amd64",
+      "layers": 16
+    },
+    "repair": "Configure only fresh owned guest to use classic overlay2; verify actual driver before loading. Exact scanned image ID remains mandatory; no translation, retagging or scan policy change.",
+    "qualification": {
+      "runtime_contracts": 10,
+      "store_boundary_cases": 3,
+      "actual_guest_execution": "pending current-head CI",
+      "static_validator_tests": 103
+    },
+    "source_sha256": {
+      "playstead-mac/scripts/ci/hosted-decoder-runtime.sh": "39bd0ff5e05c14a699075917c0ffd1bcf50c5e5bf1574c53eb535fe12981cebb",
+      "playstead-mac/scripts/ci/tests/test_hosted_decoder_runtime.py": "c1795ca2ca5a99b4a8149134abe3cb69b7c5c8d67975e7a89a6527b91e36dadc"
+    },
+    "primary_sources": [
+      "https://raw.githubusercontent.com/abiosoft/colima/v0.10.3/embedded/defaults/colima.yaml",
+      "https://docs.docker.com/engine/storage/containerd/",
+      "https://github.com/moby/moby/issues/51934"
+    ]
+  },
+  "framework_diagnostic_followup": {
+    "recorded_at": "2026-10-14T12:33:53.475427+00:00",
+    "human_judgment": false,
+    "prerequisite_commit": "64c2ce9",
+    "source_run": 38490840584,
+    "confirmed_gb_cause": "GBGBCSaveContinuityTests.swift:286 Accessibility-trust guard",
+    "geometry_cause": "unknown",
+    "repair": "Carry canonical source locations for structured XCTest framework failures, including failures without a named assertion primitive. All raw messages and workspace paths remain excluded.",
+    "source_sha256": {
+      "playstead-mac/scripts/ci/run-mac-verification.sh": "0ca529ba23c79f51c6cdba6c95bdb7c6e73a0e4ed2dbbd9b989710a7f813198c",
+      "playstead-mac/scripts/ci/sanitize-evidence.sh": "7a50f15f09274380ddc6efbce426798ab8b5d740e1fced03dec2cfc37d2ab2ee",
+      "playstead-mac/scripts/ci/tests/four-layer-verifier-test.sh": "f6102afb8647653dfc8dfc79a50bfa820b749db8279942a636bb3cba9986a27a",
+      "playstead-mac/scripts/ci/tests/sanitizer-test.sh": "a15a868433456f127c1b1e074e88048c493c9bc8e74d44e78baced9756f1f437"
+    },
+    "verification": {
+      "prerequisite_verifier_checks": 84,
+      "sanitizer_checks": 93,
+      "topology": "passed",
+      "composed_phase_checks": {
+        "verifier": 86,
+        "sanitizer": 93,
+        "static_validators": 103
+      }
+    },
+    "gb_experiment": "Prepared proposal remains unapplied pending explicit approval after automatic review rejection; no local native launch or permission change."
+  },
+  "nonempty_colima_profile_followup": {
+    "recorded_at": "2026-10-14T13:09:31.594927+00:00",
+    "human_judgment": false,
+    "source_head": "cd5c09600d97711107d93ece396d473904a4b8bf",
+    "source_run": 38564881964,
+    "hosted_linux": "all three jobs passed",
+    "hosted_failure": {
+      "stage": "verify-image-store",
+      "cause": "Owned profile omitted runtime; Colima0.10.3 Config.Empty returns true and start.prepareConfig discards Docker configuration",
+      "cleanup": "Exact owned colima-media deletion confirmed"
+    },
+    "repair": "Declare runtime: docker in the existing owned profile; retain classic overlay2 and unchanged exact image custody checks.",
+    "qualification": {
+      "runtime_contracts": 10,
+      "upstream_config_oracle": {
+        "module": "github.com/abiosoft/colima v0.10.3",
+        "compiler": "go1.26.0 darwin/arm64",
+        "api": "configmanager.LoadFrom and Config.Empty",
+        "before": {
+          "exit": 1,
+          "profile_empty": true,
+          "runtime": "",
+          "containerd_snapshotter": false,
+          "storage_driver": "overlay2"
+        },
+        "after": {
+          "exit": 0,
+          "profile_empty": false,
+          "runtime": "docker",
+          "containerd_snapshotter": false,
+          "storage_driver": "overlay2"
+        },
+        "files_sha256": {
+          "main.go": "1041e6c1dfcbf438c0f86aa1e20aabda1e530bcff833c69162b8702e3d30cc62",
+          "go.mod": "c6b7b221c5dd96a721d18c875209140d7d5a7b3e4e65e4246f7641d06f32a4be",
+          "go.sum": "cac258c434c70bc911d1bd01761ea90611f47089f20e8e695161f1fef49f0dd6",
+          "before.yaml": "83657a571d13001c77649832e9646f2deda44b3cca8004d28f2ea7c62e760dd6",
+          "after.yaml": "66bef03a532a3288b16b027cb5d2f5892857d19b28bdc48dc4d06d3e49303e11"
+        },
+        "boundary": "Pure configuration loading; no guest, app, service or system-permission changes"
+      },
+      "actual_hosted_result": "pending corrected current-head CI"
+    },
+    "source_sha256": {
+      "playstead-mac/scripts/ci/hosted-decoder-runtime.sh": "325005dcaba01aead4c3b0026288025f8b2e637ea2b470e95abc7d7ea129a10c",
+      "playstead-mac/scripts/ci/tests/test_hosted_decoder_runtime.py": "a17adc0be727cdb0d6686dd0c3f1d2857da780b8bec7bd379eb4bc5e205a2ffe"
+    },
+    "primary_sources": [
+      "https://raw.githubusercontent.com/abiosoft/colima/v0.10.3/config/config.go",
+      "https://raw.githubusercontent.com/abiosoft/colima/v0.10.3/cmd/start.go",
+      "https://raw.githubusercontent.com/abiosoft/colima/v0.10.3/config/configmanager/configmanager.go"
+    ]
+  },
+  "efficiency_followup": {
+    "recorded_at": "2026-10-14T13:40:40.513058+00:00",
+    "human_judgment": false,
+    "prerequisite_commit": "9ab418d",
+    "baseline_run": 38569515748,
+    "baseline_decoder_seconds": {
+      "unit_lane": 531,
+      "recovery_lane": 381,
+      "compose_lane": 450
+    },
+    "baseline_duplicate_runner_seconds": 912,
+    "changes": [
+      "Build/scan exactly once per workflow in decoder-runtime; three Linux lanes and owned Mac guest consume that same-run artifact",
+      "Linux imports reject unsafe archives, another config digest, altered current source/report and wrong actual loaded image before activation; original production receipt verifier still runs",
+      "Mac skips its expensive build when the required decoder qualification failed; it still runs after ordinary Linux test/Compose failures when that decoder passed",
+      "Add version/OS/architecture/lock-keyed server and SwiftPM dependency caches; preserve fresh test products, profiles and all required selectors",
+      "Prerequisite native geometry uses the Mac scroll-wheel API; search suite requests a finite desktop window to avoid inherited autosave geometry"
+    ],
+    "verification": {
+      "shared_runtime_contracts": 8,
+      "decoder_policy_contracts": 12,
+      "release_evidence_contracts": 29,
+      "static_validator_tests": 103,
+      "all_static_contract_guards": "passed",
+      "actionlint_shellcheck": "passed",
+      "real_archive_validation": {
+        "source_run": 38493388963,
+        "image_id": "sha256:d98833581fece8345b6213bd99d2257e14809975bafd199227ec956bf257114f",
+        "archive_report_context_validation": "passed through production importer",
+        "docker_boundary": "stubbed; no actual local image load, guest or native app",
+        "temp_checkout": "removed by owned temporary-directory cleanup",
+        "human_judgment": false
+      },
+      "native_selectors": "Not qualified locally: runner timed out enabling automation before any test executed. Packaged test sources compiled; hosted current-head execution required. No repeated foreground loop.",
+      "timing_limit": "912runner-seconds of duplicate baseline work eliminated structurally; new full-workflow wall time not measured yet"
+    },
+    "source_sha256": {
+      ".github/workflows/ci.yml": "6e7be4b2266379b47ecf396fed21093abd6fd4a875172189e8f2f4110cbc5860",
+      "scripts/ci/import-media-decoder-runtime.sh": "402fca3abda3d266e8c16e9c28043e28896a890e70d16df01f13eeb148a70ab4",
+      "scripts/tests/test_decoder_runtime_reuse.py": "b0c0a54fd4728a57d0f798f22bb757a8ae9aecd092a4bb55c958d5a6485327d0",
+      "playstead-mac/scripts/ci/tests/test_server_workflow_contract.py": "e1bc6c521582201fbccdbabf11aa4a220d371a1ddf0ae8dc79bf443234ed85ac",
+      "playstead-mac/PlaysteadUITests/ControllerRecoveryBannerGeometryTests.swift": "cfafe82cbc5d90044cdee85385cce7d9f29558e4790a483be3ac30d1dd0fa27d",
+      "playstead-mac/PlaysteadUITests/LibraryEmptyStateTests.swift": "a9384881733f9accf97ad64210c878de9e20cb6e2e10aa92b54163d5bc63b7b6"
+    },
+    "remaining": [
+      "Current-head hosted decoder/native regression",
+      "Specific approval for prepared GB shortcut proposal; it remains unapplied",
+      "After green applicable checks, already-authorized ordered squash merges"
+    ],
+    "primary_sources": [
+      "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax",
+      "https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching",
+      "https://docs.github.com/en/actions/reference/workflows-and-actions/expressions"
+    ],
+    "hosted_runtime_qualification": {
+      "run": 38569515748,
+      "head": "7a3ea82987a350d92fc224d08adb9052ce826462",
+      "job": 115878690685,
+      "step": "Qualify the owned decoder runtime before native checks",
+      "conclusion": "success",
+      "started_at": "2026-10-14T13:33:33Z",
+      "native_step_started_at": "2026-10-14T13:43:17Z",
+      "qualified_source_sha256": "325005dcaba01aead4c3b0026288025f8b2e637ea2b470e95abc7d7ea129a10c",
+      "claim": "Actual owned guest boot, classic-store guard and exact scanned image import passed; no full native matrix or parser journey pass inferred"
+    }
+  },
+  "xctest_menu_and_cache_followup": {
+    "recorded_at": "2026-10-14T14:47:09.983665+00:00",
+    "human_judgment": false,
+    "input_head": "9ab418db2de845de2b590dea08f6aa4cadbaf8ba",
+    "hosted_run": 38573992478,
+    "hosted_result": "823unit/54rendering passed;146UI with geometry1failure at native scroll; search passed;10live with three GB/GBC raw AX guard failures",
+    "owner_approval": "Explicit approval for the test-only raw AX replacement and focused check; no system permission or HID changes",
+    "experiments": [
+      {
+        "attempt": "EihdX3",
+        "result": "1executed/1failed/0skipped",
+        "finding": "Private Qt shortcut is hidden by production controller configuration override; discarded"
+      },
+      {
+        "attempt": "UHgsSg",
+        "result": "1executed/1failed/0skipped",
+        "finding": "Detaching synthetic controller blocks current launch; discarded"
+      }
+    ],
+    "final_changes": [
+      "Use XCTest Tools/Scripting menu activation through the UI testing service, remove unused direct AX helpers and trust guard; preserve synthetic controller launch, exact emulator identity, immutable save transfer, game RAM and raw-pixel oracles",
+      "Wait for source list, foreground app and unconditionally reset native upward scroll before geometry navigation; full hosted confirmation remains pending",
+      "Carry existing explicit owned CAserial fix and real dotted-path regression from Phase into its prerequisite",
+      "Recovery contract permits only the same-run decoder producer when that job exists; rejects unrelated dependency",
+      "Split Mac dependency cache restore/save; retain populated dependency caches after test failures, exclude cancellation and exact hits; test products, profiles, credentials and evidence remain fresh"
+    ],
+    "local_verification": {
+      "gb": "7WUUgq: exactly1 discovered/executed/passed,0skips;104.6seconds; source0->1 with1inputedge, fresh target1->1 with0inputedges; four23040-pixel checks;8192-byte save; real pinned0.10.5 executable",
+      "geometry": "mJYfF7:1discovered/executed/passed,0skips;fourwindow/theme cases;69.9seconds;native upward scroll exercised each case; also compiled final GB test after dead helper removal",
+      "prior_geometry": "V7OKvg and iabnPo passed all4cases; earlier focused run did not exercise conditional upward scroll",
+      "tls_serial": "Real scoped issuer regression passed; owner counter restored to recorded checksum after3owned prerequisite issuance increments; no system trust changes",
+      "validators": 93,
+      "workflow_contracts": 2,
+      "recovery_workflow": "Full coordinator contracts passed; actual new Python check accepts prerequisite and Phase DAG, rejects unrelated needs",
+      "actionlint_shellcheck": "passed"
+    },
+    "source_sha256": {
+      ".github/workflows/ci.yml": "59b2848abeb250a530236da958ede8b6d8b147e4434d403484258d011998d202",
+      "playstead-mac/PlaysteadUITests/GBGBCSaveContinuityTests.swift": "8f3ebf4640f67c198f4b0129d6f6bfb7c6fe58e8bfc83acd277078b970179eb2",
+      "playstead-mac/PlaysteadUITests/ControllerRecoveryBannerGeometryTests.swift": "ec8ab4ab54cacb8ca75e0936bf594b5e87eb06c5ece323e6a516f5a22c85dbc2",
+      "playstead-mac/scripts/ci/mac-ci-tls.sh": "63ff35b86ef6f29e2801e2186c031a1e6a303550c018c51c4983e3d2209be1cf",
+      "playstead-mac/scripts/ci/tests/recovery-browser-trust-test.sh": "381e7e58434b53aef7c852fe408ec76c174f84d119abfac88d9c76a1c7b4450f",
+      "playstead-mac/scripts/ci/tests/test_mac_ci_tls_serial.py": "a2d25f9fa05ba3965c67089a0837efd1878926c83f3dcedbb23d2ba92d4c2c3f",
+      "playstead-server/scripts/tests/recovery-fixture-test.sh": "7ca0bbe03e3eee9ee14901ce7a653b16d91834745126168c12fcc95ec6c83efe"
+    },
+    "remaining": "Applicable current-head hosted CI including both GBC readback selectors and full geometry matrix; no full hosted-green claim",
+    "prerequisite_commit": "36b4fcb",
+    "phase_input_head": "31ce828e7a82eb6d89c7d7dce85b7824a8093fb8",
+    "phase_hosted": {
+      "run": 38574300633,
+      "decoder_producer": "success",
+      "compose": "success",
+      "precommit": "ECR PostgreSQL image pull quota during container initialization;0tests",
+      "recovery": "Fixture passed; stale no-needs workflow contract rejected new producer dependency; fixed by common contract",
+      "Mac": "owned runtime preflight passed; full native ongoing"
+    },
+    "composed_validation": {
+      "static_guards": "all passed",
+      "static_validators": 103,
+      "decoder_runtime_reuse": 8,
+      "decoder_policy": 12,
+      "release_evidence": 29,
+      "actionlint_shellcheck": "passed",
+      "recovery_contract": "passed both dependency graphs; unrelated dependency rejected",
+      "zero_discovery_attempt": "An incorrect local policy filename discovered0tests; corrected to test_media_decoder_supply_chain.py and12realtests passed; zero-discovery output not counted as evidence"
+    },
+    "scope": "All original38Phase acceptance truths/audits and image qualification retained; hosted regression matrix remains separate.",
+    "composed_workflow_sha256": "4eb5641f56d535222da4729d31ff93918124028860fa3f1d7d719962ff785348"
+  },
+  "full_runner_output_followup": {
+    "recorded_at": "2026-10-14T16:19:08.201408+00:00",
+    "human_judgment": false,
+    "source_head": "36b4fcb8f3251c7efa0c9a3ee465474bed1a255c",
+    "source_hosted_run": 38584040398,
+    "hosted_results": "823unit/54rendering passed;146UI with geometry scroll failure;10live with3GB/GBC failures at writeRunEvidence before game oracle; both Mac dependency caches saved after failure",
+    "confirmed_causes": {
+      "GB": "Full generated xctestrun omitted output input; focused runner supplied it. The former reliability-output setting is intentionally empty in ordinary LiveServer mode.",
+      "geometry": "Framework failure at native scroll event; exact geometric assertions not reached. Use direct stable Recently Played row as in passing curation journeys."
+    },
+    "changes": [
+      "Dedicated private mode0700 GB receipt directory under raw output; wire concrete path to both full test environments and focused plans without enabling optional reliability probes",
+      "Require existing private directory in GB writer, retain mode0600 files and all game/save assertions; detailed receipts remain excluded from public sanitizer",
+      "Select production Recently Played row directly by stable identity; retain every geometry assertion in all4window/theme cases",
+      "Update fixture guide for XCTest menus, private output, shared build cache and exact execution"
+    ],
+    "verification": {
+      "actual_full_shell_regression": "Previous36b function fails private-output creation assertion; current real shell materializer passes, both test environments concrete and reliability disabled",
+      "environment_writer_tests": 2,
+      "validators": 94,
+      "GB": "nfqeKF exactly1discovered/executed/passed,0skips; source0->1/1edge,target1->1/0edge,four23040-pixel checks,8192-byte save; receipt0600,parent0700; complete wrapper exit0",
+      "geometry": "BJu8R6 exact selector passed1/1/0skip across4window/theme cases,107.3seconds. Overall shell command exited2 after test success because its source was edited while command remained active; not represented as a passing command. Final stable runner later completed GB wrapper exit0 and compiled same geometry source. Hosted geometry still required.",
+      "syntax_topology": "passed"
+    },
+    "source_sha256": {
+      "playstead-mac/PlaysteadUITests/ControllerRecoveryBannerGeometryTests.swift": "4e4716011a07e00319da7b4f4abab6c5e8887d003bfeca79f09c55a51ecbfef5",
+      "playstead-mac/PlaysteadUITests/GBGBCSaveContinuityTests.swift": "94aac0529d9da0a3f88d08395368e681feb9a1605bc373b1e1d3fce21329b28e",
+      "playstead-mac/TestPlans/LiveServer.xctestplan": "7c3e2f25731bb39893feaadf2e4880f67efae82e756a5793a05ead97fed73018",
+      "playstead-mac/TestPlans/Recovery.xctestplan": "5b428c951afbf5016bbbb2b11dffdd316f6c5f2d5935895053f11955fea05bfe",
+      "playstead-mac/docs/TEST-FIXTURES.md": "016ddfe615fe79edbb2c1a1ba9306e8890d1a65b5095894ad5da99db6b56ef0a",
+      "playstead-mac/scripts/ci/run-mac-verification.sh": "52d0da34e968a6a0fb1d4b8409f77942b69678ffc9001f5119f202660e7ed862",
+      "playstead-mac/scripts/ci/tests/four-layer-topology-test.sh": "80ab07ddb6655be784e063d9d3f121af5cd559a2a6dc78bb7a0ee5e629edd6fa",
+      "playstead-mac/scripts/ci/tests/test_live_server_xctestrun_environment.py": "d9c6f1f9ccacdf51677b919aba201d9032312aa0702bd1ce51bd5d8ed8ddef4c"
+    },
+    "cleanup": "Exact app/runner/children/profiles/native services closed; owner head/index/source/private fixtures and ignored serial preserved",
+    "next": "Current-head hosted gates must pass before authorized ordered merges; no hardware/system permission change.",
+    "prerequisite_commit": "12d45e8",
+    "phase_previous_head": "bea760a70fcf9214729f912a860e922ca7f6f60d",
+    "composed_validation": {
+      "all_static_guards": "passed",
+      "validator_tests": 104,
+      "runtime_handoff_tests": 8,
+      "decoder_policy_tests": 12,
+      "release_evidence_tests": 29,
+      "actionlint_shellcheck": "passed",
+      "GB_full_command": "nfqeKF1/1/0skip137.1seconds",
+      "geometry_case": "BJu8R6 testcase1/1/0skip fourcases107.3sec; wrapperexit2after successfulcase due script edit overlap, not a passing wholecommand"
+    },
+    "composed_runner_sha256": "a9616177bfa7988db6043a2b442db6f0509ca3593a45db962ff9cfa308792d94",
+    "remaining": "Current-head hosted CI before PR12 squash; reconcile/retarget Phase to main, qualify final current-head CI before PR13 squash."
+  },
+  "hosted_display_session_followup": {
+    "recorded_at": "2026-10-14T17:39:33.871425+00:00",
+    "human_judgment": false,
+    "hosted_before": {
+      "head": "12d45e85e0735053c42fa54a9d14c04a799805f5",
+      "run": 38597596600,
+      "passed": "823unit/54rendering/10live including all3GB/GBC game/save journeys; all other UI methods",
+      "failure": "RecentlyPlayed navigation in geometry; previous records did not identify which size"
+    },
+    "focused_reproduction": {
+      "head": "e1135fb8132fe48c00ec6cd9ae5cdf007c272185",
+      "run": 38607357823,
+      "artifact_id": 11916472098,
+      "actual_cases": "960x560 light/dark passed;1280x800 light failed, fourth case not reached",
+      "setup_reported": "1024x768 ->1600x1200",
+      "actual_geometry": {
+        "window": {
+          "x": -128,
+          "y": 40,
+          "width": 1280,
+          "height": 852
+        },
+        "sidebar": {
+          "x": -121,
+          "y": 91,
+          "width": 222,
+          "height": 794
+        },
+        "row": {
+          "x": -99,
+          "y": 151,
+          "width": 122,
+          "height": 16
+        },
+        "row_hittable": false,
+        "readiness_exists": false
+      },
+      "cause": "Temporary display setup reverted when setup process exited, leaving large window/row offscreen; not a sheet or failed game oracle"
+    },
+    "repair": "Configure supported display mode using public CoreGraphics transaction for disposable hosted login session; independent --check-only subprocess must observe >=1440x1000 before native work. Existing strict hosted-only guard retained; no local desktop mutation.",
+    "api_reference": "https://developer.apple.com/documentation/coregraphics/cgconfigureoption",
+    "verification": {
+      "swift_typecheck": "passed",
+      "actionlint_shellcheck": "passed",
+      "local_hosted_only_guard": "exit2 before display access",
+      "local_diagnostic_selector": "k3PTzw1discovered/executed/passed0skip69.55sec; bounded window capture sanitizer5files1012876bytes",
+      "hosted_after": {
+        "head": "f2a0fd39d30b5de9d46730f48b9ca1bccd8b1d73",
+        "run": 38608526405,
+        "job": 116005570038,
+        "result": "success",
+        "selector": "ControllerRecoveryBannerGeometryTests/testRecoveryBannerGeometryAcrossWindowSizesAndAppearances",
+        "discovered": 1,
+        "executed": 1,
+        "passed": 1,
+        "skipped": 0,
+        "seconds": 74.4,
+        "cases": "960x560 light/dark and1280x800 light/dark all passed; all original frame/non-overlap/text/action assertions retained",
+        "separate_process_display": "1600x1200",
+        "navigation": "all4row/sidebar hittable; no readiness sheet; large windowx160,rowx189",
+        "full_prerequisite_run": 38608541479,
+        "full_prerequisite_outcome": "pending"
+      }
+    },
+    "source_sha256": {
+      "playstead-mac/scripts/ci/configure-test-display.swift": "035936117cba2f94f7f81ea5832c5362cfe1bc9f284ec8d094dc6e151b87c1af",
+      ".github/workflows/ci.yml": "40db1262ddedafaf1c9b939590bd840f8deb9765d26520a3440430ecb9ff583e",
+      ".github/workflows/mac-snapshot-refresh.yml": "3c1d9a5991c4f417209de7aa0ae9652d0ea436f15147da61ae6129fa8447870f",
+      "playstead-mac/PlaysteadUITests/ControllerRecoveryBannerGeometryTests.swift": "83a23edf84d79615c99ddb79378cbee93b03cfcf91a5d0ad7b7bb0aadabc3ace"
+    },
+    "qualification_boundary": "All original geometry/game/save assertions retained. Focused diagnostic is not a merge gate substitute; applicable full current-head CI required before owner-authorized squash.",
+    "phase_scope": "Common prerequisite repair merged into Phase; final source-bound gate refresh follows. Full current-head checks required before ordered authorized squashes."
+  },
+  "registry_quota_followup": {
+    "at": "2026-10-14T19:01:18.677279+00:00",
+    "human_judgment": false,
+    "observed_failure": {
+      "head": "ecca50add04386d363315b88720e4598d3aa6ae3",
+      "run": 38616201556,
+      "job": 116031796934,
+      "step": "Initialize containers",
+      "image": "public.ecr.aws/docker/library/postgres:17.2",
+      "result": "All3Dockerpullattempts rejected:toomanyrequests:Data limit exceeded; source checkout/tests never began"
+    },
+    "primary_source": "https://docs.github.com/en/actions/reference/limits#docker-hubs-rate-limit-for-github-actions",
+    "scope": "Use canonical public DockerHub postgres:17.2 for2hosted services; remove redundant ComposeCI database override so it inherits the same existing productiondefault. PostgreSQL version, pg_dump17 matching, ports, healthchecks, app image and persistent-volume semantics retained; pinned BuildKit mirror remains unchanged.",
+    "reason": "GitHub documents hosted public DockerHub pulls are rate-limit exempt; ECRanonymousdataquota caused repeated startup-only failures. Avoid more retries/duplicate native qualification on infrastructure-only failure.",
+    "superseded_final_run": {
+      "head": "34713ad26c7bd8dc96e8b31c2b9e11eec1a0fd08",
+      "run": 38616297485,
+      "producer": "success",
+      "all3Linux": "success",
+      "Mac": "cancelled during runtimepreflight before native tests",
+      "guest_cleanup": "Close only the run-owned decoder guest step SUCCESS job116039373210"
+    },
+    "validation": {
+      "release_contracts": "29passed; existing registry expectations updated to canonical source/inherited ComposeDB",
+      "actual_compose_config": "postgres:17.2 inherited and prebuilt app preserved; config-only placeholder decoder never activated; no local services started",
+      "decoder_handoff": "8passed",
+      "actionlint_shellcheck_diff": "passed",
+      "full_static_contracts": "All static contract guards and104validators passed; no new local native/service/guest run",
+      "final_current_head_hosted_matrix": "pending"
+    },
+    "source_sha256": {
+      ".github/workflows/ci.yml": "f14b47eba828869c77dfe70579fb6bd5312c4cd12324b248e4c45ccf205bc0d4",
+      "playstead-server/docker-compose.ci.yml": "6b41619266d6bbcdc7994ad09576d5772b27b6418be190215bf9eeb14229d04e",
+      "scripts/tests/test_release_evidence.py": "a1da8fbc4e66298dd8bb913a684d624019666f792bacba782b8a9468fbdc10a0"
+    }
+  },
+  "metadata_description_fixture_followup": {
+    "recorded_at": "2026-10-15T00:05:55.876420+00:00",
+    "human_judgment": false,
+    "failed_head": "aaca32691bf351572a9be6e0fda767c6a3c16897",
+    "failed_run": 38620432044,
+    "failed_job": 116054167795,
+    "failed_test": "MetadataDescriptionJourneyTests/testPrivateDescriptionSurvivesChangeAndReset",
+    "cause": "Fixture POST omitted required base_revision; current controller requires a nonnegative field revision. Hosted failure occurred at fixture invocation before description assertions.",
+    "change": "Read the authenticated current field revision; only HTTP404 means a fresh selection at revision0. Submit field/value/base_revision; preserve conflict refusal, exact response identity/description and mode0600 receipt.",
+    "regression": {
+      "before": "HTTPS request regression fails against unchanged aaca fixture at metadata-selection",
+      "after": "6 real shell-to-HTTPS tests pass: edited description revision, fresh404, unedited description with title revision, auth refusal, conflict refusal and wrong response identity",
+      "ci": "Automatically discovered by existing static contract lane; no separate build or UI run needed"
+    },
+    "retained_hosted_results": {
+      "decoder": "success",
+      "linux_jobs": 3,
+      "linux": "all success",
+      "native_unit": {
+        "executed": 846,
+        "failed": 0
+      },
+      "native_rendering": {
+        "executed": 59,
+        "failed": 0
+      },
+      "native_ui": {
+        "executed": 155,
+        "failed": 0
+      },
+      "live_server": {
+        "executed": 12,
+        "failed": 1,
+        "all_three_gb_gbc_game_save_readbacks": "passed",
+        "richer_metadata_private_media_journey": "passed"
+      },
+      "full_run": "failure; no merge allowed"
+    },
+    "hosted_cleanup": "Run-owned decoder guest cleanup succeeded",
+    "local_native_run": "none; no local app/services/emulator/guest launched for this repair",
+    "source_sha256": {
+      "playstead-mac/scripts/ci/live-server.sh": "ed41d1ada6a07564fb3425bf31f64d3bd9216b537fb313341e820b1c96ff69a5",
+      "playstead-mac/scripts/ci/tests/test_live_server_metadata_selection.py": "1bedefe1357202d2bd9c6110a98eccd903a88c65bfeb017cedde61f0fcccbab1"
+    },
+    "remaining": "Require full fresh current-head decoder/three Linux/Mac gates, then authorized squash PR13; PR12 already merged at ecca50a.",
+    "static_validation": {
+      "validators": "110 passed",
+      "all_other_static_guards": "passed",
+      "cleanup_guard": "initial sandbox /bin/ps denied; exact synthetic guard rerun with process-list access passed",
+      "summary_blocks": "10/10 classifiable",
+      "shellcheck": "passed with existing SC2154 trap-parser warning excluded",
+      "diff_check": "passed"
+    }
+  },
+  "historical_unknown_before_later_hosted_qualification": [
+    "Actual hosted guest startup failed in the old run without a detailed diagnostic; current finite-stage canary and full hosted regression are required",
+    "GB/GBC local runner lacks Accessibility trust; no current local game readback pass claimed; hosted continuation required"
+  ],
+  "settings_hittability_followup": {
+    "recorded_at": "2026-10-15T01:56:42.201012+00:00",
+    "human_judgment": false,
+    "failed_head": "97d5a709686fc8b13d9c1fd70e7b1feac4613170",
+    "failed_run": 38658218016,
+    "failed_job": 116177573920,
+    "failed_required_ui": 7,
+    "failed_live": 1,
+    "passed": {
+      "decoder": "success",
+      "all_three_linux": "success",
+      "unit": 846,
+      "rendering": 59,
+      "description_live_journey": "passed",
+      "all_three_gb_gbc_game_save_readbacks": "passed"
+    },
+    "symptom": "Settings controller/metadata radio controls did not become hittable before the original ten-second wait. Native app source and runner fingerprint matched earlieraaca full155UI pass. Underlying cause is unconfirmed.",
+    "diagnostic_lineage": [
+      {
+        "head": "e793213",
+        "run": 38665864023,
+        "result": "one exact Settings check passed, all numeric frames/hittability normal; synthetic app-window-only capture"
+      },
+      {
+        "head": "6489a0a",
+        "run": 38666444797,
+        "result": "rendering prefix passed; UI0discovery due repeatedselectorflags; agent corrected CLI format before next run"
+      },
+      {
+        "head": "5854718",
+        "run": 38666814375,
+        "result": "rendering prefix and six UI methods passed,0skip186.3sec; pre-click capture adds time, not final timing qualification"
+      },
+      {
+        "head": "e23052648d5ce3964c4006ffaf03654c3fad2217",
+        "run": 38667755241,
+        "result": "rendering prefix mounts53real controls; six exact UI methods pass once/no skips168.3sec, no pre-click captures, no timeout logs generated"
+      }
+    ],
+    "final_change": "Numeric geometry/control states are recorded only after an actual click timeout; no screenshots, arbitrary text or AX trees. Successful-click timing and original hittability/navigation assertions remain unchanged. Preserve original failure artifact path and add a separate sanitized numeric failure artifact. Manual focused lane reuses pinned packages and existing runner, no Linux/backend/guest setup.",
+    "local_probe": {
+      "selected": "sT5IrW",
+      "result": "compiled,0UIexecutions due runner automation-mode initialization timeout; taskprocessinventoryempty; no permission changes or retry",
+      "final_build_only": "TOxvav wrapper exit0 with retained cache, no app/service launch",
+      "duplicate_uncached_build": "One task build selected the pre-existing secondary clone cache by mistake; its exact xcodebuild PID was interrupted and the primary retained owner cache was used successfully. Both older caches are preserved; no new-cache creation is claimed."
+    },
+    "validation": {
+      "static_validators": 110,
+      "static_guards": "all pass; topology rerun after original upload path was preserved, no guard weakening",
+      "actionlint": "both workflows pass",
+      "summary_coverage": "10/10 classifiable",
+      "no_delay_focused_methods": 6,
+      "in_test_seconds": 168.3,
+      "discovery": "exactly once each,0skips, no timeout diagnostic generated"
+    },
+    "source_sha256": {
+      ".github/workflows/ci.yml": "3337424f340ca3bc859020796c8368840fb2f3ae68cb2372da988e1bbbb0b80c",
+      ".github/workflows/mac-snapshot-refresh.yml": "a3ad5a0569e3a4cc0ba4a67a4652df5c2a78026ca27f80df6b79bf54be1fa58e",
+      "playstead-mac/PlaysteadUITests/Support/UITestHarness.swift": "6d93026fea2685d397875c54003921374f0a35df3a62a595de4b0cfc4580cddf"
+    },
+    "remaining": "Refresh source-bound gate and require all five fresh final-head CI jobs before authorized squashPR13; no root-cause-fix claim for the transient."
+  },
+  "buildkit_registry_quota_followup": {
+    "recorded_at": "2026-10-15T02:08:49.613307+00:00",
+    "human_judgment": false,
+    "failed_head": "02f91f1f6b092fe16bb7e6ae7ba66d690b549e15",
+    "failed_run": 38668381055,
+    "failed_job": 116207594579,
+    "stage": "docker/setup-buildx-action bootstrap before decoder import/Compose tests",
+    "failure": "ECR Public toomanyrequests: Data limit exceeded pulling pinned BuildKit mirror",
+    "old_reference": "public.ecr.aws/xqdo/hub/moby/buildkit@sha256:751921dc37d2f842de38c9387f891fe6ae7d80f03d050ea98f780d7e0874ba00",
+    "new_reference": "docker.io/moby/buildkit@sha256:751921dc37d2f842de38c9387f891fe6ae7d80f03d050ea98f780d7e0874ba00",
+    "identity_proof": {
+      "method": "Read canonical remote OCI index with docker buildx imagetools inspect --raw; independently SHA256 the exact response bytes, no daemon/container activation",
+      "actual_sha256": "751921dc37d2f842de38c9387f891fe6ae7d80f03d050ea98f780d7e0874ba00",
+      "expected_sha256": "751921dc37d2f842de38c9387f891fe6ae7d80f03d050ea98f780d7e0874ba00",
+      "same_digest": true,
+      "image_upgrade": false
+    },
+    "primary_sources": [
+      "https://docs.github.com/en/actions/reference/limits#docker-hubs-rate-limit-for-github-actions",
+      "https://github.com/docker/setup-buildx-action#customizing"
+    ],
+    "change": "Switch only the registry for the identical digest. Contract keeps exact immutable pin and rejects ECR builder images. Public Docker Hub pulls on GitHub-hosted runners are rate-limit exempt. No credentials, mutable tag or policy bypass.",
+    "efficiency": "Cancelled the superseded matrix at the concrete early infrastructure failure before Mac setup, avoiding a known-useless native run. Require all five jobs on the new final head.",
+    "source_sha256": {
+      ".github/workflows/ci.yml": "0e9bbe726bcd8006446b43303e364606601c406830ff908efbd14f4958052e49",
+      "scripts/tests/test_release_evidence.py": "931e8d825c72537063b05d3c9c1cba13b15b1395b8d3ef8fb2651c3fed826013"
+    },
+    "validation": {
+      "release_contracts": 29,
+      "static_validators": 110,
+      "all_static_guards": "passed",
+      "actionlint": "passed for both workflows",
+      "superseded_mac": "cancelled with0executedsteps; no guest/native setup",
+      "superseded_linux_recovery": "success, including normal fixture teardown"
+    }
+  },
+  "settings_prompt_root_cause_followup": {
+    "at": "2026-10-15T05:44:31.490136+00:00",
+    "human_judgment": false,
+    "reproduced_run": 38683945538,
+    "reproduced_head": "37388c51d7cf40188587411ec46901ad366b7abb",
+    "public_artifact": "mac-navigation-failure-geometry/screenshots/synthetic-settings-navigation.png",
+    "finding": "Failed synthetic target-window image shows a Python local-network permission prompt over Controller/Metadata tabs. Numeric geometry had valid foreground controls behind it. The new loopback TLS fixture calls standard HTTPServer.server_bind, which invokes socket.getfqdn even for127.0.0.1.",
+    "repair": "LoopbackHTTPServer binds through TCPServer.server_bind without hostname discovery, rejects any other interface before binding; TLS and all original field revision/identity/refusal/private-receipt assertions remain. No system permission or production UI change.",
+    "regression": {
+      "old_fixture": "New DNS-prohibition regression fails on getfqdn",
+      "new_fixture": "All8 real shell-to-HTTPS cases pass, including DNS-prohibition and nonloopback refusal",
+      "discovery": "Existing static contract test lane; two additional fast cases, no new CI job"
+    },
+    "diagnostics": "Only after original UI timeout: bounded numeric geometry, plus synthetic app-window image guarded to exact public hosted source/home. No preclick delay or original UI assertion change. No local desktop/global notification capture.",
+    "temporary_code": "All copied Settings/native-prefix diagnostic workflow jobs and runner flags removed. Normal full unit900/render600/UI2700/live1800 deadlines and test selections retained.",
+    "rendering_isolation": "All4 metadata rendering AppEnvironment fixtures explicitly inject FakeControllerInputSource; build-for-testing passed. This is independent hardware isolation, not claimed as the prompt cause.",
+    "full_current_head_matrix": {
+      "head": "c5117a02f1a4e2b956344c5b3e80e9ecc59ae120",
+      "run": 38688537833,
+      "all4nonMac": "success",
+      "unit": "846executed/1unrelated ticker cancellation assertion failed",
+      "rendering": "59passed",
+      "ui": "155passed",
+      "live": "12passed including all3GBGBC game/save readbacks",
+      "original_10navigation_and_live_failures": "closed by current source; whole run failed only ticker oracle"
+    },
+    "source_sha256": {
+      "playstead-mac/scripts/ci/tests/test_live_server_metadata_selection.py": "9aa35b55a6a40ea2ef050158dc55eff322344979571e2fa9bb06aeb86fa924cd",
+      "playstead-mac/PlaysteadTests/SavesTests/PlayPathSaveWiringTests.swift": "ebdeff246e1dbb90094c42fbfe0195a78db7442b76645fcfbf095c34e9d07706",
+      "playstead-mac/PlaysteadTests/SnapshotTests/MetadataStateRenderingTests.swift": "7004e88899442c3152a3a9526ac77d85fe037e370649508e8f6ae5650817ef99",
+      "playstead-mac/PlaysteadTests/SnapshotTests/ArtworkContractSnapshotTests.swift": "1ff24ce069fc9768723e196220caa43357705e52321f6f62ef972b2059ff8071",
+      "playstead-mac/PlaysteadUITests/GBGBCSaveContinuityTests.swift": "500714d6d78fd66b8ec951c590efe0801a2d225329aa73f08848e5f1923d0d24",
+      "playstead-mac/scripts/ci/tests/test_gb_process_readiness.py": "bbc954a410dd218dcbcb88a16cc32a32e3b8be6fb207d0d34ea060e23334965d",
+      "playstead-mac/PlaysteadUITests/Support/UITestHarness.swift": "6e2369a1c8de14bdc2ee650a864db56901ca5eb8432d8e1a3724266c7e79c46b",
+      "playstead-mac/scripts/ci/run-mac-verification.sh": "a9616177bfa7988db6043a2b442db6f0509ca3593a45db962ff9cfa308792d94",
+      ".github/workflows/mac-snapshot-refresh.yml": "3c1d9a5991c4f417209de7aa0ae9652d0ea436f15147da61ae6129fa8447870f"
+    },
+    "final_local_validation": {
+      "static_validators": 113,
+      "all_static_guards": "passed",
+      "workflow_actionlint_shellcheck": "passed for CI and restored snapshot workflow",
+      "summary_coverage": "10/10 classifiable",
+      "focused_save_wiring": "17executed,0failed,0skipped",
+      "owner_baseline": "1931files checked; original branch/head/empty index/private fixtures preserved; only three continuation files and preexisting config difference",
+      "local_task_app_runner": "exact executable inventory empty"
+    }
+  },
+  "save_promotion_oracle_followup": {
+    "at": "2026-10-15T05:44:31.490136+00:00",
+    "human_judgment": false,
+    "failed_run": 38683945538,
+    "selector": "PlayPathSaveWiringTests/testAFullSessionThroughTheProductionSeamPromotesARevisionIntoTheAppsSaveStore",
+    "failure": "Old line508 expected localOnly while the production onPromoted hook unconditionally schedules upload. Simulated offline reachability does not stop this lane. Fixture HTTP500 leaves the revision queued.",
+    "repair": "Join the production upload drain and require zero acknowledged sends plus exact queued durability. Keep promoted count, SHA256, adapter identity/version and rollup checks; inject FakeControllerInputSource in test setup.",
+    "qualification": {
+      "run": "selected-unit.ySKyPf",
+      "executed": 17,
+      "failed": 0,
+      "skipped": 0,
+      "seconds": 1.1,
+      "required_class": "PlayPathSaveWiringTests",
+      "repaired_method_seconds": 0.1
+    },
+    "cleanup": "Exact task app/runner process inventory empty after unit run; owner source preserved. Initial sandboxed attempt failed before tests due SwiftPM diagnostic-cache permissions; scoped-cache rerun succeeded."
+  },
+  "gb_process_readiness_followup": {
+    "human_judgment": false,
+    "commit": "e1cc472",
+    "repair": "Three waits require a positive PID, live exact pinned executable/digest and matching registered AppKit bundle/PID instead of value!=idle accepting nil; return to running Playstead before upload review.",
+    "qualification": "16 positive/negative compiled helper controls pass; UI build passes; actual new three game/save journeys await full final CI.",
+    "assertion_boundary": "Exact pinned emulator, original game/save/pixel assertions retained."
+  },
+  "ticker_cancellation_join_followup": {
+    "at": "2026-10-15T07:17:47.431339+00:00",
+    "human_judgment": false,
+    "failed_run": 38688537833,
+    "selector": "OutboxDrainTickerTests/testTickerFiresRepeatedlyUntilStopped()",
+    "cause": "stop requests cancellation; a synchronous onTick callback already past its cancellation check may finish afterward. The test read afterStop before this callback completed.",
+    "repair": "Expose the existing cancelled Task as the discardable return from stop(). All three standalone ticker assertions await its completion. Scheduling, cancellation, intervals and original assertions are unchanged. The assembled fixture explicitly uses FakeControllerInputSource.",
+    "qualification": {
+      "actual_production_source": "OutboxDrainTicker.swift compiled directly with Swift6 and warnings-as-errors",
+      "negative_control": "Force callback in flight; old pre-join snapshot ordering fails exactly as expected,exit1",
+      "positive_control": "Join observes actual callback completion;100 repeated periodic start/tick/stop checks pass,exit0",
+      "local_XCTest": "Compile succeeded;0tests started because inert host stalled. Closed only exact task host and xcodebuild after validating paths; no passing assembled-class claim.",
+      "static": "113validators/allguards passed",
+      "fresh_full_CI": "pending"
+    },
+    "source_sha256": {
+      "playstead-mac/Playstead/Sync/OutboxDrainTicker.swift": "1889ed1aa3512e54a8b0697edeff6fa69cc0a0d25549cea46565dab0a82e5eae",
+      "playstead-mac/PlaysteadTests/SyncTests/OutboxDrainTickerTests.swift": "934427cb76a7cf13f1e24b1c59b2e61059cda59618669844cadf6356150ce3a0"
+    }
+  }
+}

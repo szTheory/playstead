@@ -1,0 +1,40 @@
+{
+  "recorded_at": "2026-10-13T12:34:42.816605+00:00",
+  "human_judgment": false,
+  "run": "selected-ui.ih0sGQ",
+  "required": 2,
+  "executed": 2,
+  "failures": 1,
+  "skips": 0,
+  "settings": {
+    "identity": "PlaysteadUITests.MetadataConsentUITests/testAllFortyFiveMetadataSettingsStatesExposeTheirOwnMeaningAndUsableAction",
+    "states": 45,
+    "result": "passed",
+    "seconds": 122.61957895755768
+  },
+  "correction": {
+    "identity": "PlaysteadUITests.MetadataCorrectionUITests/testAllEightCorrectionStatesRenderProvenanceConflictsAndEnabledActions",
+    "states": 8,
+    "result": "failed",
+    "seconds": 39.897847056388855,
+    "assertion": "line126 expected your private library; production detail description uses Description written for this private library"
+  },
+  "source_sha256": {
+    "playstead-mac/Playstead/Settings/MetadataSettingsView.swift": "aefbbdffc6b69efd52bc8ad2f10cec881b9c2e1a7b65ec999eb146631861a49a",
+    "playstead-mac/PlaysteadUITests/MetadataConsentUITests.swift": "e4dbd4e6bd9ac58ac2fd73632e9475f976266421c9deac3a92c063063f94242f",
+    "playstead-mac/PlaysteadUITests/MetadataCorrectionUITests.swift": "3b5955362a4d516d226ee0b0716dbbd619032c89d9c4e109ec409b764494e903",
+    "playstead-mac/Playstead/Library/MetadataCorrectionView.swift": "d278f0823f9a42ccb320fc18744024aaad4134975100f1235ea33f087b92640c",
+    "playstead-mac/Playstead/Library/GameDetailView.swift": "c6d3d10dd611bd3938c3384a5004c60930bb3654619fd1061e58affa4871a8e8",
+    "playstead-mac/Playstead/UITesting/UITestBootstrap.swift": "e438221f2039cbd1a616620e2c55eaa489f621cd0463b597af42397a2a31f572",
+    "playstead-mac/Playstead/App/PlaysteadApp.swift": "db9852d283d8d60ac47fd1dade55448842bbac4d28509da863e97d0bf26830fd",
+    "playstead-mac/Playstead/Persistence/MetadataStore.swift": "da60246a309729ede8391e96fd42f7059f8a1335ebb77a96803aea317e35aa7f"
+  },
+  "artifacts": {
+    "playstead-mac/.build/ci/selected-ui.ih0sGQ/raw/ui-tests.json": "7a305669b40a7aa5d9961c63095a229f9c499d51dd30e970348c2dcbf0a17399",
+    "playstead-mac/.build/ci/selected-ui.ih0sGQ/raw/ui.log": "812d131cc29a155d9120486eaafb94d63027ea329d8c6853ab8487a8437b6750",
+    "playstead-mac/.build/ci/selected-ui.ih0sGQ/raw/verification.log": "e04ee46e4b410360bb70f209596cbe1285a75bd534e58fe7befc9ea01127bf84"
+  },
+  "cleanup": "exact task app and runner process inventory empty; foreground window released",
+  "remaining": "Correction8 current-source pass; live journey and decoder qualification; rendering then phase gates",
+  "next_command": "$gsd-execute-phase 4.7"
+}

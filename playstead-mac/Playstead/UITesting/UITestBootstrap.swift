@@ -38,6 +38,27 @@ final class UITestProfileSession: ObservableObject {
     }
 }
 
+struct UITestMetadataFixture {
+    let identity: String
+    let surface: String
+    let state: String
+    let settings: MetadataSettingsStateFixture?
+    let correction: MetadataCorrectionStateFixture?
+    let correctionSelection: MetadataSelection?
+}
+
+/// Failure-only transport for the explicitly isolated offline LiveServer
+/// profile. It never fabricates a response and never affects ordinary or
+/// online LiveServer sessions.
+private final class UITestOfflineURLProtocol: URLProtocol {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        client?.urlProtocol(self, didFailWithError: URLError(.notConnectedToInternet))
+    }
+    override func stopLoading() {}
+}
+
 /// Fail-closed bridge from the process environment to one finite profile.
 /// The selector is a name only; no root, SQL, JSON, or fixture bytes are accepted.
 enum UITestBootstrap {
@@ -67,6 +88,153 @@ enum UITestBootstrap {
     static let liveServerTrustAnchorDigestKey = "PLAYSTEAD_UI_TEST_LIVE_SERVER_CA_SHA256"
     static let liveServerPairingTargetKey = "PLAYSTEAD_UI_TEST_LIVE_SERVER_PAIRING_TARGET"
     static let managedAdapterSelectionKey = "PLAYSTEAD_UI_TEST_MANAGED_ADAPTER_SELECTION"
+    static let metadataFixtureKey = "PLAYSTEAD_UI_TEST_METADATA_FIXTURE"
+    static let liveStartOfflineKey = "PLAYSTEAD_UI_TEST_LIVE_START_OFFLINE"
+    static let metadataAssetSetID = "00000000-0000-7000-8000-000000000097"
+
+    static let metadataSettingsFixtureIDs = [
+        "provider-consent/disabled-unfilled", "provider-consent/loading", "provider-consent/rejection-error",
+        "provider-consent/incomplete-credentials", "provider-consent/changed-terms-partial",
+        "provider-consent/overflowing-disclosure", "provider-consent/long-exact-query",
+        "match-candidates/zero", "match-candidates/loading", "match-candidates/error", "match-candidates/populated",
+        "match-candidates/partial", "match-candidates/overflowing", "match-candidates/one-many", "match-candidates/long-title",
+        "local-media-form/unfilled", "local-media-form/uploading", "local-media-form/rejected-error", "local-media-form/accepted",
+        "local-media-form/partial-fields", "local-media-form/overlarge-image", "local-media-form/long-field-source",
+        "delivery-preparation/unselected", "delivery-preparation/estimating", "delivery-preparation/failed", "delivery-preparation/ready",
+        "delivery-preparation/partial-canceled", "delivery-preparation/overflowing", "delivery-preparation/zero-one-many", "delivery-preparation/long-title",
+        "media-cache-controls/empty", "media-cache-controls/reclaiming", "media-cache-controls/failed", "media-cache-controls/under-budget",
+        "media-cache-controls/pinned-expired-partial", "media-cache-controls/overflow", "media-cache-controls/zero-one-many", "media-cache-controls/long-label",
+        "metadata-settings-navigation/provider-absent", "metadata-settings-navigation/loading", "metadata-settings-navigation/error",
+        "metadata-settings-navigation/enabled-partial-credentials", "metadata-settings-navigation/overflowing",
+        "metadata-settings-navigation/zero-one-many-groups", "metadata-settings-navigation/long-label"
+    ]
+
+    static let metadataCorrectionFixtureIDs = [
+        "metadata-corrections/unchanged", "metadata-corrections/loading", "metadata-corrections/failed-submit",
+        "metadata-corrections/corrected", "metadata-corrections/partial-conflict", "metadata-corrections/overflow",
+        "metadata-corrections/zero-one-many", "metadata-corrections/long-text"
+    ]
+
+    static func metadataFixture(_ identity: String) throws -> UITestMetadataFixture {
+        let parts = identity.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+        guard parts.count == 2 else { throw DeterministicProfileError.stateMismatch("metadata fixture identity is invalid") }
+        let surface = parts[0]
+        let state = parts[1]
+        let validIDs = surface == "metadata-corrections" ? metadataCorrectionFixtureIDs : metadataSettingsFixtureIDs
+        guard validIDs.contains(identity) else { throw DeterministicProfileError.stateMismatch("metadata fixture identity is unsupported") }
+
+        if surface == "metadata-corrections" {
+            let long = state == "long-text" || state == "overflow"
+            let title = long ? String(repeating: "Long privately corrected title ", count: 18) : "Fixture game"
+            let description = long ? String(repeating: "Long private description remains readable and scrollable. ", count: 18) : "Private description"
+            let providerSource: JSONValue = .object([
+                "source": .string("provider"), "provider": .string("IGDB"),
+                "evidence_id": .string("90000000-0000-7000-8000-000000000001"),
+                "attribution": .string("IGDB"), "terms_url": .string("https://example.test/terms")
+            ])
+            let userSource: JSONValue = .object(["source": .string("user")])
+            let fieldSources: [String: JSONValue]
+            switch state {
+            case "corrected": fieldSources = ["title": userSource, "description": userSource]
+            case "zero-one-many": fieldSources = [:]
+            case "long-text", "overflow": fieldSources = ["title": userSource, "description": userSource]
+            default: fieldSources = [:]
+            }
+            let conflicts: [JSONValue] = state == "partial-conflict" ? [.object([
+                "field": .string("title"),
+                "incoming_alternative": .object(["value": .string("Your offline title")]),
+                "current_alternative": .object(["value": .string("Current server title")])
+            ])] : []
+            let selection = MetadataSelection(
+                version: 1, type: "description", assetSetID: metadataAssetSetID,
+                description: state == "corrected" ? "Privately corrected description" : description,
+                revision: state == "unchanged" ? 0 : 2, deletedAt: nil,
+                selections: ["title": .string(title)],
+                fieldRevisions: fieldSources.keys.reduce(into: [:]) { $0[$1] = 2 },
+                fieldSources: fieldSources, conflicts: conflicts,
+                evidence: ["90000000-0000-7000-8000-000000000001": .object([
+                    "title": .string("Fixture provider title"), "description": .string("Fixture provider description"),
+                    "provider": .string("IGDB"), "attribution": .string("IGDB"),
+                    "terms_url": .string("https://example.test/terms")
+                ])]
+            )
+            let correction = MetadataCorrectionStateFixture(
+                title: state == "failed-submit" ? "Changed title with a failed save" : title,
+                descriptionText: description,
+                message: state == "failed-submit" ? "The corrections could not be saved. Try again." : nil,
+                isSubmitting: state == "loading",
+                fixtureIdentity: identity
+            )
+            return UITestMetadataFixture(identity: identity, surface: surface, state: state,
+                                         settings: nil, correction: correction, correctionSelection: selection)
+        }
+
+        let longQuery = ["long-exact-query", "overflowing-disclosure", "long-title", "long-label"].contains(state)
+        let query = longQuery ? String(repeating: "Exact private owner title ", count: 18) : "Fixture game"
+        let entry = CatalogueEntry(id: metadataAssetSetID, system: "gb", displayTitle: query, tags: [:], members: [])
+        let secondID = "00000000-0000-7000-8000-000000000098"
+        let second = CatalogueEntry(id: secondID, system: "gbc", displayTitle: "Second fixture game", tags: [:], members: [])
+        let gameCount = state == "empty" || (surface == "metadata-settings-navigation" && state == "provider-absent") ? 0 : (state == "zero-one-many" && surface == "delivery-preparation" ? 3 : (["zero-one-many", "zero-one-many-groups"].contains(state) ? 2 : (state == "overflowing" || state == "overflow" ? 12 : 1)))
+        let games = gameCount == 0 ? [] : (gameCount == 1 ? [entry] : [entry, second] + (2..<gameCount).map { index in
+            CatalogueEntry(id: "00000000-0000-7000-8000-\(String(format: "%012d", 200 + index))", system: "gb", displayTitle: "Overflow game \(index + 1)", tags: [:], members: [])
+        })
+        let noPreview = (surface == "provider-consent" && state == "loading") ||
+            (surface == "metadata-settings-navigation" && ["provider-absent", "loading", "error"].contains(state))
+        let credentialsReady = !["incomplete-credentials", "enabled-partial-credentials"].contains(state)
+        let enabled = state == "changed-terms-partial" || state == "enabled-partial-credentials" || surface == "match-candidates"
+        let preview = noPreview ? nil : MetadataProviderPreview(
+            provider: "igdb", enabled: enabled, revision: 4,
+            disclosureRevision: state == "changed-terms-partial" ? "terms-5-current" : "terms-4",
+            queryPreview: query, system: "gbc", titleWarning: nil, credentialsReady: credentialsReady,
+            attribution: "IGDB", termsURL: "https://example.test/terms", imageFetchAllowed: false, cacheAgeDays: 14
+        )
+        let candidateCount = ["zero", "error"].contains(state) ? 0 : (state == "one-many" ? 3 : (state == "overflowing" ? 8 : (state == "partial" ? 2 : 1)))
+        let candidates = (0..<candidateCount).map { index in
+            MetadataProviderEvidence(
+                id: "metadata-candidate-\(index)", externalID: index + 1,
+                title: state == "long-title" ? String(repeating: "Long candidate title ", count: 18) : "Candidate \(index + 1)",
+                system: "gbc", confidence: ["high", "medium", "low"][index % 3], matchKind: "title",
+                provider: "igdb", attribution: "IGDB", termsURL: "https://example.test/terms", cacheExpiresAt: nil
+            )
+        }
+        let hasEstimate = ["ready", "partial-canceled", "overflowing", "long-title"].contains(state)
+        let estimate = hasEstimate ? MetadataPreparationEstimate(mode: "balanced", requests: gameCount * 2, bytes: 64_000 * gameCount, storage: 32_000 * gameCount) : nil
+        let jobStates = state == "partial-canceled" ? ["cancelled"] : (state == "ready" ? ["running"] : [])
+        let jobs = jobStates.enumerated().map { index, jobState in
+            MetadataPreparationJob(id: "job-\(index)", assetSetID: metadataAssetSetID, state: jobState,
+                                   progress: .object(["completed": .int(1), "total": .int(3)]), lastError: nil, retryAfterAt: nil)
+        }
+        let used = state == "under-budget" ? 1_024 : (state == "pinned-expired-partial" ? 900_000 : (state == "overflow" ? MetadataMediaCache.byteLimit + 512 : (state == "zero-one-many" ? 512_000 : 0)))
+        let cache = MetadataCacheSnapshot(
+            budgetBytes: MetadataMediaCache.byteLimit, usedBytes: used,
+            pinnedItems: ["pinned-expired-partial", "zero-one-many"].contains(state) ? 2 : (state == "overflow" ? 12 : (state == "under-budget" ? 1 : 0)),
+            expiringItems: ["pinned-expired-partial", "zero-one-many"].contains(state) ? 1 : (state == "overflow" ? 8 : 0),
+            reclaimableBytes: state == "pinned-expired-partial" ? 250_000 : (state == "zero-one-many" ? 128_000 : (state == "overflow" ? 1_024 : 0)),
+            serverBudgetBytes: 1_073_741_824, serverUsedBytes: 2_048, serverReclaimableBytes: 512
+        )
+        let errorStates = ["rejection-error", "error", "rejected-error", "overlarge-image", "failed"]
+        let media = ["accepted", "partial-fields", "long-field-source", "uploading"].contains(state)
+            ? [MetadataPrivateMediaReceipt(id: "fixture-media", assetSetID: metadataAssetSetID,
+                                           originalSHA256: String(repeating: "a", count: 64), originalSizeBytes: 256,
+                                           originalMIME: "image/png", derivedSHA256: String(repeating: "b", count: 64), derivedSizeBytes: 128)]
+            : []
+        let settings = MetadataSettingsStateFixture(
+            selectedAssetSetID: games.isEmpty ? nil : metadataAssetSetID, preview: preview, candidates: candidates,
+            estimate: estimate, jobs: jobs,
+            selectedIDs: ["unselected", "zero-one-many"].contains(state) && surface == "delivery-preparation" ? [] : Set(games.map(\.id)),
+            cache: cache,
+            message: errorStates.contains(state) ? "The fixture request failed. Existing private data remains available." : nil,
+            isLoading: ["loading", "estimating", "uploading", "reclaiming"].contains(state),
+            preparationMode: "balanced", mediaAssetSetID: metadataAssetSetID,
+            uploadProgress: state == "uploading" ? 0.5 : 0, simulateUpload: surface == "local-media-form" && state == "uploading",
+            uploadedMedia: media, fixtureIdentity: identity, testGames: games,
+            previewText: state == "long-field-source" ? String(repeating: "Private description preview remains bounded and readable. ", count: 18) : nil,
+            needsDisclosureReview: surface == "provider-consent" && state == "changed-terms-partial",
+            reviewedDisclosureRevision: surface == "provider-consent" && state == "changed-terms-partial" ? "terms-4" : preview?.disclosureRevision
+        )
+        return UITestMetadataFixture(identity: identity, surface: surface, state: state,
+                                     settings: settings, correction: nil, correctionSelection: nil)
+    }
 
     struct RecoveryDirectLaunch {
         let targetURL: URL
@@ -150,6 +318,9 @@ enum UITestBootstrap {
         appEnvironment.blockExternalIOForUITesting()
         if let transitionRoot {
             observeCatalogueTransition(root: transitionRoot, appEnvironment: appEnvironment)
+        }
+        if let metadataIdentity = processEnvironment[metadataFixtureKey] {
+            try appEnvironment.installUITestMetadataFixture(identity: metadataIdentity)
         }
         maybeRunSaveRestoreProof(environment: processEnvironment, root: fixture.root, appEnvironment: appEnvironment)
         maybeRunZeroNetworkPlayFlowProof(environment: processEnvironment, root: fixture.root, appEnvironment: appEnvironment)
@@ -274,10 +445,18 @@ enum UITestBootstrap {
         let tracerControllerSource: ControllerInputSource? = environment["PLAYSTEAD_UI_TEST_CONTROLLER_SOURCE"] == "1"
             ? UITestControllerInputSource()
             : nil
+        let offlineTransport: URLSession?
+        if environment[liveStartOfflineKey] == "1" {
+            let configuration = URLSessionConfiguration.ephemeral
+            configuration.protocolClasses = [UITestOfflineURLProtocol.self]
+            offlineTransport = URLSession(configuration: configuration)
+        } else {
+            offlineTransport = nil
+        }
         let appEnvironment = AppEnvironment(
             paths: paths,
-            apiClient: APIClient(keychain: keychain, pinnedCertificateURL: paths.pinnedCertificate),
-            reachability: Reachability(startOnline: true, monitorAutomatically: false),
+            apiClient: APIClient(keychain: keychain, pinnedCertificateURL: paths.pinnedCertificate, session: offlineTransport),
+            reachability: Reachability(startOnline: environment[liveStartOfflineKey] != "1", monitorAutomatically: false),
             // The pairing ceremony must write into the same scoped
             // Keychain `apiClient` reads its credential from -- never the
             // production default, which would be the real login Keychain.
@@ -1680,4 +1859,5 @@ enum UITestBootstrap {
         return raw
     }
 }
+
 #endif

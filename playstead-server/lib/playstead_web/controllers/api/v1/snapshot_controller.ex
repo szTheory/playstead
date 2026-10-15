@@ -25,7 +25,8 @@ defmodule PlaysteadWeb.Api.V1.SnapshotController do
           catalogue: result.catalogue,
           job: result.job,
           curation: result.curation,
-          save: result.save
+          save: result.save,
+          metadata: result.metadata
         })
 
       :error ->

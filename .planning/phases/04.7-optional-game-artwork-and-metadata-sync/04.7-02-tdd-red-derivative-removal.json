@@ -1,0 +1,10 @@
+{
+  "command": "mix test --formatter Playstead.TestSupport.TapFormatter test/playstead/metadata/private_media_test.exs",
+  "exitCode": 2,
+  "output": "TAP version 13\nok 1 - Playstead.Metadata.PrivateMediaTest::test stores exact UTF-8 source bytes in the owner-scoped media manifest\nok 2 - Playstead.Metadata.PrivateMediaTest::test keeps accepted image originals and decoded derivatives in separate CAS objects\nok 3 - Playstead.Metadata.PrivateMediaTest::test another owner cannot fetch media and invalid images leave no committed manifest\nok 4 - Playstead.Metadata.PrivateMediaTest::test caps each game at ten media items and rejects oversized or invalid text\nnot ok 5 - PlaysteadWeb.Api.V1.MetadataMediaControllerTest::test owner can remove a derivative while keeping the exact original\nok 6 - PlaysteadWeb.Api.V1.MetadataMediaControllerTest::test private text media uploads and returns exact original bytes only to its owner\n1..6",
+  "targetTest": "PlaysteadWeb.Api.V1.MetadataMediaControllerTest::test owner can remove a derivative while keeping the exact original",
+  "targetFile": "test/playstead/metadata/private_media_test.exs",
+  "expected": "An owner can remove the derivative reference while the exact original remains retrievable.",
+  "actual": "The route returned not found because derivative removal had not been implemented.",
+  "semanticAssessment": "Valid targeted RED: six tests were discovered; the named owner-removal test executed and failed on the expected absent removal operation. The other five tests passed; no setup, import, fixture, or unrelated failure occurred."
+}

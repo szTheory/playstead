@@ -34,6 +34,7 @@ final class OutboxDrainTickerTests: XCTestCase {
             paths: paths,
             apiClient: apiClient,
             reachability: reachability,
+            controllerInputSource: FakeControllerInputSource(),
             outboxDrainInterval: 0.05
         )
     }
@@ -61,7 +62,7 @@ final class OutboxDrainTickerTests: XCTestCase {
         let ticker = OutboxDrainTicker(interval: 0.01) { count.increment() }
         ticker.start()
         await waitUntil({ count.value >= 3 }, "the ticker must keep firing, not fire once")
-        ticker.stop()
+        await ticker.stop()?.value
 
         let afterStop = count.value
         try? await Task.sleep(nanoseconds: 100_000_000)
@@ -75,7 +76,7 @@ final class OutboxDrainTickerTests: XCTestCase {
         ticker.start()
         ticker.start()
         try? await Task.sleep(nanoseconds: 120_000_000)
-        ticker.stop()
+        await ticker.stop()?.value
 
         // Three loops would roughly triple this. Two ticks' worth of slack
         // keeps the bound meaningful without being timing-fragile.
@@ -87,7 +88,7 @@ final class OutboxDrainTickerTests: XCTestCase {
         let ticker = OutboxDrainTicker(interval: 5) { count.increment() }
         ticker.start()
         try? await Task.sleep(nanoseconds: 50_000_000)
-        ticker.stop()
+        await ticker.stop()?.value
         XCTAssertEqual(count.value, 0, "starting the ticker must not itself be a drain")
     }
 

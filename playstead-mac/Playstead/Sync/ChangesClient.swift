@@ -7,7 +7,7 @@ import Foundation
 /// concrete shape at decode time would make an unrecognised kind/type a
 /// hard decode failure instead of the skip-and-count behaviour this
 /// task's `<action>` requires for forward compatibility.
-enum JSONValue: Codable, Equatable {
+enum JSONValue: Codable, Equatable, Sendable {
     case string(String)
     /// An integer-valued JSON number, decoded via `Int` (exact up to
     /// 64 bits) rather than `Double` (exact only up to ~2^53) — tried

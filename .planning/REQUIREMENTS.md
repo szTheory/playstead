@@ -74,6 +74,11 @@ Requirements for the first complete Mac-to-server custody and continuity release
 - [ ] **QUAL-02**: A maintainer can verify releases through automated formatting, static analysis, unit/property/contract/integration tests, dependency and license review, container scanning/SBOM, production-release smoke tests, and adversarial fixtures for every enabled parser.
 - [ ] **QUAL-03**: A self-hoster can obtain privacy-safe correlation IDs and an on-demand diagnostic bundle for failed commands, jobs, transfers, storage, pairing, launch handoff, and save reconciliation without exposing ROM names, paths, hashes, save bytes, or credentials by default.
 
+### Optional Metadata and Artwork
+
+- [x] **META-01**: A user can install or select additional metadata, DAT, and artwork providers whose source, version, confidence, attribution, caching, and redistribution terms remain visible.
+  Phase4.7 scope/evidence: the approved context selects an optional IGDB text adapter and private local media, retaining existing DAT recognition separately. Provider provenance, confidence, terms, bounded cache, corrections and offline convergence are qualified by `04.7-VERIFICATION.md` (38/38). Arbitrary provider installation, video and progress captures are follow-on scope. Provider image serving remains fail-closed pending its exact grant; no external account activation or universal-provider claim.
+
 ## v2 Requirements
 
 Deferred capabilities are recorded here but are not part of the initial roadmap.
@@ -89,7 +94,6 @@ Deferred capabilities are recorded here but are not part of the initial roadmap.
 
 - **WEBP-01**: A user can play a qualified game in a supported desktop browser through one explicitly tested core, system, browser, controller, cache, save, isolation, and license matrix.
 - **ACHV-01**: A user can opt into an achievements provider without making its account or availability a prerequisite for browse, launch, saves, or export.
-- **META-01**: A user can install or select additional metadata, DAT, and artwork providers whose source, version, confidence, attribution, caching, and redistribution terms remain visible.
 - **CURT-01**: A user can receive restrained, explainable recommendations based on portable personal-library signals after manual curation workflows are proven.
 - **SAVE-05**: A user can opt into save-state transfer only for an exact content, emulator/core build, platform, options, and state-format compatibility fingerprint that has passed restore tests.
 
@@ -155,14 +159,15 @@ Which phases cover which requirements. This table is populated by roadmap creati
 | QUAL-01 | Phase 3 | Complete |
 | QUAL-02 | Phase 5 | Pending |
 | QUAL-03 | Phase 5 | Pending |
+| META-01 | Phase 4.7 | Complete |
 
 **Coverage:**
 
-- v1 requirements: 40 total
-- Mapped to phases: 40
+- v1 requirements: 41 total
+- Mapped to phases: 41
 - Unmapped: 0
-- Coverage summary: 40/40/0
+- Coverage summary: 41/41/0
 
 ---
 *Requirements defined: 2026-08-26*  
-*Last updated: 2026-08-26 after canonical project research*
+*Last updated: 2026-10-13 — META-01 promoted to approved Phase4.7 scope and completed by automated verification*

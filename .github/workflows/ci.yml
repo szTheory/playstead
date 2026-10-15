@@ -22,12 +22,15 @@ jobs:
   # the headless-Chrome browser contract suite and the real-transaction
   # sync tests. ~3-4 minutes.
   test:
+    needs: [decoder-runtime]
     name: mix precommit (unit + LiveView + browser + integration)
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 45
     services:
       postgres:
-        image: public.ecr.aws/docker/library/postgres:17.2
+        # Public Docker Hub pulls are rate-limit exempt on GitHub-hosted
+        # runners; the ECR mirror's anonymous data quota blocked startup.
+        image: postgres:17.2
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -52,6 +55,15 @@ jobs:
       - name: UAT tally footers match their own bodies
         working-directory: .
         run: bash scripts/check-uat-tally.sh
+
+      - name: Phase 04.7 summary coverage is classifiable
+        working-directory: .
+        run: |
+          set -euo pipefail
+          coverage_output="$(python3 -m unittest discover -s scripts/tests -p 'test_phase_summary_coverage.py' -v 2>&1)"
+          printf '%s\n' "$coverage_output"
+          printf '%s\n' "$coverage_output" | grep -Eq '^Ran [1-9][0-9]* tests?'
+          python3 scripts/check-phase-summary-coverage.py --root .planning/phases/04.7-optional-game-artwork-and-metadata-sync
 
       - name: Server workflow contract (must discover tests)
         working-directory: .
@@ -87,6 +99,32 @@ jobs:
 
       - run: mix deps.get
       - run: mix assets.setup
+
+      - name: Download the same-run qualified decoder
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          name: media-decoder-runtime
+          path: ${{ runner.temp }}/playstead-media-decoder-runtime
+
+      - name: Prepare qualified decoder before packaged parser tests
+        working-directory: .
+        run: |
+          set -euo pipefail
+          decoder_evidence="$RUNNER_TEMP/playstead-media-decoder-runtime"
+          bash scripts/ci/import-media-decoder-runtime.sh "$decoder_evidence" >/dev/null
+          decoder_image="$(PLAYSTEAD_MEDIA_DECODER_EVIDENCE_DIR="$decoder_evidence" bash playstead-server/scripts/prepare-media-decoder-image.sh)"
+          printf 'PLAYSTEAD_MEDIA_DECODER_EVIDENCE_DIR=%s\n' "$decoder_evidence" >> "$GITHUB_ENV"
+          printf 'PLAYSTEAD_MEDIA_DECODER_IMAGE=%s\n' "$decoder_image" >> "$GITHUB_ENV"
+
+      - name: Phase 04.7 metadata protocol and exact ExUnit guard
+        working-directory: playstead-server
+        run: |
+          set -euo pipefail
+          scripts/tests/require-exunit-target-test.sh
+          node scripts/ci/validate-metadata-protocol-decision.js --self-test
+          scripts/ci/require-exunit-target.sh test/playstead/metadata_test.exs
+          scripts/ci/require-exunit-target.sh test/playstead_web/controllers/api/v1/capabilities_controller_test.exs
+
 
       - name: Verify browser prerequisites and discovery
         env:
@@ -133,8 +171,8 @@ jobs:
     name: macOS ordinary unit + rendering + UI + live server
     runs-on: macos-26
     timeout-minutes: 90
-    needs: [test, compose-smoke]
-    if: ${{ !cancelled() }}
+    needs: [test, compose-smoke, decoder-runtime]
+    if: ${{ !cancelled() && needs.decoder-runtime.result == 'success' }}
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
       PLAYSTEAD_GB_GBC_FIXTURE_REGISTRY: ${{ github.workspace }}/playstead-mac/.build/ci/gb-gbc-fixtures/fixtures.json
@@ -206,6 +244,19 @@ jobs:
         working-directory: playstead-mac
         run: scripts/ci/install-pinned-mgba-ci.sh
 
+      - name: Download the qualified Linux decoder runtime
+        if: ${{ needs.decoder-runtime.result == 'success' }}
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          name: media-decoder-runtime
+          path: ${{ runner.temp }}/playstead-media-decoder-runtime
+
+      - name: Qualify the owned decoder runtime before native checks
+        if: ${{ needs.decoder-runtime.result == 'success' }}
+        timeout-minutes: 15
+        working-directory: playstead-mac
+        run: scripts/ci/hosted-decoder-runtime.sh start "$RUNNER_TEMP/playstead-media-decoder-runtime"
+
       - name: Run no-HID ordinary native layers
         working-directory: playstead-mac
         run: scripts/ci/run-mac-verification.sh --run-unprivileged-verification
@@ -218,6 +269,14 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Sanitize numeric navigation failure geometry
+        if: failure()
+        working-directory: playstead-mac
+        run: |
+          if [ -d .build/ci/settings-navigation/evidence ]; then
+            scripts/ci/sanitize-evidence.sh --input .build/ci/settings-navigation --output .build/ci/settings-navigation-sanitized
+          fi
+
       - name: Upload sanitized ordinary Mac failure evidence
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
@@ -228,6 +287,20 @@ jobs:
           # original failing step instead of replacing it with an artifact error.
           if-no-files-found: warn
           retention-days: 7
+
+      - name: Upload sanitized numeric navigation failure geometry
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: mac-navigation-failure-geometry
+          path: playstead-mac/.build/ci/settings-navigation-sanitized
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Close only the run-owned decoder guest
+        if: always()
+        working-directory: playstead-mac
+        run: scripts/ci/hosted-decoder-runtime.sh cleanup
 
       # Keep dependency compilation after an unrelated test failure. These
       # paths contain no test products, profiles, credentials or evidence.
@@ -252,6 +325,7 @@ jobs:
   # Independent Linux recovery claim. This job owns its throwaway Compose
   # target; no endpoint, handoff, volume, CA, or raw output crosses to macOS.
   recovery-fixture:
+    needs: [decoder-runtime]
     name: Linux isolated recovery fixture
     runs-on: ubuntu-24.04
     timeout-minutes: 35
@@ -291,6 +365,22 @@ jobs:
           bash playstead-mac/scripts/ci/tests/sanitizer-test.sh
           bash playstead-server/scripts/ci/recovery-fixture.sh --self-test
 
+      - name: Download the same-run qualified decoder
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          name: media-decoder-runtime
+          path: ${{ runner.temp }}/playstead-media-decoder-runtime
+
+      - name: Prepare qualified decoder for the isolated restore target
+        working-directory: .
+        run: |
+          set -euo pipefail
+          decoder_evidence="$RUNNER_TEMP/playstead-media-decoder-runtime"
+          bash scripts/ci/import-media-decoder-runtime.sh "$decoder_evidence" >/dev/null
+          decoder_image="$(PLAYSTEAD_MEDIA_DECODER_EVIDENCE_DIR="$decoder_evidence" bash playstead-server/scripts/prepare-media-decoder-image.sh)"
+          printf 'PLAYSTEAD_MEDIA_DECODER_EVIDENCE_DIR=%s\n' "$decoder_evidence" >> "$GITHUB_ENV"
+          printf 'PLAYSTEAD_MEDIA_DECODER_IMAGE=%s\n' "$decoder_image" >> "$GITHUB_ENV"
+
       - name: Run isolated restore fixture
         run: |
           mkdir -m 700 "$RUNNER_TEMP/recovery-input"
@@ -311,6 +401,7 @@ jobs:
   # volumes + restart). It runs on every PR and protected-main push so the
   # scanners and attestations always refer to the image that passed this smoke.
   compose-smoke:
+    needs: [decoder-runtime]
     name: docker compose cold start
     runs-on: ubuntu-24.04
     timeout-minutes: 25
@@ -320,7 +411,7 @@ jobs:
       infra_changed: ${{ steps.changes.outputs.infra }}
     services:
       postgres:
-        image: public.ecr.aws/docker/library/postgres:17.2
+        image: postgres:17.2
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -364,6 +455,27 @@ jobs:
           printf '%s\n' "$contract_output"
           printf '%s\n' "$contract_output" | grep -Eq '^Ran [1-9][0-9]* tests?'
 
+      - name: Decoder scan receipt contract (must discover tests)
+        working-directory: .
+        run: |
+          set -euo pipefail
+          test -s scripts/tests/test_wolfi_repo_proxy.py
+          set +e
+          relay_output="$(python3 -m unittest discover -s scripts/tests -p 'test_wolfi_repo_proxy.py' -v 2>&1)"
+          relay_status=$?
+          set -e
+          printf '%s\n' "$relay_output"
+          test "$relay_status" -eq 0
+          printf '%s\n' "$relay_output" | grep -Eq '^Ran [1-9][0-9]* tests?'
+          test -s scripts/tests/test_media_decoder_supply_chain.py
+          set +e
+          contract_output="$(python3 -m unittest discover -s scripts/tests -p 'test_media_decoder_supply_chain.py' -v 2>&1)"
+          contract_status=$?
+          set -e
+          printf '%s\n' "$contract_output"
+          test "$contract_status" -eq 0
+          printf '%s\n' "$contract_output" | grep -Eq '^Ran [1-9][0-9]* tests?'
+
       - id: changes
         uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad  # v3.0.4
         with:
@@ -383,7 +495,23 @@ jobs:
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3.12.0
         with:
           driver-opts: |
-            image=public.ecr.aws/xqdo/hub/moby/buildkit@sha256:751921dc37d2f842de38c9387f891fe6ae7d80f03d050ea98f780d7e0874ba00
+            image=docker.io/moby/buildkit@sha256:751921dc37d2f842de38c9387f891fe6ae7d80f03d050ea98f780d7e0874ba00
+
+      - name: Download the same-run qualified decoder
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          name: media-decoder-runtime
+          path: ${{ runner.temp }}/playstead-media-decoder-runtime
+
+      - name: Restore and verify decoder before Compose activation
+        working-directory: .
+        run: |
+          set -euo pipefail
+          decoder_evidence="$RUNNER_TEMP/playstead-media-decoder-runtime"
+          bash scripts/ci/import-media-decoder-runtime.sh "$decoder_evidence" >/dev/null
+          decoder_image="$(PLAYSTEAD_MEDIA_DECODER_EVIDENCE_DIR="$decoder_evidence" bash playstead-server/scripts/prepare-media-decoder-image.sh)"
+          printf 'PLAYSTEAD_MEDIA_DECODER_IMAGE=%s\n' "$decoder_image" >> "$GITHUB_ENV"
+          printf 'PLAYSTEAD_MEDIA_DECODER_EVIDENCE_DIR=%s\n' "$decoder_evidence" >> "$GITHUB_ENV"
 
       - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8  # v6.19.2
         with:
@@ -445,6 +573,9 @@ jobs:
             ${{ runner.temp }}/playstead-release-evidence/evidence.json
             ${{ runner.temp }}/playstead-release-evidence/scan-reports.json
             ${{ runner.temp }}/playstead-release-evidence/sbom.cdx.json
+            ${{ runner.temp }}/playstead-media-decoder-runtime/decoder-scan-receipt.json
+            ${{ runner.temp }}/playstead-media-decoder-runtime/decoder-trivy.json
+            ${{ runner.temp }}/playstead-media-decoder-runtime/decoder-scan-result.json
           if-no-files-found: error
           retention-days: 14
 
@@ -514,3 +645,67 @@ jobs:
           path: release-evidence/release-evidence.json
           if-no-files-found: error
           retention-days: 90
+
+  # Build/scan once per workflow, never reuse a receipt from an earlier run.
+  # The three Linux lanes and Mac guest consume the same qualified image.
+  decoder-runtime:
+    name: Qualified media decoder
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+
+      - name: Verify decoder handoff contracts before building
+        run: |
+          set -euo pipefail
+          test -s scripts/tests/test_decoder_runtime_reuse.py
+          contract_output="$(python3 -m unittest discover -s scripts/tests -p 'test_decoder_runtime_reuse.py' -v 2>&1)"
+          printf '%s\n' "$contract_output"
+          printf '%s\n' "$contract_output" | grep -Eq '^Ran [1-9][0-9]* tests?'
+
+      - name: Build and scan the isolated media decoder once for all consuming lanes
+        working-directory: .
+        env:
+          PLAYSTEAD_MEDIA_DECODER_EVIDENCE_DIR: ${{ runner.temp }}/playstead-media-decoder-evidence
+        run: |
+          set -euo pipefail
+          decoder_image="$(bash playstead-server/scripts/prepare-media-decoder-image.sh)"
+          printf 'PLAYSTEAD_MEDIA_DECODER_IMAGE=%s\n' "$decoder_image" >> "$GITHUB_ENV"
+          printf 'PLAYSTEAD_MEDIA_DECODER_EVIDENCE_DIR=%s\n' "$PLAYSTEAD_MEDIA_DECODER_EVIDENCE_DIR" >> "$GITHUB_ENV"
+
+      - name: Export the qualified immutable decoder for all consumers
+        working-directory: .
+        run: |
+          set -euo pipefail
+          runtime_artifact="$RUNNER_TEMP/playstead-media-decoder-runtime"
+          mkdir -p "$runtime_artifact/generated"
+          docker image save --output "$runtime_artifact/decoder-image.tar" "$PLAYSTEAD_MEDIA_DECODER_IMAGE"
+          cp "$PLAYSTEAD_MEDIA_DECODER_EVIDENCE_DIR/decoder-scan-receipt.json" "$runtime_artifact/"
+          cp "$PLAYSTEAD_MEDIA_DECODER_EVIDENCE_DIR/decoder-trivy.json" "$runtime_artifact/"
+          cp "$PLAYSTEAD_MEDIA_DECODER_EVIDENCE_DIR/decoder-scan-result.json" "$runtime_artifact/"
+          cp -R playstead-server/ops/media-decoder/build/generated/. "$runtime_artifact/generated/"
+          # Signing secrets stay in the ignored .build tree, never this public context.
+          test -z "$(find "$runtime_artifact/generated" -type f -name '*.rsa' -print)"
+
+      - name: Preserve the qualified public decoder runtime
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: media-decoder-runtime
+          path: ${{ runner.temp }}/playstead-media-decoder-runtime
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Preserve decoder scan result, including policy failures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: media-decoder-scan-evidence
+          path: |
+            ${{ runner.temp }}/playstead-media-decoder-evidence/decoder-scan-result.json
+            ${{ runner.temp }}/playstead-media-decoder-evidence/decoder-trivy.json
+            ${{ runner.temp }}/playstead-media-decoder-evidence/decoder-scan-receipt.json
+          if-no-files-found: ignore
+          retention-days: 14

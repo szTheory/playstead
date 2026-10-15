@@ -11,6 +11,40 @@ enum Migrations {
     static func run(on connection: SQLiteConnection) throws {
         try connection.execute(
             """
+            CREATE TABLE IF NOT EXISTS metadata_descriptions (
+                asset_set_id TEXT PRIMARY KEY,
+                description TEXT NOT NULL,
+                revision INTEGER NOT NULL CHECK (revision >= 0),
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                deleted_at TEXT
+            );
+            """
+        )
+        // Upgrade the Plan 01 description-only mirror without dropping any
+        // locally persisted selection. Inspect first so real migration
+        // failures surface instead of being swallowed with duplicate-column
+        // errors.
+        let metadataColumns = Set(try connection.query("PRAGMA table_info(metadata_descriptions);") { $0.string(1) ?? "" })
+        if !metadataColumns.contains("payload_json") {
+            try connection.execute("ALTER TABLE metadata_descriptions ADD COLUMN payload_json TEXT NOT NULL DEFAULT '{}';")
+        }
+        if !metadataColumns.contains("deleted_at") {
+            try connection.execute("ALTER TABLE metadata_descriptions ADD COLUMN deleted_at TEXT;")
+        }
+        try connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS metadata_media_cache (
+                media_key TEXT PRIMARY KEY,
+                sha256 TEXT NOT NULL,
+                size INTEGER NOT NULL CHECK (size >= 0),
+                expires_at TEXT,
+                pinned INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0, 1)),
+                last_accessed_at TEXT NOT NULL
+            );
+            """
+        )
+        try connection.execute(
+            """
             CREATE TABLE IF NOT EXISTS catalogue_entries (
                 id TEXT PRIMARY KEY,
                 system TEXT NOT NULL,

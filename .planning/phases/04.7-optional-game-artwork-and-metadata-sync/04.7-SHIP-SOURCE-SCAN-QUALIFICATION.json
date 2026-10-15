@@ -1,0 +1,29 @@
+{
+  "human_judgment": false,
+  "recorded_at": "2026-10-13T18:45:28.788890+00:00",
+  "hosted_run": 38443363028,
+  "hosted_server_suite": {
+    "tests": 1206,
+    "features": 192,
+    "properties": 13,
+    "failures": 0,
+    "final_gate_failure": "generated scripts/tests Python bytecode made checkout appear dirty"
+  },
+  "hosted_decoder_build_scan": "passed",
+  "hosted_deployment_smoke": "passed",
+  "hosted_restore": "passed",
+  "source_scan_scope": "exclude only ignored decoder bootstrap .build and generated signed APK artifacts; committed application/dependencies/recipes remain in scope",
+  "source_scan_control": {
+    "targets": 2,
+    "high_critical": 10
+  },
+  "actual_scoped_source": {
+    "targets": 2,
+    "high_critical": 0,
+    "cache_control_found": false
+  },
+  "release_contract_tests": 29,
+  "ignore_contract": "fresh isolated git repo rejects generated Python bytecode without host global ignore rules",
+  "docker_context": "exclude decoder bootstrap private build key/cache and generated APKs from server context; separate decoder context unchanged",
+  "no_policy_exceptions_added": true
+}

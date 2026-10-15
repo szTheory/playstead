@@ -219,6 +219,8 @@ case "$command_name" in
     ;;
   up)
     [ "$#" -eq 0 ] || usage
+    decoder_image="$(bash "$root/scripts/prepare-media-decoder-image.sh")"
+    export PLAYSTEAD_MEDIA_DECODER_IMAGE="$decoder_image"
     read_only_preflight
     "${compose[@]}" up -d
     ;;

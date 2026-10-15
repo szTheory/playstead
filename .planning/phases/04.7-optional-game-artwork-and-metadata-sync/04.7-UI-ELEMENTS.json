@@ -1,0 +1,67 @@
+[
+  {
+    "id": "artwork-card",
+    "text": "The existing library card uses a stable 44 by 44 point image frame in its existing system-identity slot, with a truthful cover scaled to fit without cropping. Empty, loading, cached-offline, stale, ambiguous, rejected, partial, and failed media states preserve card geometry, title, readiness, and direct Play or Continue action.",
+    "elements": ["media", "list-collection", "interactive-control"]
+  },
+  {
+    "id": "game-title",
+    "text": "The card title, system label, readiness status, and Play or Continue action retain their current hierarchy and accessible name. Long titles wrap to two lines and truncate at the tail without shifting the action region.",
+    "elements": ["static-content", "list-collection", "interactive-control"]
+  },
+  {
+    "id": "game-detail",
+    "text": "The bounded per-game detail destination presents cover and title, then direct Play or Continue, description, source and match evidence, and catalogue screenshot content. Existing readiness and save-history routes remain reachable. Closing returns to the selected game and restores focus to its details trigger.",
+    "elements": ["nav", "static-content", "media", "interactive-control"]
+  },
+  {
+    "id": "description",
+    "text": "The game description is static text with provider or user provenance. Missing text has a concise empty explanation; unusually long text wraps and scrolls within the detail destination.",
+    "elements": ["static-content"]
+  },
+  {
+    "id": "representative-screenshot",
+    "text": "The detail page can show one representative catalogue game screenshot. It is labeled Game screenshot, preserves image aspect ratio, and is never presented as a player-progress capture or save evidence.",
+    "elements": ["media", "static-content"]
+  },
+  {
+    "id": "screenshot-gallery",
+    "text": "The still-image gallery traverses selected catalogue screenshots using keyboard, the simulated controller navigation bridge, and accessibility APIs. Empty, loading, partial, and failed galleries retain a clear exit route and return focus to the selected game.",
+    "elements": ["list-collection", "media", "nav", "interactive-control"]
+  },
+  {
+    "id": "provider-consent",
+    "text": "The provider consent form shows provider name, exact proposed title and system query, fields disclosed, credential ownership, attribution, cache expiry, and applicable private-use and redistribution terms before the first request. ROM-hash matching is a separate unchecked opt-in; paths, ROM/save bytes, and play history are never disclosed.",
+    "elements": ["form", "static-content", "interactive-control"]
+  },
+  {
+    "id": "match-candidates",
+    "text": "Ambiguous or low-confidence provider candidates appear as a selectable list with match evidence and confidence. No candidate is selected automatically; choosing or retaining a candidate is an explicit action.",
+    "elements": ["list-collection", "interactive-control", "static-content"]
+  },
+  {
+    "id": "local-media-form",
+    "text": "The private local media form accepts supported static PNG or JPEG images and plain text, identifies the target field, and shows bounded upload progress and validation results. Empty fields, rejected assets, and upload errors retain a safe cancel or retry path.",
+    "elements": ["form", "media", "interactive-control", "static-content"]
+  },
+  {
+    "id": "metadata-corrections",
+    "text": "Per-field title and description edits, selected provider match, cover, and screenshot choices show their current source. Each corrected field has an explicit Reset to provider action; refresh does not replace user selections, and competing edits retain both alternatives until the user resolves them.",
+    "elements": ["form", "list-collection", "interactive-control", "static-content"]
+  },
+  {
+    "id": "delivery-preparation",
+    "text": "Metadata settings offer Minimal and Balanced delivery plus an explicit selected-game offline preparation action. Before preparation, the review shows selected games, disclosed fields, estimated requests, download bytes, storage use, and provider limits; queued, partial, canceled, offline, and rejected outcomes remain visible.",
+    "elements": ["form", "list-collection", "interactive-control", "static-content"]
+  },
+  {
+    "id": "media-cache-controls",
+    "text": "Metadata settings show the independent provider-media cache budget, current use, expiry, pinned offline media, and reclaimable size, with a reclaim action and clear capacity-refusal copy. Provider cache eviction excludes game files, saves, canonical assets, and private original uploads.",
+    "elements": ["list-collection", "interactive-control", "static-content"]
+  },
+  {
+    "id": "metadata-settings-navigation",
+    "text": "Provider choice, credentials status, consent, media delivery, cache budget, attribution, and terms live in an existing Settings destination. The feature adds no sidebar section. Loading and errors retain a route back to Settings and the library.",
+    "elements": ["nav", "list-collection", "interactive-control"]
+  }
+]

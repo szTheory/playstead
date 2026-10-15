@@ -1,0 +1,10 @@
+{
+  "command": "cd playstead-server && PLAYSTEAD_EXUNIT_TAP_PATH=/private/tmp/phase-04-7-03-red.tap mix test --trace --formatter Playstead.TestSupport.ExUnitTapFormatter test/playstead/metadata/custody_round_trip_test.exs",
+  "exitCode": 2,
+  "targetFile": "playstead-server/test/playstead/metadata/custody_round_trip_test.exs",
+  "targetTest": "Playstead.Metadata.CustodyRoundTripTest::exports authored private media originals and provenance in verified BagIt and restores them through supported import",
+  "expected": "BagIt set sidecar contains exact private original digest, size, provenance, and edited metadata selection",
+  "actual": "Existing production export completed, then the test assertion failed because the sidecar media field was nil.",
+  "output": "TAP version 13\nnot ok 1 - Playstead.Metadata.CustodyRoundTripTest::exports authored private media originals and provenance in verified BagIt and restores them through supported import\n1..1\n",
+  "semanticAssessment": "The exact registered ExUnit test executed. Its intended production-export behavior assertion failed because private media is absent from the real BagIt sidecar; setup, compilation, and fixtures completed."
+}
