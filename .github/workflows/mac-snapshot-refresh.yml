@@ -68,6 +68,13 @@ jobs:
         working-directory: playstead-mac
         run: scripts/ci/run-mac-verification.sh --layers ui --only-testing PlaysteadUITests/ControllerRecoveryBannerGeometryTests/testRecoveryBannerGeometryAcrossWindowSizesAndAppearances
 
+      - name: Match the aggregate keyboard-mode setup order
+        if: inputs.mode == 'settings-navigation'
+        run: |
+          previous="$(defaults read NSGlobalDomain AppleKeyboardUIMode 2>/dev/null || true)"
+          printf 'PLAYSTEAD_SETTINGS_PREVIOUS_KEYBOARD_MODE=%s\n' "$previous" >> "$GITHUB_ENV"
+          defaults write NSGlobalDomain AppleKeyboardUIMode -int 3
+
       - name: Build the same frozen products as the full native gate
         if: inputs.mode == 'settings-navigation'
         working-directory: playstead-mac
@@ -179,6 +186,15 @@ jobs:
           fi
           if [ -d "$RUNNER_TEMP/ps-settings" ]; then
             rm -rf -- "$RUNNER_TEMP/ps-settings"
+          fi
+
+      - name: Restore the diagnostic keyboard-mode preference
+        if: ${{ always() && inputs.mode == 'settings-navigation' }}
+        run: |
+          if [ -n "$PLAYSTEAD_SETTINGS_PREVIOUS_KEYBOARD_MODE" ]; then
+            defaults write NSGlobalDomain AppleKeyboardUIMode -int "$PLAYSTEAD_SETTINGS_PREVIOUS_KEYBOARD_MODE"
+          else
+            defaults delete NSGlobalDomain AppleKeyboardUIMode 2>/dev/null || true
           fi
 
       - name: Preserve focused geometry evidence
