@@ -7,7 +7,7 @@ on:
         description: Named maintenance check
         type: choice
         default: snapshots
-        options: [snapshots, controller-geometry, settings-navigation, settings-accessibility, settings-aggregate]
+        options: [snapshots, controller-geometry, settings-navigation, settings-accessibility, native-prefix]
 
 permissions:
   contents: read
@@ -97,11 +97,6 @@ jobs:
         working-directory: playstead-mac
         run: scripts/ci/run-mac-verification.sh --layers ui --test-without-building --only-testing PlaysteadUITests/SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit
 
-      - name: Diagnose the bounded ordinary UI invocation and test order
-        if: inputs.mode == 'settings-aggregate'
-        working-directory: playstead-mac
-        run: scripts/ci/run-mac-verification.sh --diagnose-ordinary-ui-prefix
-
       - name: Run the complete unit and rendering prefix before navigation
         if: inputs.mode == 'settings-navigation'
         working-directory: playstead-mac
@@ -184,9 +179,6 @@ jobs:
           if [ -d .build/ci/settings-navigation/evidence ]; then
             scripts/ci/sanitize-evidence.sh --input .build/ci/settings-navigation --output .build/ci/settings-navigation-sanitized
           fi
-          if [ '${{ inputs.mode }}' = settings-aggregate ] && [ -d .build/ci/four-layer/evidence ]; then
-            scripts/ci/sanitize-evidence.sh --input .build/ci/four-layer --output .build/ci/settings-aggregate-sanitized
-          fi
 
       - name: Close only the diagnostic-owned VM
         if: ${{ always() && inputs.mode == 'settings-navigation' }}
@@ -218,7 +210,6 @@ jobs:
           path: |
             playstead-mac/.build/ci/geometry-navigation-sanitized
             playstead-mac/.build/ci/settings-navigation-sanitized
-            playstead-mac/.build/ci/settings-aggregate-sanitized
             playstead-mac/.build/ci/selected-ui.*/sanitized/ui-tests.json
             playstead-mac/.build/ci/prefix/unit-tests.json
             playstead-mac/.build/ci/prefix/rendering-tests.json
@@ -233,3 +224,224 @@ jobs:
             playstead-mac/.build/ci/SourcePackages
             playstead-mac/.build/ci/PackageCache
           key: ${{ steps.swiftpm-cache.outputs.cache-primary-key }}
+
+  # Temporary diagnostic: current CI producer and Mac setup. No release
+  # job, cross-run scan, complete gate evidence or live services.
+  native-decoder-runtime:
+    if: inputs.mode == 'native-prefix'
+    name: Qualified media decoder (native diagnostic)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+
+      - name: Verify decoder handoff contracts before building
+        run: |
+          set -euo pipefail
+          test -s scripts/tests/test_decoder_runtime_reuse.py
+          contract_output="$(python3 -m unittest discover -s scripts/tests -p 'test_decoder_runtime_reuse.py' -v 2>&1)"
+          printf '%s\n' "$contract_output"
+          printf '%s\n' "$contract_output" | grep -Eq '^Ran [1-9][0-9]* tests?'
+
+      - name: Build and scan the isolated media decoder once for all consuming lanes
+        working-directory: .
+        env:
+          PLAYSTEAD_MEDIA_DECODER_EVIDENCE_DIR: ${{ runner.temp }}/playstead-media-decoder-evidence
+        run: |
+          set -euo pipefail
+          decoder_image="$(bash playstead-server/scripts/prepare-media-decoder-image.sh)"
+          printf 'PLAYSTEAD_MEDIA_DECODER_IMAGE=%s\n' "$decoder_image" >> "$GITHUB_ENV"
+          printf 'PLAYSTEAD_MEDIA_DECODER_EVIDENCE_DIR=%s\n' "$PLAYSTEAD_MEDIA_DECODER_EVIDENCE_DIR" >> "$GITHUB_ENV"
+
+      - name: Export the qualified immutable decoder for all consumers
+        working-directory: .
+        run: |
+          set -euo pipefail
+          runtime_artifact="$RUNNER_TEMP/playstead-media-decoder-runtime"
+          mkdir -p "$runtime_artifact/generated"
+          docker image save --output "$runtime_artifact/decoder-image.tar" "$PLAYSTEAD_MEDIA_DECODER_IMAGE"
+          cp "$PLAYSTEAD_MEDIA_DECODER_EVIDENCE_DIR/decoder-scan-receipt.json" "$runtime_artifact/"
+          cp "$PLAYSTEAD_MEDIA_DECODER_EVIDENCE_DIR/decoder-trivy.json" "$runtime_artifact/"
+          cp "$PLAYSTEAD_MEDIA_DECODER_EVIDENCE_DIR/decoder-scan-result.json" "$runtime_artifact/"
+          cp -R playstead-server/ops/media-decoder/build/generated/. "$runtime_artifact/generated/"
+          # Signing secrets stay in the ignored .build tree, never this public context.
+          test -z "$(find "$runtime_artifact/generated" -type f -name '*.rsa' -print)"
+
+      - name: Preserve the qualified public decoder runtime
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: media-decoder-runtime
+          path: ${{ runner.temp }}/playstead-media-decoder-runtime
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Preserve decoder scan result, including policy failures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: media-decoder-scan-evidence
+          path: |
+            ${{ runner.temp }}/playstead-media-decoder-evidence/decoder-scan-result.json
+            ${{ runner.temp }}/playstead-media-decoder-evidence/decoder-trivy.json
+            ${{ runner.temp }}/playstead-media-decoder-evidence/decoder-scan-receipt.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  native-prefix:
+    name: focused no-HID native prefix
+    runs-on: macos-26
+    timeout-minutes: 90
+    needs: [native-decoder-runtime]
+    if: ${{ !cancelled() && inputs.mode == 'native-prefix' && needs.native-decoder-runtime.result == 'success' }}
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      PLAYSTEAD_GB_GBC_FIXTURE_REGISTRY: ${{ github.workspace }}/playstead-mac/.build/ci/gb-gbc-fixtures/fixtures.json
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+
+      - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124  # v1.24.1
+        with:
+          version-file: playstead-server/.tool-versions
+          version-type: strict
+
+      - name: Cache server dependencies
+        id: mac-server-cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        with:
+          path: |
+            playstead-server/deps
+            playstead-server/_build
+          key: mix-v2-${{ runner.os }}-${{ runner.arch }}-mac_ci-${{ hashFiles('playstead-server/.tool-versions') }}-${{ hashFiles('playstead-server/mix.lock') }}
+          restore-keys: |
+            mix-v2-${{ runner.os }}-${{ runner.arch }}-mac_ci-${{ hashFiles('playstead-server/.tool-versions') }}-
+
+      - name: Cache pinned Swift packages
+        id: mac-swiftpm-cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        with:
+          path: |
+            playstead-mac/.build/ci/SourcePackages
+            playstead-mac/.build/ci/PackageCache
+          key: swiftpm-${{ runner.os }}-${{ runner.arch }}-xcode26.6-${{ hashFiles('playstead-mac/**/Package.resolved') }}
+          restore-keys: |
+            swiftpm-${{ runner.os }}-${{ runner.arch }}-xcode26.6-
+
+      # Static contract guards run BEFORE the ~20-minute build so drift between a
+      # guard and the code it guards fails in seconds. Until this step existed,
+      # CI invoked exactly one harness flag and reached none of these guards, so
+      # two of them had silently drifted out of agreement with shipped code.
+      - name: Install static contract prerequisites
+        run: |
+          set -euo pipefail
+          if ! command -v rg >/dev/null 2>&1; then
+            HOMEBREW_NO_AUTO_UPDATE=1 brew install ripgrep
+          fi
+          rg --version
+
+      - name: Prepare the hosted display for finite window geometry cases
+        working-directory: playstead-mac
+        run: |
+          swift scripts/ci/configure-test-display.swift
+          swift scripts/ci/configure-test-display.swift --check-only
+
+      - name: Verify static contract guards
+        working-directory: playstead-mac
+        run: scripts/ci/run-mac-verification.sh --self-test-contracts
+
+      - name: Generate pinned self-authored GB/GBC fixtures
+        working-directory: playstead-mac
+        run: |
+          umask 077
+          python3 ../.planning/spikes/001-bios-free-gameplay/build_fixture.py --out .build/ci/gb-gbc-fixtures
+          for fixture in gb-mbc1-8k gbc-mbc5-32k gbc-mbc3-rtc; do
+            mkdir -p ".local/gb-gbc-spike/$fixture/screenshots"
+            chmod 700 ".local/gb-gbc-spike/$fixture"
+          done
+
+      - name: Install pinned mGBA Qt runtime for cartridge continuity cases
+        working-directory: playstead-mac
+        run: scripts/ci/install-pinned-mgba-ci.sh
+
+      - name: Download the qualified Linux decoder runtime
+        if: ${{ needs.native-decoder-runtime.result == 'success' }}
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          name: media-decoder-runtime
+          path: ${{ runner.temp }}/playstead-media-decoder-runtime
+
+      - name: Qualify the owned decoder runtime before native checks
+        if: ${{ needs.native-decoder-runtime.result == 'success' }}
+        timeout-minutes: 15
+        working-directory: playstead-mac
+        run: scripts/ci/hosted-decoder-runtime.sh start "$RUNNER_TEMP/playstead-media-decoder-runtime"
+
+      - name: Run the bounded ordinary native prefix
+        working-directory: playstead-mac
+        run: scripts/ci/run-mac-verification.sh --diagnose-ordinary-native-prefix
+
+      - name: Upload sanitized ordinary Mac evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: mac-ordinary-evidence
+          path: playstead-mac/.build/ci/ordinary-evidence/ordinary-verification-evidence.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Sanitize numeric navigation failure geometry
+        if: failure()
+        working-directory: playstead-mac
+        run: |
+          if [ -d .build/ci/settings-navigation/evidence ]; then
+            scripts/ci/sanitize-evidence.sh --input .build/ci/settings-navigation --output .build/ci/settings-navigation-sanitized
+          fi
+
+      - name: Upload sanitized ordinary Mac failure evidence
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: mac-ordinary-failure-evidence
+          path: playstead-mac/.build/ci/ordinary-failure-evidence
+          # A wrapper/setup failure can precede bundle creation. Preserve the
+          # original failing step instead of replacing it with an artifact error.
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Upload sanitized numeric navigation failure geometry
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: mac-navigation-failure-geometry
+          path: playstead-mac/.build/ci/settings-navigation-sanitized
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Close only the run-owned decoder guest
+        if: always()
+        working-directory: playstead-mac
+        run: scripts/ci/hosted-decoder-runtime.sh cleanup
+
+      # Keep dependency compilation after an unrelated test failure. These
+      # paths contain no test products, profiles, credentials or evidence.
+      - name: Save compiled Mac server dependencies
+        if: ${{ !cancelled() && steps.mac-server-cache.outputs.cache-primary-key != '' && steps.mac-server-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        with:
+          path: |
+            playstead-server/deps
+            playstead-server/_build
+          key: ${{ steps.mac-server-cache.outputs.cache-primary-key }}
+
+      - name: Save pinned Mac Swift packages
+        if: ${{ !cancelled() && steps.mac-swiftpm-cache.outputs.cache-primary-key != '' && steps.mac-swiftpm-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        with:
+          path: |
+            playstead-mac/.build/ci/SourcePackages
+            playstead-mac/.build/ci/PackageCache
+          key: ${{ steps.mac-swiftpm-cache.outputs.cache-primary-key }}
+
+  # Independent Linux recovery claim. This job owns its throwaway Compose
+  # target; no endpoint, handoff, volume, CA, or raw output crosses to macOS.

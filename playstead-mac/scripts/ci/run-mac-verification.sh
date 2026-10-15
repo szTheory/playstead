@@ -30,6 +30,7 @@ LIVE_SERVER_XCTESTRUN_BACKUP=""
 LIVE_SERVER_XCTESTRUN_PATCHED=false
 LIVE_SERVER_RUNTIME_CONFIG_READY=false
 UI_NO_HID=false
+ORDINARY_UI_PREFIX_DIAGNOSTIC=false
 VIRTUAL_HID_ROOT="${BUILD_ROOT}/entitled-virtual-gamepad"
 VIRTUAL_HID_PRIVATE_ROOT="${VIRTUAL_HID_ROOT}/private"
 VIRTUAL_HID_SETTINGS="${VIRTUAL_HID_PRIVATE_ROOT}/signing.json"
@@ -1512,6 +1513,12 @@ run_test_layer() {
   local plan="$2"
   local deadline="$3"
   shift 3
+  if [ "$slug" = ui ] && [ "$ORDINARY_UI_PREFIX_DIAGNOSTIC" = true ]; then
+    [[ "${GITHUB_ACTIONS:-}" = true && "${RUNNER_OS:-}" = macOS &&
+       "${GITHUB_REPOSITORY:-}" = szTheory/playstead && "$UI_NO_HID" = true ]] ||
+      die "bounded ordinary UI execution requires the disposable hosted Mac"
+    deadline=180
+  fi
   local result_bundle="${FOUR_LAYER_RAW}/${slug}.xcresult"
   local result_json="${FOUR_LAYER_RAW}/${slug}-tests.json"
   local result_summary="${FOUR_LAYER_EVIDENCE}/${slug}-tests.json"
@@ -1613,23 +1620,7 @@ run_test_layer() {
   fi
 }
 
-diagnose_ordinary_ui_prefix() {
-  [[ "${GITHUB_ACTIONS:-}" = true && "${RUNNER_OS:-}" = macOS &&
-     "${GITHUB_REPOSITORY:-}" = szTheory/playstead ]] ||
-    die "ordinary UI prefix diagnostic requires the disposable hosted Mac"
-  assert_local_app_launch_authorized
-  [ -x "$DERIVED_DATA/Build/Products/Debug/Playstead.app/Contents/MacOS/Playstead" ] ||
-    die "ordinary UI prefix diagnostic requires frozen test products"
-  [ ! -e "$FOUR_LAYER_ROOT" ] || die "ordinary UI prefix evidence already exists"
-  UI_NO_HID=true
-  arm_keyboard_mode_cleanup
-  capture_keyboard_mode
-  mkdir -p "$FOUR_LAYER_RAW" "$FOUR_LAYER_EVIDENCE/logs"
-  # Use the actual aggregate invocation and its complete ordinary selection.
-  # The existing deadline bounds this intentionally partial diagnostic; it
-  # neither replaces the full gate nor changes a test's wait or assertion.
-  run_test_layer ui UI 180 \
-    --required-test PlaysteadUITests.ControllerDpadRegressionTests/testControllerTestDpadUpStaysInSettingsAndSettingsReopensAtStorage
+finish_ordinary_ui_prefix_diagnostic() {
   local diagnostic_status="$LAYER_STATUS"
   python3 - "$MAC_ROOT" "$FOUR_LAYER_RAW/ui.log" "$FOUR_LAYER_EVIDENCE/logs/app.log" "$DERIVED_DATA" <<'PY'
 import json, os, pathlib, re, signal, subprocess, sys, time
@@ -1677,6 +1668,14 @@ PY
   restore_keyboard_mode
   printf '%s\n' 'ordinary UI prefix: diagnostic only; partial execution cannot qualify the shipping gate'
   return "$diagnostic_status"
+}
+
+diagnose_ordinary_native_prefix() {
+  [[ "${GITHUB_ACTIONS:-}" = true && "${RUNNER_OS:-}" = macOS &&
+     "${GITHUB_REPOSITORY:-}" = szTheory/playstead ]] ||
+    die "native prefix diagnostic requires the disposable hosted Mac"
+  ORDINARY_UI_PREFIX_DIAGNOSTIC=true
+  run_four_layer_verification ordinary
 }
 
 write_complete_verification_evidence() {
@@ -2024,6 +2023,13 @@ PY
     --required-test PlaysteadUITests.MetadataCorrectionUITests/testSavingCorrectionUpdatesTheLocalMirrorBeforeServerDelivery \
     --required-test PlaysteadUITests.ZeroNetworkPlayFlowTests/testWholePlayFlowRecordsZeroHTTPRequests
   [ "$LAYER_STATUS" -eq 0 ] || aggregate=1
+  if [ "$ORDINARY_UI_PREFIX_DIAGNOSTIC" = true ]; then
+    finish_ordinary_ui_prefix_diagnostic || true
+    "${SCRIPT_DIR}/sanitize-evidence.sh" --input "$FOUR_LAYER_ROOT" --output "${BUILD_ROOT}/ordinary-failure-evidence"
+    # Deliberately partial; never emit complete ordinary evidence or start
+    # live services for this bounded diagnostic.
+    return 1
+  fi
 
   # The LiveServer layer is the native client/server behavior proof (D-04).
   # Keep PostgreSQL/Phoenix scoped to that layer and compose its fail-safe
@@ -3195,7 +3201,7 @@ Usage:
   run-mac-verification.sh --run-wave-0-adoption
   run-mac-verification.sh --run-four-layer-verification
   run-mac-verification.sh --run-unprivileged-verification
-  run-mac-verification.sh --diagnose-ordinary-ui-prefix
+  run-mac-verification.sh --diagnose-ordinary-native-prefix
   run-mac-verification.sh --run-entitled-virtual-gamepad-verification
   run-mac-verification.sh --self-test-contracts
   run-mac-verification.sh --run-snapshot-candidates
@@ -3234,7 +3240,7 @@ case "$1" in
   --run-wave-0-adoption) shift; [ "$#" -eq 0 ] || die "unexpected adoption arguments"; run_wave_0_adoption ;;
   --run-four-layer-verification) shift; [ "$#" -eq 0 ] || die "unexpected four-layer arguments"; run_four_layer_verification ;;
   --run-unprivileged-verification) shift; [ "$#" -eq 0 ] || die "unexpected unprivileged verification arguments"; run_four_layer_verification ordinary ;;
-  --diagnose-ordinary-ui-prefix) shift; [ "$#" -eq 0 ] || die "unexpected UI prefix diagnostic arguments"; diagnose_ordinary_ui_prefix ;;
+  --diagnose-ordinary-native-prefix) shift; [ "$#" -eq 0 ] || die "unexpected native prefix diagnostic arguments"; diagnose_ordinary_native_prefix ;;
   --run-entitled-virtual-gamepad-verification) shift; [ "$#" -eq 0 ] || die "unexpected virtual-gamepad arguments"; run_entitled_virtual_gamepad_verification ;;
   --run-snapshot-candidates) shift; [ "$#" -eq 0 ] || die "unexpected snapshot candidate arguments"; run_snapshot_candidates ;;
   --verify-layer-result)
