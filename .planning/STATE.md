@@ -19,6 +19,10 @@ milestone_name: milestone
 current_plan: null
 ---
 
+Current shipping update: c5117a0/run38688537833 passes all4nonMac jobs,59rendering,155UI and12live journeys including all3GBGBC save readbacks. Settings prompt and live readiness repairs are qualified. Only one unrelated timer unit assertion failed. The narrow follow-up exposes the ticker's existing cancellation task so its three tests join completion; real-source Swift6 negative control fails the old ordering and100 periodic/join checks pass.113validators/allguards pass. Local class compiled but inert host stalled before0tests; exact task app/build are closed. New final-head full CI is required before the already-authorized squash PR13. Old watcher94545/finalizer90959 ended safely without merge; refresh pins and start only one new pair. Next `$gsd-ship 4.7`; after actual merge/cleanup `$gsd-extract-learnings 4.7`.
+
+
+
 Phase 4.7 shipping remains active; PR12 is merged at ecca50a and PR13 is draft/unmerged. Continue `$gsd-ship 4.7` from `/private/tmp/playstead-04.7-ship/checkout`; squash is already authorized after all five final-head CI jobs succeed. Do not recreate PRs, repeat reviews or request merge permission.
 
 The exact CI bootstrap reproduced the Settings failures in run38683945538/37388c5. Its target-window image shows a Python local-network permission prompt covering the Controller/Metadata tabs. The new HTTPS fixture used HTTPServer.server_bind, which calls getfqdn even on 127.0.0.1. The replacement loopback-only server binds directly without discovery; the old implementation fails the new mocked-DNS regression and all eight HTTPS checks pass. No system permission or product layout change is needed. All temporary manual diagnostic jobs and bounded runner flags are removed; normal full gate deadlines and required UI assertions remain intact.

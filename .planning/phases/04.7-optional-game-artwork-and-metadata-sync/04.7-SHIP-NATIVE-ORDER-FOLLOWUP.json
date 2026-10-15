@@ -755,7 +755,16 @@
     "diagnostics": "Only after original UI timeout: bounded numeric geometry, plus synthetic app-window image guarded to exact public hosted source/home. No preclick delay or original UI assertion change. No local desktop/global notification capture.",
     "temporary_code": "All copied Settings/native-prefix diagnostic workflow jobs and runner flags removed. Normal full unit900/render600/UI2700/live1800 deadlines and test selections retained.",
     "rendering_isolation": "All4 metadata rendering AppEnvironment fixtures explicitly inject FakeControllerInputSource; build-for-testing passed. This is independent hardware isolation, not claimed as the prompt cause.",
-    "full_current_head_matrix": "pending; focused passes and bounded diagnostics cannot replace shipping gate",
+    "full_current_head_matrix": {
+      "head": "c5117a02f1a4e2b956344c5b3e80e9ecc59ae120",
+      "run": 38688537833,
+      "all4nonMac": "success",
+      "unit": "846executed/1unrelated ticker cancellation assertion failed",
+      "rendering": "59passed",
+      "ui": "155passed",
+      "live": "12passed including all3GBGBC game/save readbacks",
+      "original_10navigation_and_live_failures": "closed by current source; whole run failed only ticker oracle"
+    },
     "source_sha256": {
       "playstead-mac/scripts/ci/tests/test_live_server_metadata_selection.py": "9aa35b55a6a40ea2ef050158dc55eff322344979571e2fa9bb06aeb86fa924cd",
       "playstead-mac/PlaysteadTests/SavesTests/PlayPathSaveWiringTests.swift": "ebdeff246e1dbb90094c42fbfe0195a78db7442b76645fcfbf095c34e9d07706",
@@ -801,5 +810,25 @@
     "repair": "Three waits require a positive PID, live exact pinned executable/digest and matching registered AppKit bundle/PID instead of value!=idle accepting nil; return to running Playstead before upload review.",
     "qualification": "16 positive/negative compiled helper controls pass; UI build passes; actual new three game/save journeys await full final CI.",
     "assertion_boundary": "Exact pinned emulator, original game/save/pixel assertions retained."
+  },
+  "ticker_cancellation_join_followup": {
+    "at": "2026-10-15T07:17:47.431339+00:00",
+    "human_judgment": false,
+    "failed_run": 38688537833,
+    "selector": "OutboxDrainTickerTests/testTickerFiresRepeatedlyUntilStopped()",
+    "cause": "stop requests cancellation; a synchronous onTick callback already past its cancellation check may finish afterward. The test read afterStop before this callback completed.",
+    "repair": "Expose the existing cancelled Task as the discardable return from stop(). All three standalone ticker assertions await its completion. Scheduling, cancellation, intervals and original assertions are unchanged. The assembled fixture explicitly uses FakeControllerInputSource.",
+    "qualification": {
+      "actual_production_source": "OutboxDrainTicker.swift compiled directly with Swift6 and warnings-as-errors",
+      "negative_control": "Force callback in flight; old pre-join snapshot ordering fails exactly as expected,exit1",
+      "positive_control": "Join observes actual callback completion;100 repeated periodic start/tick/stop checks pass,exit0",
+      "local_XCTest": "Compile succeeded;0tests started because inert host stalled. Closed only exact task host and xcodebuild after validating paths; no passing assembled-class claim.",
+      "static": "113validators/allguards passed",
+      "fresh_full_CI": "pending"
+    },
+    "source_sha256": {
+      "playstead-mac/Playstead/Sync/OutboxDrainTicker.swift": "1889ed1aa3512e54a8b0697edeff6fa69cc0a0d25549cea46565dab0a82e5eae",
+      "playstead-mac/PlaysteadTests/SyncTests/OutboxDrainTickerTests.swift": "934427cb76a7cf13f1e24b1c59b2e61059cda59618669844cadf6356150ce3a0"
+    }
   }
 }

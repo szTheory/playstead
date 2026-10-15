@@ -1,14 +1,14 @@
 {
   "version": "1.0",
-  "timestamp": "2026-10-15T05:43:41.750840+00:00",
-  "context": "Resume existing Phase4.7 shipping: Python DNS permission prompt identified; loopback fixture/save oracle fixes qualifying; PR12 merged, PR13 pending full final CI.",
+  "timestamp": "2026-10-15T07:17:47.431339+00:00",
+  "context": "All metadata/UI/live repairs pass atc5117a0; timer cancellation join qualifies by direct-source controlled regression; final CI pending.",
   "work_type": "phase",
   "quick_id": null,
   "phase": "4.7",
   "phase_name": "Optional game artwork and metadata sync",
   "phase_dir": ".planning/phases/04.7-optional-game-artwork-and-metadata-sync",
   "handoff_path": ".planning/phases/04.7-optional-game-artwork-and-metadata-sync/continue.md",
-  "status": "shipping_root_cause_fixed_pending_final_ci",
+  "status": "shipping_ticker_fix_qualified_pending_ci",
   "task": "Phase4.7 ordered squash delivery",
   "total_tasks": 10,
   "completed_tasks": [
@@ -33,7 +33,7 @@
   "next_command": "$gsd-ship 4.7",
   "next_command_ready": true,
   "next_command_prerequisites": [],
-  "next_action": "Complete focused/static qualification, refresh source gate, push final normal-CI commit; squash PR13 only after all five exact-head jobs pass. Then $gsd-extract-learnings 4.7.",
+  "next_action": "Commit/push qualified ticker join and refreshed source gate; require all5exact-head CI jobs, then guarded authorized PR13 squash/tree/cleanup. Old watcher/finalizer ended; do not reuse their stale pins.",
   "source_lineage": {
     "source": "ed8710d",
     "audit": "8380a08",
@@ -440,6 +440,14 @@
       "repair": "Numeric loopback-only fixture bind with no hostname discovery; old code fails regression, all8 HTTPS tests pass.",
       "temporary_diagnostics_removed": true,
       "permissions_changed": false,
+      "final_ci": "pending"
+    },
+    "ticker_followup": {
+      "failed_run": 38688537833,
+      "repair": "Return existing cancelled task and join in assertions",
+      "direct_source_control": "negative old ordering fails; positive100checks passes withSwift6warnings-as-errors",
+      "static_validators": 113,
+      "local_host": "0tests,closed exact processes",
       "final_ci": "pending"
     }
   },
