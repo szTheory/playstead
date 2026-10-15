@@ -68,17 +68,37 @@ jobs:
         working-directory: playstead-mac
         run: scripts/ci/run-mac-verification.sh --layers ui --only-testing PlaysteadUITests/ControllerRecoveryBannerGeometryTests/testRecoveryBannerGeometryAcrossWindowSizesAndAppearances
 
+      - name: Build the same frozen products as the full native gate
+        if: inputs.mode == 'settings-navigation'
+        working-directory: playstead-mac
+        run: |
+          mkdir -p .build/ci/swiftpm-diagnostics-home .build/ci/swift-clang-module-cache .build/ci/prefix/snapshot-triplet .build/ci/prefix/storage-candidate
+          CFFIXED_USER_HOME="$PWD/.build/ci/swiftpm-diagnostics-home" \
+            CLANG_MODULE_CACHE_PATH="$PWD/.build/ci/swift-clang-module-cache" \
+            xcodebuild build-for-testing -project Playstead.xcodeproj -scheme Playstead \
+            -destination 'platform=macOS' -derivedDataPath "$PWD/.build/ci/DerivedData" \
+            -clonedSourcePackagesDirPath "$PWD/.build/ci/SourcePackages" \
+            -packageCachePath "$PWD/.build/ci/PackageCache" \
+            CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= \
+            PLAYSTEAD_UI_TEST_ENTITLEMENTS=PlaysteadUITests/PlaysteadUITests.no-hid.entitlements \
+            PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT="$PWD/.build/ci/prefix/snapshot-triplet" \
+            PLAYSTEAD_STORAGE_SNAPSHOT_CANDIDATE_OUTPUT="$PWD/.build/ci/prefix/storage-candidate/storage-surfaces.actual.png" \
+            PLAYSTEAD_SNAPSHOT_RECORDING=0
+
       - name: Mount the metadata rendering fixtures before navigation
         if: inputs.mode == 'settings-navigation'
         working-directory: playstead-mac
-        run: scripts/ci/run-mac-verification.sh --layers rendering --only-testing PlaysteadTests/MetadataStateRenderingTests/testAllFiftyThreeMetadataControlFixturesMountAndRender
+        run: scripts/ci/run-mac-verification.sh --layers rendering --test-without-building --only-testing PlaysteadTests/MetadataStateRenderingTests/testAllFiftyThreeMetadataControlFixturesMountAndRender
 
       - name: Run the focused synthetic Settings navigation cohort
         if: inputs.mode == 'settings-navigation'
         working-directory: playstead-mac
         run: |
-          scripts/ci/run-mac-verification.sh --layers ui \
+          scripts/ci/run-mac-verification.sh --layers ui --test-without-building \
             --only-testing PlaysteadUITests/ControllerDpadRegressionTests/testControllerTestDpadUpStaysInSettingsAndSettingsReopensAtStorage \
+            PlaysteadUITests/BiosAcceptanceSeamTests \
+            PlaysteadUITests/BiosRejectionCopyTests \
+            PlaysteadUITests/ConflictResolutionInteractionTests \
             PlaysteadUITests/ControllerNoHIDIntegrationTests/testRecoveryNoticeAccessibilityContractAndDismissalPreservesState \
             PlaysteadUITests/SurfaceAccessibilityTests/testReadinessRoutesReachBIOSAndControllerSettings \
             PlaysteadUITests/MetadataConsentUITests/testAllFortyFiveMetadataSettingsStatesExposeTheirOwnMeaningAndUsableAction \
