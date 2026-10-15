@@ -139,7 +139,8 @@ final class UITestHarness {
         app.descendants(matching: type)[identifier]
     }
 
-    /// Numeric failure geometry only: no text, accessibility tree, screenshots or successful-click delay.
+    /// Failure-only numeric geometry; the public hosted runner may also retain
+    /// its synthetic app window. Never capture a local desktop or unrelated UI.
     static func recordSettingsNavigationTimeout(for timedOutControl: XCUIElement) throws {
         let app = XCUIApplication()
         guard app.state != .notRunning, app.windows.firstMatch.exists else { return }
@@ -181,6 +182,20 @@ final class UITestHarness {
         defer { try? stream.close() }
         try stream.seekToEnd()
         try stream.write(contentsOf: data)
+
+        // This source/home pair identifies the disposable public Actions Mac.
+        // Local runs retain numeric geometry only. Capture exactly the tested
+        // window, after the original wait has already failed, without changing
+        // successful-click timing or the assertion that follows.
+        if root.path.hasPrefix("/Users/runner/work/playstead/playstead/playstead-mac/"),
+           FileManager.default.homeDirectoryForCurrentUser.path == "/Users/runner" {
+            let screenshots = root.appendingPathComponent("screenshots", isDirectory: true)
+            try FileManager.default.createDirectory(at: screenshots, withIntermediateDirectories: true,
+                                                    attributes: [.posixPermissions: 0o700])
+            let screenshot = screenshots.appendingPathComponent("synthetic-settings-navigation.png")
+            try app.windows.firstMatch.screenshot().pngRepresentation.write(to: screenshot, options: .atomic)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: screenshot.path)
+        }
     }
 
     func require(_ identifiers: [String]) {

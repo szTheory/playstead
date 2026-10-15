@@ -7,7 +7,7 @@ on:
         description: Named maintenance check
         type: choice
         default: snapshots
-        options: [snapshots, controller-geometry, settings-navigation]
+        options: [snapshots, controller-geometry, settings-navigation, settings-accessibility]
 
 permissions:
   contents: read
@@ -40,7 +40,7 @@ jobs:
 
   focused-controller-geometry:
     name: focused no-HID controller-notice geometry
-    if: inputs.mode == 'controller-geometry' || inputs.mode == 'settings-navigation'
+    if: inputs.mode == 'controller-geometry' || startsWith(inputs.mode, 'settings-')
     runs-on: macos-26
     timeout-minutes: 30
     env:
@@ -76,7 +76,7 @@ jobs:
           defaults write NSGlobalDomain AppleKeyboardUIMode -int 3
 
       - name: Build the same frozen products as the full native gate
-        if: inputs.mode == 'settings-navigation'
+        if: startsWith(inputs.mode, 'settings-')
         working-directory: playstead-mac
         run: |
           mkdir -p .build/ci/swiftpm-diagnostics-home .build/ci/swift-clang-module-cache .build/ci/prefix/snapshot-triplet .build/ci/prefix/storage-candidate
@@ -91,6 +91,11 @@ jobs:
             PLAYSTEAD_SNAPSHOT_CANARY_OUTPUT="$PWD/.build/ci/prefix/snapshot-triplet" \
             PLAYSTEAD_STORAGE_SNAPSHOT_CANDIDATE_OUTPUT="$PWD/.build/ci/prefix/storage-candidate/storage-surfaces.actual.png" \
             PLAYSTEAD_SNAPSHOT_RECORDING=0
+
+      - name: Run only the complete keyboard and accessibility tour
+        if: inputs.mode == 'settings-accessibility'
+        working-directory: playstead-mac
+        run: scripts/ci/run-mac-verification.sh --layers ui --test-without-building --only-testing PlaysteadUITests/SurfaceAccessibilityTests/testKeyboardOnlySurfaceInventoryAndLiveAudit
 
       - name: Run the complete unit and rendering prefix before navigation
         if: inputs.mode == 'settings-navigation'
