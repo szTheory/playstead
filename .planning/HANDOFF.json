@@ -413,6 +413,13 @@
     },
     "parked_lane": "Apple/HID remains independently parked until owner signal and named prerequisites; no polling or repeat request",
     "prerequisite_merged": "ecca50add04386d363315b88720e4598d3aa6ae3",
-    "registry_followup": "Canonical DockerHub postgres17.2 in hosted services; ComposeCI inherits unchanged productiondefault after ECRanonymousdataquota startup failure. Allstatic104validators/29release/8handoff and actualComposeconfig pass. Superseded347run passedproducer+3Linux, cancelledbefore native; exactguestcleanup succeeded. Finalcurrent-headCI required."
+    "registry_followup": "Canonical DockerHub postgres17.2 in hosted services; ComposeCI inherits unchanged productiondefault after ECRanonymousdataquota startup failure. Allstatic104validators/29release/8handoff and actualComposeconfig pass. Superseded347run passedproducer+3Linux, cancelledbefore native; exactguestcleanup succeeded. Finalcurrent-headCI required.",
+    "metadata_description_fixture_followup": {
+      "failed_run": 38620432044,
+      "failed_head": "aaca32691bf351572a9be6e0fda767c6a3c16897",
+      "regression_cases": 6,
+      "covered_digest": "v3:sha256:3e5cc48afa22ae60d554142c8df88cd6ea520c1336fd44ba184069f8d74dd16a",
+      "requires_fresh_full_CI": true
+    }
   }
 }

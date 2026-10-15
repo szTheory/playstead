@@ -583,5 +583,59 @@
       "playstead-server/docker-compose.ci.yml": "6b41619266d6bbcdc7994ad09576d5772b27b6418be190215bf9eeb14229d04e",
       "scripts/tests/test_release_evidence.py": "a1da8fbc4e66298dd8bb913a684d624019666f792bacba782b8a9468fbdc10a0"
     }
+  },
+  "metadata_description_fixture_followup": {
+    "recorded_at": "2026-10-15T00:05:55.876420+00:00",
+    "human_judgment": false,
+    "failed_head": "aaca32691bf351572a9be6e0fda767c6a3c16897",
+    "failed_run": 38620432044,
+    "failed_job": 116054167795,
+    "failed_test": "MetadataDescriptionJourneyTests/testPrivateDescriptionSurvivesChangeAndReset",
+    "cause": "Fixture POST omitted required base_revision; current controller requires a nonnegative field revision. Hosted failure occurred at fixture invocation before description assertions.",
+    "change": "Read the authenticated current field revision; only HTTP404 means a fresh selection at revision0. Submit field/value/base_revision; preserve conflict refusal, exact response identity/description and mode0600 receipt.",
+    "regression": {
+      "before": "HTTPS request regression fails against unchanged aaca fixture at metadata-selection",
+      "after": "6 real shell-to-HTTPS tests pass: edited description revision, fresh404, unedited description with title revision, auth refusal, conflict refusal and wrong response identity",
+      "ci": "Automatically discovered by existing static contract lane; no separate build or UI run needed"
+    },
+    "retained_hosted_results": {
+      "decoder": "success",
+      "linux_jobs": 3,
+      "linux": "all success",
+      "native_unit": {
+        "executed": 846,
+        "failed": 0
+      },
+      "native_rendering": {
+        "executed": 59,
+        "failed": 0
+      },
+      "native_ui": {
+        "executed": 155,
+        "failed": 0
+      },
+      "live_server": {
+        "executed": 12,
+        "failed": 1,
+        "all_three_gb_gbc_game_save_readbacks": "passed",
+        "richer_metadata_private_media_journey": "passed"
+      },
+      "full_run": "failure; no merge allowed"
+    },
+    "hosted_cleanup": "Run-owned decoder guest cleanup succeeded",
+    "local_native_run": "none; no local app/services/emulator/guest launched for this repair",
+    "source_sha256": {
+      "playstead-mac/scripts/ci/live-server.sh": "ed41d1ada6a07564fb3425bf31f64d3bd9216b537fb313341e820b1c96ff69a5",
+      "playstead-mac/scripts/ci/tests/test_live_server_metadata_selection.py": "1bedefe1357202d2bd9c6110a98eccd903a88c65bfeb017cedde61f0fcccbab1"
+    },
+    "remaining": "Require full fresh current-head decoder/three Linux/Mac gates, then authorized squash PR13; PR12 already merged at ecca50a.",
+    "static_validation": {
+      "validators": "110 passed",
+      "all_other_static_guards": "passed",
+      "cleanup_guard": "initial sandbox /bin/ps denied; exact synthetic guard rerun with process-list access passed",
+      "summary_blocks": "10/10 classifiable",
+      "shellcheck": "passed with existing SC2154 trap-parser warning excluded",
+      "diff_check": "passed"
+    }
   }
 }
