@@ -269,12 +269,22 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Sanitize numeric navigation failure geometry
+        if: failure()
+        working-directory: playstead-mac
+        run: |
+          if [ -d .build/ci/settings-navigation/evidence ]; then
+            scripts/ci/sanitize-evidence.sh --input .build/ci/settings-navigation --output .build/ci/settings-navigation-sanitized
+          fi
+
       - name: Upload sanitized ordinary Mac failure evidence
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: mac-ordinary-failure-evidence
-          path: playstead-mac/.build/ci/ordinary-failure-evidence
+          path: |
+            playstead-mac/.build/ci/ordinary-failure-evidence
+            playstead-mac/.build/ci/settings-navigation-sanitized
           # A wrapper/setup failure can precede bundle creation. Preserve the
           # original failing step instead of replacing it with an artifact error.
           if-no-files-found: warn

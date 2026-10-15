@@ -23,7 +23,6 @@ final class ControllerDpadRegressionTests: XCTestCase {
 
         let storagePage = harness.element("playstead.surface.storage")
         XCTAssertTrue(storagePage.awaitExistence(timeout: 5), "Settings should open at its Storage landing pane")
-        try harness.recordSettingsNavigationGeometry()
         harness.element("playstead.control.open-controller-settings", type: .radioButton).clickWhenHittable()
         let controllerSettings = harness.element("playstead.surface.controller-settings")
         XCTAssertTrue(controllerSettings.awaitExistence(timeout: 5), "Controller settings did not open")

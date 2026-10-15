@@ -33,7 +33,6 @@ final class MetadataConsentUITests: XCTestCase {
         harness.launch(settledAt: "playstead.surface.library")
         harness.element("playstead.sidebar.settings").clickWhenHittable()
         XCTAssertTrue(app.descendants(matching: .any)["playstead.settings"].awaitExistence(timeout: 5))
-        try harness.recordSettingsNavigationGeometry()
         harness.element("playstead.settings.open.metadata", type: .radioButton).clickWhenHittable()
         let metadata = app.descendants(matching: .any)["playstead.settings.metadata"]
         XCTAssertTrue(metadata.awaitExistence(timeout: 5))
@@ -49,7 +48,6 @@ final class MetadataConsentUITests: XCTestCase {
         let app = harness.app
         harness.launch(settledAt: "playstead.surface.library")
         harness.element("playstead.sidebar.settings").clickWhenHittable()
-        try harness.recordSettingsNavigationGeometry()
         harness.element("playstead.settings.open.metadata").clickWhenHittable()
         let preview = app.buttons["playstead.metadata.consent.preview"]
         XCTAssertTrue(preview.awaitExistence(timeout: 5))
@@ -67,7 +65,6 @@ final class MetadataConsentUITests: XCTestCase {
         app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         harness.launch(settledAt: "playstead.surface.library")
         harness.element("playstead.sidebar.settings").clickWhenHittable()
-        try harness.recordSettingsNavigationGeometry()
         harness.element("playstead.settings.open.metadata").clickWhenHittable()
         let metadata = app.descendants(matching: .any)["playstead.settings.metadata"]
         XCTAssertTrue(metadata.awaitExistence(timeout: 5))

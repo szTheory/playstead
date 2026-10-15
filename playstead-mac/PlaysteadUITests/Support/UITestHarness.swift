@@ -139,14 +139,15 @@ final class UITestHarness {
         app.descendants(matching: type)[identifier]
     }
 
-    /// Finite synthetic-profile geometry only; never serialize an accessibility tree or desktop.
-    func recordSettingsNavigationGeometry() throws {
+    /// Numeric failure geometry only: no text, accessibility tree, screenshots or successful-click delay.
+    static func recordSettingsNavigationTimeout(for timedOutControl: XCUIElement) throws {
+        let app = XCUIApplication()
+        guard app.state != .notRunning, app.windows.firstMatch.exists else { return }
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent(".build/ci/settings-navigation/evidence", isDirectory: true)
         let logs = root.appendingPathComponent("logs", isDirectory: true)
-        let screenshots = root.appendingPathComponent("screenshots", isDirectory: true)
-        for directory in [root, logs, screenshots] {
+        for directory in [root, logs] {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
                                                     attributes: [.posixPermissions: 0o700])
         }
@@ -163,20 +164,23 @@ final class UITestHarness {
                      "hittable": element.isHittable, "enabled": element.isEnabled, "frame": frame(element.frame)]
                 }
         }
-        let record: [String: Any] = ["window": frame(app.windows.firstMatch.frame),
+        let record: [String: Any] = ["window": frame(app.windows.firstMatch.frame), "app_state": app.state.rawValue,
+                                    "timed_out_control_exists": timedOutControl.exists,
+                                    "timed_out_control_hittable": timedOutControl.exists && timedOutControl.isHittable,
                                     "screens": NSScreen.screens.map { frame($0.frame) }, "controls": controls]
         var data = try JSONSerialization.data(withJSONObject: record, options: [.sortedKeys])
         data.append(0x0A)
         let log = logs.appendingPathComponent("app.log")
+        if let size = try? FileManager.default.attributesOfItem(atPath: log.path)[.size] as? NSNumber,
+           size.intValue > 64_000 { return }
         if !FileManager.default.fileExists(atPath: log.path) {
             try Data().write(to: log, options: .atomic)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: log.path)
         }
         let stream = try FileHandle(forWritingTo: log)
         defer { try? stream.close() }
         try stream.seekToEnd()
         try stream.write(contentsOf: data)
-        try app.windows.firstMatch.screenshot().pngRepresentation
-            .write(to: screenshots.appendingPathComponent("synthetic-settings-navigation.png"), options: .atomic)
     }
 
     func require(_ identifiers: [String]) {
@@ -487,7 +491,7 @@ extension XCUIElement {
     /// not on this helper: CI keeps file:line and discards assertion
     /// messages, so a shared helper that owned the line number would make
     /// every stuck click in the suite look like the same defect.
-    func clickWhenHittable(
+    @MainActor func clickWhenHittable(
         timeout: TimeInterval = 10,
         file: StaticString = #filePath,
         line: UInt = #line
@@ -495,8 +499,12 @@ extension XCUIElement {
         if !isHittable {
             let ready = NSPredicate(format: "exists == true AND isHittable == true")
             let settled = XCTNSPredicateExpectation(predicate: ready, object: self)
+            let outcome = XCTWaiter.wait(for: [settled], timeout: timeout)
+            if outcome != .completed {
+                try? UITestHarness.recordSettingsNavigationTimeout(for: self)
+            }
             XCTAssertEqual(
-                XCTWaiter.wait(for: [settled], timeout: timeout),
+                outcome,
                 .completed,
                 "control never became hittable, so the click would have been silently dropped",
                 file: file,
